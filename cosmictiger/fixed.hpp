@@ -10,16 +10,27 @@
 
 #include <cstdint>
 
-template<class>
+template<class >
 class fixed;
 
 using fixed32 = fixed<int32_t>;
 using fixed64 = fixed<int64_t>;
 
+#include <cassert>
+#include <cstdlib>
+
 template<class T>
 class fixed {
    T i;
+   static constexpr float c0 = float(size_t(1) << size_t(32));
+   static constexpr float cinv = 1.f / c0;
 public:
+   inline fixed<T>() = default;
+   inline fixed<T>(float number) {
+      assert(number >= -0.5);
+      assert(number < 0.5);
+      i = c0 * number;
+   }
    inline bool operator>(fixed other) const {
       return i > other.i;
    }

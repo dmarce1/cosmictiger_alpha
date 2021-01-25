@@ -5,14 +5,17 @@
  *      Author: dmarce1
  */
 
+#include <cosmictiger/global.hpp>
 #include <cosmictiger/tests.hpp>
 #include <cosmictiger/timer.hpp>
 #include <cosmictiger/particle_sort.hpp>
 
 static void local_sort_random() {
    timer tm;
-   tm.start();
    particle_set::generate_random_particle_set();
+
+   tm.start();
+   particle_sort::sort(0, global().opts.nparts, 1, fixed32(0.33));
    tm.stop();
    printf("Test took %e seconds.\n", tm.read());
 }

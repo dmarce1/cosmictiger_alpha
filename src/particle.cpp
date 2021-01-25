@@ -45,14 +45,14 @@ void particle_set::destroy() {
 }
 
 int particle_set::index_to_rank(size_t index) {
-   return (index * size_t(hpx_size() + 1)) / global().opts.nparts;
+   return ((index + 1) * size_t(hpx_size())) / global().opts.nparts;
 }
 
 std::pair<size_t, size_t> particle_set::rank_to_range(int rank) {
    const size_t nparts = global().opts.nparts;
    const size_t nranks = hpx_size();
    std::pair < size_t, size_t > rc;
-   rc.first = rank * nparts / nranks;
+   rc.first = (size_t) rank * nparts / (size_t) nranks;
    return rc;
 }
 

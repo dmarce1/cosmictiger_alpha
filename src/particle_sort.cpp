@@ -300,11 +300,11 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
    // Function for the initial binned sort
    const auto initial_sort_func = [&](int j) {
       // Comute start and stop points for this thread
-      const int start = (size_t)j * numparts / (size_t)num_threads;
-      const int stop =(size_t) (j + 1) * numparts /(size_t) num_threads;
+      const int start = (size_t) j * numparts / (size_t) num_threads;
+      const int stop = (size_t)(j + 1) * numparts / (size_t) num_threads;
       // Iterate through this section;
       size_t hi, lo;
-     for (int start = 0; start < stop; start++) {
+      for (int start = 0; start < stop; start++) {
          // start at top and bottom of list
          hi = stop - 1;
          lo = start;
@@ -350,8 +350,8 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
       size_t lo = bin0.middle;
       size_t hi = std::min(bin0.middle + topcnt, bin0.middle + botcnt);
       // compute start and stop for this set
-      const size_t start =(size_t) j * (hi - lo) / (size_t)this_num_threads;
-      const size_t stop = (size_t)(j + 1) * (hi - lo) / (size_t)this_num_threads;
+      const size_t start = (size_t) j * (hi - lo) / (size_t) this_num_threads;
+      const size_t stop = (size_t)(j + 1) * (hi - lo) / (size_t) this_num_threads;
       const size_t lo_start = lo + start;
       const size_t lo_stop = lo + stop;
       // index for first hi particle to be moved
@@ -376,7 +376,7 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
       for (int P = num_threads / 2; P >= 1; P = (P + 1) / 2) {
          ifuts.resize(0);
          next_sort_bins.resize(this_num_threads);
-        // number of threads per swap pair
+         // number of threads per swap pair
          this_num_threads = std::min((int) num_threads, this_num_threads * 2);
          // Iterate on pairs
          for (int i = 0; i < P; i += 2) {
