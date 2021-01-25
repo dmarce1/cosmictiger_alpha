@@ -14,6 +14,7 @@ set(source_files
     src/global.cpp
     src/hpx.cpp
     src/main.cpp
+    src/options.cpp
     src/particle.cpp
     src/particle_sort.cpp
     src/tree.cpp
@@ -24,6 +25,7 @@ set(header_files
 	cosmictiger/global.hpp
 	cosmictiger/hpx.hpp
 	cosmictiger/memory.hpp
+	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
 	cosmictiger/particle_sort.hpp
 	cosmictiger/tree.hpp

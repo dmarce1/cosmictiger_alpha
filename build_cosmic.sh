@@ -25,5 +25,6 @@ cmake -DCMAKE_PREFIX_PATH="$HOME/local/$1/hpx" \
       -DBOOST_ROOT=$HOME/local/boost \
       -DHDF5_ROOT=$HOME/local/hdf5 \
       -DSilo_DIR=$HOME/local/silo \
+      -DHPX_IGNORE_COMPILER_COMPATIBILITY=on \
       ..
 
