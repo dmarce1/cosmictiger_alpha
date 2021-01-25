@@ -42,15 +42,16 @@ std::vector<particle> particle_sort::get_sort_parts(const std::vector<particle> 
          do {
             this_hi++;
             assert(hi_index < parts.size);
-         } while (parts.x[xdim][this_hi] <= xmid);
+         } while (parts.x[xdim][this_hi + parts.offset] <= xmid);
          particle p = lo_parts[j];
+         const size_t i0 = this_hi + parts.offset;
          for (int dim = 0; dim < NDIM; dim++) {
-            swap(p.x[dim], parts.x[dim][this_hi]);
+            swap(p.x[dim], parts.x[dim][i0]);
          }
          for (int dim = 0; dim < NDIM; dim++) {
-            std::swap(p.v[dim], parts.v[dim][this_hi]);
+            std::swap(p.v[dim], parts.v[dim][i0]);
          }
-         std::swap(p.rung, parts.rung[this_hi]);
+         std::swap(p.rung, parts.rung[i0]);
          hi_parts[index++] = p;
       }
    };
@@ -280,17 +281,19 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
    while (used_threads++ < nthread) {
       num_threads++;
    }
-   num_threads=1;
+   num_threads=4;
 
    // function to swap the data for two particles
    const auto swap_parts = [](int i, int j) {
+      const size_t i0 = i + parts.offset;
+      const size_t j0 = j + parts.offset;
       for (int dim = 0; dim < NDIM; dim++) {
-         swap(parts.x[dim][j], parts.x[dim][i]);
+         swap(parts.x[dim][j0], parts.x[dim][i0]);
       }
       for (int dim = 0; dim < NDIM; dim++) {
-         std::swap(parts.v[dim][j], parts.v[dim][i]);
+         std::swap(parts.v[dim][j0], parts.v[dim][i0]);
       }
-      std::swap(parts.rung[j], parts.rung[i]);
+      std::swap(parts.rung[j0], parts.rung[i0]);
    };
 
    const int numparts = end - begin;
@@ -301,31 +304,29 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
    // Function for the initial binned sort
    const auto initial_sort_func = [&](int j) {
       // Comute start and stop points for this thread
-      const int start = (size_t) j * numparts / (size_t) num_threads;
-      const int stop = (size_t)(j + 1) * numparts / (size_t) num_threads;
-      // Iterate through this section;
-      size_t hi, lo;
-      for (int start = 0; start < stop; start++) {
-         // start at top and bottom of list
-         hi = stop - 1;
-         lo = start;
-         // go through list swapping particles hi and lo particles
-         // until sorted
-         while (lo < hi) {
-            if (parts.x[xdim][lo] > xmid) {
-               // find a particle to swap
-               while (parts.x[xdim][hi] > xmid && lo < hi) {
-                  hi--;
-               }
+      const size_t start = (size_t) j * numparts / (size_t) num_threads;
+      const size_t stop = (size_t)(j + 1) * numparts / (size_t) num_threads;
+      int64_t hi, lo;
+      hi = stop - 1;
+      lo = start;
+      // go through list swapping particles hi and lo particles
+      // until sorted
+      while (lo < hi) {
+         if (parts.x[xdim][lo + parts.offset] > xmid) {
+            // find a particle to swap
+            while (parts.x[xdim][hi + parts.offset] > xmid) {
+               hi--;
+            }
+            if (lo < hi) {
                swap_parts(hi, lo);
             }
-            lo++;
          }
+         lo++;
       }
       // Set sort bins data for the next stage of sort
       sort_bins[j].begin = start;
-      sort_bins[j].end = stop;
       sort_bins[j].middle = lo;
+      sort_bins[j].end = stop + 1;
    };
    // Spawn threads for first sort stage
    ifuts.reserve(num_threads - 1);
@@ -366,15 +367,17 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
       // merge sort bins
       next_sort_bins[i0 / 2].begin = bin0.begin;
       next_sort_bins[i0 / 2].end = bin1.end;
-      next_sort_bins[i0 / 2].middle = lo + bin0.middle - bin0.begin + topcnt;
+      next_sort_bins[i0 / 2].middle = bin0.begin + bin0.middle - bin0.begin + topcnt;
 
    };
- //  printf( "%li\n", num_threads);
+   //  printf( "%li\n", num_threads);
    // We only need to reduce the bins if there is more than 1
    if (num_threads > 1) {
       // We are merging pairs of bins, so each merge set is half
       // as big as the last with accounting for odd numbers
-      for (int P = num_threads / 2; P >= 1; P = (P + 1) / 2) {
+      bool done = false;
+      for (int P = num_threads / 2; !done; P = (P + 1) / 2) {
+  //       printf("Merging\n");
          ifuts.resize(0);
          next_sort_bins.resize(this_num_threads);
          // number of threads per swap pair
@@ -394,6 +397,9 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
          // Wait for work then prepare for next iteration
          hpx::wait_all(ifuts.begin(), ifuts.end());
          sort_bins = std::move(next_sort_bins);
+         if (P == 1) {
+            done = true;
+         }
       }
    }
    // free these threads

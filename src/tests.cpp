@@ -15,7 +15,7 @@ static void local_sort_random() {
    particle_set::generate_random_particle_set();
 
    tm.start();
-   particle_sort::sort(0, global().opts.nparts, 1, fixed32(0.33));
+   particle_sort::sort(0, global().opts.nparts, 1, fixed32(0.00));
    tm.stop();
    printf("Test took %e seconds.\n", tm.read());
 }
