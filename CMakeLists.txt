@@ -17,6 +17,8 @@ set(source_files
     src/options.cpp
     src/particle.cpp
     src/particle_sort.cpp
+    src/rand.cpp
+    src/tests.cpp
     src/tree.cpp
 )
 set(header_files
@@ -28,6 +30,8 @@ set(header_files
 	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
 	cosmictiger/particle_sort.hpp
+	cosmictiger/rand.hpp
+	cosmictiger/tests.hpp
 	cosmictiger/tree.hpp
 	cosmictiger/vect3.hpp
 )

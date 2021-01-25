@@ -10,6 +10,12 @@
 
 #include <cstdint>
 
+template<class>
+class fixed;
+
+using fixed32 = fixed<int32_t>;
+using fixed64 = fixed<int64_t>;
+
 template<class T>
 class fixed {
    T i;
@@ -29,6 +35,8 @@ public:
    template<class V>
    friend void swap(fixed<V> &first, fixed<V> &second);
 
+   friend fixed32 rand_fixed32();
+
 };
 
 template<class T>
@@ -37,7 +45,5 @@ inline void swap(fixed<T> &first, fixed<T> &second) {
    second.i ^= first.i;
    first.i ^= second.i;
 }
-
-using fixed32 = fixed<int32_t>;
 
 #endif /* COSMICTIGER_FIXED_HPP_ */

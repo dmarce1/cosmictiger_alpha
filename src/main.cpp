@@ -2,14 +2,23 @@
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/options.hpp>
+#include <cosmictiger/global.hpp>
 
 int hpx_main(int argc, char *argv[]) {
-   if (process_options(argc, argv)) {
+   options opts;
+   if (process_options(argc, argv, opts)) {
       hpx_init();
+      global_init(opts);
       particle_set::create();
+      if (opts.test != "") {
+
+      } else {
+
+      }
 
       particle_set::destroy();
    }
+
    return hpx::finalize();
 }
 

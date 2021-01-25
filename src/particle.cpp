@@ -9,6 +9,7 @@
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/memory.hpp>
 #include <cosmictiger/hpx.hpp>
+#include <cosmictiger/rand.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -16,10 +17,12 @@
 
 particle_set::members_t particle_set::parts;
 
+HPX_PLAIN_ACTION(particle_set::random_particle_set, random_particle_set_action);
+
 void particle_set::create() {
    const auto nranks = hpx_localities().size();
    const auto &myrank = hpx_rank();
-   const size_t &nparts = global().nparts;
+   const size_t &nparts = global().opts.nparts;
    const size_t mystart = myrank * nparts / nranks;
    const size_t mystop = (myrank + 1) * nparts / nranks;
    parts.offset = -mystart;
@@ -42,17 +45,16 @@ void particle_set::destroy() {
 }
 
 int particle_set::index_to_rank(size_t index) {
-   return (index * size_t(hpx_size() + 1)) / global().nparts;
+   return (index * size_t(hpx_size() + 1)) / global().opts.nparts;
 }
 
 std::pair<size_t, size_t> particle_set::rank_to_range(int rank) {
-   const size_t nparts = global().nparts;
+   const size_t nparts = global().opts.nparts;
    const size_t nranks = hpx_size();
    std::pair < size_t, size_t > rc;
    rc.first = rank * nparts / nranks;
    return rc;
 }
-
 
 std::pair<hpx::id_type, hpx::id_type> particle_set::rel_children(size_t begin, size_t end) {
    const auto &localities = hpx_localities();
@@ -73,4 +75,32 @@ std::pair<hpx::id_type, hpx::id_type> particle_set::rel_children(size_t begin, s
    return rc;
 }
 
+void particle_set::random_particle_set() {
+   const auto mychildren = hpx_child_localities();
+   hpx::future<void> left, right;
+   if (mychildren.first != hpx::invalid_id) {
+      left = hpx::async < random_particle_set_action > (mychildren.first);
+   }
+   if (mychildren.first != hpx::invalid_id) {
+      right = hpx::async < random_particle_set_action > (mychildren.second);
+   }
+   for (size_t i =0; i < parts.size; i++) {
+      size_t index = i + parts.offset;
+      for (int dim = 0; dim < NDIM; dim++) {
+         parts.x[dim][index] = rand_fixed32();
+      }
+      for (int dim = 0; dim < NDIM; dim++) {
+         parts.v[dim][index] = 0.f;
+      }
+      parts.rung[index] = 0;
+   }
+
+   if (left.valid()) {
+      left.get();
+   }
+   if (right.valid()) {
+      right.get();
+   }
+
+}
 
