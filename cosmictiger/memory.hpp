@@ -12,7 +12,7 @@
 
 #define MEM_CHECK_POINTER(ptr,file,line)                          \
 	if( !ptr ) {                            						      \
-		printf( "Out of MEM. File: %s Line %i\n", file, line); 	   \
+		printf( "Out of memory. File: %s Line %i\n", file, line); 	   \
 		abort();													               \
 	}
 

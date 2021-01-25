@@ -280,6 +280,7 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
    while (used_threads++ < nthread) {
       num_threads++;
    }
+   num_threads=1;
 
    // function to swap the data for two particles
    const auto swap_parts = [](int i, int j) {
@@ -313,10 +314,10 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
          while (lo < hi) {
             if (parts.x[xdim][lo] > xmid) {
                // find a particle to swap
-               while (parts.x[xdim][hi] > xmid) {
+               while (parts.x[xdim][hi] > xmid && lo < hi) {
                   hi--;
-                  swap_parts(hi, lo);
                }
+               swap_parts(hi, lo);
             }
             lo++;
          }
@@ -368,7 +369,7 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
       next_sort_bins[i0 / 2].middle = lo + bin0.middle - bin0.begin + topcnt;
 
    };
-
+ //  printf( "%li\n", num_threads);
    // We only need to reduce the bins if there is more than 1
    if (num_threads > 1) {
       // We are merging pairs of bins, so each merge set is half
@@ -404,7 +405,7 @@ size_t particle_sort::sort(size_t begin, size_t end, int dim, fixed32 xmid) {
    sort_action remote;
    size_t mid;
    const int myrank = hpx_rank();
-   if (index_to_rank(begin) != myrank || index_to_rank(end) != myrank) {
+   if (index_to_rank(begin) != myrank || index_to_rank(end - 1) != myrank) {
       if (begin < -parts.offset || begin >= -parts.offset + parts.size) {
          mid = remote(hpx_localities()[index_to_rank(begin)], begin, end, dim, xmid);
       } else {

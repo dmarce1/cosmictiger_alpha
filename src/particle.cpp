@@ -45,7 +45,10 @@ void particle_set::destroy() {
 }
 
 int particle_set::index_to_rank(size_t index) {
-   return ((index + 1) * size_t(hpx_size())) / global().opts.nparts;
+   const int result = ((index + (size_t) 1) * (size_t) hpx_size()) / (global().opts.nparts + (size_t) 1);
+   assert(index >= rank_to_range(result).first);
+   assert(index < rank_to_range(result).second);
+   return result;
 }
 
 std::pair<size_t, size_t> particle_set::rank_to_range(int rank) {
@@ -53,6 +56,7 @@ std::pair<size_t, size_t> particle_set::rank_to_range(int rank) {
    const size_t nranks = hpx_size();
    std::pair < size_t, size_t > rc;
    rc.first = (size_t) rank * nparts / (size_t) nranks;
+   rc.second = (size_t)(rank + 1) * nparts / (size_t) nranks;
    return rc;
 }
 
@@ -84,7 +88,7 @@ void particle_set::generate_random_particle_set() {
    if (mychildren.first != hpx::invalid_id) {
       right = hpx::async < generate_random_particle_set_action > (mychildren.second);
    }
-   for (size_t i =0; i < parts.size; i++) {
+   for (size_t i = 0; i < parts.size; i++) {
       size_t index = i + parts.offset;
       for (int dim = 0; dim < NDIM; dim++) {
          parts.x[dim][index] = rand_fixed32();

@@ -21,6 +21,7 @@ void hpx_init() {
    myrank = hpx::get_locality_id();
    left = ((myrank + 1) << 1) - 1;
    right = ((myrank + 1) << 1);
+   hpx_size_ = localities.size();
    if (left < hpx_size_) {
       mychildren.first = localities[left];
    }
