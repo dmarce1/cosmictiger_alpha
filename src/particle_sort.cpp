@@ -23,7 +23,7 @@ std::atomic<size_t> particle_sort::hi_index;
 
 std::vector<particle> particle_sort::get_sort_parts(const std::vector<particle> &lo_parts, int xdim, fixed32 xmid) {
 
-   const int nthread = std::thread::hardware_concurrency();
+   const int nthread = hpx::thread::hardware_concurrency();
    std::vector<particle> hi_parts;
    std::vector<hpx::future<void>> futs;
    std::atomic < size_t > index;
@@ -64,7 +64,7 @@ std::vector<particle> particle_sort::get_sort_parts(const std::vector<particle> 
 }
 
 std::vector<particle_sort::count_t> particle_sort::get_count(size_t begin, size_t end, int dim, fixed32 xmid) {
-   const int nthread = std::thread::hardware_concurrency();
+   const int nthread = hpx::thread::hardware_concurrency();
    hpx::future<std::vector<count_t>> count_left, count_right;
    std::vector<count_t> counts;
    std::vector<hpx::future<void>> futs;
@@ -121,7 +121,7 @@ std::vector<particle_sort::count_t> particle_sort::get_count(size_t begin, size_
 }
 
 size_t particle_sort::remote_sort(std::vector<count_t> counts, size_t begin, size_t end, int xdim, fixed32 xmid) {
-   const int nthread = std::thread::hardware_concurrency();
+   const int nthread = hpx::thread::hardware_concurrency();
    const auto children = rel_children(begin, end);
    const auto &localities = hpx_localities();
    const int group_start = index_to_rank(begin);
@@ -271,7 +271,7 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
       size_t begin, middle, end;
    };
 
-   const int nthread = std::thread::hardware_concurrency();
+   const int nthread = hpx::thread::hardware_concurrency();
    static std::atomic<int> used_threads(0);
 
    // compute numer of threads for this call

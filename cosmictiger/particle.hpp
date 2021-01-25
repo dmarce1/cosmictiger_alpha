@@ -47,7 +47,7 @@ public:
    inline particle_set() {
       mems = nullptr;
    }
-   static void random_particle_set();
+   static void generate_random_particle_set();
    static void create();
    static void destroy();
 };

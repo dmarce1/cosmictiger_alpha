@@ -37,9 +37,9 @@
 #define CUDA_MALLOC(ptr,nele) cuda_malloc(&ptr,nele,__FILE__,__LINE__)
 
 template<class T>
-void cuda_malloc(T *ptr, int64_t nele, const char *file, int line) {
-   const auto ec = cudaMallocManaged(&ptr, nele * sizeof(T));
-   MEM_CHECK_POINTER(ptr, file, line);
+void cuda_malloc(T **ptr, int64_t nele, const char *file, int line) {
+   const auto ec = cudaMallocManaged(ptr, nele * sizeof(T));
+   MEM_CHECK_POINTER(*ptr, file, line);
    MEM_CHECK_ERROR(ec, file, line);
 }
 

@@ -31,6 +31,7 @@ set(header_files
 	cosmictiger/particle.hpp
 	cosmictiger/particle_sort.hpp
 	cosmictiger/rand.hpp
+	cosmictiger/timer.hpp
 	cosmictiger/tests.hpp
 	cosmictiger/tree.hpp
 	cosmictiger/vect3.hpp

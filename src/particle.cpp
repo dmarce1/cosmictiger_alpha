@@ -17,7 +17,7 @@
 
 particle_set::members_t particle_set::parts;
 
-HPX_PLAIN_ACTION(particle_set::random_particle_set, random_particle_set_action);
+HPX_PLAIN_ACTION(particle_set::generate_random_particle_set, generate_random_particle_set_action);
 
 void particle_set::create() {
    const auto nranks = hpx_localities().size();
@@ -75,14 +75,14 @@ std::pair<hpx::id_type, hpx::id_type> particle_set::rel_children(size_t begin, s
    return rc;
 }
 
-void particle_set::random_particle_set() {
+void particle_set::generate_random_particle_set() {
    const auto mychildren = hpx_child_localities();
    hpx::future<void> left, right;
    if (mychildren.first != hpx::invalid_id) {
-      left = hpx::async < random_particle_set_action > (mychildren.first);
+      left = hpx::async < generate_random_particle_set_action > (mychildren.first);
    }
    if (mychildren.first != hpx::invalid_id) {
-      right = hpx::async < random_particle_set_action > (mychildren.second);
+      right = hpx::async < generate_random_particle_set_action > (mychildren.second);
    }
    for (size_t i =0; i < parts.size; i++) {
       size_t index = i + parts.offset;

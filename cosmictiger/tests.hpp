@@ -10,6 +10,8 @@
 
 #include <string>
 
+void test_run(const std::string test);
+
 
 
 

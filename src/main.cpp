@@ -3,6 +3,7 @@
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/options.hpp>
 #include <cosmictiger/global.hpp>
+#include <cosmictiger/tests.hpp>
 
 int hpx_main(int argc, char *argv[]) {
    options opts;
@@ -11,7 +12,7 @@ int hpx_main(int argc, char *argv[]) {
       global_init(opts);
       particle_set::create();
       if (opts.test != "") {
-
+         test_run(opts.test);
       } else {
 
       }
