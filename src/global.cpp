@@ -10,16 +10,17 @@
 
 HPX_PLAIN_ACTION (global_init);
 
-void global_init(options opts) {
+void global_init(options opts, cuda_properties cuda) {
    const auto mychildren = hpx_child_localities();
    hpx::future<void> left, right;
    if (mychildren.first != hpx::invalid_id) {
-      left = hpx::async < global_init_action > (mychildren.first, opts);
+      left = hpx::async < global_init_action > (mychildren.first, opts, cuda);
    }
    if (mychildren.first != hpx::invalid_id) {
-      right = hpx::async < global_init_action > (mychildren.second, opts);
+      right = hpx::async < global_init_action > (mychildren.second, opts, cuda);
    }
    global().opts = opts;
+   global().cuda = cuda;
    if (left.valid()) {
       left.get();
    }

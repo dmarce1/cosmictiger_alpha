@@ -9,7 +9,7 @@
 #define COSMICTIGER_PARTICLE_SORT_HPP_
 
 #include <cosmictiger/particle.hpp>
-
+/*
 class particle_sort: public particle_set {
    struct count_t {
       size_t lo;
@@ -34,5 +34,5 @@ public:
    static size_t local_sort(size_t,size_t,int,fixed32);
 
 };
-
+*/
 #endif /* COSMICTIGER_PARTICLE_SORT_HPP_ */

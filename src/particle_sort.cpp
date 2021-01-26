@@ -12,7 +12,9 @@
  *      Author: dmarce1
  */
 
-#include "../cosmictiger/particle_sort.hpp"
+#include <cosmictiger/particle_sort.hpp>
+#include <cosmictiger/timer.hpp>
+
 
 HPX_PLAIN_ACTION(particle_sort::sort, sort_action);
 HPX_PLAIN_ACTION(particle_sort::get_count, get_count_action);
@@ -266,14 +268,114 @@ size_t particle_sort::remote_sort(std::vector<count_t> counts, size_t begin, siz
  *
  */
 size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmid) {
+   /*const int nthread = hpx::thread::hardware_concurrency();
+    static std::atomic<int> used_threads(0);
 
+    // Find number of free threads
+    int num_threads = 0;
+    used_threads++;
+    while (used_threads++ < nthread) {
+    num_threads++;
+    }
+
+    std::vector<hpx::future<void>> futs;
+    std::vector < hpx::future < size_t >> ifuts;
+
+    // Count number of low particles
+    printf( "Count\n");
+    const auto count_func = [&](int j) {
+    size_t locnt = 0;
+    for (int i = begin + j; j < end; j += num_threads) {
+    if (parts.x[xdim][i + parts.offset] <= xmid) {
+    locnt++;
+    }
+    }
+    return locnt;
+    };
+    for (int i = 1; i < num_threads; i++) {
+    ifuts.push_back(hpx::async(count_func, i));
+    }
+    size_t locnt = count_func(0);
+    for (auto &f : ifuts) {
+    locnt += f.get();
+    }
+
+    size_t mid = begin + locnt;
+    std::vector < size_t > lo_indices;
+    std::vector < size_t > hi_indices;
+    hpx::lcos::local::mutex mtx;
+    // Function to find all lo parts that are in the hi section
+    const auto find_lo = [&](int j) {
+    std::vector < size_t > indices;
+    for (int i =  mid + j; i < end; i += num_threads) {
+    if (parts.x[xdim][i + parts.offset] <= xmid) {
+    indices.push_back(i);
+    }
+    }
+    std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
+    lo_indices.insert(lo_indices.end(), indices.begin(), indices.end());
+    };
+    // Function to find all hi parts that are in the lo section
+    const auto find_hi = [&](int j) {
+    std::vector < size_t > indices;
+    for (int i = begin + j; i < mid; i += num_threads) {
+    if (parts.x[xdim][i + parts.offset] > xmid) {
+    indices.push_back(i);
+    }
+    }
+    std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
+    hi_indices.insert(hi_indices.end(), indices.begin(), indices.end());
+    };
+    printf( "Find lo\n");
+    // Find all low and hi indices that need swapping
+    for (int i = 1; i < num_threads; i++) {
+    futs.push_back(hpx::async(find_lo, i));
+    }
+    find_lo(0);
+    hpx::wait_all(futs.begin(), futs.end());
+    futs.resize(0);
+    printf( "Find hi\n");
+    for (int i = 1; i < num_threads; i++) {
+    futs.push_back(hpx::async(find_hi, i));
+    }
+    find_hi(0);
+    hpx::wait_all(futs.begin(), futs.end());
+
+    // Swap the particles
+    printf( "Swap %li %li\n", lo_indices.size(), hi_indices.size());
+    const auto swap_parts = [&](int j) {
+    size_t lo, hi;
+    lo = j;
+    hi = lo_indices.size() - size_t(1 + j);
+    while (lo < hi_indices.size()) {
+    const size_t i0 = lo_indices[hi] + parts.offset;
+    const size_t i1 = hi_indices[lo] + parts.offset;
+    for (int dim = 0; dim < NDIM; dim++) {
+    swap(parts.x[dim][i0], parts.x[dim][i1]);
+    }
+    for (int dim = 0; dim < NDIM; dim++) {
+    std::swap(parts.v[dim][i0], parts.v[dim][i1]);
+    }
+    std::swap(parts.rung[i0], parts.rung[i1]);
+    hi -= num_threads;
+    lo += num_threads;
+    }
+    };
+    for (int i = 1; i < num_threads; i++) {
+    futs.push_back(hpx::async(swap_parts, i));
+    }
+    swap_parts(0);
+    hpx::wait_all(futs.begin(), futs.end());
+
+    return mid;
+
+    */
    // struc for sorting bins
+   int nthread = hpx::thread::hardware_concurrency();
+   static std::atomic<int> used_threads(0);
    struct bin_t {
       size_t begin, middle, end;
    };
-
-   const int nthread = hpx::thread::hardware_concurrency();
-   static std::atomic<int> used_threads(0);
 
    // compute numer of threads for this call
    int num_threads = 0;
@@ -300,6 +402,8 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
    std::vector<bin_t> next_sort_bins(num_threads);
    std::vector<hpx::future<void>> ifuts;
 
+   timer tm;
+   tm.start();
    // Function for the initial binned sort
    const auto initial_sort_func = [&](int j) {
       // Comute start and stop points for this thread
@@ -335,7 +439,10 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
    // Work for thread = 0 and wait for rest
    initial_sort_func(0);
    hpx::wait_all(ifuts.begin(), ifuts.end());
-
+   tm.stop();
+   printf( "Sort phase 1 took %e s\n", tm.read());
+   tm.reset();
+   tm.start();
    // number of threads per section for next stage
    int this_num_threads = 1;
 
@@ -376,7 +483,7 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
       // as big as the last with accounting for odd numbers
       bool done = false;
       for (int P = num_threads / 2; !done; P = (P + 1) / 2) {
-  //       printf("Merging\n");
+         //       printf("Merging\n");
          ifuts.resize(0);
          next_sort_bins.resize(this_num_threads);
          // number of threads per swap pair
@@ -401,6 +508,8 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
          }
       }
    }
+   tm.stop();
+   printf( "Sort phase 2 took %e seconds\n", tm.read());
    // free these threads
    used_threads -= num_threads;
    return sort_bins[0].middle;

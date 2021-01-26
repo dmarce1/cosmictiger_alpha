@@ -94,7 +94,7 @@ void particle_set::generate_random_particle_set() {
          fixed32 x = rand_fixed32();
          if (dim == 1) {
             bool coin = i + parts.offset > global().opts.nparts / 2;
-            if( rand_float() < 0.5) {
+            if( rand_float() < 0.01) {
                coin = !coin;
             }
             if (coin) {

@@ -16,6 +16,9 @@ public:
    inline void start() {
       this_time = clock() * cpsinv;
    }
+   inline void reset() {
+      time = 0.0;
+   }
    inline double read() {
       return time;
    }

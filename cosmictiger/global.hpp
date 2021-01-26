@@ -9,15 +9,17 @@
 #define COSMICTIGER_GLOBAL_HPP_
 
 #include <cosmictiger/options.hpp>
+#include <cosmictiger/cuda.hpp>
 
 #include <cstdint>
 
 struct global_t {
    options opts;
+   cuda_properties cuda;
 };
 
 
-void global_init(options opts);
+void global_init(options opts, cuda_properties cuda);
 global_t& global();
 
 #endif /* COSMICTIGER_GLOBAL_HPP_ */

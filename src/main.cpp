@@ -9,7 +9,8 @@ int hpx_main(int argc, char *argv[]) {
    options opts;
    if (process_options(argc, argv, opts)) {
       hpx_init();
-      global_init(opts);
+      const auto cuda = cuda_init();
+      global_init(opts, cuda);
       particle_set::create();
       if (opts.test != "") {
          test_run(opts.test);

@@ -10,7 +10,10 @@
 
 #include <cosmictiger/fixed.hpp>
 #include <cosmictiger/vect3.hpp>
+
+#ifndef __CUDACC__
 #include <cosmictiger/hpx.hpp>
+#endif
 
 #include <array>
 #include <atomic>
@@ -42,7 +45,9 @@ protected:
    static members_t parts;
    static int index_to_rank(size_t);
    static std::pair<size_t,size_t> rank_to_range(int);
+#ifndef __CUDACC__
    static std::pair<hpx::id_type, hpx::id_type> rel_children(size_t, size_t);
+#endif
 public:
    inline particle_set() {
       mems = nullptr;
