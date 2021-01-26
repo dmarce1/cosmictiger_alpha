@@ -27,12 +27,40 @@ class fixed {
    static constexpr float cinv = 1.f / c0;
 public:
    CUDA_EXPORT
+   inline static fixed<T> max() {
+      fixed<T> num;
+      if (sizeof(T) == sizeof(float)) {
+         num.i = 0x7FFFFFFF;
+      } else if (sizeof(T) == sizeof(double)) {
+         num.i = 0x7FFFFFFFFFFFFFFFLL;
+      }
+      return num;
+   }
+   inline static fixed<T> min() {
+      fixed<T> num;
+      if (sizeof(T) == sizeof(float)) {
+         num.i = 0xFFFFFFFF;
+      } else if (sizeof(T) == sizeof(double)) {
+         num.i = 0xFFFFFFFFFFFFFFFFLL;
+      }
+      return num;
+   }
+   CUDA_EXPORT
    inline fixed<T>() = default;
    CUDA_EXPORT
-   inline fixed<T>(float number) {
+   inline
+#ifdef NDEBUG
+   constexpr
+#endif
+   fixed<T>(float number) :
+         i(c0 * number) {
       assert(number >= -0.5);
       assert(number < 0.5);
-      i = c0 * number;
+   }
+   template<class V>
+   CUDA_EXPORT
+   inline constexpr fixed<T>(fixed<V> other) :
+         i(other.i) {
    }
    CUDA_EXPORT
    inline bool operator<(fixed other) const {
@@ -60,14 +88,53 @@ public:
    }
    CUDA_EXPORT
    inline float to_float() const {
-       return i * cinv;
+      return i * cinv;
 
    }
    CUDA_EXPORT
    inline double to_double() const {
-       return i * cinv;
+      return i * cinv;
 
-    }
+   }
+   CUDA_EXPORT
+   inline fixed<T> operator*(const fixed<T> &other) const {
+      int64_t a;
+      const int64_t b = i;
+      const int64_t c = other.i;
+      a = (b * c) >> (sizeof(float) * CHAR_BIT);
+      fixed<T> res;
+      res.i = (T) a;
+      return res;
+   }
+   CUDA_EXPORT
+   inline fixed<T> operator*=(const fixed<T> &other) const {
+      int64_t a;
+      const int64_t b = i;
+      const int64_t c = other.i;
+      a = (b * c) >> (sizeof(float) * CHAR_BIT);
+      i = (T) a;
+      return *this;
+   }
+   CUDA_EXPORT
+   inline fixed<T> operator/(const fixed<T> &other) const {
+      int64_t a;
+      const int64_t b = i;
+      const int64_t c = other.i;
+      a = b / (c >> (sizeof(float) * CHAR_BIT));
+      fixed<T> res;
+      res.i = (T) a;
+      return res;
+   }
+   CUDA_EXPORT
+   inline fixed<T> operator/=(const fixed<T> &other) const {
+      int64_t a;
+      const int64_t b = i;
+      const int64_t c = other.i;
+      a = b / (c >> (sizeof(float) * CHAR_BIT));
+      i = (T) a;
+      return *this;
+   }
+
    CUDA_EXPORT
    inline fixed<T> operator+(const fixed<T> &other) const {
       fixed<T> a;
@@ -95,6 +162,9 @@ public:
    void serialize(A &arc, unsigned) {
       arc & i;
    }
+
+   template<class>
+   friend class fixed;
 
    template<class V>
    friend void swap(fixed<V> &first, fixed<V> &second);

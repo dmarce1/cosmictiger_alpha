@@ -32,7 +32,6 @@ set(cosmictiger_source_files
     src/options.cpp
     src/particle.cpp
     src/particle_sort.cpp
-    src/particle_sort.cu
     src/rand.cpp
     src/tests.cpp
     src/tree.cpp
@@ -69,10 +68,10 @@ set(cosmictiger_header_files
 	cosmictiger/particle.hpp
 	cosmictiger/particle_sort.hpp
 	cosmictiger/rand.hpp
+	cosmictiger/range.hpp
 	cosmictiger/timer.hpp
 	cosmictiger/tests.hpp
 	cosmictiger/tree.hpp
-	cosmictiger/vect3.hpp
 )
 
 
@@ -85,7 +84,8 @@ add_hpx_executable(
   HEADERS
     ${cosmictiger_header_files}
  )
-
+ 
+target_link_libraries(cosmictiger PUBLIC cuda cudart)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
