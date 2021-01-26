@@ -17,6 +17,7 @@ static void local_sort_random() {
 
    tm.start();
    const auto xmid = particle_set::sort(0, global().opts.nparts, 1, 0.0);
+   tm.stop();
    printf("Test took %e seconds.\n", tm.read());
    const auto parts = particle_set::local_particle_set();
 
@@ -25,11 +26,11 @@ static void local_sort_random() {
    for (int i = 0; i < global().opts.nparts; i++) {
       const auto x = parts.get_x(i, 1);
       if (x > fixed32(0) && i < xmid) {
-         printf("hi in lo %e %e\n", x.to_float(), 0.0f);
+         printf("hi in lo %e %e %i %i\n", x.to_float(), 0.0f, i, xmid);
          success = false;
          break;
       } else if (x < fixed32(0) && i >= xmid) {
-         printf("lo in hi %e %e\n", x.to_float(), 0.0f);
+         printf("lo in hi %e %e %i %i\n", x.to_float(), 0.0f, i, xmid);
          success = false;
          break;
       }
@@ -40,7 +41,6 @@ static void local_sort_random() {
       printf("Failed\n");
    }
 
-   tm.stop();
 }
 
 void test_run(const std::string test) {

@@ -31,6 +31,7 @@ set(cosmictiger_source_files
     src/main.cpp
     src/options.cpp
     src/particle.cpp
+    src/particle.cu
     src/particle_sort.cpp
     src/rand.cpp
     src/tests.cpp

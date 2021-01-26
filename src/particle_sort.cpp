@@ -12,6 +12,4 @@
  *      Author: dmarce1
  */
 
-#include <cosmictiger/memory.hpp>
-#include <cosmictiger/particle_sort.hpp>
-#include <cosmictiger/timer.hpp>
+

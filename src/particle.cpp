@@ -5,9 +5,9 @@
  *      Author: dmarce1
  */
 
-#include <cosmictiger/global.hpp>
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/memory.hpp>
+#include <cosmictiger/global.hpp>
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/rand.hpp>
 
@@ -18,6 +18,10 @@
 particle_set particle_set::parts;
 
 HPX_PLAIN_ACTION(particle_set::generate_random_particle_set, generate_random_particle_set_action);
+HPX_PLAIN_ACTION(particle_set::sort, sort_action);
+HPX_PLAIN_ACTION(particle_set::get_count, get_count_action);
+HPX_PLAIN_ACTION(particle_set::remote_sort, remote_sort_action);
+HPX_PLAIN_ACTION(particle_set::get_sort_parts, get_sort_parts_action);
 
 fixed32 particle_set::get_x(size_t i, int dim) const {
    return x[dim][i + offset];
@@ -27,23 +31,6 @@ particle_set particle_set::local_particle_set() {
    particle_set ps = parts;
    ps.virtual_ = false;
    return ps;
-}
-
-void particle_set::create() {
-   const auto nranks = hpx_localities().size();
-   const auto &myrank = hpx_rank();
-   const size_t &nparts = global().opts.nparts;
-   const size_t mystart = myrank * nparts / nranks;
-   const size_t mystop = (myrank + 1) * nparts / nranks;
-   parts.offset = -mystart;
-   parts.size = mystop - mystart;
-   parts.virtual_ = false;
-   for (int dim = 0; dim < NDIM; dim++) {
-      CUDA_MALLOC(parts.x[dim], nparts);
-      CUDA_MALLOC(parts.v[dim], nparts);
-   }
-   CUDA_MALLOC(parts.rung, nparts);
-   parts.size = nparts;
 }
 
 void particle_set::destroy() {
@@ -136,11 +123,6 @@ void particle_set::generate_random_particle_set() {
    }
 
 }
-
-HPX_PLAIN_ACTION(particle_set::sort, sort_action);
-HPX_PLAIN_ACTION(particle_set::get_count, get_count_action);
-HPX_PLAIN_ACTION(particle_set::remote_sort, remote_sort_action);
-HPX_PLAIN_ACTION(particle_set::get_sort_parts, get_sort_parts_action);
 
 std::atomic<size_t> particle_set::hi_index;
 
@@ -434,23 +416,27 @@ size_t particle_set::local_sort(size_t begin, size_t end, int xdim, fixed32 xmid
       int64_t hi, lo;
       hi = stop - 1;
       lo = start;
- //     printf( "%li %li\n", hi, lo);
+      //     printf( "%li %li\n", hi, lo);
       // go through list swapping particles hi and lo particles
       // until sorted
-      while (lo < hi) {
-         if (parts.x[xdim][lo + parts.offset] > xmid) {
-            while (lo != hi) {
-               hi--;
-               if (parts.x[xdim][hi + parts.offset] <= xmid) {
-                  swap_parts(hi, lo);
-                  break;
+      if (hi - lo > 1) {
+         while (lo < hi) {
+            if (parts.x[xdim][lo + parts.offset] > xmid) {
+               while (lo != hi) {
+                  hi--;
+                  if (parts.x[xdim][hi + parts.offset] <= xmid) {
+                     swap_parts(hi, lo);
+                     break;
+                  }
                }
             }
+            lo++;
          }
-         lo++;
+      } else {
+         hi++;
       }
       sort_bins[j].begin = start;
-      sort_bins[j].middle = lo;
+      sort_bins[j].middle = hi;
       sort_bins[j].end = stop + 1;
    };
    // Spawn threads for first sort stage
