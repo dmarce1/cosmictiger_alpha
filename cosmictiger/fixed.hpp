@@ -9,6 +9,7 @@
 #define COSMICTIGER_FIXED_HPP_
 
 #include <cstdint>
+#include <limits>
 #include <cosmictiger/cuda.hpp>
 
 template<class >
@@ -29,20 +30,12 @@ public:
    CUDA_EXPORT
    inline static fixed<T> max() {
       fixed<T> num;
-      if (sizeof(T) == sizeof(float)) {
-         num.i = 0x7FFFFFFF;
-      } else if (sizeof(T) == sizeof(double)) {
-         num.i = 0x7FFFFFFFFFFFFFFFLL;
-      }
+      num.i = std::numeric_limits<T>::max();
       return num;
    }
    inline static fixed<T> min() {
       fixed<T> num;
-      if (sizeof(T) == sizeof(float)) {
-         num.i = 0xFFFFFFFF;
-      } else if (sizeof(T) == sizeof(double)) {
-         num.i = 0xFFFFFFFFFFFFFFFFLL;
-      }
+      num.i = std::numeric_limits<T>::min();
       return num;
    }
    CUDA_EXPORT
@@ -176,9 +169,7 @@ public:
 template<class T>
 CUDA_EXPORT
 inline void swap(fixed<T> &first, fixed<T> &second) {
-   first.i ^= second.i;
-   second.i ^= first.i;
-   first.i ^= second.i;
+   std::swap(first,second);
 }
 
 #endif /* COSMICTIGER_FIXED_HPP_ */

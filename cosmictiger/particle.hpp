@@ -56,6 +56,7 @@ class particle_set {
 public:
    inline particle_set() = default;
    fixed32 get_x(size_t index, int dim) const;
+   std::array<fixed32,NDIM> get_x(size_t index) const;
    static particle_set local_particle_set();
    static int index_to_rank(size_t);
    static void generate_random_particle_set();

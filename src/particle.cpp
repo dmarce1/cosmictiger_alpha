@@ -23,6 +23,15 @@ HPX_PLAIN_ACTION(particle_set::get_count, get_count_action);
 HPX_PLAIN_ACTION(particle_set::remote_sort, remote_sort_action);
 HPX_PLAIN_ACTION(particle_set::get_sort_parts, get_sort_parts_action);
 
+std::array<fixed32, NDIM> particle_set::get_x(size_t i) const {
+   std::array<fixed32, NDIM> X;
+   for (int dim = 0; dim < NDIM; dim++) {
+      X[dim] = x[dim][i + offset];
+//      printf( "%e\n", X[dim].to_float());
+   }
+   return X;
+}
+
 fixed32 particle_set::get_x(size_t i, int dim) const {
    return x[dim][i + offset];
 }
@@ -371,26 +380,13 @@ size_t particle_set::remote_sort(std::vector<count_t> counts, size_t begin, size
  *
  */
 size_t particle_set::local_sort(size_t begin, size_t end, int xdim, fixed32 xmid) {
-   // struc for sorting bins
-   struct bin_t {
-      size_t begin, middle, end;
-   };
+   int64_t hi, lo;
+   hi = end - 1;
+   lo = begin;
+   //     printf( "%li %li\n", hi, lo);
+   // go through list swapping particles hi and lo particles
+   // until sorted
 
-   const int nthread = hpx::thread::hardware_concurrency();
-   static std::atomic<int> used_threads(0);
-
-   // compute numer of threads for this call
-   int num_threads = 0;
-#ifdef LOCAL_SORT_PARALLEL
-   used_threads++;
-   while (used_threads++ < nthread) {
-      num_threads++;
-   }
-#else
-   num_threads = 1;
-#endif
-
-   // function to swap the data for two particles
    const auto swap_parts = [](int i, int j) {
       const size_t i0 = i + parts.offset;
       const size_t j0 = j + parts.offset;
@@ -403,31 +399,22 @@ size_t particle_set::local_sort(size_t begin, size_t end, int xdim, fixed32 xmid
       std::swap(parts.rung[j0], parts.rung[i0]);
    };
 
-   const int numparts = end - begin;
-   std::vector<bin_t> sort_bins(num_threads);
-   std::vector<bin_t> next_sort_bins(num_threads);
-   std::vector<hpx::future<void>> ifuts;
-
-   // Function for the initial binned sort
-   const auto initial_sort_func = [&](int j) {
-      // Comute start and stop points for this thread
-      const size_t start = (size_t) j * numparts / (size_t) num_threads;
-      const size_t stop = (size_t)(j + 1) * numparts / (size_t) num_threads;
-      int64_t hi, lo;
-      hi = stop - 1;
-      lo = start;
-      //     printf( "%li %li\n", hi, lo);
-      // go through list swapping particles hi and lo particles
-      // until sorted
-      if (hi - lo > 1) {
-         while (lo != hi) {
-            while (parts.x[xdim][lo + parts.offset] <= xmid && lo != hi) {
-               lo++;
-            }
-            while (parts.x[xdim][hi + parts.offset] > xmid && lo != hi) {
-               hi--;
-            }
-            swap_parts(hi, lo);
+   for (int i = lo; i <= hi; i++) {
+      if (parts.x[xdim][i + parts.offset].to_float() == 0.0)
+         printf("-------------------\n");
+   }
+   size_t mid = lo;
+   if (hi - lo > 1) {
+      while (lo != hi) {
+         while (parts.x[xdim][lo + parts.offset] <= xmid && lo != hi) {
+            lo++;
+         }
+         while (parts.x[xdim][hi + parts.offset] > xmid && lo != hi) {
+            hi--;
+         }
+         swap_parts(hi, lo);
+         mid = hi;
+         if (lo != hi) {
             while (parts.x[xdim][hi + parts.offset] > xmid && lo != hi) {
                hi--;
             }
@@ -435,91 +422,17 @@ size_t particle_set::local_sort(size_t begin, size_t end, int xdim, fixed32 xmid
                lo++;
             }
             swap_parts(hi, lo);
+            mid = hi + 1;
          }
-      } else {
+      }
+
+   } else {
+      if (parts.x[xdim][lo + parts.offset] < xmid) {
          hi++;
       }
-      sort_bins[j].begin = start;
-      sort_bins[j].middle = hi;
-      sort_bins[j].end = stop + 1;
-   };
-   // Spawn threads for first sort stage
-   ifuts.reserve(num_threads - 1);
-   for (int i = 1; i < num_threads; i++) {
-      ifuts.push_back(hpx::async(initial_sort_func, i));
+      mid = hi;
    }
-   // Work for thread = 0 and wait for rest
-   initial_sort_func(0);
-   hpx::wait_all(ifuts.begin(), ifuts.end());
-
-   // number of threads per section for next stage
-   int this_num_threads = 1;
-
-   // merge pairs of sort bins
-   const auto merge_sort_pairs = [&](int i0, int i1, int j) {
-      const auto &bin0 = sort_bins[i0];
-      const auto &bin1 = sort_bins[i1];
-      // number of lo particles in hi bin
-      const size_t topcnt = bin1.middle - bin1.begin;
-      // number of hi partiles in lo bin
-      const size_t botcnt = bin0.end - bin0.middle;
-      // Compute start and stop for the entire set
-      size_t lo = bin0.middle;
-      size_t hi = std::min(bin0.middle + topcnt, bin0.middle + botcnt);
-      // compute start and stop for this set
-      const size_t start = (size_t) j * (hi - lo) / (size_t) this_num_threads;
-      const size_t stop = (size_t)(j + 1) * (hi - lo) / (size_t) this_num_threads;
-      const size_t lo_start = lo + start;
-      const size_t lo_stop = lo + stop;
-      // index for first hi particle to be moved
-      hi = bin1.middle - (stop - start);
-      // go through list swapping particles from hi particles in the lo bin with
-      // lo particles top hi bin
-      for (lo = lo_start; lo < lo_stop; lo++) {
-         swap_parts(lo, hi);
-         hi++;
-      }
-      // merge sort bins
-      next_sort_bins[i0 / 2].begin = bin0.begin;
-      next_sort_bins[i0 / 2].end = bin1.end;
-      next_sort_bins[i0 / 2].middle = bin0.begin + bin0.middle - bin0.begin + topcnt;
-
-   };
-   //  printf( "%li\n", num_threads);
-   // We only need to reduce the bins if there is more than 1
-   if (num_threads > 1) {
-      // We are merging pairs of bins, so each merge set is half
-      // as big as the last with accounting for odd numbers
-      bool done = false;
-      for (int P = num_threads / 2; !done; P = (P + 1) / 2) {
-         //       printf("Merging\n");
-         ifuts.resize(0);
-         next_sort_bins.resize(this_num_threads);
-         // number of threads per swap pair
-         this_num_threads = std::min((int) num_threads, this_num_threads * 2);
-         // Iterate on pairs
-         for (int i = 0; i < P; i += 2) {
-            // If this has a partner, merge them
-            if (i + 1 < P) {
-               for (int j = 0; j < num_threads; j++) {
-                  ifuts.push_back(hpx::async(merge_sort_pairs, i, i + 1, j));
-               }
-               // if it doesn't have a partner push it to next list
-            } else {
-               next_sort_bins[i / 2] = sort_bins[i];
-            }
-         }
-         // Wait for work then prepare for next iteration
-         hpx::wait_all(ifuts.begin(), ifuts.end());
-         sort_bins = std::move(next_sort_bins);
-         if (P == 1) {
-            done = true;
-         }
-      }
-   }
-   // free these threads
-   used_threads -= num_threads;
-   return sort_bins[0].middle;
+   return mid;
 }
 
 size_t particle_set::sort(size_t begin, size_t end, int dim, fixed32 xmid) {

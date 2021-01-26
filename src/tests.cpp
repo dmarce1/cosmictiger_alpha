@@ -11,6 +11,16 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/particle_sort.hpp>
 
+static void tree_test() {
+   timer tm;
+   particle_set::generate_random_particle_set();
+   printf( "Starting tree test\n");
+   tm.start();
+   tree root;
+   tm.stop();
+   printf( "Tree test took %e s\n", tm.read());
+}
+
 static void local_sort_random() {
    timer tm;
    particle_set::generate_random_particle_set();
@@ -46,6 +56,8 @@ static void local_sort_random() {
 void test_run(const std::string test) {
    if (test == "local_sort_random") {
       local_sort_random();
+   } else if (test == "tree_test") {
+      tree_test();
    } else {
       printf("%s is an unknown test.\n", test.c_str());
    }

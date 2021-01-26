@@ -11,6 +11,8 @@
 
 #define NDIM 3
 
+#define TEST_TREE
+
 #define NCHILD 2
 
 #define PREFETCH_SIZE 64

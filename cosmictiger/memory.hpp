@@ -16,11 +16,13 @@
 #include <cstdio>
 #include <cstdlib>
 
+#define CHECK_POINTER(ptr)   MEM_CHECK_POINTER(ptr,__FILE__,__LINE__)
+
 #define MEM_CHECK_POINTER(ptr,file,line)                          \
-	if( !ptr ) {                            						      \
-		printf( "Out of memory. File: %s Line %i\n", file, line); 	\
-		abort();													               \
-	}
+   if( !ptr ) {                                                   \
+      printf( "Out of memory. File: %s Line %i\n", file, line);   \
+      abort();                                                    \
+   }
 
 #define MEM_CHECK_ERROR(ec,file,line)                                                        \
    if( ec != cudaSuccess ) {                                                                 \
