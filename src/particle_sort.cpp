@@ -268,108 +268,7 @@ size_t particle_sort::remote_sort(std::vector<count_t> counts, size_t begin, siz
  *
  */
 size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmid) {
-   /*const int nthread = hpx::thread::hardware_concurrency();
-    static std::atomic<int> used_threads(0);
 
-    // Find number of free threads
-    int num_threads = 0;
-    used_threads++;
-    while (used_threads++ < nthread) {
-    num_threads++;
-    }
-
-    std::vector<hpx::future<void>> futs;
-    std::vector < hpx::future < size_t >> ifuts;
-
-    // Count number of low particles
-    printf( "Count\n");
-    const auto count_func = [&](int j) {
-    size_t locnt = 0;
-    for (int i = begin + j; j < end; j += num_threads) {
-    if (parts.x[xdim][i + parts.offset] <= xmid) {
-    locnt++;
-    }
-    }
-    return locnt;
-    };
-    for (int i = 1; i < num_threads; i++) {
-    ifuts.push_back(hpx::async(count_func, i));
-    }
-    size_t locnt = count_func(0);
-    for (auto &f : ifuts) {
-    locnt += f.get();
-    }
-
-    size_t mid = begin + locnt;
-    std::vector < size_t > lo_indices;
-    std::vector < size_t > hi_indices;
-    hpx::lcos::local::mutex mtx;
-    // Function to find all lo parts that are in the hi section
-    const auto find_lo = [&](int j) {
-    std::vector < size_t > indices;
-    for (int i =  mid + j; i < end; i += num_threads) {
-    if (parts.x[xdim][i + parts.offset] <= xmid) {
-    indices.push_back(i);
-    }
-    }
-    std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
-    lo_indices.insert(lo_indices.end(), indices.begin(), indices.end());
-    };
-    // Function to find all hi parts that are in the lo section
-    const auto find_hi = [&](int j) {
-    std::vector < size_t > indices;
-    for (int i = begin + j; i < mid; i += num_threads) {
-    if (parts.x[xdim][i + parts.offset] > xmid) {
-    indices.push_back(i);
-    }
-    }
-    std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
-    hi_indices.insert(hi_indices.end(), indices.begin(), indices.end());
-    };
-    printf( "Find lo\n");
-    // Find all low and hi indices that need swapping
-    for (int i = 1; i < num_threads; i++) {
-    futs.push_back(hpx::async(find_lo, i));
-    }
-    find_lo(0);
-    hpx::wait_all(futs.begin(), futs.end());
-    futs.resize(0);
-    printf( "Find hi\n");
-    for (int i = 1; i < num_threads; i++) {
-    futs.push_back(hpx::async(find_hi, i));
-    }
-    find_hi(0);
-    hpx::wait_all(futs.begin(), futs.end());
-
-    // Swap the particles
-    printf( "Swap %li %li\n", lo_indices.size(), hi_indices.size());
-    const auto swap_parts = [&](int j) {
-    size_t lo, hi;
-    lo = j;
-    hi = lo_indices.size() - size_t(1 + j);
-    while (lo < hi_indices.size()) {
-    const size_t i0 = lo_indices[hi] + parts.offset;
-    const size_t i1 = hi_indices[lo] + parts.offset;
-    for (int dim = 0; dim < NDIM; dim++) {
-    swap(parts.x[dim][i0], parts.x[dim][i1]);
-    }
-    for (int dim = 0; dim < NDIM; dim++) {
-    std::swap(parts.v[dim][i0], parts.v[dim][i1]);
-    }
-    std::swap(parts.rung[i0], parts.rung[i1]);
-    hi -= num_threads;
-    lo += num_threads;
-    }
-    };
-    for (int i = 1; i < num_threads; i++) {
-    futs.push_back(hpx::async(swap_parts, i));
-    }
-    swap_parts(0);
-    hpx::wait_all(futs.begin(), futs.end());
-
-    return mid;
-
-    */
    // struc for sorting bins
    int nthread = hpx::thread::hardware_concurrency();
    static std::atomic<int> used_threads(0);
@@ -516,8 +415,11 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
 }
 
 size_t particle_sort::sort(size_t begin, size_t end, int dim, fixed32 xmid) {
-   sort_action remote;
+
    size_t mid;
+   cuda_sort(begin,end,dim,xmid);
+   /*
+   sort_action remote;
    const int myrank = hpx_rank();
    if (index_to_rank(begin) != myrank || index_to_rank(end - 1) != myrank) {
       if (begin < -parts.offset || begin >= -parts.offset + parts.size) {
@@ -527,7 +429,7 @@ size_t particle_sort::sort(size_t begin, size_t end, int dim, fixed32 xmid) {
       }
    } else {
       mid = local_sort(begin, end, dim, xmid);
-   }
+   }*/
    return mid;
 }
 

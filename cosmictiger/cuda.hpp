@@ -11,7 +11,12 @@
 
 #define CUDA_CHECK( a ) if( a != cudaSuccess ) printf( "CUDA error on line %i of %s : %s\n", __LINE__, __FILE__, cudaGetErrorString(a))
 
+#ifdef __CUDACC__
 #define CUDA_EXPORT __device__ __host__
+#else
+#define CUDA_EXPORT
+#endif
+
 #define CUDA_KERNEL __global__ void
 
 #include <cuda_runtime.h>

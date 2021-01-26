@@ -9,6 +9,7 @@
 #define COSMICTIGER_FIXED_HPP_
 
 #include <cstdint>
+#include <cosmictiger/cuda.hpp>
 
 template<class >
 class fixed;
@@ -25,52 +26,66 @@ class fixed {
    static constexpr float c0 = float(size_t(1) << size_t(32));
    static constexpr float cinv = 1.f / c0;
 public:
+   CUDA_EXPORT
    inline fixed<T>() = default;
+   CUDA_EXPORT
    inline fixed<T>(float number) {
       assert(number >= -0.5);
       assert(number < 0.5);
       i = c0 * number;
    }
+   CUDA_EXPORT
    inline bool operator<(fixed other) const {
       return i < other.i;
    }
+   CUDA_EXPORT
    inline bool operator>(fixed other) const {
       return i > other.i;
    }
+   CUDA_EXPORT
    inline bool operator<=(fixed other) const {
       return i <= other.i;
    }
+   CUDA_EXPORT
    inline bool operator>=(fixed other) const {
       return i >= other.i;
    }
+   CUDA_EXPORT
    inline bool operator==(fixed other) const {
       return i == other.i;
    }
+   CUDA_EXPORT
    inline bool operator!=(fixed other) const {
       return i != other.i;
    }
+   CUDA_EXPORT
    inline float to_float() const {
        return i * cinv;
 
-    }
+   }
+   CUDA_EXPORT
    inline double to_double() const {
        return i * cinv;
 
     }
+   CUDA_EXPORT
    inline fixed<T> operator+(const fixed<T> &other) const {
       fixed<T> a;
       a.i = i + other.i;
       return a;
    }
+   CUDA_EXPORT
    inline fixed<T> operator-(const fixed<T> &other) const {
       fixed<T> a;
       a.i = i - other.i;
       return a;
    }
+   CUDA_EXPORT
    inline fixed<T>& operator+=(const fixed<T> &other) {
       i += other.i;
       return *this;
    }
+   CUDA_EXPORT
    inline fixed<T>& operator-=(const fixed<T> &other) {
       i -= other.i;
       return *this;
@@ -89,6 +104,7 @@ public:
 };
 
 template<class T>
+CUDA_EXPORT
 inline void swap(fixed<T> &first, fixed<T> &second) {
    first.i ^= second.i;
    second.i ^= first.i;
