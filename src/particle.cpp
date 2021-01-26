@@ -420,17 +420,21 @@ size_t particle_set::local_sort(size_t begin, size_t end, int xdim, fixed32 xmid
       // go through list swapping particles hi and lo particles
       // until sorted
       if (hi - lo > 1) {
-         while (lo < hi) {
-            if (parts.x[xdim][lo + parts.offset] > xmid) {
-               while (lo != hi) {
-                  hi--;
-                  if (parts.x[xdim][hi + parts.offset] <= xmid) {
-                     swap_parts(hi, lo);
-                     break;
-                  }
-               }
+         while (lo != hi) {
+            while (parts.x[xdim][lo + parts.offset] <= xmid && lo != hi) {
+               lo++;
             }
-            lo++;
+            while (parts.x[xdim][hi + parts.offset] > xmid && lo != hi) {
+               hi--;
+            }
+            swap_parts(hi, lo);
+            while (parts.x[xdim][hi + parts.offset] > xmid && lo != hi) {
+               hi--;
+            }
+            while (parts.x[xdim][lo + parts.offset] <= xmid && lo != hi) {
+               lo++;
+            }
+            swap_parts(hi, lo);
          }
       } else {
          hi++;
