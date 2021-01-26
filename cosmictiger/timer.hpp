@@ -1,20 +1,21 @@
 #pragma once
 
-#include <time.h>
+#include <chrono>
 
 class timer {
+   std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
    double time;
-   double this_time;
-   constexpr static double cpsinv = 1.0 / CLOCKS_PER_SEC;
 public:
    inline timer() {
       time = 0.0;
    }
    inline void stop() {
-      time += clock() * cpsinv - this_time;
+      std::chrono::time_point<std::chrono::high_resolution_clock> stop_time = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double> dur = stop_time - start_time;
+      time += dur.count();
    }
    inline void start() {
-      this_time = clock() * cpsinv;
+      start_time = std::chrono::high_resolution_clock::now();
    }
    inline void reset() {
       time = 0.0;
