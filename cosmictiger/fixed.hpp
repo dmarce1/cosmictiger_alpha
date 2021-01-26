@@ -31,11 +31,49 @@ public:
       assert(number < 0.5);
       i = c0 * number;
    }
+   inline bool operator<(fixed other) const {
+      return i < other.i;
+   }
    inline bool operator>(fixed other) const {
       return i > other.i;
    }
    inline bool operator<=(fixed other) const {
       return i <= other.i;
+   }
+   inline bool operator>=(fixed other) const {
+      return i >= other.i;
+   }
+   inline bool operator==(fixed other) const {
+      return i == other.i;
+   }
+   inline bool operator!=(fixed other) const {
+      return i != other.i;
+   }
+   inline float to_float() const {
+       return i * cinv;
+
+    }
+   inline double to_double() const {
+       return i * cinv;
+
+    }
+   inline fixed<T> operator+(const fixed<T> &other) const {
+      fixed<T> a;
+      a.i = i + other.i;
+      return a;
+   }
+   inline fixed<T> operator-(const fixed<T> &other) const {
+      fixed<T> a;
+      a.i = i - other.i;
+      return a;
+   }
+   inline fixed<T>& operator+=(const fixed<T> &other) {
+      i += other.i;
+      return *this;
+   }
+   inline fixed<T>& operator-=(const fixed<T> &other) {
+      i -= other.i;
+      return *this;
    }
 
    template<class A>

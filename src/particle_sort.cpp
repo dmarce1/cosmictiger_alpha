@@ -281,7 +281,6 @@ size_t particle_sort::local_sort(size_t begin, size_t end, int xdim, fixed32 xmi
    while (used_threads++ < nthread) {
       num_threads++;
    }
-   num_threads=4;
 
    // function to swap the data for two particles
    const auto swap_parts = [](int i, int j) {

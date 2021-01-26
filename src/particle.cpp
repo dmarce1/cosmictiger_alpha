@@ -91,7 +91,24 @@ void particle_set::generate_random_particle_set() {
    for (size_t i = 0; i < parts.size; i++) {
       size_t index = i + parts.offset;
       for (int dim = 0; dim < NDIM; dim++) {
-         parts.x[dim][index] = rand_fixed32();
+         fixed32 x = rand_fixed32();
+         if (dim == 1) {
+            bool coin = i + parts.offset > global().opts.nparts / 2;
+            if( rand_float() < 0.5) {
+               coin = !coin;
+            }
+            if (coin) {
+               if (x < fixed32(0.0)) {
+                  x += fixed32(0.5);
+               }
+            } else {
+               if (x > fixed32(0.0)) {
+                  x -= fixed32(0.5);
+               }
+            }
+         } else {
+            parts.x[dim][index] = x;
+         }
       }
       for (int dim = 0; dim < NDIM; dim++) {
          parts.v[dim][index] = 0.f;
