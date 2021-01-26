@@ -1,7 +1,8 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/memory.hpp>
-#include <cosmictiger/particle_sort.hpp>
+#include <cosmictiger/particle.hpp>
+#include <cosmictiger/thread_control.hpp>
 
 #define LEFT 0
 #define RIGHT 1
@@ -26,6 +27,7 @@ tree::tree(std::shared_ptr<tree::sort_vars> vars) {
       vars->begin = 0;
       vars->end = opts.nparts;
    }
+   thread_control thread(1, vars->depth);
    parts_begin = vars->begin;
    parts_end = vars->end;
 
@@ -59,9 +61,9 @@ tree::tree(std::shared_ptr<tree::sort_vars> vars) {
          const int sort_dim = vars->depth % NDIM;
          const fixed32 sort_pos = (fixed64(vars->rng.begin[sort_dim]) + fixed64(vars->rng.end[sort_dim]))
                / fixed64(2.0f);
-   //      printf("Sorting %li %li\n", parts_begin, parts_end);
+         //      printf("Sorting %li %li\n", parts_begin, parts_end);
          const size_t mid = particle_set::sort(parts_begin, parts_end, sort_dim, sort_pos);
-  //       printf("Done sorting %li %li %li\n", parts_begin, mid, parts_end);
+         //       printf("Done sorting %li %li %li\n", parts_begin, mid, parts_end);
          for (int i = 0; i < NCHILD; i++) {
             child_vars[i] = std::make_shared<sort_vars>();
             child_vars[i]->begin = i == LEFT ? parts_begin : mid;
@@ -77,10 +79,13 @@ tree::tree(std::shared_ptr<tree::sort_vars> vars) {
          for (int i = 0; i < NCHILD; i++) {
             futs[i] = create(particle_set::index_to_rank(child_vars[i]->begin), child_vars[i]);
          }
+         thread.release();
          for (int i = 0; i < NCHILD; i++) {
             children[i] = futs[i].get();
          }
       }
+   } else {
+      thread.release();
    }
 }
 
@@ -88,11 +93,14 @@ hpx::future<tree::id_type> tree::create(int rank, std::shared_ptr<tree::sort_var
    static const int myrank = hpx_rank();
    hpx::future<id_type> fut;
    if (rank == myrank) {
-      id_type id;
-      tree *ptr = new tree(vars);
-      id.ptr = (uint64_t) ptr;
-      id.rank = myrank;
-      fut = hpx::make_ready_future(id);
+      fut = hpx::async([=]() {
+         id_type id;
+         tree *ptr = new tree(vars);
+         CHECK_POINTER(ptr);
+         id.ptr = (uint64_t) ptr;
+         id.rank = myrank;
+         return id;
+      });
    } else {
       fut = hpx::async < tree_create_action > (hpx_localities()[rank], rank, vars);
    }

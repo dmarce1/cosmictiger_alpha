@@ -9,7 +9,7 @@
 #include <cosmictiger/tests.hpp>
 #include <cosmictiger/timer.hpp>
 #include <cosmictiger/tree.hpp>
-#include <cosmictiger/particle_sort.hpp>
+#include <cosmictiger/particle.hpp>
 
 static void tree_test() {
    timer tm;
@@ -36,11 +36,11 @@ static void local_sort_random() {
    for (int i = 0; i < global().opts.nparts; i++) {
       const auto x = parts.get_x(i, 1);
       if (x > fixed32(0) && i < xmid) {
-         printf("hi in lo %e %e %i %i\n", x.to_float(), 0.0f, i, xmid);
+         printf("hi in lo %e %e %i %li\n", x.to_float(), 0.0f, i, xmid);
          success = false;
          break;
       } else if (x < fixed32(0) && i >= xmid) {
-         printf("lo in hi %e %e %i %i\n", x.to_float(), 0.0f, i, xmid);
+         printf("lo in hi %e %e %i %li\n", x.to_float(), 0.0f, i, xmid);
          success = false;
          break;
       }

@@ -97,7 +97,10 @@ void particle_set::generate_random_particle_set() {
    for (size_t i = 0; i < parts.size; i++) {
       size_t index = i + parts.offset;
       for (int dim = 0; dim < NDIM; dim++) {
-         fixed32 x = rand_fixed32();
+         fixed32 x;
+         while ((x = rand_fixed32()) == fixed32(0)) {
+            ;
+         }
          if (dim == 1) {
             bool coin = i + parts.offset > global().opts.nparts / 2;
             if (rand_float() < 0.01) {
@@ -112,11 +115,8 @@ void particle_set::generate_random_particle_set() {
                   x -= fixed32(0.5);
                }
             }
-            parts.x[dim][index] = x;
-//            printf( "%e\n", x.to_float());
-         } else {
-            parts.x[dim][index] = x;
          }
+         parts.x[dim][index] = x;
       }
       for (int dim = 0; dim < NDIM; dim++) {
          parts.v[dim][index] = 0.f;
@@ -412,7 +412,9 @@ size_t particle_set::local_sort(size_t begin, size_t end, int xdim, fixed32 xmid
          while (parts.x[xdim][hi + parts.offset] > xmid && lo != hi) {
             hi--;
          }
-         swap_parts(hi, lo);
+         if (hi != lo) {
+            swap_parts(hi, lo);
+         }
          mid = hi;
          if (lo != hi) {
             while (parts.x[xdim][hi + parts.offset] > xmid && lo != hi) {
@@ -421,7 +423,9 @@ size_t particle_set::local_sort(size_t begin, size_t end, int xdim, fixed32 xmid
             while (parts.x[xdim][lo + parts.offset] <= xmid && lo != hi) {
                lo++;
             }
-            swap_parts(hi, lo);
+            if (hi != lo) {
+               swap_parts(hi, lo);
+            }
             mid = hi + 1;
          }
       }
