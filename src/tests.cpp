@@ -32,35 +32,34 @@ static void tree_test() {
 }
 
 static void local_sort_random() {
-   timer tm;
    particle_set::generate_random_particle_set();
+   range box;
+   for (int dim = 0; dim < NDIM; dim++) {
+      box.begin[dim] = fixed32::min();
+      box.end[dim] = fixed32::max();
+   }
 
-   tm.start();
-   const auto xmid = particle_set::sort(0, global().opts.nparts, 1, 0.0);
-   tm.stop();
-   printf("Test took %e seconds.\n", tm.read());
-   const auto parts = particle_set::local_particle_set();
-
-   printf("Checking results\n");
-   bool success = true;
-   for (int i = 0; i < global().opts.nparts; i++) {
-      const auto x = parts.get_x(i, 1);
-      if (x > fixed32(0) && i < xmid) {
-         printf("hi in lo %e %e %i %li\n", x.to_float(), 0.0f, i, xmid);
-         success = false;
-         break;
-      } else if (x < fixed32(0) && i >= xmid) {
-         printf("lo in hi %e %e %i %li\n", x.to_float(), 0.0f, i, xmid);
-         success = false;
-         break;
+   for (int depth = 1; depth < 25; depth++) {
+      particle_set::generate_random_particle_set();
+      timer tm1, tm2;
+      auto set = particle_set::local_particle_set();
+      tm1.start();
+      particle_set::radix_sort(0, global().opts.nparts, box, 0, depth);
+      tm1.stop();
+      for (int i = 0; i < global().opts.nparts / 200; i++) {
+         int j = rand() % global().opts.nparts;
+         int k = rand() % global().opts.nparts;
+         auto tmp = set.get_part(j);
+         set.set_part(set.get_part(k), j);
+         set.set_part(tmp, k);
       }
+      tm2.start();
+      particle_set::radix_sort(0, global().opts.nparts, box, 0, depth);
+      tm2.stop();
+      //    printf("Starting test\n");
+      particle_set::radix_sort(0, global().opts.nparts, box, 0, depth);
+      printf("%i %e %e %e %e \n", depth, tm1.read(), tm1.read() / depth, tm2.read(), tm2.read() / depth);
    }
-   if (success) {
-      printf("Passed\n");
-   } else {
-      printf("Failed\n");
-   }
-
 }
 
 void test_run(const std::string test) {

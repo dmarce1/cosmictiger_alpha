@@ -11,6 +11,9 @@
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/fixed.hpp>
 #include <cosmictiger/hpx.hpp>
+#include <cosmictiger/range.hpp>
+
+struct range;
 
 #include <array>
 #include <atomic>
@@ -57,16 +60,19 @@ public:
    inline particle_set() = default;
    fixed32 get_x(size_t index, int dim) const;
    std::array<fixed32,NDIM> get_x(size_t index) const;
+   particle get_part(size_t index) const;
+   void set_part(particle p, size_t index);
    static particle_set local_particle_set();
    static int index_to_rank(size_t);
    static void generate_random_particle_set();
    static void create();
    static void destroy();
    static std::vector<particle> get_sort_parts(const std::vector<particle> &lo_parts, int dim, fixed32 xdim);
-   static size_t cuda_sort(size_t, size_t, int, fixed32);
+//   static size_t cuda_sort(size_t, size_t, int, fixed32);
    static size_t remote_sort(std::vector<count_t>, size_t, size_t, int, fixed32);
    static size_t sort(size_t, size_t, int, fixed32);
-   static std::vector<count_t> get_count(size_t, size_t, int, fixed32);
+   static size_t radix_sort(size_t, size_t, range box, int dimstart, int depth);
+     static std::vector<count_t> get_count(size_t, size_t, int, fixed32);
    static size_t local_sort(size_t, size_t, int, fixed32);
 
 };

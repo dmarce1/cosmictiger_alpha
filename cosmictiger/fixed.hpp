@@ -26,16 +26,17 @@ class fixed {
    T i;
    static constexpr float c0 = float(size_t(1) << size_t(32));
    static constexpr float cinv = 1.f / c0;
+   static constexpr T width = (sizeof(float) * CHAR_BIT);
 public:
    CUDA_EXPORT
    inline static fixed<T> max() {
       fixed<T> num;
-      num.i = std::numeric_limits<T>::max();
+      num.i = std::numeric_limits < T > ::max();
       return num;
    }
    inline static fixed<T> min() {
       fixed<T> num;
-      num.i = std::numeric_limits<T>::min();
+      num.i = std::numeric_limits < T > ::min();
       return num;
    }
    CUDA_EXPORT
@@ -83,6 +84,10 @@ public:
 
    }
    CUDA_EXPORT
+   inline int to_int() const {
+      return i >> width;
+   }
+   CUDA_EXPORT
    inline double to_double() const {
       return i * cinv;
 
@@ -92,17 +97,26 @@ public:
       int64_t a;
       const int64_t b = i;
       const int64_t c = other.i;
-      a = (b * c) >> (sizeof(float) * CHAR_BIT);
+      a = (b * c) >> width;
       fixed<T> res;
       res.i = (T) a;
       return res;
    }
    CUDA_EXPORT
-   inline fixed<T> operator*=(const fixed<T> &other) const {
+   inline fixed<T> operator*=(const fixed<T> &other) {
       int64_t a;
       const int64_t b = i;
       const int64_t c = other.i;
-      a = (b * c) >> (sizeof(float) * CHAR_BIT);
+      a = (b * c) >> width;
+      i = (T) a;
+      return *this;
+   }
+   CUDA_EXPORT
+   inline fixed<T> operator*=(int other) {
+      int64_t a;
+      const int64_t b = i;
+      const int64_t c = other;
+      a = b * c;
       i = (T) a;
       return *this;
    }
@@ -111,17 +125,17 @@ public:
       int64_t a;
       const int64_t b = i;
       const int64_t c = other.i;
-      a = b / (c >> (sizeof(float) * CHAR_BIT));
+      a = b / (c >> width);
       fixed<T> res;
       res.i = (T) a;
       return res;
    }
    CUDA_EXPORT
-   inline fixed<T> operator/=(const fixed<T> &other) const {
+   inline fixed<T> operator/=(const fixed<T> &other) {
       int64_t a;
       const int64_t b = i;
       const int64_t c = other.i;
-      a = b / (c >> (sizeof(float) * CHAR_BIT));
+      a = b / (c >> width);
       i = (T) a;
       return *this;
    }
@@ -154,7 +168,7 @@ public:
       arc & i;
    }
 
-   template<class>
+   template<class >
    friend class fixed;
 
    template<class V>
@@ -167,7 +181,7 @@ public:
 template<class T>
 CUDA_EXPORT
 inline void swap(fixed<T> &first, fixed<T> &second) {
-   std::swap(first,second);
+   std::swap(first, second);
 }
 
 #endif /* COSMICTIGER_FIXED_HPP_ */

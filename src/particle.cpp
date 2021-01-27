@@ -32,6 +32,28 @@ std::array<fixed32, NDIM> particle_set::get_x(size_t i) const {
    return X;
 }
 
+particle particle_set::get_part(size_t i) const {
+   particle p;
+   for (int dim = 0; dim < NDIM; dim++) {
+      p.x[dim] = x[dim][i + offset];
+   }
+   for (int dim = 0; dim < NDIM; dim++) {
+      p.v[dim] = v[dim][i + offset];
+   }
+   p.rung = rung[i + offset];
+   return p;
+}
+
+void particle_set::set_part(particle p, size_t i) {
+   for (int dim = 0; dim < NDIM; dim++) {
+      x[dim][i + offset] = p.x[dim];
+   }
+   for (int dim = 0; dim < NDIM; dim++) {
+      v[dim][i + offset] = p.v[dim];
+   }
+   rung[i + offset] = p.rung;
+}
+
 fixed32 particle_set::get_x(size_t i, int dim) const {
    return x[dim][i + offset];
 }
@@ -399,10 +421,6 @@ size_t particle_set::local_sort(size_t begin, size_t end, int xdim, fixed32 xmid
       std::swap(parts.rung[j0], parts.rung[i0]);
    };
 
-   for (int i = lo; i <= hi; i++) {
-      if (parts.x[xdim][i + parts.offset].to_float() == 0.0)
-         printf("-------------------\n");
-   }
    size_t mid = lo;
    if (hi - lo > 1) {
       while (lo != hi) {
@@ -455,5 +473,120 @@ size_t particle_set::sort(size_t begin, size_t end, int dim, fixed32 xmid) {
       mid = local_sort(begin, end, dim, xmid);
    }
    return mid;
+}
+
+size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstart, int depth) {
+   //  printf("%li %li %li\n", end, parts.offset, parts.size);
+   assert(begin >= -parts.offset);
+   assert(end <= -parts.offset + parts.size);
+   std::array < size_t, NDIM > N = { 1, 1, 1 };
+   std::array<fixed64, NDIM> dx;
+   for (int dim = 0; dim < NDIM; dim++) {
+      dx[dim] = fixed64(box.end[dim]) - fixed64(box.begin[dim]);
+   }
+   int dim = dimstart;
+   for (int i = 0; i < depth; i++) {
+      N[dim] *= 2;
+      dx[dim] /= fixed64(2);
+      dim = (dim + 1) % NDIM;
+   }
+   int Ntot = 1;
+   for (int dim = 0; dim < NDIM; dim++) {
+      Ntot *= N[dim];
+   }
+   std::vector < size_t > counts(Ntot);
+
+   const auto gather_x = [=](int i) {
+      std::array < fixed64, NDIM > x;
+      for (int dim = 0; dim < NDIM; dim++) {
+         x[dim] = parts.x[dim][i + parts.offset];
+      }
+      return x;
+   };
+
+   const auto to_index = [&](std::array<fixed64, NDIM> i) {
+      for (int dim = 0; dim < NDIM; dim++) {
+         //      printf( "%f\n",i[dim].to_float());
+         i[dim] -= box.begin[dim];
+         //     printf( "%f\n",i[dim].to_float());
+         i[dim] *= N[dim];
+         //    printf( "%f %f\n",i[dim].to_float(), dx[dim].to_float());
+         //   printf( "%i\n\n",i[dim].to_int());
+         assert(i[dim].to_int() >= 0 && i[dim].to_int() < N[dim]);
+      }
+      return N[2] * (N[1] * i[0].to_int() + i[1].to_int()) + i[2].to_int();
+   };
+
+   const auto swap_parts = [&](int i, int j) {
+      for (int dim = 0; dim < NDIM; dim++) {
+         swap(parts.x[dim][i], parts.x[dim][j]);
+         std::swap(parts.v[dim][i], parts.v[dim][j]);
+      }
+      std::swap(parts.rung[i], parts.rung[j]);
+   };
+
+   std::vector < size_t > count(Ntot, 0);
+   std::vector < size_t > bounds(Ntot + 1);
+   for (size_t i = begin; i < end; i++) {
+      const auto x = gather_x(i);
+      counts[to_index(x)]++;
+   }
+   bounds[0] = begin;
+   for (int i = 0; i < Ntot; i++) {
+      bounds[i + 1] = bounds[i] + counts[i];
+   }
+
+   auto orig_bounds = bounds;
+   size_t first_index;
+   size_t bin, first_bin;
+   particle p;
+   for (first_bin = 0; first_bin < Ntot; first_bin++) {
+      bool flag = false;
+
+      for (size_t i = bounds[first_bin]; i < orig_bounds[first_bin + 1]; i++) {
+         const int k = to_index(gather_x(i));
+         bounds[first_bin]++;
+         if (k != first_bin) {
+            bin = k;
+            flag = true;
+            first_index = i;
+            p = parts.get_part(i);
+            break;
+         }
+      }
+
+      while (flag) {
+         flag = false;
+         for (size_t i = bounds[bin]; i < orig_bounds[bin + 1]; i++) {
+            const int j = to_index(gather_x(i));
+            bounds[bin]++;
+            if (j != bin) {
+               flag = true;
+               const auto tmp = p;
+               p = parts.get_part(i);
+               parts.set_part(tmp, i);
+               bin = j;
+               break;
+            }
+         }
+         if (!flag) {
+            parts.set_part(p, first_index);
+         }
+      }
+   }
+#ifdef TEST_RADIX
+   for (int i = 0; i < Ntot; i++) {
+   //   printf("%i %i\n", bounds[i], orig_bounds[i + 1]);
+   }
+   for (int bin = 0; bin < Ntot; bin++) {
+      for (int i = orig_bounds[bin]; i < orig_bounds[bin + 1]; i++) {
+         const auto index = to_index(gather_x(i));
+         if (index != bin) {
+            printf("Radix sort failed on particle %li\n", i);
+         }
+      }
+   }
+#endif
+   return 0;
 }
 
