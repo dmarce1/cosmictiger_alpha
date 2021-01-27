@@ -27,7 +27,7 @@ tree::tree(std::shared_ptr<tree::sort_vars> vars) {
       vars->begin = 0;
       vars->end = opts.nparts;
    }
-   thread_control thread(1, vars->depth);
+   thread_control thread(1, -vars->depth);
    parts_begin = vars->begin;
    parts_end = vars->end;
 
