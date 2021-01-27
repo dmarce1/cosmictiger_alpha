@@ -47,8 +47,6 @@ public:
 #endif
    fixed<T>(float number) :
          i(c0 * number) {
-      assert(number >= -0.5);
-      assert(number < 0.5);
    }
    template<class V>
    CUDA_EXPORT

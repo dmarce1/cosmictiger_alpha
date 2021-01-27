@@ -7,6 +7,7 @@ std::stack<thread_control::stack_type> thread_control::priority_stack;
 bool thread_control::initialized = false;
 hpx::lcos::local::mutex thread_control::mtx;
 std::atomic<int> thread_control::avail(0);
+int thread_control::max_avail;
 std::atomic<size_t> thread_control::total_threads;
 std::atomic<size_t> thread_control::total_priority;
 
@@ -14,11 +15,15 @@ void thread_control::init() {
    if (!initialized) {
       std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
       initialized = true;
-      avail = OVERSUBSCRIPTION * hpx::thread::hardware_concurrency();
+      max_avail = OVERSUBSCRIPTION * hpx::thread::hardware_concurrency();
+      avail = max_avail;
    }
 }
 
 void thread_control::check_stacks() {
+   assert(avail >= 0);
+   assert(avail <= max_avail);
+ //  printf("%i %i\n", (int) avail, max_avail);
    stack_type entry;
    {
       std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
@@ -28,41 +33,50 @@ void thread_control::check_stacks() {
          if (avail >= top.thread_cnt) {
             avail -= top.thread_cnt;
             entry = std::move(top);
-            ;
             priority_stack.pop();
             found_priority = true;
          }
       }
-      if (!stack.empty()) {
+      if (!stack.empty() && !found_priority) {
          const auto top = stack.top();
          if (avail >= top.thread_cnt) {
             avail -= top.thread_cnt;
             entry = std::move(top);
-
             stack.pop();
          }
       }
    }
    if (entry.promise) {
+      *entry.active = true;
       entry.promise->set_value();
    }
+   assert(avail >= 0);
+   assert(avail <= max_avail);
+
 }
 
 thread_control::thread_control() {
-   released = true;
+   assert(avail >= 0);
+   assert(avail <= max_avail);
+   thread_cnt = 1;
+   priority = 0;
+   active = std::make_shared<bool>(false);
 }
 
 thread_control& thread_control::operator=(thread_control &&other) {
+   assert(avail >= 0);
+   assert(avail <= max_avail);
    priority = other.priority;
    thread_cnt = other.thread_cnt;
-   released = other.released;
-   other.released = true;
+   std::swap(active,other.active);
    return *this;
 }
 
 thread_control::thread_control(int number, int p) {
    init();
-   released = true;
+   assert(avail >= 0);
+   assert(avail <= max_avail);
+   active = std::make_shared<bool>(false);
    total_threads++;
    total_priority += priority;
    thread_cnt = number;
@@ -70,10 +84,20 @@ thread_control::thread_control(int number, int p) {
 }
 
 void thread_control::release() {
-   assert(!released);
-   released = true;
+   assert(*active);
+   *active =false;
    avail += thread_cnt;
    check_stacks();
+   assert(avail <= max_avail);
+   assert(avail >= 0);
+}
+
+void thread_control::release_some(int n) {
+   avail += n;
+   thread_cnt -= n;
+   assert(thread_cnt > 0);
+   assert(avail >= 0);
+   assert(avail <= max_avail);
 }
 
 void thread_control::acquire() {
@@ -84,6 +108,7 @@ void thread_control::acquire() {
       stack_type entry;
       entry.promise = promise;
       entry.thread_cnt = thread_cnt;
+      entry.active = active;
       if (priority > avg_priority) {
          priority_stack.push(std::move(entry));
       } else {
@@ -94,7 +119,8 @@ void thread_control::acquire() {
 }
 
 bool thread_control::try_acquire() {
-   assert(!released);
+//   assert(!released);
+   assert(avail <= max_avail);
    hpx::future<void> fut;
    std::shared_ptr<hpx::lcos::local::promise<void>> promise;
    bool thread_avail = false;
@@ -103,8 +129,8 @@ bool thread_control::try_acquire() {
       const double avg_priority = total_priority / total_threads;
       if (((priority > avg_priority || priority_stack.empty()) && avail >= thread_cnt)) {
          avail -= thread_cnt;
+         *active = true;
          thread_avail = true;
-         released = false;
       }
    }
    check_stacks();
@@ -112,8 +138,13 @@ bool thread_control::try_acquire() {
 }
 
 thread_control::~thread_control() {
-   if (!released) {
+   if (*active) {
       avail += thread_cnt;
    }
+
+   assert(avail >= 0);
+   assert(avail <= max_avail);
+   assert(thread_cnt > 0);
+
    check_stacks();
 }

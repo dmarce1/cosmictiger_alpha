@@ -62,6 +62,10 @@ tree::tree(std::shared_ptr<tree::sort_vars> vars) {
                / fixed64(2.0f);
          //      printf("Sorting %li %li\n", parts_begin, parts_end);
          const size_t mid = particle_set::sort(parts_begin, parts_end, sort_dim, sort_pos);
+         const int used_threads = vars->thread.get_thread_cnt();
+         if (parts_end - parts_begin > NPARTS_FULLSYSTEM_SEARCH && used_threads > 1) {
+  //          vars->thread.release_some(vars->thread.get_thread_cnt() - 1);
+         }
          //       printf("Done sorting %li %li %li\n", parts_begin, mid, parts_end);
          for (int i = 0; i < NCHILD; i++) {
             child_vars[i] = std::make_shared<sort_vars>();
@@ -89,7 +93,10 @@ hpx::future<tree::id_type> tree::create(int rank, std::shared_ptr<tree::sort_var
    static const int myrank = hpx_rank();
    hpx::future<id_type> fut;
    if (rank == myrank) {
-      thread_control thread(12, vars->depth);
+      const size_t nparts = vars->end - vars->begin;
+      const int nthreads =
+            nparts < NPARTS_FULLSYSTEM_SEARCH ? 1 : hpx::thread::hardware_concurrency() * OVERSUBSCRIPTION;
+      thread_control thread(nthreads, vars->depth);
       const auto func = [=](std::shared_ptr<tree::sort_vars> vars) {
          id_type id;
          tree *ptr = new tree(vars);
