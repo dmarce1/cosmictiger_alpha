@@ -558,7 +558,7 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
                   p.x[dim] = x[dim];
                }
                for (int dim = 0; dim < NDIM; dim++) {
-                  p.x[dim] = parts.v[dim][i + parts.offset];
+                  p.v[dim] = parts.v[dim][i + parts.offset];
                }
                p.rung = parts.rung[i + parts.offset];
                if (!first) {

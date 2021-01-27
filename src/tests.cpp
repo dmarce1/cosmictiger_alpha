@@ -39,7 +39,7 @@ static void local_sort_random() {
       box.end[dim] = fixed32::max();
    }
 
-   for (int depth = 9; depth < 25; depth++) {
+   for (int depth = 1; depth < 25; depth++) {
       particle_set::generate_random_particle_set();
       timer tm1, tm2;
       auto set = particle_set::local_particle_set();
