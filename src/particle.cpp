@@ -541,31 +541,32 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
    size_t bin, first_bin;
    particle p;
    for (first_bin = 0; first_bin < Ntot; first_bin++) {
-      bool flag = false;
-
-      for (size_t i = bounds[first_bin]; i < orig_bounds[first_bin + 1]; i++) {
-         const int k = to_index(gather_x(i));
-         bounds[first_bin]++;
-         if (k != first_bin) {
-            bin = k;
-            flag = true;
-            first_index = i;
-            p = parts.get_part(i);
-            break;
-         }
-      }
-
+      bool flag = true;
+      bool first = true;
+      bin = first_bin;
       while (flag) {
          flag = false;
          for (size_t i = bounds[bin]; i < orig_bounds[bin + 1]; i++) {
-            const int j = to_index(gather_x(i));
+            const auto x = gather_x(i);
+            const int j = to_index(x);
             bounds[bin]++;
             if (j != bin) {
+               bin = j;
                flag = true;
                const auto tmp = p;
-               p = parts.get_part(i);
-               parts.set_part(tmp, i);
-               bin = j;
+               for (int dim = 0; dim < NDIM; dim++) {
+                  p.x[dim] = x[dim];
+               }
+               for (int dim = 0; dim < NDIM; dim++) {
+                  p.x[dim] = parts.v[dim][i + parts.offset];
+               }
+               p.rung = parts.rung[i + parts.offset];
+               if (!first) {
+                  parts.set_part(tmp, i);
+               } else {
+                  first_index = i;
+               }
+               first = false;
                break;
             }
          }
@@ -576,7 +577,7 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
    }
 #ifdef TEST_RADIX
    for (int i = 0; i < Ntot; i++) {
-   //   printf("%i %i\n", bounds[i], orig_bounds[i + 1]);
+      //   printf("%i %i\n", bounds[i], orig_bounds[i + 1]);
    }
    for (int bin = 0; bin < Ntot; bin++) {
       for (int i = orig_bounds[bin]; i < orig_bounds[bin + 1]; i++) {

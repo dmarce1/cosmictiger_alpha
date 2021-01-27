@@ -39,7 +39,7 @@ static void local_sort_random() {
       box.end[dim] = fixed32::max();
    }
 
-   for (int depth = 1; depth < 25; depth++) {
+   for (int depth = 9; depth < 25; depth++) {
       particle_set::generate_random_particle_set();
       timer tm1, tm2;
       auto set = particle_set::local_particle_set();
@@ -56,8 +56,6 @@ static void local_sort_random() {
       tm2.start();
       particle_set::radix_sort(0, global().opts.nparts, box, 0, depth);
       tm2.stop();
-      //    printf("Starting test\n");
-      particle_set::radix_sort(0, global().opts.nparts, box, 0, depth);
       printf("%i %e %e %e %e \n", depth, tm1.read(), tm1.read() / depth, tm2.read(), tm2.read() / depth);
    }
 }
