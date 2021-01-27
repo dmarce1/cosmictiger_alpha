@@ -15,8 +15,7 @@
 
 #define NCHILD 2
 
-#define PREFETCH_SIZE 64
-//#define LOCAL_SORT_PARALLEL
 
+#define OVERSUBSCRIPTION 2
 
 #endif /* COSMICTIGER_DEFS_HPP_ */

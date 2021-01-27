@@ -2,6 +2,7 @@
 
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/range.hpp>
+#include <cosmictiger/thread_control.hpp>
 
 #include <memory>
 
@@ -11,6 +12,8 @@ struct tree {
       size_t begin;
       size_t end;
       int8_t depth;
+      thread_control thread;
+      bool forked;
       template<class A>
       void serialize(A &&arc, unsigned) {
          arc & rng;

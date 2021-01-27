@@ -23,14 +23,15 @@ public:
    static void init();
    static void check_stacks();
 
-   thread_control() = delete;
-   thread_control(const thread_control&) = delete;
-   thread_control(thread_control&&) = delete;
-   thread_control& operator=(const thread_control&) = delete;
-   thread_control& operator=(thread_control&&) = delete;
-   thread_control(int thread_cnt, int priority);
+   thread_control();
+//   thread_control(const thread_control&) = delete;
+//   thread_control(thread_control&&) = default;
+//   thread_control& operator=(const thread_control&) = delete;
+   thread_control& operator=(thread_control&&);
+    thread_control(int thread_cnt, int priority);
    ~thread_control();
    void release();
    void acquire();
+   bool try_acquire();
 
 };

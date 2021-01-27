@@ -27,7 +27,6 @@ tree::tree(std::shared_ptr<tree::sort_vars> vars) {
       vars->begin = 0;
       vars->end = opts.nparts;
    }
-   thread_control thread(1, -vars->depth);
    parts_begin = vars->begin;
    parts_end = vars->end;
 
@@ -79,13 +78,10 @@ tree::tree(std::shared_ptr<tree::sort_vars> vars) {
          for (int i = 0; i < NCHILD; i++) {
             futs[i] = create(particle_set::index_to_rank(child_vars[i]->begin), child_vars[i]);
          }
-         thread.release();
          for (int i = 0; i < NCHILD; i++) {
             children[i] = futs[i].get();
          }
       }
-   } else {
-      thread.release();
    }
 }
 
@@ -93,14 +89,27 @@ hpx::future<tree::id_type> tree::create(int rank, std::shared_ptr<tree::sort_var
    static const int myrank = hpx_rank();
    hpx::future<id_type> fut;
    if (rank == myrank) {
-      fut = hpx::async([=]() {
+      thread_control thread(1, vars->depth);
+      const auto func = [=](std::shared_ptr<tree::sort_vars> vars) {
          id_type id;
          tree *ptr = new tree(vars);
          CHECK_POINTER(ptr);
          id.ptr = (uint64_t) ptr;
          id.rank = myrank;
+         if( vars->forked) {
+           vars->thread.release();
+         }
          return id;
-      });
+      };
+      if( thread.try_acquire() ) {
+         vars->forked =  true;
+         vars->thread = std::move(thread);
+         fut = hpx::async(hpx::launch::async, func,std::move(vars));
+      } else {
+         vars->forked =  false;
+         vars->thread = std::move(thread);
+         fut = hpx::async(hpx::launch::async, func,std::move(vars));
+      }
    } else {
       fut = hpx::async < tree_create_action > (hpx_localities()[rank], rank, vars);
    }
