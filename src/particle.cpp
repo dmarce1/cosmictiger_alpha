@@ -524,8 +524,11 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
       }
       std::swap(parts.rung[i], parts.rung[j]);
    };
-
+#ifdef PARALLEL_RADIX
+   std::vector < std::atomic<size_t> > begins(Ntot);
+#else
    std::vector < size_t > begins(Ntot);
+#endif
    std::vector < size_t > ends(Ntot, 0);
    for (size_t i = begin; i < end; i++) {
       const auto x = gather_x(i);
@@ -537,44 +540,64 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
       ends[i] += ends[i - 1];
       begins[i] = ends[i - 1];
    }
-   size_t first_index;
-   size_t bin, first_bin;
-   particle p;
-   for (first_bin = 0; first_bin < Ntot; first_bin++) {
-      bool flag = true;
-      bool first = true;
-      bin = first_bin;
-      while (flag) {
-         flag = false;
-         for (size_t i = begins[bin]; i < ends[bin]; i++) {
-            const auto x = gather_x(i);
-            const int j = to_index(x);
-            begins[bin]++;
-            if (j != bin) {
-               bin = j;
-               flag = true;
-               const auto tmp = p;
-               for (int dim = 0; dim < NDIM; dim++) {
-                  p.x[dim] = x[dim];
+#ifdef PARALLEL_RADIX
+   const int nthreads = hpx::thread::hardware_concurrency();
+   std::vector<hpx::future<void>> futs;
+   std::atomic<int> first_bin( 0);
+#else
+   const int nthreads = 1;
+   int first_bin( 0);
+#endif
+   const auto func = [&]() {
+      size_t first_index;
+      size_t bin;
+      particle p;
+      bin = ++first_bin;
+      for (; bin < Ntot; bin = ++first_bin) {
+         bool flag = true;
+         bool first = true;
+         while (flag) {
+            flag = false;
+            size_t i = begins[bin]++;
+            for (; i < ends[bin]; i = begins[bin]++) {
+               const auto x = gather_x(i);
+               const int j = to_index(x);
+               if (j != bin) {
+                  bin = j;
+                  flag = true;
+                  const auto tmp = p;
+                  for (int dim = 0; dim < NDIM; dim++) {
+                     p.x[dim] = x[dim];
+                  }
+                  for (int dim = 0; dim < NDIM; dim++) {
+                     p.v[dim] = parts.v[dim][i + parts.offset];
+                  }
+                  p.rung = parts.rung[i + parts.offset];
+                  if (!first) {
+                     parts.set_part(tmp, i);
+                  } else {
+                     first_index = i;
+                  }
+                  first = false;
+                  break;
                }
-               for (int dim = 0; dim < NDIM; dim++) {
-                  p.v[dim] = parts.v[dim][i + parts.offset];
-               }
-               p.rung = parts.rung[i + parts.offset];
-               if (!first) {
-                  parts.set_part(tmp, i);
-               } else {
-                  first_index = i;
-               }
-               first = false;
-               break;
+            }
+            if (!flag) {
+               parts.set_part(p, first_index);
             }
          }
-         if (!flag) {
-            parts.set_part(p, first_index);
-         }
       }
+   };
+#ifdef PARALLEL_RADIX
+   for (int tid = 1; tid < nthreads; tid++) {
+      futs.push_back(hpx::async(func));
    }
+#endif
+   func();
+#ifdef PARALLEL_RADIX
+   hpx::wait_all(futs.begin(), futs.end());
+#endif
+
 #ifdef TEST_RADIX
    for (int i = 0; i < Ntot; i++) {
       //   printf("%i %i\n", bounds[i], ends[i + 1]);

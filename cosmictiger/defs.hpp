@@ -15,6 +15,7 @@
 //#define TEST_RADIX
 
 #define NCHILD 2
+//#define PARALLEL_RADIX
 
 
 #define OVERSUBSCRIPTION 1
