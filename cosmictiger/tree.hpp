@@ -8,17 +8,14 @@
 
 struct tree {
    struct sort_vars {
-      range rng;
-      size_t begin;
-      size_t end;
-      int8_t depth;
-      thread_control thread;
-      bool forked;
+      std::vector<size_t> bounds;
+      range box;
+      int depth;
       template<class A>
       void serialize(A &&arc, unsigned) {
-         arc & rng;
-         arc & begin;
-         arc & end;
+         arc & depth;
+         arc & box;
+         arc & bounds;
       }
    };
    struct id_type {

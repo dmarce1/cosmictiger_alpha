@@ -475,7 +475,7 @@ size_t particle_set::sort(size_t begin, size_t end, int dim, fixed32 xmid) {
    return mid;
 }
 
-size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstart, int depth) {
+std::vector<size_t> particle_set::radix_sort(size_t begin, size_t end, range box, int dimstart, int depth) {
    //  printf("%li %li %li\n", end, parts.offset, parts.size);
    assert(begin >= -parts.offset);
    assert(end <= -parts.offset + parts.size);
@@ -546,10 +546,9 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
    std::atomic<int> first_bin( 0);
 #else
    const int nthreads = 1;
-   int first_bin( 0);
+   int first_bin(0);
 #endif
    const auto func = [&]() {
-      size_t first_index;
       size_t bin;
       particle p;
       bin = ++first_bin;
@@ -559,6 +558,7 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
          while (flag) {
             flag = false;
             size_t i = begins[bin]++;
+            int64_t first_index = -1;
             for (; i < ends[bin]; i = begins[bin]++) {
                const auto x = gather_x(i);
                const int j = to_index(x);
@@ -577,12 +577,13 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
                      parts.set_part(tmp, i);
                   } else {
                      first_index = i;
+                   //  printf( "%li\n", first_index);
                   }
                   first = false;
                   break;
                }
             }
-            if (!flag) {
+            if (!flag && first_index >= 0) {
                parts.set_part(p, first_index);
             }
          }
@@ -605,7 +606,7 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
    for (int bin = 0; bin < Ntot; bin++) {
       int b;
       if (bin == 0) {
-         b = 0;
+         b = begin;
       } else {
          b = ends[bin - 1];
       }
@@ -617,6 +618,11 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
       }
    }
 #endif
-   return 0;
+   begins.resize(0);
+   begins.push_back(begin);
+   for (const auto &end : ends) {
+      begins.push_back(end);
+   }
+   return begins;
 }
 

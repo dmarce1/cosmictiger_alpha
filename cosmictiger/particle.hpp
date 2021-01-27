@@ -71,7 +71,7 @@ public:
 //   static size_t cuda_sort(size_t, size_t, int, fixed32);
    static size_t remote_sort(std::vector<count_t>, size_t, size_t, int, fixed32);
    static size_t sort(size_t, size_t, int, fixed32);
-   static size_t radix_sort(size_t, size_t, range box, int dimstart, int depth);
+   static std::vector<size_t> radix_sort(size_t, size_t, range box, int dimstart, int depth);
      static std::vector<count_t> get_count(size_t, size_t, int, fixed32);
    static size_t local_sort(size_t, size_t, int, fixed32);
 
