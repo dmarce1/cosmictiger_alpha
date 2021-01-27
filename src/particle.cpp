@@ -525,18 +525,18 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
       std::swap(parts.rung[i], parts.rung[j]);
    };
 
-   std::vector < size_t > count(Ntot, 0);
-   std::vector < size_t > bounds(Ntot + 1);
+   std::vector < size_t > begins(Ntot);
+   std::vector < size_t > ends(Ntot, 0);
    for (size_t i = begin; i < end; i++) {
       const auto x = gather_x(i);
-      counts[to_index(x)]++;
+      ends[to_index(x)]++;
    }
-   bounds[0] = begin;
-   for (int i = 0; i < Ntot; i++) {
-      bounds[i + 1] = bounds[i] + counts[i];
+   begins[0] = begin;
+   ends[0] += begin;
+   for (int i = 1; i < Ntot; i++) {
+      ends[i] += ends[i - 1];
+      begins[i] = ends[i - 1];
    }
-
-   auto orig_bounds = bounds;
    size_t first_index;
    size_t bin, first_bin;
    particle p;
@@ -546,10 +546,10 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
       bin = first_bin;
       while (flag) {
          flag = false;
-         for (size_t i = bounds[bin]; i < orig_bounds[bin + 1]; i++) {
+         for (size_t i = begins[bin]; i < ends[bin]; i++) {
             const auto x = gather_x(i);
             const int j = to_index(x);
-            bounds[bin]++;
+            begins[bin]++;
             if (j != bin) {
                bin = j;
                flag = true;
@@ -577,10 +577,16 @@ size_t particle_set::radix_sort(size_t begin, size_t end, range box, int dimstar
    }
 #ifdef TEST_RADIX
    for (int i = 0; i < Ntot; i++) {
-      //   printf("%i %i\n", bounds[i], orig_bounds[i + 1]);
+      //   printf("%i %i\n", bounds[i], ends[i + 1]);
    }
    for (int bin = 0; bin < Ntot; bin++) {
-      for (int i = orig_bounds[bin]; i < orig_bounds[bin + 1]; i++) {
+      int b;
+      if (bin == 0) {
+         b = 0;
+      } else {
+         b = ends[bin - 1];
+      }
+      for (int i = b; i < ends[bin]; i++) {
          const auto index = to_index(gather_x(i));
          if (index != bin) {
             printf("Radix sort failed on particle %li\n", i);
