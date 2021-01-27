@@ -11,8 +11,8 @@
 
 #define NDIM 3
 
-//#define TEST_TREE
-//#define TEST_RADIX
+#define TEST_TREE
+#define TEST_RADIX
 
 #define NCHILD 2
 #define RADIX_DEPTH 20

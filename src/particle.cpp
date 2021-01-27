@@ -514,7 +514,7 @@ std::vector<size_t> particle_set::radix_sort(size_t begin, size_t end, range box
          //   printf( "%i\n\n",i[dim].to_int());
          assert(i[dim].to_int() >= 0 && i[dim].to_int() < N[dim]);
       }
-      return N[2] * (N[1] * i[0].to_int() + i[1].to_int()) + i[2].to_int();
+      return N[0] * (N[1] * i[2].to_int() + i[1].to_int()) + i[0].to_int();
    };
 
    const auto swap_parts = [&](int i, int j) {
@@ -555,10 +555,10 @@ std::vector<size_t> particle_set::radix_sort(size_t begin, size_t end, range box
       for (; bin < Ntot; bin = ++first_bin) {
          bool flag = true;
          bool first = true;
+         int64_t first_index = -1;
          while (flag) {
             flag = false;
             size_t i = begins[bin]++;
-            int64_t first_index = -1;
             for (; i < ends[bin]; i = begins[bin]++) {
                const auto x = gather_x(i);
                const int j = to_index(x);
@@ -583,7 +583,7 @@ std::vector<size_t> particle_set::radix_sort(size_t begin, size_t end, range box
                   break;
                }
             }
-            if (!flag && first_index >= 0) {
+            if (!flag && !first) {
                parts.set_part(p, first_index);
             }
          }

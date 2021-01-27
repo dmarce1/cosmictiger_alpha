@@ -36,11 +36,11 @@ tree::tree(std::shared_ptr<tree::sort_vars> vars) {
    bool error = false;
    for (size_t i = parts_begin; i < parts_end; i++) {
       const auto x = set.get_x(i);
-      if (!vars->rng.contains(x)) {
+      if (!vars->box.contains(x)) {
          printf("particle %li out of range at depth = %i\n", i, vars->depth);
          printf("Range:\n");
          for (int dim = 0; dim < NDIM; dim++) {
-            printf("\t%e %e\n", vars->rng.begin[dim].to_float(), vars->rng.end[dim].to_float());
+            printf("\t%e %e\n", vars->box.begin[dim].to_float(), vars->box.end[dim].to_float());
          }
          printf("Particle:\n\t");
          for (int dim = 0; dim < NDIM; dim++) {
