@@ -89,26 +89,26 @@ hpx::future<tree::id_type> tree::create(int rank, std::shared_ptr<tree::sort_var
    static const int myrank = hpx_rank();
    hpx::future<id_type> fut;
    if (rank == myrank) {
-      thread_control thread(1, vars->depth);
+      thread_control thread(12, vars->depth);
       const auto func = [=](std::shared_ptr<tree::sort_vars> vars) {
          id_type id;
          tree *ptr = new tree(vars);
          CHECK_POINTER(ptr);
          id.ptr = (uint64_t) ptr;
          id.rank = myrank;
-         if( vars->forked) {
-           vars->thread.release();
+         if (vars->forked) {
+            vars->thread.release();
          }
          return id;
       };
-      if( thread.try_acquire() ) {
-         vars->forked =  true;
+      if (thread.try_acquire()) {
+         vars->forked = true;
          vars->thread = std::move(thread);
-         fut = hpx::async(hpx::launch::async, func,std::move(vars));
+         fut = hpx::async(hpx::launch::async, func, std::move(vars));
       } else {
-         vars->forked =  false;
+         vars->forked = false;
          vars->thread = std::move(thread);
-         fut = hpx::async(hpx::launch::async, func,std::move(vars));
+         fut = hpx::make_ready_future(func(std::move(vars)));
       }
    } else {
       fut = hpx::async < tree_create_action > (hpx_localities()[rank], rank, vars);

@@ -16,6 +16,6 @@
 #define NCHILD 2
 
 
-#define OVERSUBSCRIPTION 2
+#define OVERSUBSCRIPTION 1
 
 #endif /* COSMICTIGER_DEFS_HPP_ */

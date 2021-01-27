@@ -12,13 +12,23 @@
 #include <cosmictiger/particle.hpp>
 
 static void tree_test() {
-   timer tm;
    particle_set::generate_random_particle_set();
-   printf( "Starting tree test\n");
-   tm.start();
-   tree root;
-   tm.stop();
-   printf( "Tree test took %e s\n", tm.read());
+   {
+      timer tm;
+      printf("Starting worse case tree test\n");
+      tm.start();
+      tree root;
+      tm.stop();
+      printf("Tree test took %e s\n", tm.read());
+   }
+   {
+      timer tm;
+      printf("Starting best case tree test\n");
+      tm.start();
+      tree root;
+      tm.stop();
+      printf("Tree test took %e s\n", tm.read());
+   }
 }
 
 static void local_sort_random() {

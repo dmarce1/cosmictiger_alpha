@@ -101,21 +101,21 @@ void particle_set::generate_random_particle_set() {
          while ((x = rand_fixed32()) == fixed32(0)) {
             ;
          }
-         if (dim == 1) {
-            bool coin = i + parts.offset > global().opts.nparts / 2;
-            if (rand_float() < 0.01) {
-               coin = !coin;
-            }
-            if (coin) {
-               if (x < fixed32(0.0)) {
-                  x += fixed32(0.5);
-               }
-            } else {
-               if (x > fixed32(0.0)) {
-                  x -= fixed32(0.5);
-               }
-            }
-         }
+//         if (dim == 1) {
+//            bool coin = i + parts.offset > global().opts.nparts / 2;
+//            if (rand_float() < 0.01) {
+//               coin = !coin;
+//            }
+//            if (coin) {
+//               if (x < fixed32(0.0)) {
+//                  x += fixed32(0.5);
+//               }
+//            } else {
+//               if (x > fixed32(0.0)) {
+//                  x -= fixed32(0.5);
+//               }
+//            }
+//         }
          parts.x[dim][index] = x;
       }
       for (int dim = 0; dim < NDIM; dim++) {
