@@ -11,14 +11,12 @@ int hpx_main(int argc, char *argv[]) {
       hpx_init();
       const auto cuda = cuda_init();
       global_init(opts, cuda);
-      particle_set::create();
+
       if (opts.test != "") {
          test_run(opts.test);
       } else {
 
       }
-
-      particle_set::destroy();
    }
 
    return hpx::finalize();

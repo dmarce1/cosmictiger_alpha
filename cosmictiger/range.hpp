@@ -3,6 +3,8 @@
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/fixed.hpp>
 
+#include <array>
+
 struct range {
    std::array<fixed32,NDIM> begin;
    std::array<fixed32,NDIM> end;

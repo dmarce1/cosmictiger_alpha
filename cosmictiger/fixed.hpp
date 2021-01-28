@@ -8,12 +8,18 @@
 #ifndef COSMICTIGER_FIXED_HPP_
 #define COSMICTIGER_FIXED_HPP_
 
+#include <cosmictiger/cuda.hpp>
+#include <cosmictiger/defs.hpp>
+
 #include <cstdint>
 #include <limits>
-#include <cosmictiger/cuda.hpp>
+#include <array>
 
 template<class >
 class fixed;
+
+
+using morton_t = uint64_t;
 
 using fixed32 = fixed<int32_t>;
 using fixed64 = fixed<int64_t>;
@@ -28,7 +34,7 @@ class fixed {
    static constexpr float cinv = 1.f / c0;
    static constexpr T width = (sizeof(float) * CHAR_BIT);
 public:
-   CUDA_EXPORT
+
    inline static fixed<T> max() {
       fixed<T> num;
       num.i = std::numeric_limits < T > ::max();
@@ -39,9 +45,9 @@ public:
       num.i = std::numeric_limits < T > ::min();
       return num;
    }
-   CUDA_EXPORT
+
    inline fixed<T>() = default;
-   CUDA_EXPORT
+
    inline
 #ifdef NDEBUG
    constexpr
@@ -50,49 +56,49 @@ public:
          i(c0 * number) {
    }
    template<class V>
-   CUDA_EXPORT
+
    inline constexpr fixed<T>(fixed<V> other) :
          i(other.i) {
    }
-   CUDA_EXPORT
+
    inline bool operator<(fixed other) const {
       return i < other.i;
    }
-   CUDA_EXPORT
+
    inline bool operator>(fixed other) const {
       return i > other.i;
    }
-   CUDA_EXPORT
+
    inline bool operator<=(fixed other) const {
       return i <= other.i;
    }
-   CUDA_EXPORT
+
    inline bool operator>=(fixed other) const {
       return i >= other.i;
    }
-   CUDA_EXPORT
+
    inline bool operator==(fixed other) const {
       return i == other.i;
    }
-   CUDA_EXPORT
+
    inline bool operator!=(fixed other) const {
       return i != other.i;
    }
-   CUDA_EXPORT
+
    inline float to_float() const {
       return i * cinv;
 
    }
-   CUDA_EXPORT
+
    inline int to_int() const {
       return i >> width;
    }
-   CUDA_EXPORT
+
    inline double to_double() const {
       return i * cinv;
 
    }
-   CUDA_EXPORT
+
    inline fixed<T> operator*(const fixed<T> &other) const {
       int64_t a;
       const int64_t b = i;
@@ -102,7 +108,7 @@ public:
       res.i = (T) a;
       return res;
    }
-   CUDA_EXPORT
+
    inline fixed<T> operator*=(const fixed<T> &other) {
       int64_t a;
       const int64_t b = i;
@@ -111,7 +117,7 @@ public:
       i = (T) a;
       return *this;
    }
-   CUDA_EXPORT
+
    inline fixed<T> operator*=(int other) {
       int64_t a;
       const int64_t b = i;
@@ -120,7 +126,7 @@ public:
       i = (T) a;
       return *this;
    }
-   CUDA_EXPORT
+
    inline fixed<T> operator/(const fixed<T> &other) const {
       int64_t a;
       const int64_t b = i;
@@ -130,7 +136,7 @@ public:
       res.i = (T) a;
       return res;
    }
-   CUDA_EXPORT
+
    inline fixed<T> operator/=(const fixed<T> &other) {
       int64_t a;
       const int64_t b = i;
@@ -140,28 +146,31 @@ public:
       return *this;
    }
 
-   CUDA_EXPORT
    inline fixed<T> operator+(const fixed<T> &other) const {
       fixed<T> a;
       a.i = i + other.i;
       return a;
    }
-   CUDA_EXPORT
+
    inline fixed<T> operator-(const fixed<T> &other) const {
       fixed<T> a;
       a.i = i - other.i;
       return a;
    }
-   CUDA_EXPORT
+
    inline fixed<T>& operator+=(const fixed<T> &other) {
       i += other.i;
       return *this;
    }
-   CUDA_EXPORT
+
    inline fixed<T>& operator-=(const fixed<T> &other) {
       i -= other.i;
       return *this;
    }
+
+
+   template<int DEPTH>
+   friend morton_t morton_key(std::array<fixed32, NDIM> num);
 
    template<class A>
    void serialize(A &arc, unsigned) {
@@ -178,8 +187,21 @@ public:
 
 };
 
+
+template<int DEPTH>
+inline morton_t morton_key(std::array<fixed32, NDIM> I) {
+    assert(DEPTH % NDIM == 0);
+    morton_t key = 0LL;
+    for (size_t k = 0; k < DEPTH / NDIM; k++) {
+       for (size_t dim = 0; dim < NDIM; dim++) {
+          key ^= size_t((bool) (I[dim].i & (0x0000000000000001LL << k))) << size_t(k * NDIM + dim);
+       }
+    }
+    return key;
+ }
+
+
 template<class T>
-CUDA_EXPORT
 inline void swap(fixed<T> &first, fixed<T> &second) {
    std::swap(first, second);
 }

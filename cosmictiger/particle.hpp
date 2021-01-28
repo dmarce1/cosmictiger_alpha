@@ -9,9 +9,12 @@
 #define COSMICTIGER_PARTICLE_HPP_
 
 #include <cosmictiger/defs.hpp>
+#include <cosmictiger/memory.hpp>
 #include <cosmictiger/fixed.hpp>
-#include <cosmictiger/hpx.hpp>
 #include <cosmictiger/range.hpp>
+#ifdef _CUDA_ARCH_
+#include <cosmictiger/hpx.hpp>
+#endif
 
 struct range;
 
@@ -19,10 +22,12 @@ struct range;
 #include <atomic>
 #include <vector>
 
+using rung_t = int32_t;
+
 struct particle {
    std::array<fixed32, NDIM> x;
    std::array<float, NDIM> v;
-   int8_t rung;
+   rung_t rung;
    template<class A>
    void serialize(A &&arc, unsigned) {
       arc & x;
@@ -31,50 +36,130 @@ struct particle {
    }
 };
 
-class particle_set {
-   std::array<fixed32*, NDIM> x;
-   std::array<float*, NDIM> v;
-   int8_t *rung;
-   size_t size;
-   int64_t offset;
-   bool virtual_;
-   struct count_t {
-      size_t lo;
-      size_t hi;
-      int rank;
-      bool operator<(const count_t &other) const {
-         return rank < other.rank;
-      }
-      template<class A>
-      void serialize(A &&arc, unsigned) {
-         arc & lo;
-         arc & hi;
-         arc & rank;
-      }
+struct particle_set {
+   enum format {
+      soa, aos
    };
-   static std::atomic<size_t> hi_index;
-   static particle_set parts;
-   static std::pair<size_t, size_t> rank_to_range(int);
-   static std::pair<hpx::id_type, hpx::id_type> rel_children(size_t, size_t);
-public:
-   inline particle_set() = default;
-   fixed32 get_x(size_t index, int dim) const;
-   std::array<fixed32,NDIM> get_x(size_t index) const;
-   particle get_part(size_t index) const;
-   void set_part(particle p, size_t index);
-   static particle_set local_particle_set();
-   static int index_to_rank(size_t);
-   static void generate_random_particle_set();
-   static void create();
-   static void destroy();
-   static std::vector<particle> get_sort_parts(const std::vector<particle> &lo_parts, int dim, fixed32 xdim);
-//   static size_t cuda_sort(size_t, size_t, int, fixed32);
-   static size_t remote_sort(std::vector<count_t>, size_t, size_t, int, fixed32);
-   static size_t sort(size_t, size_t, int, fixed32);
-   static std::vector<size_t> radix_sort(size_t, size_t, range box, int dimstart, int depth);
-     static std::vector<count_t> get_count(size_t, size_t, int, fixed32);
-   static size_t local_sort(size_t, size_t, int, fixed32);
 
+   particle_set(size_t, size_t = 0);
+   ~particle_set();
+   void set_mem_format(format);
+
+   struct soa_interface {
+      soa_interface(particle_set &parts);
+      fixed32 pos(int dim, size_t index) const;
+      float vel(int dim, size_t index) const;
+      rung_t rung(size_t index) const;
+      fixed32& pos(int dim, size_t index);
+      float& vel(int dim, size_t index);
+      rung_t& rung(size_t index);
+      particle part(size_t index) const;
+   private:
+      particle_set &parts_;
+   };
+
+   struct aos_interface {
+      aos_interface(particle_set &parts);
+   private:
+      fixed32 pos(int dim, size_t index) const;
+      float vel(int dim, size_t index) const;
+      rung_t rung(size_t index) const;
+      fixed32& pos(int dim, size_t index);
+      float& vel(int dim, size_t index);
+      rung_t& rung(size_t index);
+      particle part(size_t index) const;
+      particle& part(size_t index);
+   private:
+      particle_set &parts_;
+   };
+
+
+private:
+   std::array<fixed32*, NDIM> xptr_;
+   std::array<float*, NDIM> vptr_;
+   rung_t *rptr_;
+   particle *pptr_;
+   format format_;
+   size_t size_;
+   size_t offset_;
 };
+
+inline particle_set::aos_interface::aos_interface(particle_set &parts) :
+      parts_(parts) {
+   assert(parts_.format_ == format::aos);
+
+}
+inline fixed32 particle_set::aos_interface::pos(int dim, size_t index) const {
+   return parts_.pptr_[index - parts_.offset_].x[dim];
+}
+
+inline float particle_set::aos_interface::vel(int dim, size_t index) const {
+   return parts_.pptr_[index - parts_.offset_].v[dim];
+}
+
+inline rung_t particle_set::aos_interface::rung(size_t index) const {
+   return parts_.pptr_[index - parts_.offset_].rung;
+}
+
+inline fixed32& particle_set::aos_interface::pos(int dim, size_t index) {
+   return parts_.pptr_[index - parts_.offset_].x[dim];
+}
+
+inline float& particle_set::aos_interface::vel(int dim, size_t index) {
+   return parts_.pptr_[index - parts_.offset_].v[dim];
+}
+
+inline rung_t& particle_set::aos_interface::rung(size_t index) {
+   return parts_.pptr_[index - parts_.offset_].rung;
+}
+
+inline particle particle_set::aos_interface::part(size_t index) const {
+   return parts_.pptr_[index];
+}
+
+inline particle& particle_set::aos_interface::part(size_t index) {
+   return parts_.pptr_[index];
+}
+
+inline particle_set::soa_interface::soa_interface(particle_set &parts) :
+      parts_(parts) {
+   assert(parts_.format_ == format::soa);
+}
+
+inline fixed32 particle_set::soa_interface::pos(int dim, size_t index) const {
+   return parts_.xptr_[dim][index - parts_.offset_];
+}
+
+inline float particle_set::soa_interface::vel(int dim, size_t index) const {
+   return parts_.vptr_[dim][index - parts_.offset_];
+}
+
+inline rung_t particle_set::soa_interface::rung(size_t index) const {
+   return parts_.rptr_[index - parts_.offset_];
+}
+
+inline fixed32& particle_set::soa_interface::pos(int dim, size_t index) {
+   return parts_.xptr_[dim][index - parts_.offset_];
+}
+
+inline float& particle_set::soa_interface::vel(int dim, size_t index) {
+   return parts_.vptr_[dim][index - parts_.offset_];
+}
+
+inline rung_t& particle_set::soa_interface::rung(size_t index) {
+   return parts_.rptr_[index - parts_.offset_];
+}
+
+inline particle particle_set::soa_interface::part(size_t index) const {
+   particle p;
+   for (int dim = 0; dim < NDIM; dim++) {
+      p.x[dim] = pos(dim, index);
+   }
+   for (int dim = 0; dim < NDIM; dim++) {
+      p.v[dim] = vel(dim, index);
+   }
+   p.rung = rung(index);
+   return p;
+}
 
 #endif /* COSMICTIGER_PARTICLE_HPP_ */

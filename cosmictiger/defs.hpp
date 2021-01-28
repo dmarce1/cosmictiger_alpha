@@ -15,7 +15,7 @@
 #define TEST_RADIX
 
 #define NCHILD 2
-#define RADIX_DEPTH 20
+#define RADIX_DEPTH 6
 //#define PARALLEL_RADIX
 
 
