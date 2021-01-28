@@ -11,6 +11,8 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/particle.hpp>
 
+
+
 static void sort() {
    timer tm;
    particle_set parts(global().opts.nparts);
@@ -20,6 +22,12 @@ static void sort() {
    tm.stop();
    printf("Time to sort worst case: %e s\n", tm.read());
    tm.reset();
+
+   tm.start();
+   parts.local_sort(0, global().opts.nparts, 18);
+   tm.stop();
+   printf("Time to sort best case: %e s\n", tm.read());
+
    tm.start();
    parts.local_sort(0, global().opts.nparts, 18);
    tm.stop();
