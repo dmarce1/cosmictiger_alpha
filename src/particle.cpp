@@ -50,7 +50,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       const auto x = pos(i);
       const auto key = morton_key(x, depth);
       auto iter = counts.find(key);
-      if (iter != counts.end()) {
+       if (iter != counts.end()) {
          iter->second++;
       } else {
          counts[key] = 1;
@@ -58,6 +58,13 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       keys.push_back(key);
       key_max = std::max(key_max, key);
       key_min = std::min(key_min, key);
+   }
+   key_max++;
+   for( int key = key_min; key < key_max; key++) {
+      auto iter = counts.find(key);
+       if( iter != counts.end()) {
+         counts[key] = 0;
+      }
    }
    tm.stop();
    size_t key_cnt = key_max - key_min;
@@ -71,6 +78,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       end[key_i] = end[key_i - 1] + this_count;
       begin[key_i] = end[key_i - 1];
    }
+   size_t sorted = 0;
    printf("Key generation and count took %e s\n", tm.read());
 
    particle p;
@@ -98,6 +106,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
                } else {
                   first_index = i;
                }
+               sorted++;
                first = false;
                this_key = test_key;
                break;
@@ -110,7 +119,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       }
    }
    tm.stop();
-   printf("Sort took %e s\n", tm.read());
+   printf("Sort took %e %li s\n", tm.read(), sorted);
 
    return end;
 }
