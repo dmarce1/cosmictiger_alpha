@@ -18,11 +18,10 @@
 template<class >
 class fixed;
 
-
 using morton_t = uint64_t;
 
-using fixed32 = fixed<int32_t>;
-using fixed64 = fixed<int64_t>;
+using fixed32 = fixed<uint32_t>;
+using fixed64 = fixed<uint64_t>;
 
 #include <cassert>
 #include <cstdlib>
@@ -168,9 +167,7 @@ public:
       return *this;
    }
 
-
-   template<int DEPTH>
-   friend morton_t morton_key(std::array<fixed32, NDIM> num);
+   friend morton_t morton_key(std::array<fixed32, NDIM> num, int64_t);
 
    template<class A>
    void serialize(A &arc, unsigned) {
@@ -187,19 +184,19 @@ public:
 
 };
 
-
-template<int DEPTH>
-inline morton_t morton_key(std::array<fixed32, NDIM> I) {
-    assert(DEPTH % NDIM == 0);
-    morton_t key = 0LL;
-    for (size_t k = 0; k < DEPTH / NDIM; k++) {
-       for (size_t dim = 0; dim < NDIM; dim++) {
-          key ^= size_t((bool) (I[dim].i & (0x0000000000000001LL << k))) << size_t(k * NDIM + dim);
-       }
-    }
-    return key;
- }
-
+inline morton_t morton_key(std::array<fixed32, NDIM> I, int64_t depth) {
+   assert(depth % NDIM == 0);
+   morton_t key = 0LL;
+   for (size_t dim = 0; dim < NDIM; dim++) {
+      I[dim].i >>= (sizeof(morton_t) * CHAR_BIT - depth);
+   }
+   for (size_t k = 0; k < depth / NDIM; k++) {
+      for (size_t dim = 0; dim < NDIM; dim++) {
+         key ^= size_t((bool) (I[dim].i & (0x0000000000000001LL << k))) << size_t(k * NDIM + dim);
+      }
+   }
+   return key;
+}
 
 template<class T>
 inline void swap(fixed<T> &first, fixed<T> &second) {

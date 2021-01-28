@@ -1,13 +1,13 @@
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/memory.hpp>
+#include <cosmictiger/rand.hpp>
+#include <cosmictiger/timer.hpp>
 
-#define CHUNK_SIZE (7)
+#include <unordered_map>
 
 particle_set::particle_set(size_t size, size_t offset) {
    offset_ = offset;
    size_ = size;
-   size = (((size - 1) / CHUNK_SIZE) + 1) * CHUNK_SIZE;
-   printf("%i %i\n", size, size_);
    format_ = format::soa;
    CUDA_MALLOC(pptr_, size);
    CHECK_POINTER(pptr_);
@@ -25,61 +25,93 @@ particle_set::~particle_set() {
    CUDA_FREE(pptr_);
 }
 
-void particle_set::set_mem_format(format new_format) {
-   std::vector<morton_t> keys;
-   const size_t smax = ((size_ - 1) / CHUNK_SIZE + 1) * CHUNK_SIZE;
-   keys.reserve(smax);
-   std::vector<particle> parts(CHUNK_SIZE);
-   std::array<fixed32, NDIM> x;
-   if (new_format != format_) {
-      if (new_format == format::soa) {
-         for (size_t i = 0; i < size_; i += CHUNK_SIZE) {
-            for (size_t j = i; j < i + CHUNK_SIZE; j++) {
-               for (size_t dim = 0; dim < NDIM; dim++) {
-                  parts[dim] = *((particle*) (xptr_[dim]) + j / CHUNK_SIZE);
-               }
-               for (size_t dim = 0; dim < NDIM; dim++) {
-                  parts[NDIM + dim] = *((particle*) (vptr_[dim]) + j / CHUNK_SIZE);
-               }
-               parts[2 * NDIM] = *((particle*) (rptr_) + j / CHUNK_SIZE);
-            }
-            for (size_t j = i; j < i + CHUNK_SIZE; j++) {
-               const auto jmi = j - i;
-               for (int dim = 0; dim < NDIM; dim++) {
-                  xptr_[dim][j] = parts[jmi].x[dim];
-               }
-               for (int dim = 0; dim < NDIM; dim++) {
-                  vptr_[dim][j] = parts[jmi].v[dim];
-               }
-               rptr_[j] = parts[jmi].rung;
-            }
-         }
-      } else {
-         for (size_t i = 0; i < size_; i += CHUNK_SIZE) {
-            for (size_t j = i; j < i + CHUNK_SIZE; j++) {
-               const auto jmi = j - i;
-               for (int dim = 0; dim < NDIM; dim++) {
-                  x[dim] = xptr_[dim][j];
-                  parts[jmi].x[dim] = x[dim];
-               }
-               keys.push_back(morton_key<45>(x));
-               for (int dim = 0; dim < NDIM; dim++) {
-                  parts[jmi].v[dim] = vptr_[dim][j];
-               }
-               parts[jmi].rung = rptr_[j];
-            }
-            for (size_t j = i; j < i + CHUNK_SIZE; j++) {
-               for (size_t dim = 0; dim < NDIM; dim++) {
-                  *((particle*) (xptr_[dim]) + j / CHUNK_SIZE) = parts[dim];
-               }
-               for (size_t dim = 0; dim < NDIM; dim++) {
-                  *((particle*) (vptr_[dim]) + j / CHUNK_SIZE) = parts[NDIM + dim];
-               }
-               *((particle*) (rptr_) + j / CHUNK_SIZE) = parts[2 * NDIM];
-            }
-         }
-
+void particle_set::generate_random() {
+   for (int i = 0; i < size_; i++) {
+      for (int dim = 0; dim < NDIM; dim++) {
+         pos(dim, i) = rand_fixed32();
+         vel(dim, i) = 0.f;
       }
-      format_ = new_format;
+      rung(i) = 0;
    }
 }
+
+std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t depth) {
+   std::unordered_map < size_t, size_t > counts;
+   std::vector < size_t > begin;
+   std::vector < size_t > end;
+   std::vector < size_t > keys;
+   size_t key_max = 0;
+   size_t key_min = ~(1 << (depth + 1));
+
+   timer tm;
+   tm.start();
+   keys.reserve(stop - start);
+   for (size_t i = start; i < stop; i++) {
+      const auto x = pos(i);
+      const auto key = morton_key(x, depth);
+      auto iter = counts.find(key);
+      if (iter != counts.end()) {
+         iter->second++;
+      } else {
+         counts[key] = 1;
+      }
+      keys.push_back(key);
+      key_max = std::max(key_max, key);
+      key_min = std::min(key_min, key);
+   }
+   tm.stop();
+   size_t key_cnt = key_max - key_min;
+   begin.resize(key_cnt);
+   end.resize(key_cnt + 1);
+   begin[0] = start;
+   end[0] = start + counts[key_min];
+   for (int key = key_min + 1; key < key_max; key++) {
+      const auto this_count = counts[key];
+      const auto key_i = key - key_min;
+      end[key_i] = end[key_i - 1] + this_count;
+      begin[key_i] = end[key_i - 1];
+   }
+   printf("Key generation and count took %e s\n", tm.read());
+
+   particle p;
+   morton_t next_key;
+   tm.reset();
+   tm.start();
+   for (morton_t first_key = key_min; first_key < key_max; first_key++) {
+      bool flag = true;
+      bool first = true;
+      int64_t first_index = -1;
+      morton_t this_key = first_key;
+      while (flag) {
+         flag = false;
+         size_t i = begin[this_key - key_min]++;
+         for (; i < end[this_key - key_min]; i = begin[this_key - key_min]++) {
+            const auto x = pos(i);
+            const int test_key = keys[i - start];
+            if (test_key != this_key) {
+               flag = true;
+               const auto tmp = p;
+               p = part(i);
+               if (!first) {
+                  part(i) = tmp;
+                  std::swap(this_key, keys[i - start]);
+               } else {
+                  first_index = i;
+               }
+               first = false;
+               this_key = test_key;
+               break;
+            }
+         }
+         if (!flag && !first) {
+            part(first_index) = p;
+            keys[first_index - start] = this_key;
+         }
+      }
+   }
+   tm.stop();
+   printf("Sort took %e s\n", tm.read());
+
+   return end;
+}
+

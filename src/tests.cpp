@@ -11,28 +11,25 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/particle.hpp>
 
-static void memory_transpose() {
-
-   printf( "Beginning memory_transpose test\n");
+static void sort() {
+   timer tm;
    particle_set parts(global().opts.nparts);
-   timer aos, soa;
-   aos.start();
-   parts.set_mem_format(particle_set::format::aos);
-   aos.stop();
-   soa.start();
-   parts.set_mem_format(particle_set::format::soa);
-   soa.stop();
-   printf( "soa to aos time = %e s\n", aos.read());
-   printf( "aos to soa time = %e s\n", soa.read());
-   printf( "total      time = %e s\n", aos.read() +  soa.read());
-}
+   parts.generate_random();
+   tm.start();
+   parts.local_sort(0, global().opts.nparts, 18);
+   tm.stop();
+   printf("Time to sort worst case: %e s\n", tm.read());
+   tm.reset();
+   tm.start();
+   parts.local_sort(0, global().opts.nparts, 18);
+   tm.stop();
+   printf("Time to sort best case: %e s\n", tm.read());
 
-static void local_sort_random() {
 }
 
 void test_run(const std::string test) {
-   if (test == "memory_transpose") {
-      memory_transpose();
+   if (test == "sort") {
+      sort();
    } else {
       printf("%s is an unknown test.\n", test.c_str());
    }

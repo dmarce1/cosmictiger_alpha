@@ -43,37 +43,16 @@ struct particle_set {
 
    particle_set(size_t, size_t = 0);
    ~particle_set();
-   void set_mem_format(format);
-
-   struct soa_interface {
-      soa_interface(particle_set &parts);
-      fixed32 pos(int dim, size_t index) const;
-      float vel(int dim, size_t index) const;
-      rung_t rung(size_t index) const;
-      fixed32& pos(int dim, size_t index);
-      float& vel(int dim, size_t index);
-      rung_t& rung(size_t index);
-      particle part(size_t index) const;
-   private:
-      particle_set &parts_;
-   };
-
-   struct aos_interface {
-      aos_interface(particle_set &parts);
-   private:
-      fixed32 pos(int dim, size_t index) const;
-      float vel(int dim, size_t index) const;
-      rung_t rung(size_t index) const;
-      fixed32& pos(int dim, size_t index);
-      float& vel(int dim, size_t index);
-      rung_t& rung(size_t index);
-      particle part(size_t index) const;
-      particle& part(size_t index);
-   private:
-      particle_set &parts_;
-   };
-
-
+   fixed32 pos(int dim, size_t index) const;
+   std::array<fixed32, NDIM> pos(size_t index) const;
+   float vel(int dim, size_t index) const;
+   rung_t rung(size_t index) const;
+   fixed32& pos(int dim, size_t index);
+   float& vel(int dim, size_t index);
+   rung_t& rung(size_t index);
+   particle part(size_t index) const;
+   std::vector<size_t> local_sort(size_t, size_t, int64_t);
+   void generate_random();
 private:
    std::array<fixed32*, NDIM> xptr_;
    std::array<float*, NDIM> vptr_;
@@ -84,73 +63,39 @@ private:
    size_t offset_;
 };
 
-inline particle_set::aos_interface::aos_interface(particle_set &parts) :
-      parts_(parts) {
-   assert(parts_.format_ == format::aos);
-
-}
-inline fixed32 particle_set::aos_interface::pos(int dim, size_t index) const {
-   return parts_.pptr_[index - parts_.offset_].x[dim];
-}
-
-inline float particle_set::aos_interface::vel(int dim, size_t index) const {
-   return parts_.pptr_[index - parts_.offset_].v[dim];
+inline std::array<fixed32, NDIM> particle_set::pos(size_t index) const {
+   std::array<fixed32,NDIM> x;
+   for( int dim = 0; dim < NDIM; dim++) {
+      x[dim] = pos(dim,index);
+   }
+   return x;
 }
 
-inline rung_t particle_set::aos_interface::rung(size_t index) const {
-   return parts_.pptr_[index - parts_.offset_].rung;
+inline fixed32 particle_set::pos(int dim, size_t index) const {
+   return xptr_[dim][index - offset_];
 }
 
-inline fixed32& particle_set::aos_interface::pos(int dim, size_t index) {
-   return parts_.pptr_[index - parts_.offset_].x[dim];
+inline float particle_set::vel(int dim, size_t index) const {
+   return vptr_[dim][index - offset_];
 }
 
-inline float& particle_set::aos_interface::vel(int dim, size_t index) {
-   return parts_.pptr_[index - parts_.offset_].v[dim];
+inline rung_t particle_set::rung(size_t index) const {
+   return rptr_[index - offset_];
 }
 
-inline rung_t& particle_set::aos_interface::rung(size_t index) {
-   return parts_.pptr_[index - parts_.offset_].rung;
+inline fixed32& particle_set::pos(int dim, size_t index) {
+   return xptr_[dim][index - offset_];
 }
 
-inline particle particle_set::aos_interface::part(size_t index) const {
-   return parts_.pptr_[index];
+inline float& particle_set::vel(int dim, size_t index) {
+   return vptr_[dim][index - offset_];
 }
 
-inline particle& particle_set::aos_interface::part(size_t index) {
-   return parts_.pptr_[index];
+inline rung_t& particle_set::rung(size_t index) {
+   return rptr_[index - offset_];
 }
 
-inline particle_set::soa_interface::soa_interface(particle_set &parts) :
-      parts_(parts) {
-   assert(parts_.format_ == format::soa);
-}
-
-inline fixed32 particle_set::soa_interface::pos(int dim, size_t index) const {
-   return parts_.xptr_[dim][index - parts_.offset_];
-}
-
-inline float particle_set::soa_interface::vel(int dim, size_t index) const {
-   return parts_.vptr_[dim][index - parts_.offset_];
-}
-
-inline rung_t particle_set::soa_interface::rung(size_t index) const {
-   return parts_.rptr_[index - parts_.offset_];
-}
-
-inline fixed32& particle_set::soa_interface::pos(int dim, size_t index) {
-   return parts_.xptr_[dim][index - parts_.offset_];
-}
-
-inline float& particle_set::soa_interface::vel(int dim, size_t index) {
-   return parts_.vptr_[dim][index - parts_.offset_];
-}
-
-inline rung_t& particle_set::soa_interface::rung(size_t index) {
-   return parts_.rptr_[index - parts_.offset_];
-}
-
-inline particle particle_set::soa_interface::part(size_t index) const {
+inline particle particle_set::part(size_t index) const {
    particle p;
    for (int dim = 0; dim < NDIM; dim++) {
       p.x[dim] = pos(dim, index);
