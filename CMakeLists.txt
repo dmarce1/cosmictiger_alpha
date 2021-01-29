@@ -86,7 +86,8 @@ add_hpx_executable(
     ${cosmictiger_header_files}
  )
  
-target_link_libraries(cosmictiger PUBLIC cuda cudart tcmalloc)
+   set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+ target_link_libraries(cosmictiger PUBLIC cuda cudart tcmalloc)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:

@@ -167,6 +167,11 @@ public:
       return *this;
    }
 
+   CUDA_EXPORT
+   inline T get_integer() const {
+      return i;
+   }
+
    friend morton_t morton_key(std::array<fixed32, NDIM> num, int64_t);
 
    template<class A>
@@ -188,7 +193,7 @@ inline morton_t morton_key(std::array<fixed32, NDIM> I, int64_t depth) {
    assert(depth % NDIM == 0);
    morton_t key = 0LL;
    for (size_t dim = 0; dim < NDIM; dim++) {
-      I[dim].i >>= (sizeof(morton_t) * CHAR_BIT - depth);
+      I[dim].i >>= (sizeof(fixed32) * CHAR_BIT - depth/NDIM);
    }
    for (size_t k = 0; k < depth / NDIM; k++) {
       for (size_t dim = 0; dim < NDIM; dim++) {
