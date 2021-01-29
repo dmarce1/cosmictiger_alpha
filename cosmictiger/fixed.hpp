@@ -208,4 +208,6 @@ inline void swap(fixed<T> &first, fixed<T> &second) {
    std::swap(first, second);
 }
 
+
+
 #endif /* COSMICTIGER_FIXED_HPP_ */

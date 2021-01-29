@@ -62,7 +62,7 @@ struct particle_set {
    float& vel(int dim, size_t index);
    void set_rung(rung_t t, size_t index);
    particle part(size_t index) const;
-   std::vector<size_t> local_sort(size_t, size_t, int64_t);
+   std::vector<size_t> local_sort(size_t, size_t, int64_t, morton_t key_begin, morton_t key_end );
    void generate_random();
 #ifndef __CUDACC__
 private:
@@ -76,7 +76,7 @@ private:
    size_t offset_;
 };
 
-std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, int depth);
+std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, int depth, morton_t&, morton_t&);
 
 inline std::array<fixed32, NDIM> particle_set::pos(size_t index) const {
    std::array<fixed32, NDIM> x;

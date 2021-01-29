@@ -24,19 +24,19 @@ static void sort() {
    printf( "Using %li levels\n", depth);
 
    tm.start();
-   parts.local_sort(0, global().opts.nparts, 18);
+   parts.local_sort(0, global().opts.nparts, 18, 0, 1<<18);
    tm.stop();
    printf("Time to sort worst case: %e s\n", tm.read());
    tm.reset();
 
    tm.start();
-   parts.local_sort(0, global().opts.nparts, 18);
+   parts.local_sort(0, global().opts.nparts,  18, 0, 1<<18);
    tm.stop();
    printf("Time to sort best case: %e s\n", tm.read());
    tm.reset();
 
    tm.start();
-   parts.local_sort(0, global().opts.nparts, 18);
+   parts.local_sort(0, global().opts.nparts, 18, 0, 1<<18);
    tm.reset();
    tm.stop();
    printf("Time to sort best case: %e s\n", tm.read());
