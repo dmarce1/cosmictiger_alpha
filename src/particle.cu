@@ -11,11 +11,15 @@
 
 CUDA_KERNEL morton_keygen(particle::flags_t *flags, morton_t *key_min, morton_t *key_max, fixed32 *xptr, fixed32 *yptr,
       fixed32 *zptr, size_t nele, size_t depth) {
-   const int &tid = threadIdx.x + blockDim.x * BLOCK_SIZE;
+   const int &tid = threadIdx.x;
    const int &bid = blockIdx.x;
    const size_t shift = (sizeof(fixed32) * CHAR_BIT - depth / NDIM);
    const size_t start = bid * nele / gridDim.x;
    const size_t stop = (bid + 1) * nele / gridDim.x;
+   __shared__ morton_t maxes[BLOCK_SIZE];
+   __shared__ morton_t mines[BLOCK_SIZE];
+   mines[tid] = ~(size_t(1)<<(depth+1));
+   maxes[tid] = 0;
    for (size_t i = start + tid; i < stop; i += BLOCK_SIZE) {
       morton_t key = 0LL;
       size_t x[NDIM];
@@ -28,22 +32,31 @@ CUDA_KERNEL morton_keygen(particle::flags_t *flags, morton_t *key_min, morton_t 
          }
       }
       //     printf( "%lx\n",key);
-      *key_min = atomicMin((unsigned long long*) key_min, (unsigned long long) key);
-      *key_max = atomicMax((unsigned long long*) key_max, (unsigned long long) key);
+      maxes[tid] = max(maxes[tid], key);
+      mines[tid] = min(mines[tid], key);
       flags[i].morton_id = key;
       //   printf( "%i\n", nele);
+   }
+   __syncthreads();
+   for( int P = BLOCK_SIZE / 2; P >= 1; P /=2) {
+      if( tid < P) {
+         maxes[tid] = max(maxes[tid], maxes[tid+P]);
+         mines[tid] = min(mines[tid], mines[tid+P]);
+      }
       __syncthreads();
    }
+   *key_max = atomicMax((unsigned long long*)key_max, (unsigned long long)maxes[0]);
+   *key_min = atomicMax((unsigned long long*)key_min,(unsigned long long) mines[0]);
 }
 
 CUDA_KERNEL count_keys(int *counts, particle::flags_t *keys, morton_t key_min, morton_t key_max, size_t nele) {
-   const int &tid = threadIdx.x + blockDim.x * BLOCK_SIZE;
+   const int &tid = threadIdx.x;
    const int &bid = blockIdx.x;
    const size_t start = bid * nele / gridDim.x;
    const size_t stop = (bid + 1) * nele / gridDim.x;
    for (size_t i = start + tid; i < stop; i += BLOCK_SIZE) {
       const size_t index = keys[i].morton_id - key_min;
-      atomicAdd(counts + 0, 1);
+      atomicAdd(counts + index, 1);
    }
 }
 
@@ -60,16 +73,12 @@ std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, in
    fixed32 *y = set.xptr_[1] + start;
    fixed32 *z = set.xptr_[2] + start;
    particle::flags_t *flags = set.rptr_ + start;
-//
    const int nblocks = (92 * 32 - 1) / BLOCK_SIZE + 1;
 morton_keygen<<<nblocks, BLOCK_SIZE>>>(flags,key_min,key_max,x,y,z,stop-start, depth);
          CUDA_CHECK(cudaDeviceSynchronize());
-  //
-       //  printf("-----%li %li\n", *key_min, *key_max);
    int *counts;
    (*key_max)++;
    const size_t size = *key_max - *key_min;
- //  printf( "-------%li\n", size);
    CUDA_MALLOC(counts, size);
    for (int i = 0; i < *key_max - *key_min; i++) {
       counts[i] = 0;
