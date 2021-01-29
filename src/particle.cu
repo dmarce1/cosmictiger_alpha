@@ -9,7 +9,7 @@
 #define BLOCK_SIZE 32
 #define COUNT_BLOCKS 92
 
-CUDA_KERNEL morton_keygen(particle::flags_t *flags, morton_t *key_min, morton_t *key_max, fixed32 *xptr, fixed32 *yptr,
+CUDA_KERNEL morton_keygen(particle::flags_t *flags, morton_t *keys_min, morton_t *keys_max, fixed32 *xptr, fixed32 *yptr,
       fixed32 *zptr, size_t nele, size_t depth) {
    const int &tid = threadIdx.x;
    const int &bid = blockIdx.x;
@@ -47,8 +47,10 @@ CUDA_KERNEL morton_keygen(particle::flags_t *flags, morton_t *key_min, morton_t 
       }
       __syncthreads();
    }
-   *key_max = atomicMax((unsigned long long*) key_max, (unsigned long long) maxes[0]);
-   *key_min = atomicMin((unsigned long long*) key_min, (unsigned long long) mines[0]);
+   if( tid == 0 ) {
+      keys_min[blockIdx.x] = mines[0];
+      keys_max[blockIdx.x] = maxes[0];
+   }
 }
 
 CUDA_KERNEL count_keys(int *counts, particle::flags_t *keys, morton_t key_min, morton_t key_max, size_t nele) {
@@ -58,6 +60,16 @@ CUDA_KERNEL count_keys(int *counts, particle::flags_t *keys, morton_t key_min, m
    const size_t stop = (bid + 1) * nele / gridDim.x;
    for (size_t i = start + tid; i < stop; i += BLOCK_SIZE) {
       const size_t index = keys[i].morton_id - key_min;
+//      if(keys[i].morton_id < key_min ) {
+//         printf( "min out %lx %lx\n", keys[i].morton_id, key_min);
+//         __trap();
+//      }
+//      if(keys[i].morton_id >= key_max ) {
+//         printf( "max out %lx %lx\n", keys[i].morton_id, key_max);
+//         __trap();
+//      }
+      assert(keys[i].morton_id >= key_min);
+      assert(keys[i].morton_id < key_max);
       atomicAdd(counts + index, 1);
    }
 }
@@ -68,8 +80,9 @@ std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, in
    morton_t key_stop = kmax;
    morton_t *key_min;
    morton_t *key_max;
-   CUDA_MALLOC(key_min, 1);
-   CUDA_MALLOC(key_max, 1);
+   const int nblocks = (92 * 32 - 1) / BLOCK_SIZE + 1;
+   CUDA_MALLOC(key_min, nblocks);
+   CUDA_MALLOC(key_max, nblocks);
    size_t total_keys = (1 << (depth + 1));
    *key_min = ~total_keys;
    *key_max = 0;
@@ -80,24 +93,35 @@ std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, in
    fixed32 *y = set.xptr_[1] + start;
    fixed32 *z = set.xptr_[2] + start;
    particle::flags_t *flags = set.rptr_ + start;
-   const int nblocks = (92 * 32 - 1) / BLOCK_SIZE + 1;
 morton_keygen<<<nblocks, BLOCK_SIZE>>>(flags,key_min,key_max,x,y,z,stop-start, depth);
             CUDA_CHECK(cudaDeviceSynchronize());
    int *counts;
+
+   for( int i = 1; i < nblocks; i++) {
+      *key_min = std::min(*key_min,key_min[i]);
+      *key_max = std::max(*key_max,key_max[i]);
+     }
    (*key_max)++;
-   if( *key_min < key_start || *key_max > key_stop) {
-      printf( "Key out of range\n");
-      printf( "%li %li %li %li\n", key_start, *key_min, *key_max, key_stop) ;
-      abort();
-   }
+//   printf( "KEYS         %lx %lx \n", *key_min, *key_max);
+
+   assert(*key_max - *key_min <= key_stop - key_start);
+//   if( *key_min < key_start || *key_max > key_stop) {
+//      printf( "Key out of range\n");
+//      printf( "%li %li %li %li\n", key_start, *key_min, *key_max, key_stop) ;
+   //    abort();
+ //  }
    const size_t size = *key_max - *key_min;
    CUDA_MALLOC(counts, size);
    for (int i = 0; i < size; i++) {
       counts[i] = 0;
    }
-count_keys<<<COUNT_BLOCKS,BLOCK_SIZE>>>(counts,  flags, *key_min, *key_max, stop-start);
+   assert(key_stop - key_start + 1  >= *key_max - *key_min);
+   count_keys<<<COUNT_BLOCKS,BLOCK_SIZE>>>(counts,  flags, *key_min, *key_max, stop - start);
             CUDA_CHECK(cudaDeviceSynchronize());
-   std::vector < size_t > bounds(key_stop - key_start + 1);
+//            printf( "%li %li %li %li  %li  \n", key_start, *key_min, *key_max, key_stop, key_stop - key_start + 1 >= *key_max - *key_min) ;
+         std::vector < size_t > bounds(key_stop - key_start + 1);
+//         printf( "%li %li %li %li  %li  \n", key_start, *key_min, *key_max, key_stop, key_stop - key_start + 1 >= *key_max - *key_min) ;
+   assert(key_stop - key_start + 1  >= *key_max - *key_min);
    bounds[0] = start + set.offset_;
    for (size_t i = 1; i <= *key_max- *key_min; i++) {
       bounds[i] = bounds[i - 1] + counts[i - 1];

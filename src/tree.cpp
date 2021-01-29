@@ -42,7 +42,7 @@ sort_return tree::sort(std::shared_ptr<sort_params> params) {
    }
 
 
-   printf( "Creating tree node at %i %li %li %li %li\n", depth, part_begin, part_end, params->key_begin, params->key_end);
+//   printf( "Creating tree node at %i %li %li %li %li\n", depth, part_begin, part_end, params->key_begin, params->key_end);
    const auto &box = params->box;
    const size_t size = part_end - part_begin;
 
@@ -72,6 +72,7 @@ sort_return tree::sort(std::shared_ptr<sort_params> params) {
 #endif
    if (size > opts.bucket_size) {
       auto child_params = params->get_children();
+    //  printf( "%li %li %li\n",depth, params->key_end, params->key_begin );
       if (params->key_end - params->key_begin == 1) {
          int radix_depth = (int(log(double(size) / opts.bucket_size) / log(8)) + 1) * NDIM + params->radix_depth;
          radix_depth = std::min(TREE_MAX_RADIX, radix_depth);
@@ -89,7 +90,7 @@ sort_return tree::sort(std::shared_ptr<sort_params> params) {
          child_params[LEFT].key_end = child_params[RIGHT].key_begin = (key_end - key_begin) / 2;
          child_params[RIGHT].key_end = (key_end - key_begin);
       }
-      printf("Creating children depth = %li\n", params->depth);
+   //   printf("Creating children depth = %li\n", params->depth);
       std::array<hpx::future<sort_return>, NCHILD> futs;
       for (int ci = 0; ci < NCHILD; ci++) {
          futs[ci] = create_child(std::make_shared < sort_params > (child_params[ci]));

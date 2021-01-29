@@ -13,16 +13,29 @@
 #include <cmath>
 
 static void tree_test() {
-   printf( "Doing tree test\n");
-   printf( "Generating particles\n");
+   printf("Doing tree test\n");
+   printf("Generating particles\n");
    particle_set parts(global().opts.nparts);
    parts.generate_random();
    tree::set_particle_set(&parts);
 
-   printf( "Sorting\n");
-   tree root;
-   root.sort();
-   printf( "Done sorting\n");
+   printf("Sorting\n");
+   {
+      timer tm;
+      tm.start();
+      tree root;
+      root.sort();
+      tm.stop();
+      printf("Done sorting in %e\n", tm.read());
+   }
+   {
+      timer tm;
+      tm.start();
+      tree root;
+      root.sort();
+      tm.stop();
+      printf("Done sorting in %e\n", tm.read());
+   }
 }
 
 static void sort() {
@@ -30,18 +43,18 @@ static void sort() {
    particle_set parts(global().opts.nparts);
    parts.generate_random();
 
-   const size_t depth = (int(std::log(global().opts.nparts / global().opts.bucket_size) / std::log(8)) + 1) * NDIM;
+   const size_t depth = (int(std::log(global().opts.nparts / global().opts.bucket_size) / std::log(8)) + 2) * NDIM;
 
    printf("Using %li levels\n", depth);
 
    tm.start();
-   parts.local_sort(0, global().opts.nparts, 18, 0, 1 << 18);
+   parts.local_sort(0, global().opts.nparts, depth, 0, 1 << depth);
    tm.stop();
    printf("Time to sort worst case: %e s\n", tm.read());
    tm.reset();
 
    tm.start();
-   parts.local_sort(0, global().opts.nparts, 18, 0, 1 << 18);
+   parts.local_sort(0, global().opts.nparts, depth, 0, 1 << depth);
    tm.stop();
    printf("Time to sort best case: %e s\n\n", tm.read());
    tm.reset();
