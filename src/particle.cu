@@ -84,6 +84,10 @@ morton_keygen<<<nblocks, BLOCK_SIZE>>>(flags,key_min,key_max,x,y,z,stop-start, d
             CUDA_CHECK(cudaDeviceSynchronize());
    int *counts;
    (*key_max)++;
+   if( *key_min < key_start || *key_max > key_stop) {
+      printf( "Key out of range\n");
+      abort();
+   }
    const size_t size = *key_max - *key_min;
    CUDA_MALLOC(counts, size);
    for (int i = 0; i < size; i++) {
