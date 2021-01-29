@@ -130,10 +130,15 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
    tm.stop();
   // printf("Sort took %e s, %i sorted.\n", tm.read(), sorted);
 #ifdef TEST_RADIX
+   bool failed = false;
    for (int i = start; i < stop - 1; i++) {
       if (mid(i + 1) < mid(i)) {
-            printf("%lx %lx\n", mid(i), mid(i + 1));
+            printf("Radix failed : %lx %lx\n", mid(i), mid(i + 1));
+            failed = true;
       }
+   }
+   if( failed ) {
+      abort();
    }
 #endif
    return bounds;
