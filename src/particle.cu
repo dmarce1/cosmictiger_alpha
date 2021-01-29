@@ -75,6 +75,7 @@ std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, in
    *key_max = 0;
    start -= set.offset_;
    stop -= set.offset_;
+   assert( stop > start);
    fixed32 *x = set.xptr_[0] + start;
    fixed32 *y = set.xptr_[1] + start;
    fixed32 *z = set.xptr_[2] + start;
@@ -86,6 +87,7 @@ morton_keygen<<<nblocks, BLOCK_SIZE>>>(flags,key_min,key_max,x,y,z,stop-start, d
    (*key_max)++;
    if( *key_min < key_start || *key_max > key_stop) {
       printf( "Key out of range\n");
+      printf( "%li %li %li %li\n", key_start, *key_min, *key_max, key_stop) ;
       abort();
    }
    const size_t size = *key_max - *key_min;

@@ -12,7 +12,10 @@
 #define NDIM 3
 
 #define TEST_TREE
-//#define TEST_RADIX
+#define TREE_MAX_RADIX 27
+#define TREE_MAX_DEPTH 50
+
+#define TEST_RADIX
 
 #define NCHILD 2
 //#define PARALLEL_RADIX

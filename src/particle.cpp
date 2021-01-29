@@ -72,7 +72,10 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
    tm.stop();
  //  abort();
    //  printf("%li %li\n", end[key_max - 1 - key_min], stop - start);
-   assert(end[key_max - 1 - key_min] == stop - start);
+   if(end[key_max - 1 - key_min] != stop - start) {
+      printf( "%li %li", end[key_max - 1 - key_min], stop-start );
+      assert(end[key_max - 1 - key_min] == stop - start);
+   }
  //  printf("Key generation and count took %e s\n", tm.read());
 
    particle p;
