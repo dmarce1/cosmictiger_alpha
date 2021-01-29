@@ -82,10 +82,7 @@ std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, in
    const int nblocks = (92 * 32 - 1) / BLOCK_SIZE + 1;
 morton_keygen<<<nblocks, BLOCK_SIZE>>>(flags,key_min,key_max,x,y,z,stop-start, depth);
             CUDA_CHECK(cudaDeviceSynchronize());
-   if( *key_min < key_start || *key_max >= key_stop) {
-      printf( "Keys out of range!\n\n");
-   }
-            int *counts;
+   int *counts;
    (*key_max)++;
    const size_t size = *key_max - *key_min;
    CUDA_MALLOC(counts, size);
@@ -94,17 +91,10 @@ morton_keygen<<<nblocks, BLOCK_SIZE>>>(flags,key_min,key_max,x,y,z,stop-start, d
    }
 count_keys<<<COUNT_BLOCKS,BLOCK_SIZE>>>(counts,  flags, *key_min, *key_max, stop-start);
             CUDA_CHECK(cudaDeviceSynchronize());
-   std::vector < size_t > bounds(key_stop - key_start);
+   std::vector < size_t > bounds(key_stop - key_start + 1);
    bounds[0] = start + set.offset_;
-   //  printf( "%x %x\n", *key_min, *key_max);
-   for( size_t i = 1; i < *key_min; i++) {
-      bounds[i] = bounds[0];
-   }
-   for (size_t i = *key_min; i < *key_max; i++) {
-      bounds[i] = bounds[i - 1] + counts[i - 1 - *key_min];
-   }
-   for (size_t i = *key_max; i < key_stop; i++) {
-      bounds[i] = bounds[i - 1];
+   for (size_t i = 1; i <= *key_max- *key_min; i++) {
+      bounds[i] = bounds[i - 1] + counts[i - 1];
    }
 
    kmin = *key_min;

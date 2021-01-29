@@ -37,20 +37,40 @@ void particle_set::generate_random() {
    }
 }
 
-std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t depth, morton_t key_min, morton_t key_max) {
+std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t depth, morton_t key_min,
+      morton_t key_max) {
    timer tm;
    tm.start();
+   const auto key_min0 = key_min, key_max0 = key_max;
    const auto bounds = cuda_keygen(*this, start, stop, depth, key_min, key_max);
    size_t key_cnt = key_max - key_min;
-   std::vector < size_t > end(key_cnt);
-   std::vector<size_t> begin;
-   begin.insert(begin.end(), bounds.begin() + key_min, bounds.begin() + key_max);
+   std::vector < size_t > end;
+   std::vector < size_t > begin;
+   begin.reserve(key_cnt);
+   end.resize(key_cnt);
+   for (size_t i = 0; i < key_min - key_min0; i++) {
+      begin.push_back(0);
+   }
+   for (size_t i = key_min - key_min0; i <= key_max - key_min0; i++) {
+      begin.push_back(bounds[i - key_min]);
+   }
+   for (size_t i = key_max + 1 - key_min0; i <= key_max0 - key_min0; i++) {
+      begin.push_back(bounds[key_max - key_min0]);
+   }
+   for (size_t i = 0; i < key_max0 - key_min0; i++) {
+      end[i] = begin[i - 1];
+   }
+   begin.insert(begin.end(), bounds.begin() + key_min + 1, bounds.begin() + key_max + 1);
    for (int key = key_min + 1; key <= key_max; key++) {
       const auto key_i = key - key_min;
       end[key_i - 1] = begin[key_i];
    }
+//   for (int i = 0; i < key_max - key_min; i++) {
+////      printf("%li %li %li %li\n", begin[i], end[i]);
+//   }
    tm.stop();
-   printf("%li %li\n", end[key_max - 1 - key_min], stop - start);
+ //  abort();
+   //  printf("%li %li\n", end[key_max - 1 - key_min], stop - start);
    assert(end[key_max - 1 - key_min] == stop - start);
    printf("Key generation and count took %e s\n", tm.read());
 
@@ -105,11 +125,11 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
    }
    tm.stop();
    printf("Sort took %e s, %i sorted.\n", tm.read(), sorted);
-   for (int i = start; i < stop - 1; i++) {
-      if (mid(i + 1) < mid(i)) {
- //            printf("%lx %lx\n", mid(i), mid(i + 1));
-      }
-   }
+//   for (int i = start; i < stop - 1; i++) {
+//      if (mid(i + 1) < mid(i)) {
+//            printf("%lx %lx\n", mid(i), mid(i + 1));
+//      }
+//   }
    return bounds;
 }
 
