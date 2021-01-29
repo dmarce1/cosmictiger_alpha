@@ -41,7 +41,7 @@ public:
    }
    inline static fixed<T> min() {
       fixed<T> num;
-      num.i = std::numeric_limits < T > ::min();
+      num.i = 1;
       return num;
    }
 
@@ -171,8 +171,8 @@ public:
    inline T get_integer() const {
       return i;
    }
-
-   friend morton_t morton_key(std::array<fixed32, NDIM> num, int64_t);
+   template<class V>
+   friend morton_t morton_key(std::array<V, NDIM> num, int64_t);
 
    template<class A>
    void serialize(A &arc, unsigned) {
@@ -189,18 +189,21 @@ public:
 
 };
 
-inline morton_t morton_key(std::array<fixed32, NDIM> I, int64_t depth) {
+template<class T>
+inline morton_t morton_key(std::array<T, NDIM> I, int64_t depth) {
    assert(depth % NDIM == 0);
    morton_t key = 0LL;
-   for (size_t dim = 0; dim < NDIM; dim++) {
-      I[dim].i >>= (sizeof(fixed32) * CHAR_BIT - depth/NDIM);
+   printf( "------- %lx\n", I[0].i);
+    for (size_t dim = 0; dim < NDIM; dim++) {
+       I[dim].i >>= (sizeof(fixed32) * CHAR_BIT - depth/NDIM);
    }
+
    for (size_t k = 0; k < depth / NDIM; k++) {
       for (size_t dim = 0; dim < NDIM; dim++) {
-         key ^= size_t((bool) (I[dim].i & (0x0000000000000001LL << k))) << size_t(k * NDIM + (NDIM-1-dim));
+         key ^= size_t((bool) (I[dim].i & (0x0000000000000001LL << k))) << size_t(k * NDIM + (NDIM - 1 - dim));
       }
    }
-   return key;
+    return key;
 }
 
 template<class T>

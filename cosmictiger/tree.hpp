@@ -29,8 +29,8 @@ struct sort_params {
    void set_root() {
       const auto opts = global().opts;
       for( int dim = 0; dim < NDIM; dim++) {
-         box.begin[dim] = fixed32::min();
-         box.end[dim] = fixed32::max();
+         box.begin[dim] = fixed64(0.f);
+         box.end[dim] = fixed64(1.f);
       }
       depth = 0;
       bounds = std::make_shared < std::vector < size_t >> (2);

@@ -78,9 +78,20 @@ sort_return tree::sort(std::shared_ptr<sort_params> params) {
          radix_depth = std::min(TREE_MAX_RADIX, radix_depth);
          printf("------->Sorting to depth %i from level %i\n", radix_depth, depth);
          const auto key_begin = morton_key(box.begin, radix_depth);
-         const auto key_end = morton_key(box.end, radix_depth) + 1;
+         std::array<fixed64, NDIM> tmp;
+         for( int dim = 0; dim < NDIM; dim++) {
+            tmp[dim] = box.end[dim] - fixed32::min();
+         }
+         const auto key_end = morton_key(tmp, radix_depth) + 1;
+
+      //   printf( "Key begin = %llx %llx\n", key_begin, key_end);
+         for( int dim = 0; dim < NDIM; dim++) {
+         //   printf( "%e %e\n", box.begin[dim].to_float(), box.end[dim].to_float());
+          //  printf( "%lx %lx\n", box.begin[dim].get_integer(), box.end[dim].get_integer());
+
+         }
          auto bounds = particles->local_sort(part_begin, part_end, radix_depth, key_begin, key_end);
-         printf("Done sorting\n");
+        // printf("Done sorting\n");
          auto bndptr = std::make_shared<decltype(bounds)>(std::move(bounds));
          for (int ci = 0; ci < NCHILD; ci++) {
             child_params[ci].bounds = bndptr;

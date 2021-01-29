@@ -30,7 +30,7 @@ CUDA_KERNEL morton_keygen(particle::flags_t *flags, morton_t *keys_min, morton_t
       x[2] = zptr[i].get_integer() >> shift;
       for (size_t k = 0; k < depth / NDIM; k++) {
          for (size_t dim = 0; dim < NDIM; dim++) {
-            key ^= size_t((bool) (x[dim] & (1LL << k))) << size_t(k * NDIM + (NDIM-dim-1));
+            key ^= size_t((bool) (x[dim] & (1LL << k))) << size_t(k * NDIM + (NDIM-1-dim));
          }
       }
       //     printf( "%lx\n",key);
@@ -88,6 +88,7 @@ std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, in
    *key_max = 0;
    start -= set.offset_;
    stop -= set.offset_;
+   printf( "%li %li\n", start, stop);
    assert( stop > start);
    fixed32 *x = set.xptr_[0] + start;
    fixed32 *y = set.xptr_[1] + start;
@@ -102,7 +103,7 @@ morton_keygen<<<nblocks, BLOCK_SIZE>>>(flags,key_min,key_max,x,y,z,stop-start, d
       *key_max = std::max(*key_max,key_max[i]);
      }
    (*key_max)++;
-//   printf( "KEYS         %lx %lx \n", *key_min, *key_max);
+ //  printf( "KEYS         %lx %lx %lx %lx \n", key_start, *key_min, *key_max, key_stop);
 
    assert(*key_max - *key_min <= key_stop - key_start);
 //   if( *key_min < key_start || *key_max > key_stop) {

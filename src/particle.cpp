@@ -138,6 +138,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       abort();
    }
 #endif
+   printf( "bounds size = %li\n", bounds.size());
    return bounds;
 }
 
