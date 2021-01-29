@@ -43,6 +43,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
    tm.start();
    const auto key_min0 = key_min, key_max0 = key_max;
    const auto bounds = cuda_keygen(*this, start, stop, depth, key_min, key_max);
+ //  printf( "%li %li\n", start , stop);
    size_t key_cnt = key_max - key_min;
    std::vector < size_t > end;
    std::vector < size_t > begin;
@@ -125,11 +126,13 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
    }
    tm.stop();
    printf("Sort took %e s, %i sorted.\n", tm.read(), sorted);
-//   for (int i = start; i < stop - 1; i++) {
-//      if (mid(i + 1) < mid(i)) {
-//            printf("%lx %lx\n", mid(i), mid(i + 1));
-//      }
-//   }
+#ifdef TEST_RADIX
+   for (int i = start; i < stop - 1; i++) {
+      if (mid(i + 1) < mid(i)) {
+            printf("%lx %lx\n", mid(i), mid(i + 1));
+      }
+   }
+#endif
    return bounds;
 }
 
