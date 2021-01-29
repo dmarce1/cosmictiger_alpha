@@ -20,7 +20,7 @@ CUDA_KERNEL morton_keygen(particle::flags_t *flags, morton_t *keys_min, morton_t
    maxes[BLOCK_SIZE];
    __shared__ morton_t
    mines[BLOCK_SIZE];
-   mines[tid] = ~(size_t(1) << (depth + 1));
+   mines[tid] = (size_t(1) << (depth))- 1;
    maxes[tid] = 0;
    for (size_t i = start + tid; i < stop; i += BLOCK_SIZE) {
       morton_t key = 0LL;
@@ -83,8 +83,8 @@ std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, in
    const int nblocks = (92 * 32 - 1) / BLOCK_SIZE + 1;
    CUDA_MALLOC(key_min, nblocks);
    CUDA_MALLOC(key_max, nblocks);
-   size_t total_keys = (1 << (depth + 1));
-   *key_min = ~total_keys;
+   size_t total_keys = (1 << (depth));
+   *key_min = total_keys-1;
    *key_max = 0;
    start -= set.offset_;
    stop -= set.offset_;

@@ -74,9 +74,9 @@ sort_return tree::sort(std::shared_ptr<sort_params> params) {
       auto child_params = params->get_children();
     //  printf( "%li %li %li\n",depth, params->key_end, params->key_begin );
       if (params->key_end - params->key_begin == 1) {
-         int radix_depth = (int(log(double(size) / opts.bucket_size) / log(8)) + 1) * NDIM + params->radix_depth;
+         int radix_depth = std::max((int(log(double(size) / opts.bucket_size) / log(8))),1) * NDIM + params->radix_depth;
          radix_depth = std::min(TREE_MAX_RADIX, radix_depth);
-         printf("Sorting to depth %i\n", radix_depth);
+         printf("------->Sorting to depth %i from level %i\n", radix_depth, depth);
          const auto key_begin = morton_key(box.begin, radix_depth);
          const auto key_end = morton_key(box.end, radix_depth) + 1;
          auto bounds = particles->local_sort(part_begin, part_end, radix_depth, key_begin, key_end);
