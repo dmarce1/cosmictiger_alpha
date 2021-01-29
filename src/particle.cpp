@@ -60,20 +60,20 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
    for (size_t i = 0; i < key_max0 - key_min0; i++) {
       end[i] = begin[i + 1];
    }
-   printf("-----------\n");
-   for (int i = 0; i < key_max0 - key_min0; i++) {
-      printf(" %li %li %li\n", begin[i], end[i], bounds[i]);
-   }
-   printf("-----------\n");
+ //  printf("-----------\n");
+//   for (int i = 0; i < key_max0 - key_min0; i++) {
+//      printf(" %li %li %li\n", begin[i], end[i], bounds[i]);
+//   }
+//   printf("-----------\n");
    tm.stop();
-   //  abort();
+   //  abort();f
    //  printf("%li %li\n", end[key_max - 1 - key_min], stop - start);
-   printf("-- %li %li %li %li\n", key_min0, key_min, key_max, key_max0);
+ //  printf("-- %li %li %li %li\n", key_min0, key_min, key_max, key_max0);
  //  if (end[key_max - 1 - key_min] != stop - start) {
       printf("-- %li %li \n", end[key_max - 1 - key_min0], stop);
       assert(end[key_max - 1 - key_min0] == stop);
   // }
-   printf("Key generation and count took %e s\n", tm.read());
+  // printf("Key generation and count took %e s\n", tm.read());
 
    particle p;
    morton_t next_key;
@@ -125,7 +125,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       }
    }
    tm.stop();
-   printf("Sort took %e s, %i sorted.\n", tm.read(), sorted);
+ //  printf("Sort took %e s, %i sorted.\n", tm.read(), sorted);
 #ifdef TEST_RADIX
    bool failed = false;
    for (int i = start; i < stop - 1; i++) {
@@ -138,7 +138,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       abort();
    }
 #endif
-   printf( "bounds size = %li\n", bounds.size());
+ //  printf( "bounds size = %li\n", bounds.size());
    return bounds;
 }
 
