@@ -88,7 +88,7 @@ std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, in
    *key_max = 0;
    start -= set.offset_;
    stop -= set.offset_;
-   printf( "%li %li\n", start, stop);
+  // printf( "%li %li\n", start, stop);
    assert( stop > start);
    fixed32 *x = set.xptr_[0] + start;
    fixed32 *y = set.xptr_[1] + start;
@@ -103,14 +103,14 @@ morton_keygen<<<nblocks, BLOCK_SIZE>>>(flags,key_min,key_max,x,y,z,stop-start, d
       *key_max = std::max(*key_max,key_max[i]);
      }
    (*key_max)++;
- //  printf( "KEYS         %lx %lx %lx %lx \n", key_start, *key_min, *key_max, key_stop);
+  // printf( "KEYS         %lx %lx %lx %lx \n", key_start, *key_min, *key_max, key_stop);
 
    assert(*key_max - *key_min <= key_stop - key_start);
-//   if( *key_min < key_start || *key_max > key_stop) {
-//      printf( "Key out of range\n");
-//      printf( "%li %li %li %li\n", key_start, *key_min, *key_max, key_stop) ;
-   //    abort();
- //  }
+   if( *key_min < key_start || *key_max > key_stop) {
+      printf( "Key out of range\n");
+      printf( "%li %li %li %li\n", key_start, *key_min, *key_max, key_stop) ;
+       abort();
+   }
    const size_t size = *key_max - *key_min;
    CUDA_MALLOC(counts, size);
    for (int i = 0; i < size; i++) {

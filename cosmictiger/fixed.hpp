@@ -193,7 +193,7 @@ template<class T>
 inline morton_t morton_key(std::array<T, NDIM> I, int64_t depth) {
    assert(depth % NDIM == 0);
    morton_t key = 0LL;
-   printf( "------- %lx\n", I[0].i);
+//   printf( "------- %lx\n", I[0].i);
     for (size_t dim = 0; dim < NDIM; dim++) {
        I[dim].i >>= (sizeof(fixed32) * CHAR_BIT - depth/NDIM);
    }

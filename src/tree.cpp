@@ -1,5 +1,6 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/tree.hpp>
+#include <cosmictiger/timer.hpp>
 
 #include <cmath>
 
@@ -67,7 +68,7 @@ sort_return tree::sort(std::shared_ptr<sort_params> params) {
       }
    }
    if( failed ) {
-      abort();
+     // abort();
    }
 #endif
    if (size > opts.bucket_size) {
@@ -90,8 +91,18 @@ sort_return tree::sort(std::shared_ptr<sort_params> params) {
           //  printf( "%lx %lx\n", box.begin[dim].get_integer(), box.end[dim].get_integer());
 
          }
+         timer tm;
+         tm.start();
+//         printf( "***************** %li %li ****************\n", part_begin,part_end);
          auto bounds = particles->local_sort(part_begin, part_end, radix_depth, key_begin, key_end);
-        // printf("Done sorting\n");
+//         printf( "bounds.size %li\n", bounds.size());
+//         for( int i = 0; i < bounds.size(); i++) {
+//            printf( "%lx\n", bounds[i]);
+//         }
+         assert(bounds[0] >= part_begin);
+         assert(bounds[bounds.size()-1] <= part_end);
+         tm.stop();
+         printf("Done sorting %e\n", tm.read());
          auto bndptr = std::make_shared<decltype(bounds)>(std::move(bounds));
          for (int ci = 0; ci < NCHILD; ci++) {
             child_params[ci].bounds = bndptr;
