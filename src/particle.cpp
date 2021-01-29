@@ -41,41 +41,38 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       morton_t key_max) {
    timer tm;
    tm.start();
-   const auto key_min0 = key_min, key_max0 = key_max;
+   const auto key_min0 = key_min;
+   const auto key_max0 = key_max;
    const auto bounds = cuda_keygen(*this, start, stop, depth, key_min, key_max);
- //  printf( "%li %li\n", start , stop);
+   //  printf( "%li %li\n", start , stop);
    size_t key_cnt = key_max - key_min;
    std::vector < size_t > end;
    std::vector < size_t > begin;
    begin.reserve(key_cnt);
    end.resize(key_cnt);
    for (size_t i = 0; i < key_min - key_min0; i++) {
-      begin.push_back(0);
+      begin.push_back(bounds[0]);
    }
-   for (size_t i = key_min - key_min0; i <= key_max - key_min0; i++) {
-      begin.push_back(bounds[i - key_min]);
-   }
+   begin.insert(begin.end(), bounds.begin(), bounds.begin() + key_max + 1 - key_min);
    for (size_t i = key_max + 1 - key_min0; i <= key_max0 - key_min0; i++) {
       begin.push_back(bounds[key_max - key_min0]);
    }
    for (size_t i = 0; i < key_max0 - key_min0; i++) {
-      end[i] = begin[i - 1];
+      end[i] = begin[i + 1];
    }
-   begin.insert(begin.end(), bounds.begin() + key_min + 1, bounds.begin() + key_max + 1);
-   for (int key = key_min + 1; key <= key_max; key++) {
-      const auto key_i = key - key_min;
-      end[key_i - 1] = begin[key_i];
+   printf("-----------\n");
+   for (int i = 0; i < key_max0 - key_min0; i++) {
+      printf(" %li %li %li\n", begin[i], end[i], bounds[i]);
    }
-//   for (int i = 0; i < key_max - key_min; i++) {
-////      printf("%li %li %li %li\n", begin[i], end[i]);
-//   }
+   printf("-----------\n");
    tm.stop();
- //  abort();
+   //  abort();
    //  printf("%li %li\n", end[key_max - 1 - key_min], stop - start);
-   printf( "-- %li %li ----------> %li %li %li\n", key_max, key_min, end[key_max - 1 - key_min], start, stop );
-   if(end[key_max - 1 - key_min] != stop - start) {
-      assert(end[key_max - 1 - key_min] == stop - start);
-   }
+   printf("-- %li %li %li %li\n", key_min0, key_min, key_max, key_max0);
+ //  if (end[key_max - 1 - key_min] != stop - start) {
+      printf("-- %li %li \n", end[key_max - 1 - key_min0], stop);
+      assert(end[key_max - 1 - key_min0] == stop);
+  // }
    printf("Key generation and count took %e s\n", tm.read());
 
    particle p;
@@ -90,7 +87,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       morton_t this_key = first_key;
       while (flag) {
          flag = false;
-         for (size_t i = begin[this_key - key_min]++; i < end[this_key - key_min]; i = begin[this_key - key_min]++) {
+         for (size_t i = begin[this_key - key_min0]++; i < end[this_key - key_min0]; i = begin[this_key - key_min0]++) {
             const auto x = pos(i);
             const int test_key = mid(i);
             if (test_key != this_key) {
@@ -128,16 +125,16 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       }
    }
    tm.stop();
-  printf("Sort took %e s, %i sorted.\n", tm.read(), sorted);
+   printf("Sort took %e s, %i sorted.\n", tm.read(), sorted);
 #ifdef TEST_RADIX
    bool failed = false;
    for (int i = start; i < stop - 1; i++) {
       if (mid(i + 1) < mid(i)) {
-            printf("Radix failed : %lx %lx\n", mid(i), mid(i + 1));
-            failed = true;
+         printf("Radix failed : %lx %lx\n", mid(i), mid(i + 1));
+         failed = true;
       }
    }
-   if( failed ) {
+   if (failed) {
       abort();
    }
 #endif
