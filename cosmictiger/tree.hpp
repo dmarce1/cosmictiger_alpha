@@ -20,6 +20,7 @@ struct sort_params {
    size_t key_begin;
    size_t key_end;
    std::shared_ptr<managed_allocator<tree>> allocator;
+   std::shared_ptr<managed_allocator<sort_params>> params_alloc;
    template<class A>
    void serialization(A &&arc, unsigned) {
       arc & box;
@@ -45,6 +46,7 @@ struct sort_params {
       key_begin = 0;
       key_end = 1;
       allocator = std::make_shared<managed_allocator<tree>>();
+      params_alloc = std::make_shared<managed_allocator<sort_params>>();
    }
 
    std::pair<size_t, size_t> get_bounds() const {
@@ -62,7 +64,8 @@ struct sort_params {
          child[i].depth = depth + 1;
          child[i].box = box;
          child[i].allocator = allocator;
-      }
+         child[i].params_alloc = params_alloc;
+       }
       int sort_dim = depth % NDIM;
       child[LEFT].box.end[sort_dim] = child[RIGHT].box.begin[sort_dim] = (fixed64(box.begin[sort_dim]) + fixed64(box.end[sort_dim]))
             / fixed64(2);
@@ -110,9 +113,9 @@ private:
 public:
    static particle_set* particles;
    static void set_particle_set(particle_set*);
-   static hpx::future<sort_return> create_child(std::shared_ptr<sort_params>);
+   static hpx::future<sort_return> create_child(sort_params*);
 
    tree();
-   sort_return sort(std::shared_ptr<sort_params> = nullptr);
+   sort_return sort(sort_params* = nullptr);
 
 };

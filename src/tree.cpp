@@ -13,7 +13,7 @@ void tree::set_particle_set(particle_set *parts) {
 tree::tree() {
 }
 
-hpx::future<sort_return> tree::create_child(std::shared_ptr<sort_params> params) {
+hpx::future<sort_return> tree::create_child(sort_params* params) {
    tree_client id;
    id.rank = 0;
    id.ptr = (uintptr_t) params->allocator->allocate();
@@ -21,20 +21,22 @@ hpx::future<sort_return> tree::create_child(std::shared_ptr<sort_params> params)
    sort_return rc = ((tree*) (id.ptr))->sort(params);
    rc.client = id;
 
-   /*** If thread create new allocator  !!!***/
+   /*** If thread create new allocator for tree and sort params  !!!***/
 
    return hpx::make_ready_future(rc);
 }
 
-sort_return tree::sort(std::shared_ptr<sort_params> params) {
+sort_return tree::sort(sort_params* params) {
    const auto opts = global().opts;
    sort_return rc;
 
    if (params == nullptr) {
-      params = std::make_shared<sort_params>();
+      auto alloc = std::make_shared<managed_allocator<sort_params>>();
+      params = alloc->allocate();
       params->set_root();
+      params->params_alloc = alloc;
    }
-
+   allocator = params->allocator;
    const auto bnds = params->get_bounds();
    part_begin = bnds.first;
    part_end = bnds.second;
@@ -118,7 +120,9 @@ sort_return tree::sort(std::shared_ptr<sort_params> params) {
    //   printf("Creating children depth = %li\n", params->depth);
       std::array<hpx::future<sort_return>, NCHILD> futs;
       for (int ci = 0; ci < NCHILD; ci++) {
-         futs[ci] = create_child(std::make_shared < sort_params > (child_params[ci]));
+         auto* ptr = params->params_alloc->allocate();
+         *ptr = child_params[ci];
+         futs[ci] = create_child(ptr);
       }
       for (int ci = 0; ci < NCHILD; ci++) {
          sort_return rc = futs[ci].get();
