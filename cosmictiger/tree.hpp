@@ -3,6 +3,7 @@
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/hpx.hpp>
+#include <cosmictiger/multipole.hpp>
 
 #include <memory>
 
@@ -93,6 +94,8 @@ struct sort_return {
 struct tree {
 
 private:
+   multi_source multi;
+   float radius;
    std::array<tree_client,NCHILD> children;
    size_t part_begin;
    size_t part_end;

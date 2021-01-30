@@ -48,6 +48,7 @@ set(cosmictiger_header_files
 	cosmictiger/initialize.hpp
 	tigergrac/load.hpp
 	cosmictiger/map.hpp
+	cosmictiger/managed_vector.hpp
 	cosmictiger/multipole.hpp
 	cosmictiger/output.hpp
 	cosmictiger/options.hpp
@@ -65,6 +66,7 @@ set(cosmictiger_header_files
 	cosmictiger/global.hpp
 	cosmictiger/hpx.hpp
 	cosmictiger/memory.hpp
+	cosmictiger/multipole.hpp
 	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
 	cosmictiger/thread_control.hpp

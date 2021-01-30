@@ -7,6 +7,7 @@
 
 int hpx_main(int argc, char *argv[]) {
    options opts;
+   printf( "%li\n", sizeof(std::shared_ptr<int>));
    if (process_options(argc, argv, opts)) {
       hpx_init();
       const auto cuda = cuda_init();
