@@ -74,7 +74,7 @@ public:
       allocs.push_back(current_alloc);
    }
    ~managed_allocator() {
-      for( int i = 0; i < page_size; i++) {
+      for( int i = 0; i < allocs.size(); i++) {
          CUDA_FREE(allocs[i]);
       }
    }

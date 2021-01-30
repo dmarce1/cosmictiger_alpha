@@ -43,19 +43,22 @@ static void sort() {
    particle_set parts(global().opts.nparts);
    parts.generate_random();
 
-   const size_t depth = (int(std::log(global().opts.nparts / global().opts.bucket_size) / std::log(8)) + 2) * NDIM;
 
-   printf("Using %li levels\n", depth);
+   for (int depth = 3; depth < 30; depth += 3) {
+      timer tm1;
+      tm1.start();
+      parts.local_sort(0, global().opts.nparts, depth, 0, 1 << depth);
+      tm1.stop();
 
-   tm.start();
-   parts.local_sort(0, global().opts.nparts, depth, 0, 1 << depth);
-   tm.stop();
-   printf("Time to sort worst case: %e s\n", tm.read());
-   tm.reset();
+      timer tm2;
+      tm2.start();
+      parts.local_sort(0, global().opts.nparts, depth, 0, 1 << depth);
+      tm2.stop();
 
-   tm.start();
-   parts.local_sort(0, global().opts.nparts, depth, 0, 1 << depth);
-   tm.stop();
+      printf("%li %e %e %e %e\n", depth, tm1.read(), tm2.read(),  tm1.read()/depth, tm2.read()/depth);
+
+   }
+
    printf("Time to sort best case: %e s\n\n", tm.read());
    tm.reset();
 

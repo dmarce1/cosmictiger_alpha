@@ -16,10 +16,13 @@ tree::tree() {
 hpx::future<sort_return> tree::create_child(std::shared_ptr<sort_params> params) {
    tree_client id;
    id.rank = 0;
-   id.ptr = (uintptr_t) new tree;
+   id.ptr = (uintptr_t) params->allocator->allocate();
    CHECK_POINTER(id.ptr);
    sort_return rc = ((tree*) (id.ptr))->sort(params);
    rc.client = id;
+
+   /*** If thread create new allocator  !!!***/
+
    return hpx::make_ready_future(rc);
 }
 
@@ -75,9 +78,9 @@ sort_return tree::sort(std::shared_ptr<sort_params> params) {
       auto child_params = params->get_children();
     //  printf( "%li %li %li\n",depth, params->key_end, params->key_begin );
       if (params->key_end - params->key_begin == 1) {
-         int radix_depth = std::max((int(log(double(size) / opts.bucket_size) / log(8)))+TREE_RADIX_CUSHION,1) * NDIM + params->radix_depth;
-         radix_depth = std::min(TREE_MAX_RADIX, radix_depth);
-     //    printf("------->Sorting to depth %i from level %i\n", radix_depth, depth);
+         int radix_depth = (int(log(double(size) / opts.bucket_size) / log(8)))+TREE_RADIX_CUSHION;
+         radix_depth = std::min(std::max(radix_depth,1) * NDIM,TREE_RADIX_MAX) + params->radix_depth;
+   //        printf("------->Sorting to depth %i from level %i\n", radix_depth, depth);
          const auto key_begin = morton_key(box.begin, radix_depth);
          std::array<fixed64, NDIM> tmp;
          for( int dim = 0; dim < NDIM; dim++) {

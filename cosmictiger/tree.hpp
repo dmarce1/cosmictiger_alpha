@@ -10,6 +10,8 @@
 #define LEFT 0
 #define RIGHT 1
 
+class tree;
+
 struct sort_params {
    range box;
    int depth;
@@ -17,6 +19,7 @@ struct sort_params {
    std::shared_ptr<std::vector<size_t>> bounds;
    size_t key_begin;
    size_t key_end;
+   std::shared_ptr<managed_allocator<tree>> allocator;
    template<class A>
    void serialization(A &&arc, unsigned) {
       arc & box;
@@ -25,6 +28,7 @@ struct sort_params {
       arc & bounds;
       arc & key_begin;
       arc & key_end;
+      /********* ADD ALLOCATOR SERIALIZATION *****************/
    }
 
    void set_root() {
@@ -40,6 +44,7 @@ struct sort_params {
       (*bounds)[1] = opts.nparts;
       key_begin = 0;
       key_end = 1;
+      allocator = std::make_shared<managed_allocator<tree>>();
    }
 
    std::pair<size_t, size_t> get_bounds() const {
@@ -56,6 +61,7 @@ struct sort_params {
          child[i].bounds = bounds;
          child[i].depth = depth + 1;
          child[i].box = box;
+         child[i].allocator = allocator;
       }
       int sort_dim = depth % NDIM;
       child[LEFT].box.end[sort_dim] = child[RIGHT].box.begin[sort_dim] = (fixed64(box.begin[sort_dim]) + fixed64(box.end[sort_dim]))
@@ -100,7 +106,7 @@ private:
    size_t part_begin;
    size_t part_end;
    int depth;
-
+   std::shared_ptr<managed_allocator<tree>> allocator;
 public:
    static particle_set* particles;
    static void set_particle_set(particle_set*);
