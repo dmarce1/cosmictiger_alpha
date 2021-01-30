@@ -99,7 +99,7 @@ CUDA_EXPORT inline multipole_type<T>& multipole_type<T>::operator =(T other) {
    return *this;
 }
 
-using multipole = multipole_type<fixed32>;
+using multipole = multipole_type<float>;
 
 struct multi_source {
    multipole m;
