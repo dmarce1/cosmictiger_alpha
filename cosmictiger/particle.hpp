@@ -76,7 +76,7 @@ private:
    size_t offset_;
 };
 
-std::pair<std::vector<size_t>,std::vector<size_t>> cuda_keygen(particle_set &set, size_t start, size_t stop, int depth, morton_t, morton_t);
+std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, int depth, morton_t&, morton_t&);
 
 inline std::array<fixed32, NDIM> particle_set::pos(size_t index) const {
    std::array<fixed32, NDIM> x;
