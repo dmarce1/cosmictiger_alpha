@@ -14,6 +14,7 @@
 //#define TEST_TREE
 #define TREE_MAX_RADIX 52
 #define TREE_MAX_DEPTH 52
+#define TREE_RADIX_CUSHION 2
 
 //#define TEST_RADIX
 

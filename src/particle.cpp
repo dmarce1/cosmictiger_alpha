@@ -53,7 +53,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       }
       assert(end[key_max - 1 - key_min] == stop);
    } else {
-      printf("Doing CPU sort\n");
+   //   printf("Doing CPU sort\n");
       std::unordered_map < size_t, size_t > counts;
 
       timer tm;
