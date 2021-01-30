@@ -11,6 +11,17 @@
 #define RIGHT 1
 
 class tree;
+class check_item;
+struct sort_params;
+struct tree_client;
+
+struct tree_alloc {
+   std::shared_ptr<managed_allocator<multipole>> multi_alloc;
+   std::shared_ptr<managed_allocator<tree>> tree_alloc;
+   std::shared_ptr<managed_allocator<check_item>> check_alloc;
+   std::shared_ptr<managed_allocator<sort_params>> params_alloc;
+};
+
 
 struct sort_params {
    range box;
@@ -19,8 +30,7 @@ struct sort_params {
    std::shared_ptr<std::vector<size_t>> bounds;
    size_t key_begin;
    size_t key_end;
-   std::shared_ptr<managed_allocator<tree>> allocator;
-   std::shared_ptr<managed_allocator<sort_params>> params_alloc;
+   std::shared_ptr<tree_alloc> allocs;
    template<class A>
    void serialization(A &&arc, unsigned) {
       arc & box;
@@ -34,7 +44,7 @@ struct sort_params {
 
    void set_root() {
       const auto opts = global().opts;
-      for( int dim = 0; dim < NDIM; dim++) {
+      for (int dim = 0; dim < NDIM; dim++) {
          box.begin[dim] = fixed64(0.f);
          box.end[dim] = fixed64(1.f);
       }
@@ -45,8 +55,11 @@ struct sort_params {
       (*bounds)[1] = opts.nparts;
       key_begin = 0;
       key_end = 1;
-      allocator = std::make_shared<managed_allocator<tree>>();
-      params_alloc = std::make_shared<managed_allocator<sort_params>>();
+      allocs = std::make_shared<tree_alloc>();
+      allocs->multi_alloc = std::make_shared<managed_allocator<multipole>>();
+      allocs->check_alloc = std::make_shared<managed_allocator<check_item>>();
+      allocs->tree_alloc = std::make_shared<managed_allocator<tree>>();
+      allocs->params_alloc = std::make_shared<managed_allocator<sort_params>>();
    }
 
    std::pair<size_t, size_t> get_bounds() const {
@@ -63,12 +76,11 @@ struct sort_params {
          child[i].bounds = bounds;
          child[i].depth = depth + 1;
          child[i].box = box;
-         child[i].allocator = allocator;
-         child[i].params_alloc = params_alloc;
-       }
+         child[i].allocs = allocs;
+      }
       int sort_dim = depth % NDIM;
-      child[LEFT].box.end[sort_dim] = child[RIGHT].box.begin[sort_dim] = (fixed64(box.begin[sort_dim]) + fixed64(box.end[sort_dim]))
-            / fixed64(2);
+      child[LEFT].box.end[sort_dim] = child[RIGHT].box.begin[sort_dim] = (fixed64(box.begin[sort_dim])
+            + fixed64(box.end[sort_dim])) / fixed64(2);
       child[LEFT].key_begin = key_begin;
       child[LEFT].key_end = child[RIGHT].key_begin = ((key_begin + key_end) >> 1);
       child[RIGHT].key_end = key_end;
@@ -82,7 +94,7 @@ struct tree_client {
    tree_client() {
       rank = -1;
    }
-   bool operator==(const tree_client& other) const {
+   bool operator==(const tree_client &other) const {
       return rank == other.rank && ptr == other.ptr;
    }
    template<class A>
@@ -92,26 +104,37 @@ struct tree_client {
    }
 };
 
-struct sort_return {
+struct check_item {
+   std::array<fixed32, NDIM> pos;
+   float radius;
+   union {
+      std::array<check_item*, NCHILD> children;
+      std::pair<size_t, size_t> parts;
+   };
    tree_client client;
+   multipole *multi;
+   bool leaf;
+};
+
+
+struct sort_return {
+   check_item *check;
    template<class A>
    void serialization(A &&arc, unsigned) {
-      arc * client;
+      assert(false);
    }
 };
 
 struct tree {
 
 private:
-   multi_source multi;
-   float radius;
-   std::array<tree_client,NCHILD> children;
+   check_item *self;
    size_t part_begin;
    size_t part_end;
-   int depth;
-   std::shared_ptr<managed_allocator<tree>> allocator;
+   std::array<tree_client, NCHILD> children;
+   std::shared_ptr<tree_alloc> allocs;
 public:
-   static particle_set* particles;
+   static particle_set *particles;
    static void set_particle_set(particle_set*);
    static hpx::future<sort_return> create_child(sort_params*);
 

@@ -16,11 +16,9 @@ tree::tree() {
 hpx::future<sort_return> tree::create_child(sort_params* params) {
    tree_client id;
    id.rank = 0;
-   id.ptr = (uintptr_t) params->allocator->allocate();
+   id.ptr = (uintptr_t) params->allocs->tree_alloc->allocate();
    CHECK_POINTER(id.ptr);
    sort_return rc = ((tree*) (id.ptr))->sort(params);
-   rc.client = id;
-
    /*** If thread create new allocator for tree and sort params  !!!***/
 
    return hpx::make_ready_future(rc);
@@ -34,23 +32,25 @@ sort_return tree::sort(sort_params* params) {
       auto alloc = std::make_shared<managed_allocator<sort_params>>();
       params = alloc->allocate();
       params->set_root();
-      params->params_alloc = alloc;
+      params->allocs->params_alloc = alloc;
    }
-   allocator = params->allocator;
+   allocs = params->allocs;
+   self = allocs->check_alloc->allocate();
    const auto bnds = params->get_bounds();
    part_begin = bnds.first;
    part_end = bnds.second;
-   depth = params->depth;
-   if (depth == TREE_MAX_DEPTH) {
+   if (params->depth == TREE_MAX_DEPTH) {
       printf("Exceeded maximum tree depth\n");
 
       abort();
    }
 
-
-//   printf( "Creating tree node at %i %li %li %li %li\n", depth, part_begin, part_end, params->key_begin, params->key_end);
+ //   printf( "Creating tree node at %i %li %li %li %li\n", depth, part_begin, part_end, params->key_begin, params->key_end);
    const auto &box = params->box;
    const size_t size = part_end - part_begin;
+
+   self = allocs->check_alloc->allocate();
+   self->multi = allocs->multi_alloc->allocate();
 
 #ifdef TEST_TREE
    bool failed = false;
@@ -120,15 +120,23 @@ sort_return tree::sort(sort_params* params) {
    //   printf("Creating children depth = %li\n", params->depth);
       std::array<hpx::future<sort_return>, NCHILD> futs;
       for (int ci = 0; ci < NCHILD; ci++) {
-         auto* ptr = params->params_alloc->allocate();
+         auto* ptr = params->allocs->params_alloc->allocate();
          *ptr = child_params[ci];
          futs[ci] = create_child(ptr);
       }
       for (int ci = 0; ci < NCHILD; ci++) {
          sort_return rc = futs[ci].get();
-         children[ci] = rc.client;
+         children[ci] = rc.check->client;
+         self->children[ci]= rc.check;
+         self->leaf = false;
       }
-
+   } else {
+      self->parts.first = part_begin;
+      self->parts.second = part_end;
+      self->leaf = false;
    }
+   self->client.rank = hpx_rank();
+   self->client.ptr = (uint64_t) this;
+   rc.check = self;
    return rc;
 }
