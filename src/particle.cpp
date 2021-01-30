@@ -40,30 +40,56 @@ void particle_set::generate_random() {
 std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t depth, morton_t key_min,
       morton_t key_max) {
    timer tm;
-   tm.start();
-   auto begin = cuda_keygen(*this, start, stop, depth, key_min, key_max);
-   //  printf( "%li %li\n", start , stop);
-   size_t key_cnt = key_max - key_min;
+   std::vector < size_t > begin;
    std::vector < size_t > end;
-   end.resize(key_cnt);
-   for (size_t i = 0; i < key_max - key_min; i++) {
-      end[i] = begin[i + 1];
-   }
- //  printf("-----------\n");
-//   for (int i = 0; i < key_max - key_min; i++) {
-//      printf(" %li %li %li\n", begin[i], end[i], bounds[i]);
-//   }
-//   printf("-----------\n");
-   tm.stop();
-   //  abort();f
-   //  printf("%li %li\n", end[key_max - 1 - key_min], stop - start);
- //  printf("-- %li %li %li %li\n", key_min, key_min, key_max, key_max);
- //  if (end[key_max - 1 - key_min] != stop - start) {
-    //  printf("-- %li %li \n", end[key_max - 1 - key_min], stop);
+   tm.start();
+   if (stop - start >= MIN_CUDA_SORT) {
+      begin = cuda_keygen(*this, start, stop, depth, key_min, key_max);
+      //  printf( "%li %li\n", start , stop);
+      size_t key_cnt = key_max - key_min;
+      end.resize(key_cnt);
+      for (size_t i = 0; i < key_max - key_min; i++) {
+         end[i] = begin[i + 1];
+      }
       assert(end[key_max - 1 - key_min] == stop);
-  // }
-  // printf("Key generation and count took %e s\n", tm.read());
+   } else {
+      printf("Doing CPU sort\n");
+      std::unordered_map < size_t, size_t > counts;
 
+      timer tm;
+      tm.start();
+      size_t counter = 0;
+      for (size_t i = start; i < stop; i++) {
+         const auto x = pos(i);
+         const auto key = morton_key(x, depth);
+         auto iter = counts.find(key);
+         if (iter != counts.end()) {
+            iter->second++;
+            counter++;
+         } else {
+            counter++;
+            counts[key] = 1;
+         }
+         set_mid(key, i);
+      }
+      for (size_t key = key_min; key < key_max; key++) {
+         auto iter = counts.find(key);
+         if (iter == counts.end()) {
+            counts[key] = 0;
+         }
+      }
+      begin.resize(key_max - key_min + 1);
+      end.resize(key_max - key_min + 1);
+      begin[0] = start;
+      end[0] = start + counts[key_min];
+      for (int key = key_min + 1; key < key_max; key++) {
+         const auto this_count = counts[key];
+         const auto key_i = key - key_min;
+         begin[key_i] = end[key_i - 1];
+         end[key_i] = end[key_i - 1] + this_count;
+      }
+   }
+   tm.stop();
    particle p;
    morton_t next_key;
    tm.reset();
@@ -114,7 +140,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       }
    }
    tm.stop();
-  printf("Sort took %e s, %i sorted.\n", tm.read(), sorted);
+   // printf("Sort took %e s, %i sorted.\n", tm.read(), sorted);
 #ifdef TEST_RADIX
    bool failed = false;
    for (int i = start; i < stop - 1; i++) {
@@ -127,10 +153,10 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       abort();
    }
 #endif
- //  printf( "bounds size = %li\n", bounds.size());
+   //  printf( "bounds size = %li\n", bounds.size());
    begin.resize(0);
    begin.push_back(start);
-   begin.insert(begin.end(), end.begin() , end.begin() + key_max - key_min);
+   begin.insert(begin.end(), end.begin(), end.begin() + key_max - key_min);
    return begin;
 }
 

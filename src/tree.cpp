@@ -75,9 +75,9 @@ sort_return tree::sort(std::shared_ptr<sort_params> params) {
       auto child_params = params->get_children();
     //  printf( "%li %li %li\n",depth, params->key_end, params->key_begin );
       if (params->key_end - params->key_begin == 1) {
-         int radix_depth = std::max((int(log(double(size) / opts.bucket_size) / log(8))),1) * NDIM + params->radix_depth;
+         int radix_depth = std::max((int(log(double(size) / opts.bucket_size) / log(8)))+1,1) * NDIM + params->radix_depth;
          radix_depth = std::min(TREE_MAX_RADIX, radix_depth);
-         printf("------->Sorting to depth %i from level %i\n", radix_depth, depth);
+     //    printf("------->Sorting to depth %i from level %i\n", radix_depth, depth);
          const auto key_begin = morton_key(box.begin, radix_depth);
          std::array<fixed64, NDIM> tmp;
          for( int dim = 0; dim < NDIM; dim++) {
@@ -102,7 +102,7 @@ sort_return tree::sort(std::shared_ptr<sort_params> params) {
          assert(bounds[0] >= part_begin);
          assert(bounds[bounds.size()-1] <= part_end);
          tm.stop();
-         printf("Done sorting %e\n", tm.read());
+    //     printf("Done sorting %e\n", tm.read());
          auto bndptr = std::make_shared<decltype(bounds)>(std::move(bounds));
          for (int ci = 0; ci < NCHILD; ci++) {
             child_params[ci].bounds = bndptr;

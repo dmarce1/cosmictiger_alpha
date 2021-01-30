@@ -11,16 +11,17 @@
 
 #define NDIM 3
 
-#define TEST_TREE
-#define TREE_MAX_RADIX 27
-#define TREE_MAX_DEPTH 50
+//#define TEST_TREE
+#define TREE_MAX_RADIX 52
+#define TREE_MAX_DEPTH 52
 
-#define TEST_RADIX
+//#define TEST_RADIX
 
 #define NCHILD 2
 //#define PARALLEL_RADIX
 
 
+#define MIN_CUDA_SORT 65536LL
 #define OVERSUBSCRIPTION 1
 #define NPARTS_FULLSYSTEM_SEARCH (65536/4)
 
