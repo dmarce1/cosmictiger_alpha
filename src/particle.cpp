@@ -54,7 +54,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       assert(end[key_max - 1 - key_min] == stop);
    } else {
    //   printf("Doing CPU sort\n");
-      std::unordered_map < size_t, size_t > counts;
+      std::vector <int > counts(key_max-key_min,0);
 
       timer tm;
       tm.start();
@@ -62,28 +62,17 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       for (size_t i = start; i < stop; i++) {
          const auto x = pos(i);
          const auto key = morton_key(x, depth);
-         auto iter = counts.find(key);
-         if (iter != counts.end()) {
-            iter->second++;
-            counter++;
-         } else {
-            counter++;
-            counts[key] = 1;
-         }
-         set_mid(key, i);
-      }
-      for (size_t key = key_min; key < key_max; key++) {
-         auto iter = counts.find(key);
-         if (iter == counts.end()) {
-            counts[key] = 0;
-         }
+         assert( key >= key_min);
+         assert( key < key_max);
+         counts[key-key_min]++;
+            set_mid(key, i);
       }
       begin.resize(key_max - key_min + 1);
       end.resize(key_max - key_min + 1);
       begin[0] = start;
-      end[0] = start + counts[key_min];
+      end[0] = start + counts[0];
       for (int key = key_min + 1; key < key_max; key++) {
-         const auto this_count = counts[key];
+         const auto this_count = counts[key-key_min];
          const auto key_i = key - key_min;
          begin[key_i] = end[key_i - 1];
          end[key_i] = end[key_i - 1] + this_count;

@@ -200,7 +200,7 @@ inline morton_t morton_key(std::array<T, NDIM> I, int64_t depth) {
 
    for (size_t k = 0; k < depth / NDIM; k++) {
       for (size_t dim = 0; dim < NDIM; dim++) {
-         key ^= ((I[dim].i >> k) & (0x0000000000000001LL)) << size_t(k * NDIM + (NDIM - 1 - dim));
+         key ^= size_t((I[dim].i >> k) & 1LL) << size_t(k * NDIM + (NDIM - 1 - dim));
       }
    }
     return key;

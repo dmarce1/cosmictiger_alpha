@@ -15,25 +15,33 @@ tree::tree() {
 }
 
 fast_future<sort_return> tree::create_child(sort_params* params) {
+   static std::atomic<int> threads_used(0);
    tree_client id;
    id.rank = 0;
    id.ptr = (uintptr_t) params->allocs->tree_alloc->allocate();
    CHECK_POINTER(id.ptr);
 #ifdef TREE_SORT_MULTITHREAD
-   thread_control thread(1);
    const auto nparts = (*params->bounds)[params->key_end] - (*params->bounds)[params->key_begin];
-   if( nparts > TREE_MIN_PARTS2THREAD &&  thread.try_acquire()) {
+   bool thread= false;
+   if( nparts > TREE_MIN_PARTS2THREAD ) {
+      if( ++threads_used <= hpx::thread::hardware_concurrency()) {
+         thread = true;
+      } else {
+         threads_used--;
+      }
+   }
+   if( thread ) {
       params->allocs = std::make_shared<tree_alloc>();
       params->allocs->multi_alloc = std::make_shared<managed_allocator<multipole>>();
       params->allocs->check_alloc = std::make_shared<managed_allocator<check_item>>();
       params->allocs->tree_alloc = std::make_shared<managed_allocator<tree>>();
       params->allocs->params_alloc = std::make_shared<managed_allocator<sort_params>>();
 
-      return hpx::async([id,params](thread_control&& thread) {
+      return hpx::async([id,params]() {
          auto rc = ((tree*) (id.ptr))->sort(params);
-         thread.release();
+         threads_used--;
          return rc;
-      }, std::move(thread));
+      });
    } else {
       return fast_future<sort_return>( ((tree*) (id.ptr))->sort(params));
    }

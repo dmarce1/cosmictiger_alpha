@@ -28,9 +28,9 @@ public:
       return thread_cnt;
    }
    thread_control() = delete;
-   thread_control(const thread_control&) = default;
-   thread_control(thread_control&&) = default;
-   thread_control& operator=(const thread_control&) = default;
+   thread_control(const thread_control&) = delete;
+   thread_control& operator=(const thread_control&) = delete;
+   thread_control(thread_control&&);
    thread_control& operator=(thread_control&&);
    thread_control(int thread_cnt, int priority = 0);
    ~thread_control();

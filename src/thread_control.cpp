@@ -62,14 +62,20 @@ void thread_control::check_stacks() {
 //   active = std::make_shared<bool>(false);
 //}
 
-thread_control& thread_control::operator=(thread_control &&other) {
-   assert(avail >= 0);
-   assert(avail <= max_avail);
-   priority = other.priority;
-   thread_cnt = other.thread_cnt;
-   active = other.active;
-   return *this;
+
+thread_control::thread_control(thread_control&& other) {
+   *this = std::move(other);
+
 }
+
+   thread_control& thread_control::operator=(thread_control&& other)  {
+      priority = other.priority;
+      thread_cnt = other.thread_cnt;
+      active = other.active;
+      other.active = nullptr;
+      return *this;
+   }
+
 
 thread_control::thread_control(int number, int p) {
    init();
@@ -139,7 +145,7 @@ bool thread_control::try_acquire() {
 }
 
 thread_control::~thread_control() {
-   if (active && *active) {
+   if ((active != nullptr) && *active) {
       avail += thread_cnt;
       check_stacks();
    }
