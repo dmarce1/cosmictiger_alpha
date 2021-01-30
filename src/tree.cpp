@@ -14,7 +14,7 @@ void tree::set_particle_set(particle_set *parts) {
 tree::tree() {
 }
 
-hpx::future<sort_return> tree::create_child(sort_params* params) {
+fast_future<sort_return> tree::create_child(sort_params* params) {
    tree_client id;
    id.rank = 0;
    id.ptr = (uintptr_t) params->allocs->tree_alloc->allocate();
@@ -35,10 +35,10 @@ hpx::future<sort_return> tree::create_child(sort_params* params) {
          return rc;
       }, std::move(thread));
    } else {
-      return hpx::make_ready_future( ((tree*) (id.ptr))->sort(params));
+      return fast_future<sort_return>( ((tree*) (id.ptr))->sort(params));
    }
 #else
-   return hpx::make_ready_future( ((tree*) (id.ptr))->sort(params));
+   return fast_future( ((tree*) (id.ptr))->sort(params));
 #endif
 }
 
@@ -136,7 +136,7 @@ sort_return tree::sort(sort_params* params) {
          child_params[RIGHT].key_end = (key_end - key_begin);
       }
    //   printf("Creating children depth = %li\n", params->depth);
-      std::array<hpx::future<sort_return>, NCHILD> futs;
+      std::array<fast_future<sort_return>, NCHILD> futs;
       for (int ci = 0; ci < NCHILD; ci++) {
          auto* ptr = params->allocs->params_alloc->allocate();
          *ptr = child_params[ci];

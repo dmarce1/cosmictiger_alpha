@@ -4,6 +4,7 @@
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/multipole.hpp>
+#include <cosmictiger/fast_future.hpp>
 
 #include <memory>
 
@@ -136,7 +137,7 @@ private:
 public:
    static particle_set *particles;
    static void set_particle_set(particle_set*);
-   static hpx::future<sort_return> create_child(sort_params*);
+   static fast_future<sort_return> create_child(sort_params*);
 
    tree();
    sort_return sort(sort_params* = nullptr);

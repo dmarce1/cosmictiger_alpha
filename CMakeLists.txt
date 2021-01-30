@@ -63,6 +63,7 @@ set(cosmictiger_header_files
 	cosmictiger/vect.hpp
 	cosmictiger/cuda.hpp
 	cosmictiger/fixed.hpp
+	cosmictiger/fast_future.hpp
 	cosmictiger/global.hpp
 	cosmictiger/hpx.hpp
 	cosmictiger/memory.hpp
