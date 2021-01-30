@@ -23,7 +23,6 @@ void thread_control::init() {
 void thread_control::check_stacks() {
    assert(avail >= 0);
    assert(avail <= max_avail);
-//   printf("%i %i\n", (int) avail, max_avail);
    stack_type entry;
    {
       std::lock_guard < hpx::lcos::local::spinlock > lock(mtx);
@@ -95,6 +94,7 @@ void thread_control::release() {
 void thread_control::release_some(int n) {
    avail += n;
    thread_cnt -= n;
+   check_stacks();
    assert(thread_cnt > 0);
    assert(avail >= 0);
    assert(avail <= max_avail);
@@ -115,12 +115,13 @@ void thread_control::acquire() {
          stack.push(std::move(entry));
       }
    }
-   check_stacks();
+//   check_stacks();
 }
 
 bool thread_control::try_acquire() {
 //   assert(!released);
-   assert(avail <= max_avail);
+ //  printf("%i %i\n", (int) avail, max_avail);
+    assert(avail <= max_avail);
    hpx::future<void> fut;
    std::shared_ptr<hpx::lcos::local::promise<void>> promise;
    bool thread_avail = false;
@@ -133,18 +134,18 @@ bool thread_control::try_acquire() {
          thread_avail = true;
       }
    }
-   check_stacks();
+ //  check_stacks();
    return thread_avail;
 }
 
 thread_control::~thread_control() {
    if (active && *active) {
       avail += thread_cnt;
+      check_stacks();
    }
 
    assert(avail >= 0);
    assert(avail <= max_avail);
    assert(thread_cnt > 0);
 
-   check_stacks();
 }

@@ -22,7 +22,7 @@ hpx::future<sort_return> tree::create_child(sort_params* params) {
 #ifdef TREE_SORT_MULTITHREAD
    thread_control thread(1);
    const auto nparts = (*params->bounds)[params->key_end] - (*params->bounds)[params->key_begin];
-   if( nparts > 65536 &&  thread.try_acquire()) {
+   if( nparts > TREE_MIN_PARTS2THREAD &&  thread.try_acquire()) {
       params->allocs = std::make_shared<tree_alloc>();
       params->allocs->multi_alloc = std::make_shared<managed_allocator<multipole>>();
       params->allocs->check_alloc = std::make_shared<managed_allocator<check_item>>();
