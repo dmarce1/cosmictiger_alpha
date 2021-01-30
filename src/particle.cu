@@ -24,7 +24,7 @@ CUDA_KERNEL morton_keygen(particle::flags_t *flags, fixed32 *xptr, fixed32 *yptr
       x[2] = zptr[i].get_integer() >> shift;
       for (size_t k = 0; k < depth / NDIM; k++) {
          for (size_t dim = 0; dim < NDIM; dim++) {
-            key ^= size_t((bool) (x[dim] & (1LL << k))) << size_t(k * NDIM + (NDIM-1-dim));
+            key ^= size_t((x[dim] >> k) & 1LL) << size_t(k * NDIM + (NDIM-1-dim));
          }
       }
       //     printf( "%lx\n",key);

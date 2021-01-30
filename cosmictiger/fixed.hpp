@@ -200,7 +200,7 @@ inline morton_t morton_key(std::array<T, NDIM> I, int64_t depth) {
 
    for (size_t k = 0; k < depth / NDIM; k++) {
       for (size_t dim = 0; dim < NDIM; dim++) {
-         key ^= size_t((bool) (I[dim].i & (0x0000000000000001LL << k))) << size_t(k * NDIM + (NDIM - 1 - dim));
+         key ^= ((I[dim].i >> k) & (0x0000000000000001LL)) << size_t(k * NDIM + (NDIM - 1 - dim));
       }
    }
     return key;
@@ -211,6 +211,11 @@ inline void swap(fixed<T> &first, fixed<T> &second) {
    std::swap(first, second);
 }
 
+
+class simd_fixed64 {
+
+public:
+};
 
 
 #endif /* COSMICTIGER_FIXED_HPP_ */
