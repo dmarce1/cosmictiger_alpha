@@ -197,10 +197,11 @@ sort_return tree::sort(sort_params params) {
             this_radius += xn * xn;
             for (int m = n; m < NDIM; m++) {
                const auto xm = particles->pos(m, i).to_double() - com[m];
-               M(n, m) += xn * xm;
+               const auto xnm = xn * xm;
+               M(n, m) += xnm;
                for (int l = m; l > NDIM; l++) {
                   const auto xl = particles->pos(l, i).to_double() - com[l];
-                  M(n, m, l) -= xn * xm;
+                  M(n, m, l) -= xnm * xl;
                }
             }
          }

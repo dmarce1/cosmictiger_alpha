@@ -2,10 +2,15 @@
 
 #include <immintrin.h>
 
+#include <cassert>
+#include <climits>
+
+#include <cosmictiger/fixed.hpp>
+
 class simd_double;
 
 class simd_int64 {
-   __m256i i;
+   int64_t i __attribute__ ((vector_size (sizeof(int64_t)*4)));
 public:
    simd_int64() = default;
    simd_int64(const simd_int64&) = default;
@@ -20,27 +25,28 @@ public:
    simd_int64(simd_double r);
 
    inline simd_int64(int64_t j) {
-      i = _mm256_set_epi64x(j, j, j, j);
+      for (int k = 0; k < size(); k++) {
+         i[k] = j;
+      }
    }
 
    inline simd_int64 operator+(const simd_int64 &other) const {
       simd_int64 res;
-      res.i = _mm256_add_epi64(i, other.i);
+      res.i = (i + other.i);
       return res;
    }
 
    inline simd_int64 operator-(const simd_int64 &other) const {
       simd_int64 res;
-      res.i = _mm256_sub_epi64(i, other.i);
+      res.i = (i - other.i);
       return res;
    }
 
    inline simd_int64 operator*(const simd_int64 &other) const {
       simd_int64 res;
-      res.i = _mm256_mullo_epi64(i, other.i);
+      res.i = i * (other.i);
       return res;
    }
-
 
    inline simd_int64& operator+=(const simd_int64 &other) {
       *this = *this + other;
@@ -70,7 +76,7 @@ public:
       assert(j >= 0);
       assert(j < size());
       return i[j];
-    }
+   }
 
    inline int64_t& operator[](int j) {
       assert(j >= 0);
@@ -82,7 +88,7 @@ public:
 };
 
 class simd_double {
-   __m256d r;
+   double r __attribute__ ((vector_size (sizeof(double)*4)));
 public:
    simd_double() = default;
    simd_double(const simd_double&) = default;
@@ -95,7 +101,9 @@ public:
    }
 
    inline simd_double(double j) {
-      r = _mm256_set_pd(j, j, j, j);
+      for (int k = 0; k < size(); k++) {
+         r[k] = j;
+      }
    }
 
    inline double operator[](int j) const {
@@ -153,6 +161,13 @@ public:
       *this = *this / other;
       return *this;
    }
+   inline double sum() const {
+      double s = 0.0;
+      for (int i = 0; i < size(); i++) {
+         s += (*this)[i];
+      }
+      return s;
+   }
 
    simd_double(simd_int64 i64);
 
@@ -160,7 +175,7 @@ public:
 };
 
 class simd_float {
-   __m256 r;
+   float r __attribute__ ((vector_size (sizeof(float)*8)));
 public:
    simd_float() = default;
    simd_float(const simd_float&) = default;
@@ -173,7 +188,9 @@ public:
    }
 
    inline simd_float(float j) {
-      r = _mm256_set_ps(j, j, j, j,j,j,j,j);
+      for (int k = 0; k < size(); k++) {
+         r[k] = j;
+      }
    }
 
    inline double operator[](int j) const {
@@ -232,6 +249,14 @@ public:
       return *this;
    }
 
+   inline float sum() const {
+      float s = 0.0;
+      for (int i = 0; i < size(); i++) {
+         s += (*this)[i];
+      }
+      return s;
+   }
+
 };
 
 class simd_fixed64 {
@@ -245,16 +270,16 @@ public:
       return 4;
    }
 
-   inline double operator[](int j) const {
+   inline fixed64 operator[](int j) const {
       assert(j >= 0);
       assert(j < size());
-      return i[j];
+      return reinterpret_cast<const fixed64*>(&i)[j];
    }
 
-   inline double& operator[](int j) {
+   inline fixed64& operator[](int j) {
       assert(j >= 0);
       assert(j < size());
-      return reinterpret_cast<double*>(&i)[j];
+      return reinterpret_cast<fixed64*>(&i)[j];
    }
 
    inline simd_fixed64() = default;
@@ -291,12 +316,14 @@ public:
 
 };
 
+#ifndef __CUDACC__
 inline simd_int64::simd_int64(simd_double r) {
-   i = _mm256_cvtpd_epi64(r.r);
+i = __builtin_convertvector(r.r,decltype(i));
 }
-
 
 inline simd_double::simd_double(simd_int64 i64) {
-   r = _mm256_cvtepi64_pd(i64.i);
+r = __builtin_convertvector(i64.i,decltype(r));
 }
 
+
+#endif
