@@ -17,10 +17,10 @@ struct sort_params;
 struct tree_client;
 
 struct tree_alloc {
-   std::shared_ptr<managed_allocator<multipole>> multi_alloc;
-   std::shared_ptr<managed_allocator<tree>> tree_alloc;
-   std::shared_ptr<managed_allocator<check_item>> check_alloc;
-   std::shared_ptr<managed_allocator<sort_params>> params_alloc;
+   managed_allocator<multipole> multi_alloc;
+   managed_allocator<tree> tree_alloc;
+   managed_allocator<check_item> check_alloc;
+   managed_allocator<sort_params> params_alloc;
 };
 
 
@@ -57,10 +57,6 @@ struct sort_params {
       key_begin = 0;
       key_end = 1;
       allocs = std::make_shared<tree_alloc>();
-      allocs->multi_alloc = std::make_shared<managed_allocator<multipole>>();
-      allocs->check_alloc = std::make_shared<managed_allocator<check_item>>();
-      allocs->tree_alloc = std::make_shared<managed_allocator<tree>>();
-      allocs->params_alloc = std::make_shared<managed_allocator<sort_params>>();
    }
 
    std::pair<size_t, size_t> get_bounds() const {

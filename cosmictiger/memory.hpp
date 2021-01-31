@@ -71,27 +71,28 @@ class managed_allocator {
    int current_index;
 public:
    static void cleanup() {
-      for( int i = 0; i < allocs.size(); i++) {
+      for (int i = 0; i < allocs.size(); i++) {
          CUDA_FREE(allocs[i]);
       }
       allocs = decltype(allocs)();
    }
    managed_allocator() {
       CUDA_MALLOC(current_alloc, page_size);
-      current_index = 0;
-      std::lock_guard<hpx::lcos::local::mutex> lock(mtx);
-      allocs.push_back(current_alloc);
+      current_index = page_size;
    }
    T* allocate() {
-      if( current_index == page_size) {
+      if (current_index == page_size) {
          CUDA_MALLOC(current_alloc, page_size);
          current_index = 0;
-         std::lock_guard<hpx::lcos::local::mutex> lock(mtx);
+         std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
          allocs.push_back(current_alloc);
       }
       return current_alloc + current_index++;
    }
-
+   managed_allocator( managed_allocator&&) = default;
+   managed_allocator& operator=( managed_allocator&&) = default;
+   managed_allocator(const managed_allocator&) = delete;
+   managed_allocator& operator=(const managed_allocator&) = delete;
 };
 
 template<class T>
@@ -99,6 +100,5 @@ hpx::lcos::local::mutex managed_allocator<T>::mtx;
 
 template<class T>
 std::vector<T*> managed_allocator<T>::allocs;
-
 
 #endif /* COSMICTIGER_MEM_HPP_ */
