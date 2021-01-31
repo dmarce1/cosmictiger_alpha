@@ -91,8 +91,8 @@ sort_return tree::sort(sort_params params) {
       printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
    }
 #endif
-   if ( part_end - part_begin > opts.bucket_size) {
-      const auto size =  part_end - part_begin;
+   if (part_end - part_begin > opts.bucket_size) {
+      const auto size = part_end - part_begin;
       auto child_params = params.get_children();
       if (params.key_end - params.key_begin == 1) {
          int radix_depth = (int(log(double(size) / opts.bucket_size) / log(2) + TREE_RADIX_CUSHION));
@@ -115,20 +115,85 @@ sort_return tree::sort(sort_params params) {
       for (int ci = 0; ci < NCHILD; ci++) {
          futs[ci] = create_child(child_params[ci]);
       }
+      std::array<multipole*, NCHILD> Mc;
+      std::array<fixed32*, NCHILD> Xc;
+      std::array<float, NCHILD> Rc;
+      auto &M = *(self->multi);
       for (int ci = 0; ci < NCHILD; ci++) {
          sort_return rc = futs[ci].get();
          children[ci] = rc.check->client;
+         Mc[ci] = rc.check->multi;
+         Xc[ci] = rc.check->pos.data();
          self->children[ci] = rc.check;
-         self->leaf = false;
       }
+      self->leaf = false;
+      std::array<double, NDIM> com = { 0, 0, 0 };
+      const auto &MR = *Mc[RIGHT];
+      const auto &ML = *Mc[LEFT];
+      M() = ML() + MR();
+      double rleft = 0.0;
+      double rright = 0.0;
+      for (int dim = 0; dim < NDIM; dim++) {
+         com[dim] = (ML() * Xc[LEFT][dim].to_double() + MR() * Xc[RIGHT][dim].to_double()) / (ML() + MR());
+         self->pos[dim] = com[dim];
+         rleft += (Xc[LEFT][dim].to_double() - com[dim]) * (Xc[LEFT][dim].to_double() - com[dim]);
+         rright += (Xc[RIGHT][dim].to_double() - com[dim]) * (Xc[RIGHT][dim].to_double() - com[dim]);
+      }
+      std::array<double, NDIM> xl, xr;
+      for (int dim = 0; dim < NDIM; dim++) {
+         xl[dim] = Xc[LEFT][dim].to_double() - com[dim];
+         xr[dim] = Xc[RIGHT][dim].to_double() - com[dim];
+      }
+      M = (ML >> xl) + (MR >> xr);
+      rleft = std::sqrt(rleft) + self->children[LEFT]->radius;
+      rright = std::sqrt(rright) + self->children[RIGHT]->radius;
+      self->radius = std::max(rleft, rright);
+      printf("x      = %e\n", self->pos[0].to_float());
+      printf("y      = %e\n", self->pos[1].to_float());
+      printf("z      = %e\n", self->pos[2].to_float());
+      printf("radius = %e\n", self->radius);
    } else {
+      std::array<double, NDIM> com = { 0, 0, 0 };
+      for (auto i = part_begin; i < part_end; i++) {
+         for (int dim = 0; dim < NDIM; dim++) {
+            com[dim] += particles->pos(dim, i).to_double();
+         }
+      }
+      for (int dim = 0; dim < NDIM; dim++) {
+         com[dim] /= (part_end - part_begin);
+         self->pos[dim] = com[dim];
+
+      }
+      auto &M = *(self->multi);
+      M = 0.0;
+      self->radius = 0.0;
+      for (auto i = part_begin; i < part_end; i++) {
+         double this_radius = 0.0;
+         M() += 1.0;
+         for (int n = 0; n < NDIM; n++) {
+            const auto xn = particles->pos(n, i).to_double() - com[n];
+            this_radius += xn * xn;
+            for (int m = n; m < NDIM; m++) {
+               const auto xm = particles->pos(m, i).to_double() - com[m];
+               M(n, m) += xn * xm;
+               for (int l = m; l > NDIM; l++) {
+                  const auto xl = particles->pos(l, i).to_double() - com[l];
+                  M(n, m, l) -= xn * xm;
+               }
+            }
+         }
+         this_radius = std::sqrt(this_radius);
+         self->radius = std::max(self->radius, (float) (this_radius));
+      }
       self->parts.first = part_begin;
       self->parts.second = part_end;
-      self->leaf = false;
+      self->leaf = true;
    }
    self->client.rank = hpx_rank();
    self->client.ptr = (uint64_t) this;
    sort_return rc;
    rc.check = self;
+ //  if (params.depth == 0) {
+  // }
    return rc;
 }
