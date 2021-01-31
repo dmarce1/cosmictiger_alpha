@@ -171,8 +171,6 @@ public:
    inline T get_integer() const {
       return i;
    }
-   template<class V>
-   friend morton_t morton_key(std::array<V, NDIM> num, int64_t);
 
    template<class A>
    void serialize(A &arc, unsigned) {
@@ -189,21 +187,36 @@ public:
 
 };
 
+//Morton encoding adopted from https://www.forceflow.be/2013/10/07/morton-encodingdecoding-through-bit-interleaving-implementations/
+CUDA_EXPORT
+inline uint64_t split3(uint64_t a) {
+   uint64_t x = a & 0x1fffff;
+   x = (x | x << 32) & 0x1f00000000ffff;
+   x = (x | x << 16) & 0x1f0000ff0000ff;
+   x = (x | x << 8) & 0x100f00f00f00f00f;
+   x = (x | x << 4) & 0x10c30c30c30c30c3;
+   x = (x | x << 2) & 0x1249249249249249;
+   return x;
+}
+
+CUDA_EXPORT
+inline uint64_t morton_magicbits(uint64_t x, uint64_t y, uint64_t z) {
+   uint64_t answer = 0;
+   answer |= split3(x) | split3(y) << 1 | split3(z) << 2;
+   return answer;
+}
+
+template<class T>
+CUDA_EXPORT
+inline morton_t morton_key(T x, T y, T z, int64_t depth) {
+   const int shift = sizeof(float) * CHAR_BIT - depth / NDIM;
+   morton_t key = morton_magicbits(z.get_integer() >> shift, y.get_integer() >> shift, x.get_integer() >> shift);
+   return key;
+}
+
 template<class T>
 inline morton_t morton_key(std::array<T, NDIM> I, int64_t depth) {
-   assert(depth % NDIM == 0);
-   morton_t key = 0LL;
-//   printf( "------- %lx\n", I[0].i);
-    for (size_t dim = 0; dim < NDIM; dim++) {
-       I[dim].i >>= (sizeof(fixed32) * CHAR_BIT - depth/NDIM);
-   }
-
-   for (size_t k = 0; k < depth / NDIM; k++) {
-      for (size_t dim = 0; dim < NDIM; dim++) {
-         key ^= size_t((I[dim].i >> k) & 1LL) << size_t(k * NDIM + (NDIM - 1 - dim));
-      }
-   }
-    return key;
+   return morton_key(I[0], I[1], I[2], depth);
 }
 
 template<class T>
@@ -211,11 +224,9 @@ inline void swap(fixed<T> &first, fixed<T> &second) {
    std::swap(first, second);
 }
 
-
 class simd_fixed64 {
 
 public:
 };
-
 
 #endif /* COSMICTIGER_FIXED_HPP_ */
