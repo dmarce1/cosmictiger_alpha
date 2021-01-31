@@ -11,6 +11,7 @@
 
 #define NDIM 3
 
+//#define TEST_STACK
 //#define TEST_TREE
 //#define TEST_RADIX
 

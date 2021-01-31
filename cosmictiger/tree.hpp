@@ -26,14 +26,18 @@ struct sort_params {
 #ifdef TEST_TREE
    range box;
 #endif
+#ifdef TEST_STACK
+   uint8_t* stack_ptr;
+#endif
+   std::shared_ptr<std::vector<size_t>> bounds;
+   std::shared_ptr<tree_alloc> allocs;
    size_t radix_begin;
    size_t radix_end;
-   int depth;
-   int radix_depth;
-   std::shared_ptr<std::vector<size_t>> bounds;
-   size_t key_begin;
-   size_t key_end;
-   std::shared_ptr<tree_alloc> allocs;
+   uint32_t key_begin;
+   uint32_t key_end;
+   int8_t depth;
+
+
    template<class A>
    void serialization(A &&arc, unsigned) {
       /********* ADD******/
@@ -55,6 +59,9 @@ struct sort_params {
          box.end[dim] = fixed64(1.f);
       }
 #endif
+#ifdef TEST_STACK
+      stack_ptr = (uint8_t*) &stack_ptr;
+#endif
       radix_begin = 0;
       std::array<fixed64, NDIM> e;
       for (int dim = 0; dim < NDIM; dim++) {
@@ -63,7 +70,6 @@ struct sort_params {
       radix_end = morton_key(e, TREE_RADIX_MAX) + 1;
       depth = 0;
       bounds = std::make_shared < std::vector < size_t >> (2);
-      radix_depth = 0;
       (*bounds)[0] = 0;
       (*bounds)[1] = opts.nparts;
       key_begin = 0;
@@ -81,13 +87,15 @@ struct sort_params {
    std::array<sort_params, NCHILD> get_children() const {
       std::array<sort_params, NCHILD> child;
       for (int i = 0; i < NCHILD; i++) {
-         child[i].radix_depth = radix_depth;
          child[i].bounds = bounds;
          child[i].depth = depth + 1;
+         child[i].allocs = allocs;
 #ifdef TEST_TREE
          child[i].box = box;
 #endif
-         child[i].allocs = allocs;
+#ifdef TEST_STACK
+         child[i].stack_ptr = stack_ptr;
+#endif
       }
       int sort_dim = depth % NDIM;
 #ifdef TEST_TREE
@@ -150,7 +158,7 @@ private:
 public:
    static particle_set *particles;
    static void set_particle_set(particle_set*);
-   static fast_future<sort_return> create_child(sort_params&);
+   inline static fast_future<sort_return> create_child(sort_params&);
    static fast_future<sort_return> cleanup_child();
 
    tree();

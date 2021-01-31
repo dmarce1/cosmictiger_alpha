@@ -20,7 +20,7 @@ public:
       data = std::move(data_);
       return *this;
    }
-   fast_future(T&& data_) {
+   inline fast_future(T&& data_) {
       has_data = true;
       data = std::move(data_);
    }

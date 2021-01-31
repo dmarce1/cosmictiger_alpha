@@ -14,13 +14,12 @@ void tree::set_particle_set(particle_set *parts) {
 tree::tree() {
 }
 
-fast_future<sort_return> tree::create_child(sort_params &params) {
+inline fast_future<sort_return> tree::create_child(sort_params &params) {
    static std::atomic<int> threads_used(0);
    tree_client id;
    id.rank = 0;
    id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
    CHECK_POINTER(id.ptr);
-#ifdef TREE_SORT_MULTITHREAD
    const auto nparts = (*params.bounds)[params.key_end] - (*params.bounds)[params.key_begin];
    bool thread = false;
    if (nparts > TREE_MIN_PARTS2THREAD) {
@@ -30,40 +29,33 @@ fast_future<sort_return> tree::create_child(sort_params &params) {
          threads_used--;
       }
    }
-   if (thread) {
+   if (!thread) {
+      return fast_future<sort_return>(((tree*) (id.ptr))->sort(params));
+   } else {
       params.allocs = std::make_shared<tree_alloc>();
       return hpx::async([id, params]() {
          auto rc = ((tree*) (id.ptr))->sort(params);
          threads_used--;
          return rc;
       });
-   } else {
-      return fast_future<sort_return>(((tree*) (id.ptr))->sort(params));
    }
-#else
-   return fast_future( ((tree*) (id.ptr))->sort(params));
-#endif
 }
 
 sort_return tree::sort(sort_params params) {
    const auto opts = global().opts;
-   sort_return rc;
-
    if (params.iamroot()) {
       params.set_root();
    }
    self = params.allocs->check_alloc.allocate();
-   const auto bnds = params.get_bounds();
-   part_begin = bnds.first;
-   part_end = bnds.second;
+   {
+      const auto bnds = params.get_bounds();
+      part_begin = bnds.first;
+      part_end = bnds.second;
+   }
    if (params.depth == TREE_MAX_DEPTH) {
       printf("Exceeded maximum tree depth\n");
-
       abort();
    }
-
-   //   printf( "Creating tree node at %i %li %li %li %li\n", depth, part_begin, part_end, params.key_begin, params.key_end);
-   const size_t size = part_end - part_begin;
 
    self = params.allocs->check_alloc.allocate();
    self->multi = params.allocs->multi_alloc.allocate();
@@ -93,21 +85,27 @@ sort_return tree::sort(sort_params params) {
      // abort();
    }
 #endif
-   if (size > opts.bucket_size) {
+#ifdef TEST_STACK
+   {
+      uint8_t dummy;
+      printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
+   }
+#endif
+   if ( part_end - part_begin > opts.bucket_size) {
+      const auto size =  part_end - part_begin;
       auto child_params = params.get_children();
       if (params.key_end - params.key_begin == 1) {
          int radix_depth = (int(log(double(size) / opts.bucket_size) / log(2) + TREE_RADIX_CUSHION));
-         radix_depth = std::min(std::max(radix_depth, TREE_RADIX_MIN), TREE_RADIX_MAX) + params.radix_depth;
+         radix_depth = std::min(std::max(radix_depth, TREE_RADIX_MIN), TREE_RADIX_MAX) + params.depth;
          const auto radix_begin = params.radix_begin >> (TREE_RADIX_MAX - radix_depth);
          const auto radix_end = params.radix_end >> (TREE_RADIX_MAX - radix_depth);
-   //      printf( "Radix depth = %li\n", radix_depth);
+         //      printf( "Radix depth = %li\n", radix_depth);
          auto bounds = particles->local_sort(part_begin, part_end, radix_depth, radix_begin, radix_end);
          assert(bounds[0] >= part_begin);
          assert(bounds[bounds.size() - 1] <= part_end);
          auto bndptr = std::make_shared<decltype(bounds)>(std::move(bounds));
          for (int ci = 0; ci < NCHILD; ci++) {
             child_params[ci].bounds = bndptr;
-            child_params[ci].radix_depth = radix_depth;
          }
          child_params[LEFT].key_begin = 0;
          child_params[LEFT].key_end = child_params[RIGHT].key_begin = (radix_end - radix_begin) / 2;
@@ -130,6 +128,7 @@ sort_return tree::sort(sort_params params) {
    }
    self->client.rank = hpx_rank();
    self->client.ptr = (uint64_t) this;
+   sort_return rc;
    rc.check = self;
    return rc;
 }
