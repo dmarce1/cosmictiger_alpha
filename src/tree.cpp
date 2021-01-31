@@ -99,8 +99,8 @@ sort_return tree::sort(sort_params* params) {
    if (size > opts.bucket_size) {
       auto child_params = params->get_children();
       if (params->key_end - params->key_begin == 1) {
-         int radix_depth = (int(log(double(size) / opts.bucket_size) / log(8) + TREE_RADIX_CUSHION));
-         radix_depth = std::min(std::max(radix_depth,1)*NDIM,TREE_RADIX_MAX) + params->radix_depth;
+         int radix_depth = (int(log(double(size) / opts.bucket_size) / log(2) + TREE_RADIX_CUSHION));
+         radix_depth = std::min(std::max(radix_depth,1),TREE_RADIX_MAX) + params->radix_depth;
          const auto key_begin = morton_key(box.begin, radix_depth);
          std::array<fixed64, NDIM> tmp;
          for( int dim = 0; dim < NDIM; dim++) {

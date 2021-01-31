@@ -209,8 +209,9 @@ inline uint64_t morton_magicbits(uint64_t x, uint64_t y, uint64_t z) {
 template<class T>
 CUDA_EXPORT
 inline morton_t morton_key(T x, T y, T z, int64_t depth) {
-   const int shift = sizeof(float) * CHAR_BIT - depth / NDIM;
+   const int shift = sizeof(float) * CHAR_BIT - (depth + NDIM) / NDIM;
    morton_t key = morton_magicbits(z.get_integer() >> shift, y.get_integer() >> shift, x.get_integer() >> shift);
+   key >>= NDIM - (depth % NDIM);
    return key;
 }
 
