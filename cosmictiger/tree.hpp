@@ -133,11 +133,11 @@ private:
    size_t part_begin;
    size_t part_end;
    std::array<tree_client, NCHILD> children;
-   std::shared_ptr<tree_alloc> allocs;
 public:
    static particle_set *particles;
    static void set_particle_set(particle_set*);
    static fast_future<sort_return> create_child(sort_params*);
+   static fast_future<sort_return> cleanup_child();
 
    tree();
    sort_return sort(sort_params* = nullptr);

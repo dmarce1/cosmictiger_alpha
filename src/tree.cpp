@@ -60,8 +60,7 @@ sort_return tree::sort(sort_params* params) {
       params->set_root();
       params->allocs->params_alloc = alloc;
    }
-   allocs = params->allocs;
-   self = allocs->check_alloc->allocate();
+   self = params->allocs->check_alloc->allocate();
    const auto bnds = params->get_bounds();
    part_begin = bnds.first;
    part_end = bnds.second;
@@ -75,8 +74,8 @@ sort_return tree::sort(sort_params* params) {
    const auto &box = params->box;
    const size_t size = part_end - part_begin;
 
-   self = allocs->check_alloc->allocate();
-   self->multi = allocs->multi_alloc->allocate();
+   self = params->allocs->check_alloc->allocate();
+   self->multi = params->allocs->multi_alloc->allocate();
 
 #ifdef TEST_TREE
    bool failed = false;

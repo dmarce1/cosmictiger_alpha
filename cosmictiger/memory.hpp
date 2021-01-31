@@ -9,6 +9,7 @@
 #define COSMICTIGER_MEM_HPP_
 
 #include <cosmictiger/defs.hpp>
+#include <cosmictiger/hpx.hpp>
 
 #include <cuda_runtime.h>
 
@@ -64,29 +65,40 @@ void cosmic_malloc(T **ptr, int64_t nele, const char *file, int line) {
 template<class T>
 class managed_allocator {
    static constexpr size_t page_size = ALLOCATION_PAGE_SIZE / sizeof(T);
-   std::vector<T*> allocs;
+   static hpx::lcos::local::mutex mtx;
+   static std::vector<T*> allocs;
    T *current_alloc;
    int current_index;
 public:
-   managed_allocator() {
-      CUDA_MALLOC(current_alloc, page_size);
-      current_index = 0;
-      allocs.push_back(current_alloc);
-   }
-   ~managed_allocator() {
+   static void cleanup() {
       for( int i = 0; i < allocs.size(); i++) {
          CUDA_FREE(allocs[i]);
       }
+      allocs = decltype(allocs)();
+   }
+   managed_allocator() {
+      CUDA_MALLOC(current_alloc, page_size);
+      current_index = 0;
+      std::lock_guard<hpx::lcos::local::mutex> lock(mtx);
+      allocs.push_back(current_alloc);
    }
    T* allocate() {
       if( current_index == page_size) {
          CUDA_MALLOC(current_alloc, page_size);
          current_index = 0;
+         std::lock_guard<hpx::lcos::local::mutex> lock(mtx);
          allocs.push_back(current_alloc);
       }
       return current_alloc + current_index++;
    }
 
 };
+
+template<class T>
+hpx::lcos::local::mutex managed_allocator<T>::mtx;
+
+template<class T>
+std::vector<T*> managed_allocator<T>::allocs;
+
 
 #endif /* COSMICTIGER_MEM_HPP_ */
