@@ -95,7 +95,7 @@ sort_return tree::sort(sort_params params) {
    }
 #endif
    if (part_end - part_begin > opts.bucket_size) {
-      std::vector<fast_future<sort_return>> futs(2);
+      std::array<fast_future<sort_return>, NCHILD> futs;
       {
          const auto size = part_end - part_begin;
          auto child_params = params.get_children();
@@ -147,8 +147,8 @@ sort_return tree::sort(sort_params params) {
       for (int dim = 0; dim < NDIM; dim++) {
          com[dim] = (ML() * Xc[LEFT][dim].to_double() + MR() * Xc[RIGHT][dim].to_double()) / (ML() + MR());
          self->pos[dim] = com[dim];
-         rleft += (Xc[LEFT][dim].to_double() - com[dim]) * (Xc[LEFT][dim].to_double() - com[dim]);
-         rright += (Xc[RIGHT][dim].to_double() - com[dim]) * (Xc[RIGHT][dim].to_double() - com[dim]);
+         rleft += sqr(Xc[LEFT][dim].to_double() - com[dim]);
+         rright += sqr(Xc[RIGHT][dim].to_double() - com[dim]);
       }
       std::array<double, NDIM> xl, xr;
       for (int dim = 0; dim < NDIM; dim++) {
@@ -159,10 +159,20 @@ sort_return tree::sort(sort_params params) {
       rleft = std::sqrt(rleft) + self->children[LEFT]->radius;
       rright = std::sqrt(rright) + self->children[RIGHT]->radius;
       self->radius = std::max(rleft, rright);
-      //     printf("x      = %e\n", self->pos[0].to_float());
-      //    printf("y      = %e\n", self->pos[1].to_float());
-      //   printf("z      = %e\n", self->pos[2].to_float());
-      //  printf("radius = %e\n", self->radius);
+      float rmax = 0.0;
+      const auto corners = params.box.get_corners();
+      for( int ci = 0; ci < NCORNERS; ci++) {
+         double d = 0.0;
+         for( int dim = 0; dim < NDIM; dim++) {
+            d += sqr(com[dim] - corners[ci][dim].to_double());
+         }
+         rmax = std::max((float)std::sqrt(d), rmax);
+      }
+      self->radius = std::min(self->radius, rmax);
+      printf("x      = %e\n", self->pos[0].to_float());
+      printf("y      = %e\n", self->pos[1].to_float());
+      printf("z      = %e\n", self->pos[2].to_float());
+      printf("radius = %e\n", self->radius);
    } else {
       std::array<double, NDIM> com = { 0, 0, 0 };
       for (auto i = part_begin; i < part_end; i++) {
