@@ -44,6 +44,8 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
    std::vector < size_t > end;
    tm.start();
    if (stop - start >= MIN_CUDA_SORT) {
+      timer tm;
+      tm.start();
       begin = cuda_keygen(*this, start, stop, depth, key_min, key_max);
       //  printf( "%li %li\n", start , stop);
       size_t key_cnt = key_max - key_min;
@@ -52,13 +54,10 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
          end[i] = begin[i + 1];
       }
       assert(end[key_max - 1 - key_min] == stop);
+      tm.stop();
+      printf( "%e\n", (double)tm.read());
    } else {
-   //   printf("Doing CPU sort\n");
       std::vector <int > counts(key_max-key_min,0);
-
-      timer tm;
-      tm.start();
-      size_t counter = 0;
       for (size_t i = start; i < stop; i++) {
          const auto x = pos(i);
          const auto key = morton_key(x, depth);

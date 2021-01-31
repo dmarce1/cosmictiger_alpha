@@ -22,3 +22,4 @@ cuda_properties cuda_init() {
    }
    return props;
 }
+
