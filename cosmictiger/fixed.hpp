@@ -225,9 +225,4 @@ inline void swap(fixed<T> &first, fixed<T> &second) {
    std::swap(first, second);
 }
 
-class simd_fixed64 {
-
-public:
-};
-
 #endif /* COSMICTIGER_FIXED_HPP_ */

@@ -2,6 +2,7 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/timer.hpp>
 #include <cosmictiger/thread_control.hpp>
+#include <cosmictiger/simd.hpp>
 
 #include <cmath>
 
@@ -169,10 +170,10 @@ sort_return tree::sort(sort_params params) {
          rmax = std::max((float)std::sqrt(d), rmax);
       }
       self->radius = std::min(self->radius, rmax);
-      printf("x      = %e\n", self->pos[0].to_float());
-      printf("y      = %e\n", self->pos[1].to_float());
-      printf("z      = %e\n", self->pos[2].to_float());
-      printf("radius = %e\n", self->radius);
+  //    printf("x      = %e\n", self->pos[0].to_float());
+   //   printf("y      = %e\n", self->pos[1].to_float());
+    //  printf("z      = %e\n", self->pos[2].to_float());
+     // printf("radius = %e\n", self->radius);
    } else {
       std::array<double, NDIM> com = { 0, 0, 0 };
       for (auto i = part_begin; i < part_end; i++) {
