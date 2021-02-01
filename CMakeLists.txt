@@ -36,32 +36,12 @@ set(cosmictiger_source_files
     src/rand.cpp
     src/tests.cpp
     src/tree.cpp
+    src/tree.cu
 )
 set(cosmictiger_header_files
-	tiegrgrav/cosmo.hpp
-	cosmictiger/defs.hpp
-	cosmictiger/gravity_cuda.hpp
-	cosmictiger/gravity.hpp
-	cosmictiger/gravity_work.hpp
-	cosmictiger/green.hpp
-	cosmictiger/groups.hpp
-	cosmictiger/initialize.hpp
-	tigergrac/load.hpp
-	cosmictiger/map.hpp
-	cosmictiger/managed_vector.hpp
-	cosmictiger/multipole.hpp
-	cosmictiger/output.hpp
-	cosmictiger/options.hpp
-	cosmictiger/part_vect.hpp
-	cosmictiger/particle.hpp
-	cosmictiger/position.hpp
-	cosmictiger/rand.hpp
-	cosmictiger/range.hpp
-	cosmictiger/taylor.hpp
-	cosmictiger/time.hpp
-	cosmictiger/tree.hpp
-	cosmictiger/vect.hpp
+	cosmictiger/containers.hpp
 	cosmictiger/cuda.hpp
+	cosmictiger/expansion.hpp
 	cosmictiger/fixed.hpp
 	cosmictiger/fast_future.hpp
 	cosmictiger/global.hpp

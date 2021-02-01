@@ -48,7 +48,8 @@ public:
    inline fixed<T>() = default;
 
    inline
-#ifdef NDEBUG
+   CUDA_EXPORT
+   #ifdef NDEBUG
    constexpr
 #endif
    fixed<T>(float number) :
@@ -56,48 +57,59 @@ public:
    }
    template<class V>
 
+   CUDA_EXPORT
    inline constexpr fixed<T>(fixed<V> other) :
          i(other.i) {
    }
 
+   CUDA_EXPORT
    inline bool operator<(fixed other) const {
       return i < other.i;
    }
 
+   CUDA_EXPORT
    inline bool operator>(fixed other) const {
       return i > other.i;
    }
 
+   CUDA_EXPORT
    inline bool operator<=(fixed other) const {
       return i <= other.i;
    }
 
+   CUDA_EXPORT
    inline bool operator>=(fixed other) const {
       return i >= other.i;
    }
 
+   CUDA_EXPORT
    inline bool operator==(fixed other) const {
       return i == other.i;
    }
 
+   CUDA_EXPORT
    inline bool operator!=(fixed other) const {
       return i != other.i;
    }
 
+   CUDA_EXPORT
    inline float to_float() const {
       return i * cinv;
 
    }
 
+   CUDA_EXPORT
    inline int to_int() const {
       return i >> width;
    }
 
+   CUDA_EXPORT
    inline double to_double() const {
       return i * cinv;
 
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator*(const fixed<T> &other) const {
       int64_t a;
       const int64_t b = i;
@@ -108,6 +120,7 @@ public:
       return res;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator*=(const fixed<T> &other) {
       int64_t a;
       const int64_t b = i;
@@ -117,6 +130,7 @@ public:
       return *this;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator*=(int other) {
       int64_t a;
       const int64_t b = i;
@@ -126,6 +140,7 @@ public:
       return *this;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator/(const fixed<T> &other) const {
       int64_t a;
       const int64_t b = i;
@@ -136,6 +151,7 @@ public:
       return res;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator/=(const fixed<T> &other) {
       int64_t a;
       const int64_t b = i;
@@ -145,23 +161,27 @@ public:
       return *this;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator+(const fixed<T> &other) const {
       fixed<T> a;
       a.i = i + other.i;
       return a;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator-(const fixed<T> &other) const {
       fixed<T> a;
       a.i = i - other.i;
       return a;
    }
 
+   CUDA_EXPORT
    inline fixed<T>& operator+=(const fixed<T> &other) {
       i += other.i;
       return *this;
    }
 
+   CUDA_EXPORT
    inline fixed<T>& operator-=(const fixed<T> &other) {
       i -= other.i;
       return *this;
@@ -173,6 +193,7 @@ public:
    }
 
    template<class A>
+   CUDA_EXPORT
    void serialize(A &arc, unsigned) {
       arc & i;
    }
@@ -181,6 +202,7 @@ public:
    friend class fixed;
 
    template<class V>
+   CUDA_EXPORT
    friend void swap(fixed<V> &first, fixed<V> &second);
 
    friend fixed32 rand_fixed32();

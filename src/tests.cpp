@@ -59,7 +59,7 @@ static void sort() {
       parts.local_sort(0, global().opts.nparts, depth, 0, 1 << depth);
       tm2.stop();
 
-      printf("%li %e %e %e %e\n", depth, tm1.read(), tm2.read(),  tm1.read()/depth, tm2.read()/depth);
+  //    printf("%li %e %e %e %e\n", depth, tm1.read(), tm2.read(),  tm1.read()/depth, tm2.read()/depth);
 
    }
 

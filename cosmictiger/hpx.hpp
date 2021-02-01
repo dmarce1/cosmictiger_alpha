@@ -8,6 +8,8 @@
 #ifndef COSMICTIGER_HPX_HPP_
 #define COSMICTIGER_HPX_HPP_
 
+#ifndef __CUDACC__
+
 #include <cosmictiger/hpx.hpp>
 #include <hpx/hpx.hpp>
 
@@ -17,6 +19,7 @@ int hpx_size();
 const std::vector<hpx::id_type>& hpx_localities();
 const std::pair<hpx::id_type,hpx::id_type>& hpx_child_localities();
 
+#endif
 
 
 #endif /* COSMICTIGER_HPX_HPP_ */

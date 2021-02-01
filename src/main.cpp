@@ -5,6 +5,7 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/tests.hpp>
 #include <cosmictiger/tree.hpp>
+#include <cosmictiger/containers.hpp>
 
 int hpx_main(int argc, char *argv[]) {
    options opts;

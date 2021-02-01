@@ -2,6 +2,7 @@
 
 #include <cosmictiger/hpx.hpp>
 
+#ifndef __CUDACC__
 template<class T>
 class fast_future {
    T data;
@@ -50,3 +51,4 @@ public:
 
 
 };
+#endif

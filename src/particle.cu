@@ -5,6 +5,7 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/memory.hpp>
 #include <cosmictiger/fixed.hpp>
+#include <cosmictiger/containers.hpp>
 
 #define THREADS_PER_SM 64
 #define KEY_BLOCK_SIZE 256

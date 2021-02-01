@@ -1,10 +1,12 @@
 #pragma once
 
 #include <cosmictiger/defs.hpp>
+#include <cosmictiger/containers.hpp>
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/fast_future.hpp>
+#include <cosmictiger/expansion.hpp>
 
 #include <memory>
 
@@ -16,6 +18,7 @@ class check_item;
 struct sort_params;
 struct tree_client;
 
+#ifndef __CUDACC__
 struct tree_alloc {
    managed_allocator<multipole> multi_alloc;
    managed_allocator<tree> tree_alloc;
@@ -92,6 +95,7 @@ struct sort_params {
       return child;
    }
 };
+#endif
 
 struct tree_client {
    uintptr_t ptr;
@@ -110,17 +114,18 @@ struct tree_client {
 };
 
 struct check_item {
-   std::array<fixed32, NDIM> pos;
+   array<fixed32, NDIM> pos;
    float radius;
    union {
-      std::array<check_item*, NCHILD> children;
-      std::pair<size_t, size_t> parts;
+      array<check_item*, NCHILD> children;
+      pair<size_t, size_t> parts;
    };
    tree_client client;
    multipole *multi;
    bool leaf;
 };
 
+#ifndef __CUDACC__
 struct sort_return {
    check_item *check;
    template<class A>
@@ -129,14 +134,19 @@ struct sort_return {
    }
 };
 
-struct tree {
+#endif
 
+
+struct tree {
+#ifndef __CUDACC__
 private:
+#endif
    check_item *self;
    size_t part_begin;
    size_t part_end;
-   std::array<tree_client, NCHILD> children;
+   array<tree_client, NCHILD> children;
 public:
+#ifndef __CUDACC__
    static particle_set *particles;
    static void set_particle_set(particle_set*);
    inline static fast_future<sort_return> create_child(sort_params&);
@@ -144,5 +154,5 @@ public:
 
    tree();
    sort_return sort(sort_params = sort_params());
-
+#endif
 };

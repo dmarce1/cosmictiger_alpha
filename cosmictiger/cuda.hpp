@@ -17,7 +17,21 @@
 #define CUDA_EXPORT
 #endif
 
+#ifdef __CUDA_ARCH__
+#define CUDA_SYNC() __syncthreads()
+#else
+static int do_nothing() {
+   return 1;
+}
+#define CUDA_SYNC() do_nothing()
+#endif
+
+
+#define CUDA_DEVICE __device__
+
 #define CUDA_KERNEL __global__ void
+
+#define CUDA_SHARED __shared__
 
 #include <cuda_runtime.h>
 
@@ -67,4 +81,10 @@ struct cuda_properties {
 
 cuda_properties cuda_init();
 
+
+template<class T>
+CUDA_EXPORT
+inline T sqr(T a) {
+   return a * a;
+}
 #endif /* COSMICTIGER_CUDA_HPP_ */

@@ -10,6 +10,7 @@
 
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/hpx.hpp>
+#include <cosmictiger/cuda.hpp>
 
 #include <cuda_runtime.h>
 
@@ -20,27 +21,33 @@
 
 #define CHECK_POINTER(ptr)   MEM_CHECK_POINTER(ptr,__FILE__,__LINE__)
 
+#ifdef __CUDA_ARCH__
+#define ABORT __trap
+#else
+#define ABORT abort
+#endif
+
 #define MEM_CHECK_POINTER(ptr,file,line)                          \
    if( !ptr ) {                                                   \
       printf( "Out of memory. File: %s Line %i\n", file, line);   \
-      abort();                                                    \
-   }
+      ABORT();                                                    \
+}
 
 #define MEM_CHECK_ERROR(ec,file,line)                                                        \
    if( ec != cudaSuccess ) {                                                                 \
       printf( "CUDA error \"%s\" File: %s Line: %i\n",  cudaGetErrorString(ec), file, line); \
-      abort();                                                                               \
+      ABORT();                                                                               \
    }
 
 #define CUDA_FREE(ptr)                                                                                       \
       if( ptr == nullptr ) {                                                                                 \
          printf( "Attempt to free null pointer. File: %s Line %i\n", __FILE__, __LINE__);                    \
-         abort();                                                                                            \
+         ABORT();                                                                                            \
       } else {                                                                                               \
          const auto ec = cudaFree(ptr);                                                                      \
          if( ec != cudaSuccess ) {                                                                           \
             printf( "CUDA error \"%s\" File: %s Line: %i\n",  cudaGetErrorString(ec), __FILE__, __LINE__);   \
-            abort();                                                                                         \
+            ABORT();                                                                                         \
          }                                                                                                   \
       }
 
@@ -50,8 +57,13 @@
 #define FREE(ptr) free(ptr)
 
 template<class T>
+CUDA_EXPORT
 void cuda_malloc(T **ptr, int64_t nele, const char *file, int line) {
+#ifdef __CUDA_ARCH__
+   const auto ec = cudaMalloc(ptr, nele * sizeof(T));
+#else
    const auto ec = cudaMallocManaged(ptr, nele * sizeof(T));
+#endif
    MEM_CHECK_POINTER(*ptr, file, line);
    MEM_CHECK_ERROR(ec, file, line);
 }
@@ -62,6 +74,7 @@ void cosmic_malloc(T **ptr, int64_t nele, const char *file, int line) {
    MEM_CHECK_POINTER(*ptr, file, line);
 }
 
+#ifndef __CUDACC__
 template<class T>
 class managed_allocator {
    static constexpr size_t page_size = ALLOCATION_PAGE_SIZE / sizeof(T);
@@ -89,8 +102,8 @@ public:
       }
       return current_alloc + current_index++;
    }
-   managed_allocator( managed_allocator&&) = default;
-   managed_allocator& operator=( managed_allocator&&) = default;
+   managed_allocator(managed_allocator&&) = default;
+   managed_allocator& operator=(managed_allocator&&) = default;
    managed_allocator(const managed_allocator&) = delete;
    managed_allocator& operator=(const managed_allocator&) = delete;
 };
@@ -100,5 +113,7 @@ hpx::lcos::local::mutex managed_allocator<T>::mtx;
 
 template<class T>
 std::vector<T*> managed_allocator<T>::allocs;
+
+#endif
 
 #endif /* COSMICTIGER_MEM_HPP_ */

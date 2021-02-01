@@ -20,6 +20,7 @@
 #define TREE_RADIX_MAX 52
 #define TREE_SORT_MULTITHREAD
 #define TREE_MIN_PARTS2THREAD (64*1024)
+#define EWALD_DISTANCE 0.25
 
 #define NCHILD 2
 //#define PARALLEL_RADIX
@@ -28,9 +29,5 @@
 #define MIN_CUDA_SORT 65536LL
 #define OVERSUBSCRIPTION 2
 
-template<class T>
-inline T sqr(T a) {
-   return a * a;
-}
 
 #endif /* COSMICTIGER_DEFS_HPP_ */
