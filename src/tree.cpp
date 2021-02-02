@@ -96,7 +96,7 @@ sort_return tree::sort(sort_params params) {
       printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
    }
 #endif
-   if (parts.second - parts.second > opts.bucket_size) {
+   if (parts.second - parts.first > opts.bucket_size) {
       std::array<fast_future<sort_return>, NCHILD> futs;
       {
          const auto size = parts.second - parts.first;

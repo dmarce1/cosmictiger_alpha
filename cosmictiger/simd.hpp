@@ -318,11 +318,11 @@ public:
 
 #ifndef __CUDACC__
 inline simd_int64::simd_int64(simd_double r) {
-i = __builtin_convertvector(r.r,decltype(i));
+//i = __builtin_convertvector(r.r,decltype(i));
 }
 
 inline simd_double::simd_double(simd_int64 i64) {
-r = __builtin_convertvector(i64.i,decltype(r));
+//r = __builtin_convertvector(i64.i,decltype(r));
 }
 
 
