@@ -74,5 +74,5 @@ target_link_libraries(cosmictiger PUBLIC cuda cudart tcmalloc)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} /usr/local/cuda-11.2/include)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                       --gpu-architecture=compute_75;
+                       --gpu-architecture=compute_70;
                         >)
