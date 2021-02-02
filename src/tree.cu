@@ -90,15 +90,14 @@ kick_return tree_kick(kick_params *params, int call_depth) {
             const int end = ((checks.size() - 1) / KICKBLOCKSIZE) * KICKBLOCKSIZE + 1;
             for (int i = tid; i < end; i += KICKBLOCKSIZE) {
                mcount[tid + 1] = ccount[tid + 1] = pcount[tid + 1] = 0;
-               multipole *multi;
-               pair<size_t, size_t> parts;
+               tree_client multi;
+               tree_client parts;
                array<tree_client, NCHILD> child_checks;
                const auto* check = (tree*) checks[i];
                if (i < checks.size()) {
                   float dist2 = 0.f;
                   for (int dim = 0; dim < NDIM; dim++) {
-                     dist2 +=
-                           sqr(fixed<int32_t>(tptr->pos[dim]) - fixed<int32_t>(check->pos[dim])).to_float();
+                     dist2 += sqr(fixed<int32_t>(tptr->pos[dim]) - fixed<int32_t>(check->pos[dim])).to_float();
                   }
                   if (I == EWALD) {
                      dist2 = fmaxf(dist2, (edist2));
@@ -106,14 +105,14 @@ kick_return tree_kick(kick_params *params, int call_depth) {
                   const float R2 = sqr(tptr->radius + check->radius);
                   if (R2 < theta2 * dist2) {
                      mcount[tid + 1] = 1;
-                     multi = check->multi;
+                     multi = checks[i];
                   } else {
                      if (!check->leaf()) {
                         ccount[tid + 1] = 1;
                         child_checks = check->children;
                      } else {
                         pcount[tid + 1] = 1;
-                        parts = check->parts;
+                        parts = checks[i];
                      }
                   }
                }
@@ -140,7 +139,26 @@ kick_return tree_kick(kick_params *params, int call_depth) {
             }
             checks.swap(next_checks);
          }
-      } /* END CC CP */
+
+         /*** DO INTERACTIONS ***/
+         if (TYPE == CLOUD) {
+            if (I == DIRECT) {
+               /**direct CC and CP**/
+            } else {
+               assert(I == EWALD);
+               /**ewald CC and CP**/
+            }
+         } else {
+            assert(TYPE == PARTICLE);
+            if (I == DIRECT) {
+               /**direct PC and PP**/
+            } else {
+               assert(I == EWALD);
+               /**ewald PC and PP**/
+            }
+         }
+
+      } /* END */
    }
    if (!tptr->leaf()) {
       array<nvstd::function<kick_return()>, NCHILD> futs;
@@ -177,88 +195,82 @@ CUDA_KERNEL tree_kick_kernel(kick_return *rcptr, kick_params *params) {
    }
 }
 
-CUDA_DEVICE
-nvstd::function<kick_return()> tree_kick_child(kick_params *params, int call_depth, int child_index) {
-   const int &tid = threadIdx.x;
-   CUDA_SHARED
-   int cnt;
-   bool launch = true;
-   if (child_index == LEFT) {
-      if (tid == 0) {
-         cnt = atomicAdd(&kern_cnt, 1);
-      }
-      CUDA_SYNC();
-      launch = cnt < kern_cnt;
+CUDA_DEVICE nvstd::function<kick_return()>
+tree_kick_child(kick_params *params, int call_depth, int child_index) {
+const int &tid = threadIdx.x;
+CUDA_SHARED
+int cnt;
+bool launch = true;
+if (child_index == LEFT) {
+   if (tid == 0) {
+      cnt = atomicAdd(&kern_cnt, 1);
    }
-   if (!launch) {
-      if (tid == 0) {
-         atomicAdd(&kern_cnt, -1);
-      }
-      CUDA_SYNC();
-      kick_return rc = tree_kick(params, call_depth);
-      return [rc]() {
-         return rc;
-      };
-   } else {
-      kick_return *rcptr;
-      kick_params *pptr;
-      if (tid == 0) {
-         CUDA_MALLOC(rcptr, 1);
-         CUDA_MALLOC(pptr, 1);
-         new (rcptr) kick_return();
-         new (pptr) kick_params();
-         pptr->call_stack.resize(1, params->call_stack[call_depth]);
-         tree_kick_kernel<<<1,KICKBLOCKSIZE>>>(rcptr,pptr);
-
-         CUDA_SYNC();
-      }
-      return [=]() {
-         CUDA_SHARED kick_return
-         rc;
-         if (tid == 0) {
-            CUDA_CHECK(cudaDeviceSynchronize());
-            atomicAdd(&kern_cnt, -1);
-            rc = std::move(*rcptr);
-            rcptr->~kick_return();
-            pptr->~kick_params();
-            CUDA_FREE(rcptr);
-            CUDA_FREE(pptr);
-         }
-         CUDA_SYNC();
-         return rc;
-      };
-   }
+   CUDA_SYNC();
+   launch = cnt < kern_cnt;
 }
-
-
-kick_return tree::kick(tree_client root_ptr, int rung, float theta) {
+if (!launch) {
+   if (tid == 0) {
+      atomicAdd(&kern_cnt, -1);
+   }
+   CUDA_SYNC();
+   kick_return rc = tree_kick(params, call_depth);
+   return [rc]() {
+      return rc;
+   };
+} else {
    kick_return *rcptr;
    kick_params *pptr;
-   kick_params root_params;
-   kick_return rc;
-   CUDA_MALLOC(rcptr, 1);
-   CUDA_MALLOC(pptr, 1);
-   new (rcptr) kick_return();
-   new (pptr) kick_params();
-   root_params.call_stack.resize(1);
-   root_params.call_stack[0].dchecks.push_back(root_ptr);
-   root_params.call_stack[0].echecks.push_back(root_ptr);
-   root_params.call_stack[0].L = 0.0;
-   for (int dim = 0; dim < NDIM; dim++) {
-      root_params.call_stack[0].Lcom[dim] = 0.5;
+   if (tid == 0) {
+      CUDA_MALLOC(rcptr, 1);CUDA_MALLOC(pptr, 1);new (rcptr) kick_return();
+      new (pptr) kick_params();
+      pptr->call_stack.resize(1, params->call_stack[call_depth]);
+      tree_kick_kernel<<<1,KICKBLOCKSIZE>>>(rcptr,pptr);
+
+      CUDA_SYNC();
    }
-   *pptr = std::move(root_params);
-   const int kcnt = global().cuda.devices[0].multiProcessorCount - 1;
-   /***************************************************************************/
-   /**/tree_kick_parameters_kernel <<< 1, 1 >>> (kcnt, rung, theta);/*****************/
-   /**/tree_kick_kernel<<<1,KICKBLOCKSIZE>>>(rcptr,pptr);/*********************/
-   /**/CUDA_CHECK(cudaDeviceSynchronize());/***********************************/
-   /***************************************************************************/
-   rc = std::move(*rcptr);
-   rcptr->~kick_return();
-   pptr->~kick_params();
-   CUDA_FREE(rcptr);
-   CUDA_FREE(pptr);
-   return rc;
+   return [=]() {
+      CUDA_SHARED kick_return
+      rc;
+      if (tid == 0) {
+         CUDA_CHECK(cudaDeviceSynchronize());atomicAdd(&kern_cnt, -1);
+         rc = std::move(*rcptr);
+         rcptr->~kick_return();
+         pptr->~kick_params();
+         CUDA_FREE(rcptr);CUDA_FREE(pptr);}
+CUDA_SYNC();
+return rc;
+};
+}
+}
+
+kick_return tree::kick(tree_client root_ptr, int rung, float theta) {
+kick_return *rcptr;
+kick_params *pptr;
+kick_params root_params;
+kick_return rc;
+CUDA_MALLOC(rcptr, 1);
+CUDA_MALLOC(pptr, 1);
+new (rcptr) kick_return();
+new (pptr) kick_params();
+root_params.call_stack.resize(1);
+root_params.call_stack[0].dchecks.push_back(root_ptr);
+root_params.call_stack[0].echecks.push_back(root_ptr);
+root_params.call_stack[0].L = 0.0;
+for (int dim = 0; dim < NDIM; dim++) {
+root_params.call_stack[0].Lcom[dim] = 0.5;
+}
+*pptr = std::move(root_params);
+const int kcnt = global().cuda.devices[0].multiProcessorCount - 1;
+/***************************************************************************/
+/**/tree_kick_parameters_kernel <<< 1, 1 >>> (kcnt, rung, theta);/*****************/
+/**/tree_kick_kernel<<<1,KICKBLOCKSIZE>>>(rcptr,pptr);/*********************/
+/**/CUDA_CHECK(cudaDeviceSynchronize());/***********************************/
+/***************************************************************************/
+rc = std::move(*rcptr);
+rcptr->~kick_return();
+pptr->~kick_params();
+CUDA_FREE(rcptr);
+CUDA_FREE(pptr);
+return rc;
 
 }

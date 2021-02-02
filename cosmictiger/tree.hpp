@@ -142,8 +142,8 @@ struct call_stack_entry {
 
 struct kick_params {
    vector<call_stack_entry> call_stack;
-   vector<multipole*> multi_i;
-   vector<pair<size_t, size_t>> part_i;
+   vector<tree_client> multi_i;
+   vector<tree_client> part_i;
 };
 
 struct kick_return {
