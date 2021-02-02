@@ -27,7 +27,6 @@ static void tree_test() {
       root.sort();
       managed_allocator<sort_params>::cleanup();
       tm.stop();
-      managed_allocator<check_item>::cleanup();
       managed_allocator<multipole>::cleanup();
       managed_allocator<tree>::cleanup();
       printf("Done sorting in %e\n", tm.read());

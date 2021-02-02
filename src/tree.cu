@@ -1,5 +1,6 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/containers.hpp>
+#include <cosmictiger/global.hpp>
 
 #include <cstdint>
 #include <nvfunctional>
@@ -26,24 +27,6 @@ int max_kern_cnt;
 
 CUDA_DEVICE
 int min_rung;
-
-struct call_stack_entry {
-   vector<check_item*> dchecks;
-   vector<check_item*> echecks;
-   expansion L;
-   array<exp_real, NDIM> Lcom;
-   tree *tptr;
-};
-
-struct kick_params {
-   vector<call_stack_entry> call_stack;
-   vector<multipole*> multi_i;
-   vector<pair<size_t, size_t>> part_i;
-};
-
-struct kick_return {
-   int8_t rung;
-};
 
 CUDA_DEVICE
 nvstd::function<kick_return()> tree_kick_child(kick_params *params, int call_depth, int child_index);
@@ -85,7 +68,7 @@ kick_return tree_kick(kick_params *params, int call_depth) {
    CUDA_SYNC();
    auto &multi_i = params->multi_i;
    auto &parts_i = params->part_i;
-   const auto *tptr = params->call_stack[call_depth].tptr;
+   const tree *tptr = (tree*) params->call_stack[call_depth].tptr;
    const float theta2 = theta * theta;
    constexpr float edist2 = EWALD_DISTANCE * EWALD_DISTANCE;
 
@@ -109,27 +92,28 @@ kick_return tree_kick(kick_params *params, int call_depth) {
                mcount[tid + 1] = ccount[tid + 1] = pcount[tid + 1] = 0;
                multipole *multi;
                pair<size_t, size_t> parts;
-               array<check_item*, NCHILD> child_checks;
+               array<tree_client, NCHILD> child_checks;
+               const auto* check = (tree*) checks[i];
                if (i < checks.size()) {
                   float dist2 = 0.f;
                   for (int dim = 0; dim < NDIM; dim++) {
                      dist2 +=
-                           sqr(fixed<int32_t>(tptr->self->pos[dim]) - fixed<int32_t>(checks[i]->pos[dim])).to_float();
+                           sqr(fixed<int32_t>(tptr->pos[dim]) - fixed<int32_t>(check->pos[dim])).to_float();
                   }
                   if (I == EWALD) {
                      dist2 = fmaxf(dist2, (edist2));
                   }
-                  const float R2 = sqr(tptr->self->radius + checks[i]->radius);
+                  const float R2 = sqr(tptr->radius + check->radius);
                   if (R2 < theta2 * dist2) {
                      mcount[tid + 1] = 1;
-                     multi = checks[i]->multi;
+                     multi = check->multi;
                   } else {
-                     if (!checks[i]->leaf) {
+                     if (!check->leaf()) {
                         ccount[tid + 1] = 1;
-                        child_checks = checks[i]->children;
+                        child_checks = check->children;
                      } else {
                         pcount[tid + 1] = 1;
-                        parts = checks[i]->parts;
+                        parts = check->parts;
                      }
                   }
                }
@@ -158,13 +142,15 @@ kick_return tree_kick(kick_params *params, int call_depth) {
          }
       } /* END CC CP */
    }
-   if (!tptr->self->leaf) {
+   if (!tptr->leaf()) {
       array<nvstd::function<kick_return()>, NCHILD> futs;
       params->call_stack[call_depth + 1].dchecks = params->call_stack[call_depth].dchecks;
       params->call_stack[call_depth + 1].echecks = params->call_stack[call_depth].echecks;
+      params->call_stack[call_depth + 1].tptr = tptr->children[LEFT];
       futs[LEFT] = tree_kick_child(params, call_depth + 1, LEFT);
       params->call_stack[call_depth + 1].dchecks.swap(params->call_stack[call_depth].dchecks);
       params->call_stack[call_depth + 1].echecks.swap(params->call_stack[call_depth].echecks);
+      params->call_stack[call_depth + 1].tptr = tptr->children[RIGHT];
       futs[RIGHT] = tree_kick_child(params, call_depth + 1, RIGHT);
       rc.rung = 0;
       for (int ci = 0; ci < NCHILD; ci++) {
@@ -222,24 +208,57 @@ nvstd::function<kick_return()> tree_kick_child(kick_params *params, int call_dep
          new (rcptr) kick_return();
          new (pptr) kick_params();
          pptr->call_stack.resize(1, params->call_stack[call_depth]);
-      tree_kick_kernel<<<1,KICKBLOCKSIZE>>>(rcptr,pptr);
-   }
-   CUDA_SYNC();
-   return [=]() {
-      CUDA_SHARED kick_return
-      rc;
-      if (tid == 0) {
-         CUDA_CHECK(cudaDeviceSynchronize());
-         atomicAdd(&kern_cnt, -1);
-         rc = std::move(*rcptr);
-         rcptr->~kick_return();
-         pptr->~kick_params();
-         CUDA_FREE(rcptr);
-         CUDA_FREE(pptr);
+         tree_kick_kernel<<<1,KICKBLOCKSIZE>>>(rcptr,pptr);
+
+         CUDA_SYNC();
       }
-      CUDA_SYNC();
-      return rc;
-   };
-}
+      return [=]() {
+         CUDA_SHARED kick_return
+         rc;
+         if (tid == 0) {
+            CUDA_CHECK(cudaDeviceSynchronize());
+            atomicAdd(&kern_cnt, -1);
+            rc = std::move(*rcptr);
+            rcptr->~kick_return();
+            pptr->~kick_params();
+            CUDA_FREE(rcptr);
+            CUDA_FREE(pptr);
+         }
+         CUDA_SYNC();
+         return rc;
+      };
+   }
 }
 
+
+kick_return tree::kick(tree_client root_ptr, int rung, float theta) {
+   kick_return *rcptr;
+   kick_params *pptr;
+   kick_params root_params;
+   kick_return rc;
+   CUDA_MALLOC(rcptr, 1);
+   CUDA_MALLOC(pptr, 1);
+   new (rcptr) kick_return();
+   new (pptr) kick_params();
+   root_params.call_stack.resize(1);
+   root_params.call_stack[0].dchecks.push_back(root_ptr);
+   root_params.call_stack[0].echecks.push_back(root_ptr);
+   root_params.call_stack[0].L = 0.0;
+   for (int dim = 0; dim < NDIM; dim++) {
+      root_params.call_stack[0].Lcom[dim] = 0.5;
+   }
+   *pptr = std::move(root_params);
+   const int kcnt = global().cuda.devices[0].multiProcessorCount - 1;
+   /***************************************************************************/
+   /**/tree_kick_parameters_kernel <<< 1, 1 >>> (kcnt, rung, theta);/*****************/
+   /**/tree_kick_kernel<<<1,KICKBLOCKSIZE>>>(rcptr,pptr);/*********************/
+   /**/CUDA_CHECK(cudaDeviceSynchronize());/***********************************/
+   /***************************************************************************/
+   rc = std::move(*rcptr);
+   rcptr->~kick_return();
+   pptr->~kick_params();
+   CUDA_FREE(rcptr);
+   CUDA_FREE(pptr);
+   return rc;
+
+}

@@ -14,7 +14,6 @@
 #define RIGHT 1
 
 class tree;
-class check_item;
 struct sort_params;
 struct tree_client;
 
@@ -22,7 +21,6 @@ struct tree_client;
 struct tree_alloc {
    managed_allocator<multipole> multi_alloc;
    managed_allocator<tree> tree_alloc;
-   managed_allocator<check_item> check_alloc;
 };
 
 struct sort_params {
@@ -35,7 +33,6 @@ struct sort_params {
    uint32_t key_begin;
    uint32_t key_end;
    int8_t depth;
-
 
    template<class A>
    void serialization(A &&arc, unsigned) {
@@ -69,7 +66,7 @@ struct sort_params {
    }
 
    std::pair<size_t, size_t> get_bounds() const {
-      std::pair < size_t, size_t > rc;
+      std::pair<size_t, size_t> rc;
       rc.first = (*bounds)[key_begin];
       rc.second = (*bounds)[key_end];
       return rc;
@@ -100,11 +97,22 @@ struct sort_params {
 struct tree_client {
    uintptr_t ptr;
    int rank;
-   tree_client() {
-      rank = -1;
+
+   CUDA_EXPORT
+   constexpr tree_client() :
+         rank(-1), ptr(0) {
    }
+   CUDA_EXPORT
    bool operator==(const tree_client &other) const {
       return rank == other.rank && ptr == other.ptr;
+   }
+   CUDA_EXPORT
+   inline operator tree*() {
+      return reinterpret_cast<tree*>(ptr);
+   }
+   CUDA_EXPORT
+   inline operator const tree*() {
+      return reinterpret_cast<const tree*>(ptr);
    }
    template<class A>
    void serialization(A &&arc, unsigned) {
@@ -113,21 +121,9 @@ struct tree_client {
    }
 };
 
-struct check_item {
-   array<fixed32, NDIM> pos;
-   float radius;
-   union {
-      array<check_item*, NCHILD> children;
-      pair<size_t, size_t> parts;
-   };
-   tree_client client;
-   multipole *multi;
-   bool leaf;
-};
-
 #ifndef __CUDACC__
 struct sort_return {
-   check_item *check;
+   tree_client check;
    template<class A>
    void serialization(A &&arc, unsigned) {
       assert(false);
@@ -136,22 +132,45 @@ struct sort_return {
 
 #endif
 
+struct call_stack_entry {
+   vector<tree_client> dchecks;
+   vector<tree_client> echecks;
+   tree* tptr;
+   array<exp_real, NDIM> Lcom;
+   expansion L;
+};
+
+struct kick_params {
+   vector<call_stack_entry> call_stack;
+   vector<multipole*> multi_i;
+   vector<pair<size_t, size_t>> part_i;
+};
+
+struct kick_return {
+   int8_t rung;
+};
 
 struct tree {
 #ifndef __CUDACC__
 private:
 #endif
-   check_item *self;
-   size_t part_begin;
-   size_t part_end;
+   array<fixed32, NDIM> pos;
+   float radius;
    array<tree_client, NCHILD> children;
+   pair<size_t, size_t> parts;
+   multipole *multi;
 public:
+   CUDA_EXPORT
+   inline bool leaf() const {
+      return children[0] == tree_client();
+   }
+   static kick_return kick(tree_client root_ptr, int rung, float theta);
 #ifndef __CUDACC__
    static particle_set *particles;
    static void set_particle_set(particle_set*);
    inline static fast_future<sort_return> create_child(sort_params&);
    static fast_future<sort_return> cleanup_child();
-
+   static kick_return step(int rung, float theta);
    tree();
    sort_return sort(sort_params = sort_params());
 #endif
