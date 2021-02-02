@@ -62,7 +62,6 @@ sort_return tree::sort(sort_params params) {
       printf("Exceeded maximum tree depth\n");
       abort();
    }
-
    multi = params.allocs->multi_alloc.allocate();
 
 #ifdef TEST_TREE
@@ -96,12 +95,13 @@ sort_return tree::sort(sort_params params) {
       printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
    }
 #endif
-   if (parts.second - parts.second > opts.bucket_size) {
+   if (parts.second - parts.first > opts.bucket_size) {
       std::array<fast_future<sort_return>, NCHILD> futs;
       {
          const auto size = parts.second - parts.first;
          auto child_params = params.get_children();
          if (params.key_end - params.key_begin == 1) {
+      //      printf( "Sorting at depth %i\n", params.depth);
 #ifndef TEST_TREE
             const auto &box = params.box;
 #endif
@@ -213,7 +213,7 @@ sort_return tree::sort(sort_params params) {
 }
 
 kick_return tree::step(int rung, float theta) {
-   tree_client root;
+ /*  tree_client root;
    root.rank = hpx_rank();
    tree* root_ptr;
    CUDA_MALLOC(root_ptr, 1);
@@ -225,6 +225,6 @@ kick_return tree::step(int rung, float theta) {
    managed_allocator<tree>::cleanup();
    ((tree*)root)->tree::~tree();
    CUDA_FREE((tree*)root);
-   return rc;
+   return rc;*/
 }
 

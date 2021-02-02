@@ -232,7 +232,8 @@ if (!launch) {
       CUDA_SHARED kick_return
       rc;
       if (tid == 0) {
-         CUDA_CHECK(cudaDeviceSynchronize());atomicAdd(&kern_cnt, -1);
+         CUDA_CHECK(cudaDeviceSynchronize());
+         atomicAdd(&kern_cnt, -1);
          rc = std::move(*rcptr);
          rcptr->~kick_return();
          pptr->~kick_params();

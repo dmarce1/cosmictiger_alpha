@@ -25,7 +25,7 @@ enable_language(CUDA)
 #set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -ffast-math -march=native")
 
 set(cosmictiger_source_files
-    src/cuda.cpp
+    src/cuda.cu
     src/global.cpp
     src/hpx.cpp
     src/main.cpp
@@ -69,9 +69,9 @@ add_hpx_executable(
     ${cosmictiger_header_files}
  )
  
-   set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
- target_link_libraries(cosmictiger PUBLIC cuda cudart tcmalloc)
-target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
+set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+target_link_libraries(cosmictiger PUBLIC cuda cudart tcmalloc)
+target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} /usr/local/cuda-11.2/include)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                        --gpu-architecture=compute_75;

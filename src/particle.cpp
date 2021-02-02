@@ -7,6 +7,7 @@
 #include <algorithm>
 
 particle_set::particle_set(size_t size, size_t offset) {
+   printf("Allocating particle set of size %li\n", size);
    offset_ = offset;
    size_ = size;
    format_ = format::soa;
@@ -20,6 +21,7 @@ particle_set::particle_set(size_t size, size_t offset) {
       vptr_[dim] = (float*) (data + size_t(NDIM) * size * sizeof(fixed32) + dim * size * sizeof(float));
    }
    rptr_ = (particle::flags_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size);
+   printf("Done allocating particle set\n", size);
 }
 
 particle_set::~particle_set() {
@@ -27,6 +29,7 @@ particle_set::~particle_set() {
 }
 
 void particle_set::generate_random() {
+   printf("Generating random particles\n");
    for (int i = 0; i < size_; i++) {
       for (int dim = 0; dim < NDIM; dim++) {
          pos(dim, i) = rand_fixed32();
@@ -35,6 +38,8 @@ void particle_set::generate_random() {
       set_rung(0, i);
       set_mid(0, i);
    }
+
+   printf("Done generating random particles\n");
 }
 
 std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t depth, morton_t key_min,
@@ -55,23 +60,23 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       }
       assert(end[key_max - 1 - key_min] == stop);
       tm.stop();
-    //  printf( "%e\n", (double)tm.read());
+      //  printf( "%e\n", (double)tm.read());
    } else {
-      std::vector <int > counts(key_max-key_min,0);
+      std::vector<int> counts(key_max - key_min, 0);
       for (size_t i = start; i < stop; i++) {
          const auto x = pos(i);
          const auto key = morton_key(x, depth);
-         assert( key >= key_min);
-         assert( key < key_max);
-         counts[key-key_min]++;
-            set_mid(key, i);
+         assert(key >= key_min);
+         assert(key < key_max);
+         counts[key - key_min]++;
+         set_mid(key, i);
       }
       begin.resize(key_max - key_min + 1);
       end.resize(key_max - key_min + 1);
       begin[0] = start;
       end[0] = start + counts[0];
       for (int key = key_min + 1; key < key_max; key++) {
-         const auto this_count = counts[key-key_min];
+         const auto this_count = counts[key - key_min];
          const auto key_i = key - key_min;
          begin[key_i] = end[key_i - 1];
          end[key_i] = end[key_i - 1] + this_count;

@@ -41,13 +41,27 @@ static void tree_test() {
    }
 }
 
+static void kick_test() {
+  /* printf("Doing kick test\n");
+   printf("Generating particles\n");
+   particle_set parts(global().opts.nparts);
+   parts.generate_random();
+   tree::set_particle_set(&parts);
+   printf( "Doing kick\n");
+   timer tm;
+   tm.start();
+   tree::step(0,0.7);
+   tm.stop();
+   printf( "Kick done in %e s\n", tm.read());*/
+}
+
 static void sort() {
    timer tm;
    particle_set parts(global().opts.nparts);
    parts.generate_random();
 
 
-   for (int depth = 3; depth < 30; depth += 3) {
+   for (int depth = 3; depth < 27; depth += 3) {
       timer tm1;
       tm1.start();
       parts.local_sort(0, global().opts.nparts, depth, 0, 1 << depth);
@@ -58,11 +72,11 @@ static void sort() {
       parts.local_sort(0, global().opts.nparts, depth, 0, 1 << depth);
       tm2.stop();
 
-  //    printf("%li %e %e %e %e\n", depth, tm1.read(), tm2.read(),  tm1.read()/depth, tm2.read()/depth);
+      printf("%li %e %e %e %e\n", depth, tm1.read(), tm2.read(),  tm1.read()/depth, tm2.read()/depth);
 
    }
 
-   printf("Time to sort best case: %e s\n\n", tm.read());
+   //printf("Time to sort best case: %e s\n\n", tm.read());
    tm.reset();
 
 }
@@ -72,6 +86,8 @@ void test_run(const std::string test) {
       sort();
    } else if (test == "tree_test") {
       tree_test();
+   } else if (test == "kick") {
+      kick_test();
    } else {
       printf("%s is an unknown test.\n", test.c_str());
    }
