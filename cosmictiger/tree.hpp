@@ -102,6 +102,18 @@ class tree_ptr;
 
 using checks_type = finite_vector<tree_ptr,WORKSPACE_SIZE>;
 
+struct kick_workspace_t {
+   checks_type multi_interactions;
+   checks_type part_interactions;
+   checks_type next_checks;
+};
+
+struct kick_stack {
+   finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> dchecks;
+   finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> echecks;
+};
+
+
 struct tree_ptr {
    uintptr_t ptr;
    int rank;
@@ -115,14 +127,14 @@ struct tree_ptr {
       constructed = 1234;
 #endif
    }
-   tree_ptr(tree_ptr&& other) {
+   tree_ptr(tree_ptr &&other) {
       rank = other.rank;
       ptr = other.ptr;
 #ifndef NDEBUG
       constructed = 1234;
 #endif
    }
-   tree_ptr(const tree_ptr& other) {
+   tree_ptr(const tree_ptr &other) {
       rank = other.rank;
       ptr = other.ptr;
 #ifndef NDEBUG
@@ -164,7 +176,7 @@ struct tree_ptr {
    float get_radius() const;
    array<fixed32, NDIM> get_pos() const;
    bool is_leaf() const;
-   kick_return kick(expansion L, array<exp_real, NDIM>, checks_type dchecks, checks_type);
+   kick_return kick(expansion L, array<exp_real, NDIM>, kick_stack&, int);
 
 };
 
@@ -175,13 +187,6 @@ struct sort_return {
       assert(false);
    }
 };
-
-struct kick_workspace_t {
-   checks_type multi_interactions;
-   checks_type part_interactions;
-   checks_type next_checks;
-};
-
 struct tree {
 
 private:
@@ -199,14 +204,15 @@ public:
    static fast_future<sort_return> cleanup_child();
    static void set_kick_parameters(float theta, int8_t rung);
    static hpx::lcos::local::mutex mtx;
-   static kick_workspace_t get_workspace();
-   static void cleanup_workspace(kick_workspace_t&&);
-   static std::stack<kick_workspace_t> kick_works;
+   static std::shared_ptr<kick_workspace_t> get_workspace();
+   static void cleanup_workspace(std::shared_ptr<kick_workspace_t>&&);
+   static std::stack<std::shared_ptr<kick_workspace_t>> kick_works;
    inline bool is_leaf() const {
       return children[0] == tree_ptr();
    }
+   static void cleanup();
    sort_return sort(sort_params = sort_params());
-   kick_return kick(expansion L, array<exp_real, NDIM>, checks_type dchecks, checks_type);
+   kick_return kick(expansion L, array<exp_real, NDIM>, kick_stack&, int depth);
 
    friend class tree_ptr;
 };

@@ -22,6 +22,7 @@ int hpx_main(int argc, char *argv[]) {
       }
    }
 
+   tree::cleanup();
    return hpx::finalize();
 }
 

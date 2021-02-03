@@ -10,12 +10,14 @@
 
 #define NDIM 3
 
+#ifndef NDEBUG
+#define TEST_TREE
+#define TEST_RADIX
+#define TEST_BOUNDS
+#endif
 //#define TEST_STACK
-//#define TEST_TREE
-//#define TEST_RADIX
-//#define TEST_BOUNDS
 
-#define TREE_MAX_DEPTH 52
+#define TREE_MAX_DEPTH 10
 #define TREE_RADIX_CUSHION -2
 #define TREE_RADIX_MIN 3
 #define TREE_RADIX_MAX 52

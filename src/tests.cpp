@@ -53,17 +53,18 @@ void kick_test() {
    tm.start();
    root.sort();
    tm.stop();
-   printf( "Sort in %e seconds\n", tm.read());
+   printf("Sort in %e seconds\n", tm.read());
    tm.reset();
    tree_ptr root_ptr;
    root_ptr.ptr = (uintptr_t) & root;
    root_ptr.rank = hpx_rank();
    // printf( "%li", size_t(WORKSPACE_SIZE));
-   checks_type dchecks;
-   checks_type echecks;
-   dchecks.push_back(root_ptr);
-   echecks.push_back(root_ptr);
-  // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
+   kick_stack stack;
+   stack.dchecks.resize(TREE_MAX_DEPTH);
+   stack.echecks.resize(TREE_MAX_DEPTH);
+   stack.dchecks[0].push_back(root_ptr);
+   stack.echecks[0].push_back(root_ptr);
+   // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
    expansion L;
    for (int i = 0; i < LP; i++) {
       L[i] = 0.f;
@@ -75,7 +76,7 @@ void kick_test() {
    tree::set_kick_parameters(0.7, 0);
    printf("Kicking\n");
    tm.start();
-   root.kick(L, Lpos, std::move(dchecks), std::move(echecks));
+   root.kick(L, Lpos, stack, 0);
    tm.stop();
    printf("Done kicking in %e seconds\n", tm.read());
 }

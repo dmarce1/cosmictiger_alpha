@@ -20,24 +20,14 @@ class finite_vector {
    }
 public:
    CUDA_EXPORT inline finite_vector() {
-      MALLOC(ptr, N);
+      CUDA_MALLOC(ptr, N);
       sz = 0;
    }
-   CUDA_EXPORT inline finite_vector(const finite_vector &other) {
-      MALLOC(ptr, N);
-      sz = other.sz;
-      construct(0, sz);
-      for (size_t i = 0; i < sz; i++) {
-         ptr[i] = other.ptr[i];
-      }
-   }
-   CUDA_EXPORT inline finite_vector(finite_vector &&other) {
-      MALLOC(ptr, N);
-      sz = 0;
-      swap(other);
-   }
+   CUDA_EXPORT inline finite_vector(const finite_vector &other) = delete;
+   CUDA_EXPORT inline finite_vector(finite_vector &&other) = delete;
    CUDA_EXPORT inline ~finite_vector() {
-      FREE(ptr);
+      destruct(0,sz);
+      CUDA_FREE(ptr);
    }
    CUDA_EXPORT inline finite_vector& operator=(const finite_vector &other) {
       destruct(0, sz);
@@ -49,7 +39,6 @@ public:
       return *this;
    }
    CUDA_EXPORT inline finite_vector& operator=(finite_vector &&other) {
-      destruct(0, other.sz);
       sz = 0;
       swap(other);
       return *this;

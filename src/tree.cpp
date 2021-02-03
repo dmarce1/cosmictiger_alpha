@@ -19,7 +19,6 @@ void tree::set_particle_set(particle_set *parts) {
    particles = parts;
 }
 
-
 inline fast_future<sort_return> tree::create_child(sort_params &params) {
    static std::atomic<int> threads_used(0);
    tree_ptr id;
@@ -232,48 +231,53 @@ void tree::set_kick_parameters(float theta_, int8_t rung_) {
 #define N_INTERACTION_TYPES 4
 
 hpx::lcos::local::mutex tree::mtx;
-std::stack<kick_workspace_t> tree::kick_works;
+std::stack<std::shared_ptr<kick_workspace_t>> tree::kick_works;
 
-kick_workspace_t tree::get_workspace() {
+void tree::cleanup() {
+   while( kick_works.size() ) {
+      kick_works.pop();
+   }
+}
+
+std::shared_ptr<kick_workspace_t> tree::get_workspace() {
    std::unique_lock<hpx::lcos::local::mutex> lock(mtx);
    if (kick_works.empty()) {
       lock.unlock();
-      kick_workspace_t work;
+      auto work = std::make_shared< kick_workspace_t>();
       return std::move(work);
    } else {
-      auto work = kick_works.top();
+      auto work = std::move(kick_works.top());
       kick_works.pop();
       return std::move(work);
    }
 }
 
-void tree::cleanup_workspace(kick_workspace_t &&work) {
+void tree::cleanup_workspace(std::shared_ptr<kick_workspace_t> &&work) {
    std::lock_guard<hpx::lcos::local::mutex> lock(mtx);
- //  printf("120947\n");
-   auto w1 = work;
-  // printf("120412421947\n");
-   kick_works.push(work);
+   //  printf("120947\n");
+   // printf("120412421947\n");
+   kick_works.push(std::move(work));
 }
 
-kick_return tree_ptr::kick(expansion L, array<exp_real, NDIM> Lpos, checks_type dchecks, checks_type echecks) {
-   return ((tree*) ptr)->kick(L, Lpos, std::move(dchecks), std::move(echecks));
+kick_return tree_ptr::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack& stack, int depth) {
+   return ((tree*) ptr)->kick(L, Lpos, stack, depth);
 }
 
 //int num_kicks = 0;
-kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, checks_type dchecks, checks_type echecks) {
-  // num_kicks++;
-  // printf( "%li\n", num_kicks);
+kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack &stacks, int depth) {
+   // num_kicks++;
+   // printf( "%li\n", num_kicks);
    kick_return rc;
    const auto theta2 = theta * theta;
    array<checks_type*, N_INTERACTION_TYPES> all_checks;
-   all_checks[CC_CP_DIRECT] = &dchecks;
-   all_checks[CC_CP_EWALD] = &echecks;
-   all_checks[PC_PP_DIRECT] = &dchecks;
-   all_checks[PC_PP_EWALD] = &echecks;
+   all_checks[CC_CP_DIRECT] = &stacks.dchecks[depth];
+   all_checks[CC_CP_EWALD] = &stacks.echecks[depth];
+   all_checks[PC_PP_DIRECT] = &stacks.dchecks[depth];
+   all_checks[PC_PP_EWALD] = &stacks.echecks[depth];
    auto workspace = get_workspace();
-   auto &multis = workspace.multi_interactions;
-   auto &parts = workspace.part_interactions;
-   auto &next_checks = workspace.next_checks;
+   auto &multis = workspace->multi_interactions;
+   auto &parts = workspace->part_interactions;
+   auto &next_checks = workspace->next_checks;
    int ninteractions = is_leaf() ? 4 : 2;
    for (int type = 0; type < ninteractions; type++) {
       auto &checks = *(all_checks[type]);
@@ -312,16 +316,20 @@ kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, checks_type dche
 
    }
 
-  // printf("3\n");
+   // printf("3\n");
    cleanup_workspace(std::move(workspace));
 
    if (!is_leaf()) {
-     // printf("4\n");
+      // printf("4\n");
+      stacks.dchecks[depth + 1] = stacks.dchecks[depth];
+      stacks.echecks[depth + 1] = stacks.echecks[depth];
       array<fast_future<kick_return>, NCHILD> futs;
-      futs[LEFT] = children[LEFT].kick(L, Lpos, dchecks, echecks);
-    //  printf("5\n");
-      futs[RIGHT] = children[RIGHT].kick(L, Lpos, std::move(dchecks), std::move(echecks));
-    //  printf("6\n");
+      futs[LEFT] = children[LEFT].kick(L, Lpos, stacks, depth + 1);
+      //  printf("5\n");
+      stacks.dchecks[depth + 1] = std::move(stacks.dchecks[depth]);
+      stacks.echecks[depth + 1] = std::move(stacks.echecks[depth]);
+      futs[RIGHT] = children[RIGHT].kick(L, Lpos, stacks, depth + 1);
+      //  printf("6\n");
       const auto rcl = futs[LEFT].get();
       const auto rcr = futs[RIGHT].get();
       rc.rung = std::max(rcl.rung, rcr.rung);
