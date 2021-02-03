@@ -27,6 +27,6 @@ int hpx_main(int argc, char *argv[]) {
 
 int main(int argc, char *argv[]) {
    std::vector < std::string > cfg = { "hpx.commandline.allow_unknown=1" };
-   cfg.push_back("hpx.stacks.small_size=65536");
+   cfg.push_back("hpx.stacks.small_size=0x20000");
    hpx::init(argc, argv, cfg);
 }

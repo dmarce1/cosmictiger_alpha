@@ -10,6 +10,7 @@
 
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/hpx.hpp>
+#include <cosmictiger/cuda.hpp>
 
 #include <cuda_runtime.h>
 
@@ -52,6 +53,13 @@
 template<class T>
 void cuda_malloc(T **ptr, int64_t nele, const char *file, int line) {
    const auto ec = cudaMallocManaged(ptr, nele * sizeof(T));
+   size_t free, total;
+   CUDA_CHECK(cudaMemGetInfo(&free, &total));
+   if (free < nele * sizeof(T)) {
+      printf("Attempt to allocate %li bytes from line %i in file %s with only %li bytes remaining.\n", sizeof(T) * nele,
+            line, file, free);
+      abort();
+   }
    MEM_CHECK_POINTER(*ptr, file, line);
    MEM_CHECK_ERROR(ec, file, line);
 }
@@ -61,6 +69,8 @@ void cosmic_malloc(T **ptr, int64_t nele, const char *file, int line) {
    *ptr = (T*) malloc(nele * sizeof(T));
    MEM_CHECK_POINTER(*ptr, file, line);
 }
+
+#ifndef __CUDACC__
 
 template<class T>
 class managed_allocator {
@@ -72,6 +82,7 @@ class managed_allocator {
 public:
    static void cleanup() {
       for (int i = 0; i < allocs.size(); i++) {
+         allocs[i]->T::~T();
          CUDA_FREE(allocs[i]);
       }
       allocs = decltype(allocs)();
@@ -84,13 +95,14 @@ public:
       if (current_index == page_size) {
          CUDA_MALLOC(current_alloc, page_size);
          current_index = 0;
-         std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
+         std::lock_guard<hpx::lcos::local::mutex> lock(mtx);
          allocs.push_back(current_alloc);
       }
+      new (current_alloc + current_index) T();
       return current_alloc + current_index++;
    }
-   managed_allocator( managed_allocator&&) = default;
-   managed_allocator& operator=( managed_allocator&&) = default;
+   managed_allocator(managed_allocator&&) = default;
+   managed_allocator& operator=(managed_allocator&&) = default;
    managed_allocator(const managed_allocator&) = delete;
    managed_allocator& operator=(const managed_allocator&) = delete;
 };
@@ -100,5 +112,7 @@ hpx::lcos::local::mutex managed_allocator<T>::mtx;
 
 template<class T>
 std::vector<T*> managed_allocator<T>::allocs;
+
+#endif
 
 #endif /* COSMICTIGER_MEM_HPP_ */

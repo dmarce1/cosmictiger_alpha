@@ -32,7 +32,6 @@ set(cosmictiger_source_files
     src/options.cpp
     src/particle.cpp
     src/particle.cu
-    src/thread_control.cpp
     src/rand.cpp
     src/tests.cpp
     src/tree.cpp
@@ -70,7 +69,6 @@ set(cosmictiger_header_files
 	cosmictiger/multipole.hpp
 	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
-	cosmictiger/thread_control.hpp
 	cosmictiger/rand.hpp
 	cosmictiger/range.hpp
 	cosmictiger/timer.hpp

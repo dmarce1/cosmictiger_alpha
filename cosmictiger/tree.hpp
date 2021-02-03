@@ -5,21 +5,23 @@
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/fast_future.hpp>
+#include <cosmictiger/expansion.hpp>
+#include <cosmictiger/finite_vector.hpp>
 
 #include <memory>
+#include <stack>
 
 #define LEFT 0
 #define RIGHT 1
+#define WORKSPACE_SIZE 1024
 
 class tree;
-class check_item;
 struct sort_params;
-struct tree_client;
+struct tree_ptr;
 
 struct tree_alloc {
    managed_allocator<multipole> multi_alloc;
    managed_allocator<tree> tree_alloc;
-   managed_allocator<check_item> check_alloc;
 };
 
 struct sort_params {
@@ -32,7 +34,6 @@ struct sort_params {
    uint32_t key_begin;
    uint32_t key_end;
    int8_t depth;
-
 
    template<class A>
    void serialization(A &&arc, unsigned) {
@@ -66,7 +67,7 @@ struct sort_params {
    }
 
    std::pair<size_t, size_t> get_bounds() const {
-      std::pair < size_t, size_t > rc;
+      std::pair<size_t, size_t> rc;
       rc.first = (*bounds)[key_begin];
       rc.second = (*bounds)[key_end];
       return rc;
@@ -93,13 +94,55 @@ struct sort_params {
    }
 };
 
-struct tree_client {
+struct kick_return {
+   int8_t rung;
+};
+
+class tree_ptr;
+
+using checks_type = finite_vector<tree_ptr,WORKSPACE_SIZE>;
+
+struct tree_ptr {
    uintptr_t ptr;
    int rank;
-   tree_client() {
+#ifndef NDEBUG
+   int constructed;
+#endif
+   tree_ptr() {
       rank = -1;
+      ptr = 0;
+#ifndef NDEBUG
+      constructed = 1234;
+#endif
    }
-   bool operator==(const tree_client &other) const {
+   tree_ptr(tree_ptr&& other) {
+      rank = other.rank;
+      ptr = other.ptr;
+#ifndef NDEBUG
+      constructed = 1234;
+#endif
+   }
+   tree_ptr(const tree_ptr& other) {
+      rank = other.rank;
+      ptr = other.ptr;
+#ifndef NDEBUG
+      constructed = 1234;
+#endif
+   }
+   tree_ptr& operator=(const tree_ptr &other) {
+      assert(constructed == 1234);
+      ptr = other.ptr;
+      rank = other.rank;
+      return *this;
+   }
+   tree_ptr& operator=(tree_ptr &&other) {
+      assert(constructed == 1234);
+      ptr = other.ptr;
+      rank = other.rank;
+      return *this;
+   }
+   bool operator==(const tree_ptr &other) const {
+      assert(constructed == 1234);
       return rank == other.rank && ptr == other.ptr;
    }
    template<class A>
@@ -107,42 +150,88 @@ struct tree_client {
       arc & ptr;
       arc & rank;
    }
-};
+   operator tree*() {
+      assert(constructed == 1234);
+      assert(ptr);
+      return (tree*) (ptr);
+   }
+   operator const tree*() const {
+      assert(constructed == 1234);
+      assert(ptr);
+      return (const tree*) (ptr);
+   }
+   fast_future<array<tree_ptr, NCHILD>> get_children() const;
+   float get_radius() const;
+   array<fixed32, NDIM> get_pos() const;
+   bool is_leaf() const;
+   kick_return kick(expansion L, array<exp_real, NDIM>, checks_type dchecks, checks_type);
 
-struct check_item {
-   std::array<fixed32, NDIM> pos;
-   float radius;
-   union {
-      std::array<check_item*, NCHILD> children;
-      std::pair<size_t, size_t> parts;
-   };
-   tree_client client;
-   multipole *multi;
-   bool leaf;
 };
 
 struct sort_return {
-   check_item *check;
+   tree_ptr check;
    template<class A>
    void serialization(A &&arc, unsigned) {
       assert(false);
    }
 };
 
+struct kick_workspace_t {
+   checks_type multi_interactions;
+   checks_type part_interactions;
+   checks_type next_checks;
+};
+
 struct tree {
 
 private:
-   check_item *self;
-   size_t part_begin;
-   size_t part_end;
-   std::array<tree_client, NCHILD> children;
+   array<fixed32, NDIM> pos;
+   float radius;
+   array<tree_ptr, NCHILD> children;
+   std::pair<size_t, size_t> parts;
+   multipole *multi;
+   static float theta;
+   static int8_t rung;
 public:
    static particle_set *particles;
    static void set_particle_set(particle_set*);
    inline static fast_future<sort_return> create_child(sort_params&);
    static fast_future<sort_return> cleanup_child();
-
-   tree();
+   static void set_kick_parameters(float theta, int8_t rung);
+   static hpx::lcos::local::mutex mtx;
+   static kick_workspace_t get_workspace();
+   static void cleanup_workspace(kick_workspace_t&&);
+   static std::stack<kick_workspace_t> kick_works;
+   inline bool is_leaf() const {
+      return children[0] == tree_ptr();
+   }
    sort_return sort(sort_params = sort_params());
+   kick_return kick(expansion L, array<exp_real, NDIM>, checks_type dchecks, checks_type);
 
+   friend class tree_ptr;
 };
+
+inline fast_future<array<tree_ptr, NCHILD>> tree_ptr::get_children() const {
+   assert(constructed == 1234);
+   assert(ptr);
+   return fast_future<array<tree_ptr, NCHILD>>(std::move(((tree*) ptr)->children));
+}
+
+inline float tree_ptr::get_radius() const {
+   assert(constructed == 1234);
+   assert(ptr);
+   return ((tree*) ptr)->radius;
+}
+
+inline array<fixed32, NDIM> tree_ptr::get_pos() const {
+   assert(ptr);
+   assert(constructed == 1234);
+   return ((tree*) ptr)->pos;
+}
+
+inline bool tree_ptr::is_leaf() const {
+   assert(constructed == 1234);
+   assert(ptr);
+   return ((tree*) ptr)->children[0] == tree_ptr();
+}
+

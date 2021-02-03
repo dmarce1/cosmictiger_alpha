@@ -55,7 +55,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       }
       assert(end[key_max - 1 - key_min] == stop);
       tm.stop();
-      printf( "%e\n", (double)tm.read());
+    //  printf( "%e\n", (double)tm.read());
    } else {
       std::vector <int > counts(key_max-key_min,0);
       for (size_t i = start; i < stop; i++) {

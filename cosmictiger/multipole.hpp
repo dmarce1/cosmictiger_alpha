@@ -9,6 +9,8 @@
 #define COSMICTIGER_multipole_type_HPP_
 
 #include <cosmictiger/cuda.hpp>
+#include <cosmictiger/finite_vector.hpp>
+#include <cosmictiger/array.hpp>
 #include <cosmictiger/fixed.hpp>
 #include <array>
 
@@ -17,7 +19,7 @@ constexpr int MP = 17;
 template<class T>
 class multipole_type {
 private:
-   T data[MP];
+   array<T,MP> data;
 public:
    CUDA_EXPORT multipole_type();
    CUDA_EXPORT T operator ()() const;

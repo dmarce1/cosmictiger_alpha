@@ -1,23 +1,28 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/timer.hpp>
-#include <cosmictiger/thread_control.hpp>
 #include <cosmictiger/simd.hpp>
 
 #include <cmath>
 
+#define KICK_MAX_MULTIS 1024
+#define KICK_MAX_PARTS 1024
+#define KICK_MAX_CHECKS 1024
+
+#define EWALD_MIN_DIST2 (0.25f * 0.25f)
+
 particle_set *tree::particles;
+float tree::theta;
+int8_t tree::rung;
 
 void tree::set_particle_set(particle_set *parts) {
    particles = parts;
 }
 
-tree::tree() {
-}
 
 inline fast_future<sort_return> tree::create_child(sort_params &params) {
    static std::atomic<int> threads_used(0);
-   tree_client id;
+   tree_ptr id;
    id.rank = 0;
    id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
    CHECK_POINTER(id.ptr);
@@ -34,11 +39,14 @@ inline fast_future<sort_return> tree::create_child(sort_params &params) {
    thread = false;
 #endif
    if (!thread) {
-      return fast_future<sort_return>(((tree*) (id.ptr))->sort(params));
+      sort_return rc = ((tree*) (id.ptr))->sort(params);
+      rc.check = id;
+      return fast_future<sort_return>(std::move(rc));
    } else {
       params.allocs = std::make_shared<tree_alloc>();
       return hpx::async([id, params]() {
          auto rc = ((tree*) (id.ptr))->sort(params);
+         rc.check = id;
          threads_used--;
          return rc;
       });
@@ -46,28 +54,26 @@ inline fast_future<sort_return> tree::create_child(sort_params &params) {
 }
 
 sort_return tree::sort(sort_params params) {
-   const auto& opts = global().opts;
+   const auto &opts = global().opts;
    if (params.iamroot()) {
       params.set_root();
    }
-   self = params.allocs->check_alloc.allocate();
    {
       const auto bnds = params.get_bounds();
-      part_begin = bnds.first;
-      part_end = bnds.second;
+      parts.first = bnds.first;
+      parts.second = bnds.second;
    }
    if (params.depth == TREE_MAX_DEPTH) {
       printf("Exceeded maximum tree depth\n");
       abort();
    }
 
-   self = params.allocs->check_alloc.allocate();
-   self->multi = params.allocs->multi_alloc.allocate();
+   multi = params.allocs->multi_alloc.allocate();
 
 #ifdef TEST_TREE
    const auto &box = params.box;
    bool failed = false;
-   for( size_t i = part_begin; i < part_end; i++) {
+   for( size_t i = parts.first; i < parts.second; i++) {
       particle p = particles->part(i);
       if( !box.contains(p.x)) {
          printf( "Particle out of range !\n");
@@ -95,10 +101,10 @@ sort_return tree::sort(sort_params params) {
       printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
    }
 #endif
-   if (part_end - part_begin > opts.bucket_size) {
+   if (parts.second - parts.first > opts.bucket_size) {
       std::array<fast_future<sort_return>, NCHILD> futs;
       {
-         const auto size = part_end - part_begin;
+         const auto size = parts.second - parts.first;
          auto child_params = params.get_children();
          if (params.key_end - params.key_begin == 1) {
 #ifndef TEST_TREE
@@ -112,9 +118,9 @@ sort_return tree::sort(sort_params params) {
                tmp[dim] = box.end[dim] - fixed32::min();
             }
             const auto radix_end = morton_key(tmp, radix_depth) + 1;
-            auto bounds = particles->local_sort(part_begin, part_end, radix_depth, radix_begin, radix_end);
-            assert(bounds[0] >= part_begin);
-            assert(bounds[bounds.size() - 1] <= part_end);
+            auto bounds = particles->local_sort(parts.first, parts.second, radix_depth, radix_begin, radix_end);
+            assert(bounds[0] >= parts.first);
+            assert(bounds[bounds.size() - 1] <= parts.second);
             auto bndptr = std::make_shared<decltype(bounds)>(std::move(bounds));
             for (int ci = 0; ci < NCHILD; ci++) {
                child_params[ci].bounds = bndptr;
@@ -130,15 +136,14 @@ sort_return tree::sort(sort_params params) {
       std::array<multipole*, NCHILD> Mc;
       std::array<fixed32*, NCHILD> Xc;
       std::array<float, NCHILD> Rc;
-      auto &M = *(self->multi);
+      auto &M = *(multi);
       for (int ci = 0; ci < NCHILD; ci++) {
          sort_return rc = futs[ci].get();
-         children[ci] = rc.check->client;
-         Mc[ci] = rc.check->multi;
-         Xc[ci] = rc.check->pos.data();
-         self->children[ci] = rc.check;
+         children[ci] = rc.check;
+         Mc[ci] = ((tree*) rc.check)->multi;
+         Xc[ci] = ((tree*) rc.check)->pos.data();
+         children[ci] = rc.check;
       }
-      self->leaf = false;
       std::array<double, NDIM> com = { 0, 0, 0 };
       const auto &MR = *Mc[RIGHT];
       const auto &ML = *Mc[LEFT];
@@ -147,7 +152,7 @@ sort_return tree::sort(sort_params params) {
       double rright = 0.0;
       for (int dim = 0; dim < NDIM; dim++) {
          com[dim] = (ML() * Xc[LEFT][dim].to_double() + MR() * Xc[RIGHT][dim].to_double()) / (ML() + MR());
-         self->pos[dim] = com[dim];
+         pos[dim] = com[dim];
          rleft += sqr(Xc[LEFT][dim].to_double() - com[dim]);
          rright += sqr(Xc[RIGHT][dim].to_double() - com[dim]);
       }
@@ -157,39 +162,39 @@ sort_return tree::sort(sort_params params) {
          xr[dim] = Xc[RIGHT][dim].to_double() - com[dim];
       }
       M = (ML >> xl) + (MR >> xr);
-      rleft = std::sqrt(rleft) + self->children[LEFT]->radius;
-      rright = std::sqrt(rright) + self->children[RIGHT]->radius;
-      self->radius = std::max(rleft, rright);
+      rleft = std::sqrt(rleft) + ((tree*) children[LEFT])->radius;
+      rright = std::sqrt(rright) + ((tree*) children[RIGHT])->radius;
+      radius = std::max(rleft, rright);
       float rmax = 0.0;
       const auto corners = params.box.get_corners();
-      for( int ci = 0; ci < NCORNERS; ci++) {
+      for (int ci = 0; ci < NCORNERS; ci++) {
          double d = 0.0;
-         for( int dim = 0; dim < NDIM; dim++) {
+         for (int dim = 0; dim < NDIM; dim++) {
             d += sqr(com[dim] - corners[ci][dim].to_double());
          }
-         rmax = std::max((float)std::sqrt(d), rmax);
+         rmax = std::max((float) std::sqrt(d), rmax);
       }
-      self->radius = std::min(self->radius, rmax);
-  //    printf("x      = %e\n", self->pos[0].to_float());
-   //   printf("y      = %e\n", self->pos[1].to_float());
-    //  printf("z      = %e\n", self->pos[2].to_float());
-     // printf("radius = %e\n", self->radius);
+      radius = std::min(radius, rmax);
+      //    printf("x      = %e\n", pos[0].to_float());
+      //   printf("y      = %e\n", pos[1].to_float());
+      //  printf("z      = %e\n", pos[2].to_float());
+      // printf("radius = %e\n", radius);
    } else {
       std::array<double, NDIM> com = { 0, 0, 0 };
-      for (auto i = part_begin; i < part_end; i++) {
+      for (auto i = parts.first; i < parts.second; i++) {
          for (int dim = 0; dim < NDIM; dim++) {
             com[dim] += particles->pos(dim, i).to_double();
          }
       }
       for (int dim = 0; dim < NDIM; dim++) {
-         com[dim] /= (part_end - part_begin);
-         self->pos[dim] = com[dim];
+         com[dim] /= (parts.second - parts.first);
+         pos[dim] = com[dim];
 
       }
-      auto &M = *(self->multi);
+      auto &M = *(multi);
       M = 0.0;
-      self->radius = 0.0;
-      for (auto i = part_begin; i < part_end; i++) {
+      radius = 0.0;
+      for (auto i = parts.first; i < parts.second; i++) {
          double this_radius = 0.0;
          M() += 1.0;
          for (int n = 0; n < NDIM; n++) {
@@ -206,17 +211,121 @@ sort_return tree::sort(sort_params params) {
             }
          }
          this_radius = std::sqrt(this_radius);
-         self->radius = std::max(self->radius, (float) (this_radius));
+         radius = std::max(radius, (float) (this_radius));
       }
-      self->parts.first = part_begin;
-      self->parts.second = part_end;
-      self->leaf = true;
+      parts.first = parts.first;
+      parts.second = parts.second;
    }
-   self->client.rank = hpx_rank();
-   self->client.ptr = (uint64_t) this;
    sort_return rc;
-   rc.check = self;
-   //  if (params.depth == 0) {
-   // }
+   return rc;
+}
+
+void tree::set_kick_parameters(float theta_, int8_t rung_) {
+   theta = theta_;
+   rung = rung_;
+}
+
+#define CC_CP_DIRECT 0
+#define CC_CP_EWALD 1
+#define PC_PP_DIRECT 2
+#define PC_PP_EWALD 3
+#define N_INTERACTION_TYPES 4
+
+hpx::lcos::local::mutex tree::mtx;
+std::stack<kick_workspace_t> tree::kick_works;
+
+kick_workspace_t tree::get_workspace() {
+   std::unique_lock<hpx::lcos::local::mutex> lock(mtx);
+   if (kick_works.empty()) {
+      lock.unlock();
+      kick_workspace_t work;
+      return std::move(work);
+   } else {
+      auto work = kick_works.top();
+      kick_works.pop();
+      return std::move(work);
+   }
+}
+
+void tree::cleanup_workspace(kick_workspace_t &&work) {
+   std::lock_guard<hpx::lcos::local::mutex> lock(mtx);
+ //  printf("120947\n");
+   auto w1 = work;
+  // printf("120412421947\n");
+   kick_works.push(work);
+}
+
+kick_return tree_ptr::kick(expansion L, array<exp_real, NDIM> Lpos, checks_type dchecks, checks_type echecks) {
+   return ((tree*) ptr)->kick(L, Lpos, std::move(dchecks), std::move(echecks));
+}
+
+//int num_kicks = 0;
+kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, checks_type dchecks, checks_type echecks) {
+  // num_kicks++;
+  // printf( "%li\n", num_kicks);
+   kick_return rc;
+   const auto theta2 = theta * theta;
+   array<checks_type*, N_INTERACTION_TYPES> all_checks;
+   all_checks[CC_CP_DIRECT] = &dchecks;
+   all_checks[CC_CP_EWALD] = &echecks;
+   all_checks[PC_PP_DIRECT] = &dchecks;
+   all_checks[PC_PP_EWALD] = &echecks;
+   auto workspace = get_workspace();
+   auto &multis = workspace.multi_interactions;
+   auto &parts = workspace.part_interactions;
+   auto &next_checks = workspace.next_checks;
+   int ninteractions = is_leaf() ? 4 : 2;
+   for (int type = 0; type < ninteractions; type++) {
+      auto &checks = *(all_checks[type]);
+      next_checks.resize(0);
+      multis.resize(0);
+      parts.resize(0);
+      const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
+      const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
+
+      do {
+         for (int ci = 0; ci < checks.size(); ci++) {
+            const auto other_radius = checks[ci].get_radius();
+            const auto other_pos = checks[ci].get_pos();
+            float d2 = 0.f;
+            const float R2 = sqr(other_radius + radius);
+            for (int dim = 0; dim < NDIM; dim++) {
+               d2 += sqr(fixed<int32_t>(other_pos[dim]) - fixed<int32_t>(pos[dim])).to_float();
+            }
+            if (ewald_dist) {
+               d2 = std::max(d2, EWALD_MIN_DIST2);
+            }
+            if (R2 < theta2 * d2) {
+               multis.push_back(checks[ci]);
+            } else if (!checks[ci].is_leaf()) {
+               const auto child_checks = checks[ci].get_children().get();
+               next_checks.push_back(child_checks[LEFT]);
+               next_checks.push_back(child_checks[RIGHT]);
+            } else {
+               parts.push_back(checks[ci]);
+            }
+         }
+         checks = std::move(next_checks);
+      } while (direct && checks.size());
+
+      /*********** DO INTERACTIONS *********************/
+
+   }
+
+  // printf("3\n");
+   cleanup_workspace(std::move(workspace));
+
+   if (!is_leaf()) {
+     // printf("4\n");
+      array<fast_future<kick_return>, NCHILD> futs;
+      futs[LEFT] = children[LEFT].kick(L, Lpos, dchecks, echecks);
+    //  printf("5\n");
+      futs[RIGHT] = children[RIGHT].kick(L, Lpos, std::move(dchecks), std::move(echecks));
+    //  printf("6\n");
+      const auto rcl = futs[LEFT].get();
+      const auto rcr = futs[RIGHT].get();
+      rc.rung = std::max(rcl.rung, rcr.rung);
+   }
+
    return rc;
 }
