@@ -176,7 +176,7 @@ struct tree_ptr {
    float get_radius() const;
    array<fixed32, NDIM> get_pos() const;
    bool is_leaf() const;
-   kick_return kick(expansion L, array<exp_real, NDIM>, kick_stack&, int);
+   fast_future<kick_return> kick(expansion L, array<exp_real, NDIM>, kick_stack&, int, bool);
 
 };
 

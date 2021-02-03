@@ -11,6 +11,7 @@
 #ifndef __CUDACC__
 #include <cosmictiger/hpx.hpp>
 #include <hpx/hpx.hpp>
+#include <hpx/async.hpp>
 
 void hpx_init();
 int hpx_rank();

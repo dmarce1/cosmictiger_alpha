@@ -1,3 +1,4 @@
+#include <cosmictiger/hpx.hpp>
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/timer.hpp>
@@ -20,7 +21,7 @@ void tree::set_particle_set(particle_set *parts) {
 }
 
 inline fast_future<sort_return> tree::create_child(sort_params &params) {
-   static std::atomic<int> threads_used(0);
+   static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
    tree_ptr id;
    id.rank = 0;
    id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
@@ -72,26 +73,26 @@ sort_return tree::sort(sort_params params) {
 #ifdef TEST_TREE
    const auto &box = params.box;
    bool failed = false;
-   for( size_t i = parts.first; i < parts.second; i++) {
+   for (size_t i = parts.first; i < parts.second; i++) {
       particle p = particles->part(i);
-      if( !box.contains(p.x)) {
-         printf( "Particle out of range !\n");
-         printf( "Box\n");
-         for( int dim = 0; dim < NDIM; dim++) {
-            printf( "%e %e |", box.begin[dim].to_float(), box.end[dim].to_float());
+      if (!box.contains(p.x)) {
+         printf("Particle out of range !\n");
+         printf("Box\n");
+         for (int dim = 0; dim < NDIM; dim++) {
+            printf("%e %e |", box.begin[dim].to_float(), box.end[dim].to_float());
          }
-         printf( "\n");
-         printf( "Particle\n");
-         for( int dim = 0; dim < NDIM; dim++) {
-            printf( "%e ", p.x[dim].to_float());
+         printf("\n");
+         printf("Particle\n");
+         for (int dim = 0; dim < NDIM; dim++) {
+            printf("%e ", p.x[dim].to_float());
          }
-         printf( "\n");
-  //       abort();
+         printf("\n");
+         //       abort();
          failed = true;
       }
    }
-   if( failed ) {
-     // abort();
+   if (failed) {
+      // abort();
    }
 #endif
 #ifdef TEST_STACK
@@ -234,7 +235,7 @@ hpx::lcos::local::mutex tree::mtx;
 std::stack<std::shared_ptr<kick_workspace_t>> tree::kick_works;
 
 void tree::cleanup() {
-   while( kick_works.size() ) {
+   while (kick_works.size()) {
       kick_works.pop();
    }
 }
@@ -243,7 +244,7 @@ std::shared_ptr<kick_workspace_t> tree::get_workspace() {
    std::unique_lock<hpx::lcos::local::mutex> lock(mtx);
    if (kick_works.empty()) {
       lock.unlock();
-      auto work = std::make_shared< kick_workspace_t>();
+      auto work = std::make_shared<kick_workspace_t>();
       return std::move(work);
    } else {
       auto work = std::move(kick_works.top());
@@ -259,8 +260,34 @@ void tree::cleanup_workspace(std::shared_ptr<kick_workspace_t> &&work) {
    kick_works.push(std::move(work));
 }
 
-kick_return tree_ptr::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack& stack, int depth) {
-   return ((tree*) ptr)->kick(L, Lpos, stack, depth);
+fast_future<kick_return> tree_ptr::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack &stack, int depth,
+      bool try_thread) {
+   static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
+   bool thread = false;
+   if (try_thread) {
+      int cnt = thread_cnt++;
+      if (cnt < hpx::thread::hardware_concurrency()*OVERSUBSCRIPTION) {
+         thread = true;
+      } else {
+         thread_cnt--;
+      }
+   }
+   if (!thread) {
+      return fast_future<kick_return>(((tree*) ptr)->kick(L, Lpos, stack, depth));
+   } else {
+      auto new_stack = std::make_shared<kick_stack>();
+      new_stack->dchecks.resize(TREE_MAX_DEPTH);
+      new_stack->echecks.resize(TREE_MAX_DEPTH);
+      new_stack->dchecks[depth] = stack.dchecks[depth];
+      new_stack->echecks[depth] = stack.echecks[depth];
+      auto func = [this, L, Lpos, depth, new_stack]() {
+         auto rc = ((tree*) ptr)->kick(L, Lpos, *new_stack, depth);
+         thread_cnt--;
+         return rc;
+      };
+      auto fut = hpx::async(std::move(func));
+      return fast_future<kick_return>(std::move(fut));
+   }
 }
 
 //int num_kicks = 0;
@@ -276,14 +303,14 @@ kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack &stac
    all_checks[PC_PP_EWALD] = &stacks.echecks[depth];
    auto workspace = get_workspace();
    auto &multis = workspace->multi_interactions;
-   auto &parts = workspace->part_interactions;
+   auto &parti = workspace->part_interactions;
    auto &next_checks = workspace->next_checks;
    int ninteractions = is_leaf() ? 4 : 2;
    for (int type = 0; type < ninteractions; type++) {
       auto &checks = *(all_checks[type]);
       next_checks.resize(0);
       multis.resize(0);
-      parts.resize(0);
+      parti.resize(0);
       const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
       const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
 
@@ -306,7 +333,7 @@ kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack &stac
                next_checks.push_back(child_checks[LEFT]);
                next_checks.push_back(child_checks[RIGHT]);
             } else {
-               parts.push_back(checks[ci]);
+               parti.push_back(checks[ci]);
             }
          }
          checks = std::move(next_checks);
@@ -321,14 +348,15 @@ kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack &stac
 
    if (!is_leaf()) {
       // printf("4\n");
+      const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
       stacks.dchecks[depth + 1] = stacks.dchecks[depth];
       stacks.echecks[depth + 1] = stacks.echecks[depth];
       array<fast_future<kick_return>, NCHILD> futs;
-      futs[LEFT] = children[LEFT].kick(L, Lpos, stacks, depth + 1);
+      futs[LEFT] = children[LEFT].kick(L, Lpos, stacks, depth + 1, try_thread);
       //  printf("5\n");
       stacks.dchecks[depth + 1] = std::move(stacks.dchecks[depth]);
       stacks.echecks[depth + 1] = std::move(stacks.echecks[depth]);
-      futs[RIGHT] = children[RIGHT].kick(L, Lpos, stacks, depth + 1);
+      futs[RIGHT] = children[RIGHT].kick(L, Lpos, stacks, depth + 1, false);
       //  printf("6\n");
       const auto rcl = futs[LEFT].get();
       const auto rcr = futs[RIGHT].get();
