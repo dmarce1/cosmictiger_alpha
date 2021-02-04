@@ -55,4 +55,12 @@ template<class T>
 inline T sqr(T a) {
    return a * a;
 }
+
+
+#ifdef __CUDA_ARCH__
+#define ABORT() __trap()
+#else
+#define ABORT() abort()
+#endif
+
 #endif /* COSMICTIGER_DEFS_HPP_ */

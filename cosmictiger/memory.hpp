@@ -24,24 +24,24 @@
 #define MEM_CHECK_POINTER(ptr,file,line)                          \
    if( !ptr ) {                                                   \
       printf( "Out of memory. File: %s Line %i\n", file, line);   \
-      abort();                                                    \
+      ABORT();                                                    \
    }
 
 #define MEM_CHECK_ERROR(ec,file,line)                                                        \
    if( ec != cudaSuccess ) {                                                                 \
       printf( "CUDA error \"%s\" File: %s Line: %i\n",  cudaGetErrorString(ec), file, line); \
-      abort();                                                                               \
+      ABORT();                                                                               \
    }
 
 #define CUDA_FREE(ptr)                                                                                       \
       if( ptr == nullptr ) {                                                                                 \
          printf( "Attempt to free null pointer. File: %s Line %i\n", __FILE__, __LINE__);                    \
-         abort();                                                                                            \
+         ABORT();                                                                                            \
       } else {                                                                                               \
          const auto ec = cudaFree(ptr);                                                                      \
          if( ec != cudaSuccess ) {                                                                           \
             printf( "CUDA error \"%s\" File: %s Line: %i\n",  cudaGetErrorString(ec), __FILE__, __LINE__);   \
-            abort();                                                                                         \
+            ABORT();                                                                                         \
          }                                                                                                   \
       }
 
@@ -53,13 +53,13 @@
 template<class T>
 void cuda_malloc(T **ptr, int64_t nele, const char *file, int line) {
    const auto ec = cudaMallocManaged(ptr, nele * sizeof(T));
-   size_t free, total;
-   CUDA_CHECK(cudaMemGetInfo(&free, &total));
-   if (free < nele * sizeof(T)) {
-      printf("Attempt to allocate %li bytes from line %i in file %s with only %li bytes remaining.\n", sizeof(T) * nele,
-            line, file, free);
-      abort();
-   }
+//   size_t free, total;
+//   CUDA_CHECK(cudaMemGetInfo(&free, &total));
+//   if (free < nele * sizeof(T)) {
+//      printf("Attempt to allocate %li bytes from line %i in file %s with only %li bytes remaining.\n", sizeof(T) * nele,
+//            line, file, free);
+//      ABORT();
+//   }
    MEM_CHECK_POINTER(*ptr, file, line);
    MEM_CHECK_ERROR(ec, file, line);
 }
@@ -71,6 +71,7 @@ void cosmic_malloc(T **ptr, int64_t nele, const char *file, int line) {
 }
 
 #ifndef __CUDACC__
+
 
 template<class T>
 class managed_allocator {

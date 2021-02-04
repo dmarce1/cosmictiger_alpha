@@ -1,12 +1,53 @@
 #pragma once
 
+#include <cosmictiger/hpx.hpp>
 #include <cosmictiger/memory.hpp>
 #include <cosmictiger/cuda.hpp>
 #include <cosmictiger/defs.hpp>
 
+#include <stack>
+
+template<size_t SIZE>
+class finite_vector_allocator {
+   static constexpr size_t page_size = ALLOCATION_PAGE_SIZE / SIZE;
+   thread_local static std::vector<int8_t*> allocs;
+   thread_local static std::stack<int8_t*> freelist;
+public:
+   void* allocate() {
+      if (freelist.empty()) {
+         int8_t *ptr;
+         CUDA_MALLOC(ptr, page_size * SIZE);
+         allocs.push_back(ptr);
+         for (int i = 0; i < page_size; i++) {
+            freelist.push(ptr + i * SIZE);
+         }
+      }
+      int8_t *ptr = freelist.top();
+      freelist.pop();
+      return ptr;
+   }
+   ~finite_vector_allocator() {
+      for( int i = 0; i < allocs.size(); i++) {
+  //       CUDA_FREE(allocs[i]);
+      }
+   }
+   void deallocate(void *ptr) {
+      freelist.push((int8_t*) ptr);
+   }
+
+};
+
+template<size_t SIZE>
+thread_local std::vector<int8_t*> finite_vector_allocator<SIZE>::allocs;
+
+template<size_t SIZE>
+thread_local std::stack<int8_t*> finite_vector_allocator<SIZE>::freelist;
+
+
 template<class T, size_t N>
 class finite_vector {
    T *ptr;
+   static thread_local finite_vector_allocator<sizeof(T) * N> alloc;
    size_t sz;
    CUDA_EXPORT inline void destruct(size_t b, size_t e) {
       for (size_t i = b; i < e; i++) {
@@ -20,14 +61,30 @@ class finite_vector {
    }
 public:
    CUDA_EXPORT inline finite_vector() {
-      CUDA_MALLOC(ptr, N);
+#ifndef __CUDA_ARCH__
+      ptr = (T*) alloc.allocate();
+#else
+      assert(false);
+#endif
       sz = 0;
    }
    CUDA_EXPORT inline finite_vector(const finite_vector &other) = delete;
-   CUDA_EXPORT inline finite_vector(finite_vector &&other) = delete;
+   CUDA_EXPORT inline finite_vector(finite_vector &&other) {
+#ifndef __CUDA_ARCH__
+      ptr = (T*) alloc.allocate();
+#else
+      assert(false);
+#endif
+      sz = 0;
+      swap(other);
+   }
    CUDA_EXPORT inline ~finite_vector() {
       destruct(0, sz);
-      CUDA_FREE(ptr);
+#ifndef __CUDA_ARCH__
+      alloc.deallocate(ptr);
+#else
+      assert(false);
+#endif
    }
    CUDA_EXPORT inline finite_vector& operator=(const finite_vector &other) {
       destruct(0, sz);
@@ -92,3 +149,7 @@ public:
 
    }
 };
+
+
+template<class T, size_t N>
+thread_local finite_vector_allocator<sizeof(T) * N> finite_vector<T, N>::alloc;

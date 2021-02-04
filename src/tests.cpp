@@ -60,10 +60,6 @@ void kick_test() {
    root_ptr.rank = hpx_rank();
    // printf( "%li", size_t(WORKSPACE_SIZE));
    kick_stack stack;
-   stack.dchecks.resize(TREE_MAX_DEPTH);
-   stack.echecks.resize(TREE_MAX_DEPTH);
-   stack.L.resize(TREE_MAX_DEPTH);
-   stack.Lpos.resize(TREE_MAX_DEPTH);
    stack.dchecks[0].push_back(root_ptr);
    stack.echecks[0].push_back(root_ptr);
    // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);

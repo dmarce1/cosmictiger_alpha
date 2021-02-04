@@ -232,9 +232,11 @@ void tree::set_kick_parameters(float theta_, int8_t rung_) {
 #define N_INTERACTION_TYPES 4
 
 hpx::lcos::local::mutex tree::mtx;
+hpx::lcos::local::mutex tree::gpu_mtx;
 std::stack<std::shared_ptr<kick_workspace_t>> tree::kick_works;
 
 void tree::cleanup() {
+   shutdown_daemon = true;
    while (kick_works.size()) {
       kick_works.pop();
    }
@@ -261,33 +263,39 @@ void tree::cleanup_workspace(std::shared_ptr<kick_workspace_t> &&work) {
 }
 
 fast_future<kick_return> tree_ptr::kick(kick_stack &stack, int depth, bool try_thread) {
-   static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
-   bool thread = false;
-#ifndef TEST_CHECKLIST_TIME
-   if (try_thread) {
-      int cnt = thread_cnt++;
-      if (cnt < hpx::thread::hardware_concurrency() * OVERSUBSCRIPTION) {
-         thread = true;
-      } else {
-         thread_cnt--;
-      }
-   }
-#endif
-   if (!thread) {
-      return fast_future<kick_return>(((tree*) ptr)->kick(stack, depth));
+   if (depth == 8) {
+      //     printf("Dispatching at depth %i\n", depth);
+      return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(stack, depth));
    } else {
-      auto new_stack = std::make_shared<kick_stack>();
-      new_stack->dchecks.resize(TREE_MAX_DEPTH);
-      new_stack->echecks.resize(TREE_MAX_DEPTH);
-      new_stack->dchecks[depth] = stack.dchecks[depth];
-      new_stack->echecks[depth] = stack.echecks[depth];
-      auto func = [this, depth, new_stack]() {
-         auto rc = ((tree*) ptr)->kick(*new_stack, depth);
-         thread_cnt--;
-         return rc;
-      };
-      auto fut = hpx::async(std::move(func));
-      return fast_future<kick_return>(std::move(fut));
+//      static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
+//      bool thread = false;
+//#ifndef TEST_CHECKLIST_TIME
+//      if (try_thread) {
+//         int cnt = thread_cnt++;
+//         if (cnt < hpx::thread::hardware_concurrency()) {
+//            thread = true;
+//         } else {
+//            thread_cnt--;
+//         }
+//      }
+//#endif
+//      thread = false;
+//      if (!thread) {
+         return fast_future<kick_return>(((tree*) ptr)->kick(stack, depth));
+//      } else {
+//         auto new_stack = std::make_shared<kick_stack>();
+//         new_stack->dchecks[depth] = stack.dchecks[depth];
+//         new_stack->echecks[depth] = stack.echecks[depth];
+//         new_stack->L[depth] = stack.L[depth];
+//         new_stack->Lpos[depth] = stack.Lpos[depth];
+//         auto func = [this, depth, new_stack]() {
+//            auto rc = ((tree*) ptr)->kick(*new_stack, depth);
+//            thread_cnt--;
+//            return rc;
+//         };
+//         auto fut = hpx::async(std::move(func));
+//         return fast_future<kick_return>(std::move(fut));
+//      }
    }
 }
 
@@ -369,13 +377,12 @@ hpx::future<kick_return> tree::kick(kick_stack &stacks, int depth) {
       stacks.echecks[depth + 1] = std::move(stacks.echecks[depth]);
       futs[RIGHT] = children[RIGHT].kick(stacks, depth + 1, false);
       //  printf("6\n");
-      return hpx::when_all(futs.begin(), futs.end()).then(
-            [](hpx::future<std::vector<hpx::future<kick_return>>> futs) {
-               auto tmp = futs.get();
-               kick_return rc;
-               rc.rung = std::max(tmp[LEFT].get().rung, tmp[RIGHT].get().rung);
-               return rc;
-            });
+      return hpx::when_all(futs.begin(), futs.end()).then([](hpx::future<std::vector<hpx::future<kick_return>>> futs) {
+         auto tmp = futs.get();
+         kick_return rc;
+         rc.rung = std::max(tmp[LEFT].get().rung, tmp[RIGHT].get().rung);
+         return rc;
+      });
    } else {
       rc.rung = 0;
       return hpx::make_ready_future(rc);
@@ -386,3 +393,96 @@ hpx::future<kick_return> tree::kick(kick_stack &stacks, int depth) {
    }
 #endif
 }
+
+std::queue<gpu_kick> tree::gpu_queue;
+bool tree::daemon_running = false;
+bool tree::shutdown_daemon = false;
+
+using cuda_exec_return =
+std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK_GRID_SIZE>>>;
+
+cuda_exec_return cuda_execute_kick_kernel(finite_vector<kick_stack, KICK_GRID_SIZE> &&stacks,
+      finite_vector<tree_ptr, KICK_GRID_SIZE> &&roots, finite_vector<int, KICK_GRID_SIZE> &&depths, int grid_size);
+
+void tree::gpu_daemon() {
+   printf("Starting gpu kick daemon\n");
+   daemon_running = true;
+   std::vector < std::function < bool() >> finish;
+
+   int idle_count = 0;
+   while (!shutdown_daemon) {
+
+      hpx::this_thread::yield();
+
+      std::unique_lock<hpx::lcos::local::mutex> lock(gpu_mtx);
+      int grid_size = idle_count > 256 * 1024 ? std::min((int) gpu_queue.size(), KICK_GRID_SIZE) : KICK_GRID_SIZE;
+      if (gpu_queue.size() >= grid_size && gpu_queue.size()) {
+         printf("%li\n", gpu_queue.size());
+         int grid_size;
+         if (idle_count > 1024) {
+            grid_size = std::min(KICK_GRID_SIZE, (int) gpu_queue.size());
+         } else {
+            grid_size = KICK_GRID_SIZE;
+         }
+         idle_count = 0;
+         finite_vector<kick_stack, KICK_GRID_SIZE> stacks;
+         finite_vector<tree_ptr, KICK_GRID_SIZE> roots;
+         finite_vector<int, KICK_GRID_SIZE> depths;
+         std::vector<hpx::lcos::local::promise<kick_return>> promises;
+         for (int i = 0; i < grid_size; i++) {
+            auto work_item = std::move(gpu_queue.front());
+            gpu_queue.pop();
+            stacks.push_back(std::move(work_item.stack));
+            depths.push_back(work_item.depth);
+            roots.push_back(work_item.tree);
+            promises.push_back(std::move(work_item.promise));
+         }
+         lock.unlock();
+         printf("Executing %i blocks\n", grid_size);
+         auto exec_ret = cuda_execute_kick_kernel(std::move(stacks), std::move(roots), std::move(depths), grid_size);
+
+         hpx::apply([exec_ret, grid_size](std::vector<hpx::lcos::local::promise<kick_return>> &&promises) {
+            while (!exec_ret.first()) {
+               hpx::this_thread::yield();
+            }
+            for (int i = 0; i < grid_size; i++) {
+               promises[i].set_value((*exec_ret.second)[i]);
+            }
+         },std::move(promises));
+      } else {
+         idle_count++;
+      }
+   }
+}
+
+hpx::future<kick_return> tree::send_kick_to_gpu(kick_stack &stack, int depth) {
+   std::unique_lock<hpx::lcos::local::mutex> lock(gpu_mtx);
+   if (!daemon_running) {
+      shutdown_daemon = false;
+      daemon_running = true;
+      lock.unlock();
+      hpx::apply([]() {
+         gpu_daemon();
+      });
+   } else {
+      lock.unlock();
+   }
+   gpu_kick gpu;
+   tree_ptr me;
+   me.ptr = (uintptr_t)(this);
+   me.rank = hpx_rank();
+   gpu.tree = me;
+   gpu.stack.dchecks[depth] = stack.dchecks[depth];
+   gpu.stack.echecks[depth] = stack.echecks[depth];
+   gpu.stack.L[depth] = stack.L[depth];
+   gpu.stack.Lpos[depth] = stack.Lpos[depth];
+   gpu.depth = depth;
+   auto fut = gpu.promise.get_future();
+
+   lock.lock();
+   gpu_queue.push(std::move(gpu));
+
+   return std::move(fut);
+
+}
+

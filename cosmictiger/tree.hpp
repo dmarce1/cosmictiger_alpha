@@ -8,12 +8,16 @@
 #include <cosmictiger/expansion.hpp>
 #include <cosmictiger/finite_vector.hpp>
 
+
+#include <queue>
 #include <memory>
 #include <stack>
 
 #define LEFT 0
 #define RIGHT 1
 #define WORKSPACE_SIZE 1024
+#define KICK_GRID_SIZE 64
+#define KICK_BLOCK_SIZE 32
 
 class tree;
 struct sort_params;
@@ -105,18 +109,7 @@ class tree_ptr;
 
 using checks_type = finite_vector<tree_ptr,WORKSPACE_SIZE>;
 
-struct kick_workspace_t {
-   checks_type multi_interactions;
-   checks_type part_interactions;
-   checks_type next_checks;
-};
-
-struct kick_stack {
-   finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> dchecks;
-   finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> echecks;
-   finite_vector<expansion, TREE_MAX_DEPTH> L;
-   finite_vector<array<exp_real, NDIM>, TREE_MAX_DEPTH> Lpos;
-};
+struct kick_stack;
 
 struct tree_ptr {
    uintptr_t ptr;
@@ -187,6 +180,28 @@ struct tree_ptr {
 #endif
 };
 
+
+struct kick_workspace_t {
+   checks_type multi_interactions;
+   checks_type part_interactions;
+   checks_type next_checks;
+};
+
+struct kick_stack {
+   finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> dchecks;
+   finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> echecks;
+   finite_vector<expansion, TREE_MAX_DEPTH> L;
+   finite_vector<array<exp_real, NDIM>, TREE_MAX_DEPTH> Lpos;
+   kick_stack(kick_stack&&) = default;
+   kick_stack() {
+      dchecks.resize(TREE_MAX_DEPTH);
+      echecks.resize(TREE_MAX_DEPTH);
+      L.resize(TREE_MAX_DEPTH);
+      Lpos.resize(TREE_MAX_DEPTH);
+   }
+};
+
+
 struct sort_return {
    tree_ptr check;
    template<class A>
@@ -194,6 +209,20 @@ struct sort_return {
       assert(false);
    }
 };
+
+#ifndef __CUDACC__
+struct gpu_kick {
+   tree_ptr tree;
+   kick_workspace_t space;
+   kick_stack stack;
+   int depth;
+   hpx::lcos::local::promise<kick_return> promise;
+   gpu_kick(gpu_kick&&) = default;
+   gpu_kick() = default;
+
+};
+#endif
+
 struct tree {
 
 #ifndef __CUDACC__
@@ -216,13 +245,19 @@ public:
    static fast_future<sort_return> cleanup_child();
    static void set_kick_parameters(float theta, int8_t rung);
    static hpx::lcos::local::mutex mtx;
-   static std::stack<std::shared_ptr<kick_workspace_t>> kick_works;
+   static hpx::lcos::local::mutex gpu_mtx;
+    static std::stack<std::shared_ptr<kick_workspace_t>> kick_works;
+   hpx::future<kick_return> send_kick_to_gpu( kick_stack& stack, int depth);
+   static void gpu_daemon();
    inline bool is_leaf() const {
       return children[0] == tree_ptr();
    }
    static void cleanup();
    sort_return sort(sort_params = sort_params());
    hpx::future<kick_return> kick(kick_stack&, int depth);
+   static bool daemon_running;
+   static bool shutdown_daemon;
+   static std::queue<gpu_kick> gpu_queue;
 #endif
    friend class tree_ptr;
 };
