@@ -20,6 +20,9 @@ cuda_properties cuda_init() {
    for( int i = 0; i < props.num_devices; i++) {
       printf( "\t %s: %i\n", props.devices[i].name, props.devices[i].multiProcessorCount);
    }
+   size_t stack_size = 4*1024;
+   CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, stack_size));
+
    return props;
 }
 

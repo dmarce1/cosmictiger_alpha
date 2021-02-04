@@ -8,7 +8,6 @@
 #include <cosmictiger/expansion.hpp>
 #include <cosmictiger/finite_vector.hpp>
 
-
 #include <queue>
 #include <memory>
 #include <stack>
@@ -16,8 +15,10 @@
 #define LEFT 0
 #define RIGHT 1
 #define WORKSPACE_SIZE 1024
-#define KICK_GRID_SIZE 128
+#define KICK_GRID_SIZE 256
 #define KICK_BLOCK_SIZE 32
+
+#define EWALD_MIN_DIST2 (0.25f * 0.25f)
 
 class tree;
 struct sort_params;
@@ -117,39 +118,41 @@ struct tree_ptr {
 #ifndef NDEBUG
    int constructed;
 #endif
-   inline tree_ptr() {
+   CUDA_EXPORT inline tree_ptr() {
       rank = -1;
       ptr = 0;
 #ifndef NDEBUG
       constructed = 1234;
 #endif
    }
-   inline tree_ptr(tree_ptr &&other) {
+   CUDA_EXPORT inline tree_ptr(tree_ptr &&other) {
       rank = other.rank;
       ptr = other.ptr;
 #ifndef NDEBUG
       constructed = 1234;
 #endif
    }
-   inline tree_ptr(const tree_ptr &other) {
+   CUDA_EXPORT inline tree_ptr(const tree_ptr &other) {
       rank = other.rank;
       ptr = other.ptr;
 #ifndef NDEBUG
       constructed = 1234;
 #endif
    }
-   inline tree_ptr& operator=(const tree_ptr &other) {
+   CUDA_EXPORT inline tree_ptr& operator=(const tree_ptr &other) {
       assert(constructed == 1234);
       ptr = other.ptr;
       rank = other.rank;
       return *this;
    }
+   CUDA_EXPORT
    inline tree_ptr& operator=(tree_ptr &&other) {
       assert(constructed == 1234);
       ptr = other.ptr;
       rank = other.rank;
       return *this;
    }
+   CUDA_EXPORT
    inline bool operator==(const tree_ptr &other) const {
       assert(constructed == 1234);
       return rank == other.rank && ptr == other.ptr;
@@ -159,11 +162,14 @@ struct tree_ptr {
       arc & ptr;
       arc & rank;
    }
+   CUDA_EXPORT
+
    inline operator tree*() {
       assert(constructed == 1234);
       assert(ptr);
       return (tree*) (ptr);
    }
+   CUDA_EXPORT
    inline operator const tree*() const {
       assert(constructed == 1234);
       assert(ptr);
@@ -171,15 +177,20 @@ struct tree_ptr {
    }
 #ifndef __CUDACC__
    fast_future<array<tree_ptr, NCHILD>> get_children() const;
+#else
+   CUDA_EXPORT
+ array<tree_ptr,NCHILD> get_children() const ;
 #endif
+   CUDA_EXPORT
    float get_radius() const;
+   CUDA_EXPORT
    array<fixed32, NDIM> get_pos() const;
+   CUDA_EXPORT
    bool is_leaf() const;
 #ifndef __CUDACC__
    fast_future<kick_return> kick(kick_stack&, int, bool);
 #endif
 };
-
 
 struct kick_workspace_t {
    checks_type multi_interactions;
@@ -200,7 +211,6 @@ struct kick_stack {
       Lpos.resize(TREE_MAX_DEPTH);
    }
 };
-
 
 struct sort_return {
    tree_ptr check;
@@ -246,8 +256,8 @@ public:
    static void set_kick_parameters(float theta, int8_t rung);
    static hpx::lcos::local::mutex mtx;
    static hpx::lcos::local::mutex gpu_mtx;
-    static std::stack<std::shared_ptr<kick_workspace_t>> kick_works;
-   hpx::future<kick_return> send_kick_to_gpu( kick_stack& stack, int depth);
+   static std::stack<std::shared_ptr<kick_workspace_t>> kick_works;
+   hpx::future<kick_return> send_kick_to_gpu(kick_stack &stack, int depth);
    static void gpu_daemon();
    inline bool is_leaf() const {
       return children[0] == tree_ptr();
@@ -268,20 +278,31 @@ inline fast_future<array<tree_ptr, NCHILD>> tree_ptr::get_children() const {
    assert(ptr);
    return fast_future<array<tree_ptr, NCHILD>>(std::move(((tree*) ptr)->children));
 }
+#else
+CUDA_EXPORT
+inline array<tree_ptr, NCHILD> tree_ptr::get_children() const {
+   assert(constructed == 1234);
+   assert(ptr);
+   return (((tree*) ptr)->children);
+}
+
 #endif
 
+CUDA_EXPORT
 inline float tree_ptr::get_radius() const {
    assert(constructed == 1234);
    assert(ptr);
    return ((tree*) ptr)->radius;
 }
 
+CUDA_EXPORT
 inline array<fixed32, NDIM> tree_ptr::get_pos() const {
    assert(ptr);
    assert(constructed == 1234);
    return ((tree*) ptr)->pos;
 }
 
+CUDA_EXPORT
 inline bool tree_ptr::is_leaf() const {
    assert(constructed == 1234);
    assert(ptr);

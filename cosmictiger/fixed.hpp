@@ -34,19 +34,23 @@ class fixed {
    static constexpr T width = (sizeof(float) * CHAR_BIT);
 public:
 
+   CUDA_EXPORT
    inline static fixed<T> max() {
       fixed<T> num;
       num.i = std::numeric_limits < T > ::max();
       return num;
    }
+   CUDA_EXPORT
    inline static fixed<T> min() {
       fixed<T> num;
       num.i = 1;
       return num;
    }
 
+   CUDA_EXPORT
    inline fixed<T>() = default;
 
+   CUDA_EXPORT
    inline
 #ifdef NDEBUG
    constexpr
@@ -56,48 +60,59 @@ public:
    }
    template<class V>
 
+   CUDA_EXPORT
    inline constexpr fixed<T>(fixed<V> other) :
          i(other.i) {
    }
 
+   CUDA_EXPORT
    inline bool operator<(fixed other) const {
       return i < other.i;
    }
 
+   CUDA_EXPORT
    inline bool operator>(fixed other) const {
       return i > other.i;
    }
 
+   CUDA_EXPORT
    inline bool operator<=(fixed other) const {
       return i <= other.i;
    }
 
+   CUDA_EXPORT
    inline bool operator>=(fixed other) const {
       return i >= other.i;
    }
 
+   CUDA_EXPORT
    inline bool operator==(fixed other) const {
       return i == other.i;
    }
 
+   CUDA_EXPORT
    inline bool operator!=(fixed other) const {
       return i != other.i;
    }
 
+   CUDA_EXPORT
    inline float to_float() const {
       return i * cinv;
 
    }
 
+   CUDA_EXPORT
    inline int to_int() const {
       return i >> width;
    }
 
+   CUDA_EXPORT
    inline double to_double() const {
       return i * cinv;
 
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator*(const fixed<T> &other) const {
       int64_t a;
       const int64_t b = i;
@@ -108,6 +123,7 @@ public:
       return res;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator*=(const fixed<T> &other) {
       int64_t a;
       const int64_t b = i;
@@ -117,6 +133,7 @@ public:
       return *this;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator*=(int other) {
       int64_t a;
       const int64_t b = i;
@@ -126,6 +143,7 @@ public:
       return *this;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator/(const fixed<T> &other) const {
       int64_t a;
       const int64_t b = i;
@@ -136,6 +154,7 @@ public:
       return res;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator/=(const fixed<T> &other) {
       int64_t a;
       const int64_t b = i;
@@ -145,28 +164,33 @@ public:
       return *this;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator+(const fixed<T> &other) const {
       fixed<T> a;
       a.i = i + other.i;
       return a;
    }
 
+   CUDA_EXPORT
    inline fixed<T> operator-(const fixed<T> &other) const {
       fixed<T> a;
       a.i = i - other.i;
       return a;
    }
 
+   CUDA_EXPORT
    inline fixed<T>& operator+=(const fixed<T> &other) {
       i += other.i;
       return *this;
    }
 
+   CUDA_EXPORT
    inline fixed<T>& operator-=(const fixed<T> &other) {
       i -= other.i;
       return *this;
    }
 
+   CUDA_EXPORT
    CUDA_EXPORT
    inline T get_integer() const {
       return i;
@@ -189,6 +213,7 @@ public:
 
 //Morton encoding adopted from https://www.forceflow.be/2013/10/07/morton-encodingdecoding-through-bit-interleaving-implementations/
 CUDA_EXPORT
+CUDA_EXPORT
 inline uint64_t split3(uint64_t a) {
    uint64_t x = a & 0x1fffff;
    x = (x | x << 32) & 0x1f00000000ffff;
@@ -199,6 +224,7 @@ inline uint64_t split3(uint64_t a) {
    return x;
 }
 
+CUDA_EXPORT
 CUDA_EXPORT
 inline uint64_t morton_magicbits(uint64_t x, uint64_t y, uint64_t z) {
    uint64_t answer = 0;

@@ -9,7 +9,7 @@
 
 template<size_t SIZE>
 class finite_vector_allocator {
-   static constexpr size_t page_size = ALLOCATION_PAGE_SIZE / SIZE;
+   static constexpr size_t page_size = 1024;
    thread_local static std::vector<int8_t*> allocs;
    thread_local static std::stack<int8_t*> freelist;
 public:
@@ -17,8 +17,9 @@ public:
       if (freelist.empty()) {
          int8_t *ptr;
          CUDA_MALLOC(ptr, page_size * SIZE);
+       // printf( "%li\n", page_size*SIZE);
          allocs.push_back(ptr);
-         for (int i = 0; i < page_size; i++) {
+         for (int i = 0; i < page_size - 1; i++) {
             freelist.push(ptr + i * SIZE);
          }
       }
@@ -27,8 +28,8 @@ public:
       return ptr;
    }
    ~finite_vector_allocator() {
-      for( int i = 0; i < allocs.size(); i++) {
-  //       CUDA_FREE(allocs[i]);
+      for (int i = 0; i < allocs.size(); i++) {
+         //       CUDA_FREE(allocs[i]);
       }
    }
    void deallocate(void *ptr) {
@@ -42,7 +43,6 @@ thread_local std::vector<int8_t*> finite_vector_allocator<SIZE>::allocs;
 
 template<size_t SIZE>
 thread_local std::stack<int8_t*> finite_vector_allocator<SIZE>::freelist;
-
 
 template<class T, size_t N>
 class finite_vector {
@@ -149,7 +149,6 @@ public:
 
    }
 };
-
 
 template<class T, size_t N>
 thread_local finite_vector_allocator<sizeof(T) * N> finite_vector<T, N>::alloc;

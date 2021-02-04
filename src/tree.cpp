@@ -9,9 +9,6 @@
 #define KICK_MAX_MULTIS 1024
 #define KICK_MAX_PARTS 1024
 #define KICK_MAX_CHECKS 1024
-
-#define EWALD_MIN_DIST2 (0.25f * 0.25f)
-
 particle_set *tree::particles;
 float tree::theta;
 int8_t tree::rung;
@@ -225,12 +222,6 @@ void tree::set_kick_parameters(float theta_, int8_t rung_) {
    rung = rung_;
 }
 
-#define CC_CP_DIRECT 0
-#define CC_CP_EWALD 1
-#define PC_PP_DIRECT 2
-#define PC_PP_EWALD 3
-#define N_INTERACTION_TYPES 4
-
 hpx::lcos::local::mutex tree::mtx;
 hpx::lcos::local::mutex tree::gpu_mtx;
 std::stack<std::shared_ptr<kick_workspace_t>> tree::kick_works;
@@ -263,8 +254,7 @@ void tree::cleanup_workspace(std::shared_ptr<kick_workspace_t> &&work) {
 }
 
 fast_future<kick_return> tree_ptr::kick(kick_stack &stack, int depth, bool try_thread) {
-   if (depth == 10) {
-      //     printf("Dispatching at depth %i\n", depth);
+   if (depth == 11) {
       return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(stack, depth));
    } else {
       static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
@@ -298,6 +288,12 @@ fast_future<kick_return> tree_ptr::kick(kick_stack &stack, int depth, bool try_t
       }
    }
 }
+
+#define CC_CP_DIRECT 0
+#define CC_CP_EWALD 1
+#define PC_PP_DIRECT 2
+#define PC_PP_EWALD 3
+#define N_INTERACTION_TYPES 4
 
 //int num_kicks = 0;
 hpx::future<kick_return> tree::kick(kick_stack &stacks, int depth) {
@@ -412,13 +408,14 @@ void tree::gpu_daemon() {
    std::vector < std::function < bool() >> finish;
 
    int grid_min_size = KICK_GRID_SIZE;
+   int tries = 0;
    while (!shutdown_daemon) {
 
       if (gpu_queue.size() > grid_min_size) {
          grid_min_size = KICK_GRID_SIZE;
          std::unique_lock<hpx::lcos::local::mutex> lock(gpu_mtx);
          int grid_size = std::min(KICK_GRID_SIZE, (int) gpu_queue.size());
-      //   printf("%li\n", gpu_queue.size());
+         //     printf("%li\n", gpu_queue.size());
          finite_vector<kick_stack, KICK_GRID_SIZE> stacks;
          finite_vector<tree_ptr, KICK_GRID_SIZE> roots;
          finite_vector<int, KICK_GRID_SIZE> depths;
@@ -432,9 +429,8 @@ void tree::gpu_daemon() {
             promises.push_back(std::move(work_item.promise));
          }
          lock.unlock();
-       //  printf("Executing %i blocks\n", grid_size);
+         printf("Executing %i blocks\n", grid_size);
          auto exec_ret = cuda_execute_kick_kernel(std::move(stacks), std::move(roots), std::move(depths), grid_size);
-
          hpx::apply([exec_ret, grid_size](std::vector<hpx::lcos::local::promise<kick_return>> &&promises) {
             while (!exec_ret.first()) {
                hpx::this_thread::yield();
@@ -443,9 +439,15 @@ void tree::gpu_daemon() {
                promises[i].set_value((*exec_ret.second)[i]);
             }
          },std::move(promises));
+         tries = 0;
+      } else {
+         tries++;
       }
       hpx::this_thread::yield();
-      grid_min_size = std::max(grid_min_size - 1, 1);
+      if (tries == 16*1024) {
+         grid_min_size = std::max(grid_min_size / 2, 1);
+         tries = 0;
+      }
    }
 }
 

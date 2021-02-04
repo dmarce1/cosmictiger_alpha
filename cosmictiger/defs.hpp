@@ -38,23 +38,19 @@
 		if( a < b || a >= c ) {                                                             \
 			printf( "Bounds check failed on line %i in file %s:\n", __LINE__, __FILE__);     \
 			printf( "%li is not between %li and %li\n", (size_t) a, (size_t) b, (size_t) c); \
-			abort();                                                                         \
+			ABORT();                                                                         \
 		}
 #define BOUNDS_CHECK2(a,b)                                                            \
 		if( a >= b ) {                                                                  \
 			printf( "Bounds check failed on line %i in file %s:\n", __LINE__, __FILE__); \
 			printf( "%li should be less than %li\n",(size_t)  a, (size_t) b);            \
-			abort();                                                                     \
+			ABORT();                                                                     \
 		}
 #else
 #define BOUNDS_CHECK1(a,b,c)
 #define BOUNDS_CHECK2(a,b)
 #endif
 
-template<class T>
-inline T sqr(T a) {
-   return a * a;
-}
 
 
 #ifdef __CUDA_ARCH__
