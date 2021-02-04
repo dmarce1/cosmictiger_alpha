@@ -10,6 +10,8 @@
 
 #define NDIM 3
 
+//#define TEST_CHECKLIST_TIME
+
 #ifndef NDEBUG
 #define TEST_TREE
 #define TEST_RADIX
@@ -22,7 +24,7 @@
 #define TREE_RADIX_MIN 3
 #define TREE_RADIX_MAX 52
 #define TREE_SORT_MULTITHREAD
-#define TREE_MIN_PARTS2THREAD (512*1024)
+#define TREE_MIN_PARTS2THREAD (64*1024)
 
 #define NCHILD 2
 //#define PARALLEL_RADIX

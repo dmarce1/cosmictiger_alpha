@@ -2,6 +2,8 @@
 
 #include <cosmictiger/hpx.hpp>
 
+#ifndef __CUDACC__
+
 template<class T>
 class fast_future {
    T data;
@@ -24,29 +26,38 @@ public:
       has_data = true;
       data = std::move(data_);
    }
-   fast_future& operator=(hpx::future<T> &&fut_) {
+   inline fast_future& operator=(hpx::future<T> &&fut_) {
       has_data = false;
       fut = std::move(fut_);
       return *this;
    }
-   fast_future(hpx::future<T> &&fut_) {
+   inline fast_future(hpx::future<T> &&fut_) {
       has_data = false;
       fut = std::move(fut_);
    }
-   void set_value(T&& data) {
+   inline void set_value(T&& data) {
       has_data = true;
       data = std::move(data);
    }
-   bool valid() const {
+   inline bool valid() const {
       return( has_data || fut.valid() );
    }
-   T get() {
+   inline T get() {
       if( has_data ) {
          return std::move(data);
       } else {
          return fut.get();
       }
    }
-
+   operator hpx::future<T>() {
+      if( has_data) {
+         return hpx::make_ready_future(data);
+      } else{
+         return std::move(fut);
+      }
+   }
 
 };
+
+
+#endif

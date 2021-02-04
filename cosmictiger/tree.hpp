@@ -19,6 +19,7 @@ class tree;
 struct sort_params;
 struct tree_ptr;
 
+#ifndef __CUDACC__
 struct tree_alloc {
    managed_allocator<multipole> multi_alloc;
    managed_allocator<tree> tree_alloc;
@@ -94,6 +95,8 @@ struct sort_params {
    }
 };
 
+#endif
+
 struct kick_return {
    int8_t rung;
 };
@@ -111,8 +114,9 @@ struct kick_workspace_t {
 struct kick_stack {
    finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> dchecks;
    finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> echecks;
+   finite_vector<expansion, TREE_MAX_DEPTH> L;
+   finite_vector<array<exp_real, NDIM>, TREE_MAX_DEPTH> Lpos;
 };
-
 
 struct tree_ptr {
    uintptr_t ptr;
@@ -120,40 +124,40 @@ struct tree_ptr {
 #ifndef NDEBUG
    int constructed;
 #endif
-   tree_ptr() {
+   inline tree_ptr() {
       rank = -1;
       ptr = 0;
 #ifndef NDEBUG
       constructed = 1234;
 #endif
    }
-   tree_ptr(tree_ptr &&other) {
+   inline tree_ptr(tree_ptr &&other) {
       rank = other.rank;
       ptr = other.ptr;
 #ifndef NDEBUG
       constructed = 1234;
 #endif
    }
-   tree_ptr(const tree_ptr &other) {
+   inline tree_ptr(const tree_ptr &other) {
       rank = other.rank;
       ptr = other.ptr;
 #ifndef NDEBUG
       constructed = 1234;
 #endif
    }
-   tree_ptr& operator=(const tree_ptr &other) {
+   inline tree_ptr& operator=(const tree_ptr &other) {
       assert(constructed == 1234);
       ptr = other.ptr;
       rank = other.rank;
       return *this;
    }
-   tree_ptr& operator=(tree_ptr &&other) {
+   inline tree_ptr& operator=(tree_ptr &&other) {
       assert(constructed == 1234);
       ptr = other.ptr;
       rank = other.rank;
       return *this;
    }
-   bool operator==(const tree_ptr &other) const {
+   inline bool operator==(const tree_ptr &other) const {
       assert(constructed == 1234);
       return rank == other.rank && ptr == other.ptr;
    }
@@ -162,22 +166,25 @@ struct tree_ptr {
       arc & ptr;
       arc & rank;
    }
-   operator tree*() {
+   inline operator tree*() {
       assert(constructed == 1234);
       assert(ptr);
       return (tree*) (ptr);
    }
-   operator const tree*() const {
+   inline operator const tree*() const {
       assert(constructed == 1234);
       assert(ptr);
       return (const tree*) (ptr);
    }
+#ifndef __CUDACC__
    fast_future<array<tree_ptr, NCHILD>> get_children() const;
+#endif
    float get_radius() const;
    array<fixed32, NDIM> get_pos() const;
    bool is_leaf() const;
-   fast_future<kick_return> kick(expansion L, array<exp_real, NDIM>, kick_stack&, int, bool);
-
+#ifndef __CUDACC__
+   fast_future<kick_return> kick(kick_stack&, int, bool);
+#endif
 };
 
 struct sort_return {
@@ -189,7 +196,9 @@ struct sort_return {
 };
 struct tree {
 
+#ifndef __CUDACC__
 private:
+#endif
    array<fixed32, NDIM> pos;
    float radius;
    array<tree_ptr, NCHILD> children;
@@ -199,29 +208,32 @@ private:
    static int8_t rung;
 public:
    static particle_set *particles;
+#ifndef __CUDACC__
    static void set_particle_set(particle_set*);
-   inline static fast_future<sort_return> create_child(sort_params&);
+   static std::shared_ptr<kick_workspace_t> get_workspace();
+   static void cleanup_workspace(std::shared_ptr<kick_workspace_t>&&);
+   inline static hpx::future<sort_return> create_child(sort_params&);
    static fast_future<sort_return> cleanup_child();
    static void set_kick_parameters(float theta, int8_t rung);
    static hpx::lcos::local::mutex mtx;
-   static std::shared_ptr<kick_workspace_t> get_workspace();
-   static void cleanup_workspace(std::shared_ptr<kick_workspace_t>&&);
    static std::stack<std::shared_ptr<kick_workspace_t>> kick_works;
    inline bool is_leaf() const {
       return children[0] == tree_ptr();
    }
    static void cleanup();
    sort_return sort(sort_params = sort_params());
-   kick_return kick(expansion L, array<exp_real, NDIM>, kick_stack&, int depth);
-
+   hpx::future<kick_return> kick(kick_stack&, int depth);
+#endif
    friend class tree_ptr;
 };
 
+#ifndef __CUDACC__
 inline fast_future<array<tree_ptr, NCHILD>> tree_ptr::get_children() const {
    assert(constructed == 1234);
    assert(ptr);
    return fast_future<array<tree_ptr, NCHILD>>(std::move(((tree*) ptr)->children));
 }
+#endif
 
 inline float tree_ptr::get_radius() const {
    assert(constructed == 1234);

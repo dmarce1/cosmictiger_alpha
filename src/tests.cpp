@@ -62,6 +62,8 @@ void kick_test() {
    kick_stack stack;
    stack.dchecks.resize(TREE_MAX_DEPTH);
    stack.echecks.resize(TREE_MAX_DEPTH);
+   stack.L.resize(TREE_MAX_DEPTH);
+   stack.Lpos.resize(TREE_MAX_DEPTH);
    stack.dchecks[0].push_back(root_ptr);
    stack.echecks[0].push_back(root_ptr);
    // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
@@ -73,10 +75,12 @@ void kick_test() {
    for (int dim = 0; dim < NDIM; dim++) {
       Lpos[dim] = 0.5;
    }
+   stack.L[0] = L;
+   stack.Lpos[0] = Lpos;
    tree::set_kick_parameters(0.7, 0);
    printf("Kicking\n");
    tm.start();
-   root.kick(L, Lpos, stack, 0);
+   root.kick(stack, 0).get();
    tm.stop();
    printf("Done kicking in %e seconds\n", tm.read());
 }

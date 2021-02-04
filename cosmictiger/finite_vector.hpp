@@ -26,7 +26,7 @@ public:
    CUDA_EXPORT inline finite_vector(const finite_vector &other) = delete;
    CUDA_EXPORT inline finite_vector(finite_vector &&other) = delete;
    CUDA_EXPORT inline ~finite_vector() {
-      destruct(0,sz);
+      destruct(0, sz);
       CUDA_FREE(ptr);
    }
    CUDA_EXPORT inline finite_vector& operator=(const finite_vector &other) {
@@ -53,12 +53,10 @@ public:
       sz = _sz;
    }
    CUDA_EXPORT inline void push_back(const T &data) {
-      resize(size() + 1);
-      ptr[sz - 1] = data;
+      new (ptr + sz++) T(data);
    }
    CUDA_EXPORT inline void push_back(T &&data) {
-      resize(size() + 1);
-      ptr[sz - 1] = std::move(data);
+      new (ptr + sz++) T(std::move(data));
    }
    CUDA_EXPORT inline T& back() {
       BOUNDS_CHECK2(0, sz);

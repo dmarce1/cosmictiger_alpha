@@ -20,7 +20,7 @@ void tree::set_particle_set(particle_set *parts) {
    particles = parts;
 }
 
-inline fast_future<sort_return> tree::create_child(sort_params &params) {
+inline hpx::future<sort_return> tree::create_child(sort_params &params) {
    static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
    tree_ptr id;
    id.rank = 0;
@@ -41,7 +41,7 @@ inline fast_future<sort_return> tree::create_child(sort_params &params) {
    if (!thread) {
       sort_return rc = ((tree*) (id.ptr))->sort(params);
       rc.check = id;
-      return fast_future<sort_return>(std::move(rc));
+      return hpx::make_ready_future(std::move(rc));
    } else {
       params.allocs = std::make_shared<tree_alloc>();
       return hpx::async([id, params]() {
@@ -260,28 +260,29 @@ void tree::cleanup_workspace(std::shared_ptr<kick_workspace_t> &&work) {
    kick_works.push(std::move(work));
 }
 
-fast_future<kick_return> tree_ptr::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack &stack, int depth,
-      bool try_thread) {
+fast_future<kick_return> tree_ptr::kick(kick_stack &stack, int depth, bool try_thread) {
    static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
    bool thread = false;
+#ifndef TEST_CHECKLIST_TIME
    if (try_thread) {
       int cnt = thread_cnt++;
-      if (cnt < hpx::thread::hardware_concurrency()*OVERSUBSCRIPTION) {
+      if (cnt < hpx::thread::hardware_concurrency() * OVERSUBSCRIPTION) {
          thread = true;
       } else {
          thread_cnt--;
       }
    }
+#endif
    if (!thread) {
-      return fast_future<kick_return>(((tree*) ptr)->kick(L, Lpos, stack, depth));
+      return fast_future<kick_return>(((tree*) ptr)->kick(stack, depth));
    } else {
       auto new_stack = std::make_shared<kick_stack>();
       new_stack->dchecks.resize(TREE_MAX_DEPTH);
       new_stack->echecks.resize(TREE_MAX_DEPTH);
       new_stack->dchecks[depth] = stack.dchecks[depth];
       new_stack->echecks[depth] = stack.echecks[depth];
-      auto func = [this, L, Lpos, depth, new_stack]() {
-         auto rc = ((tree*) ptr)->kick(L, Lpos, *new_stack, depth);
+      auto func = [this, depth, new_stack]() {
+         auto rc = ((tree*) ptr)->kick(*new_stack, depth);
          thread_cnt--;
          return rc;
       };
@@ -291,7 +292,10 @@ fast_future<kick_return> tree_ptr::kick(expansion L, array<exp_real, NDIM> Lpos,
 }
 
 //int num_kicks = 0;
-kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack &stacks, int depth) {
+hpx::future<kick_return> tree::kick(kick_stack &stacks, int depth) {
+#ifdef TEST_CHECKLIST_TIME
+   static timer tm;
+#endif
    // num_kicks++;
    // printf( "%li\n", num_kicks);
    kick_return rc;
@@ -315,6 +319,9 @@ kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack &stac
       const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
 
       do {
+#ifdef TEST_CHECKLIST_TIME
+            tm.start();
+#endif
          for (int ci = 0; ci < checks.size(); ci++) {
             const auto other_radius = checks[ci].get_radius();
             const auto other_pos = checks[ci].get_pos();
@@ -326,7 +333,8 @@ kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack &stac
             if (ewald_dist) {
                d2 = std::max(d2, EWALD_MIN_DIST2);
             }
-            if (R2 < theta2 * d2) {
+            const bool far = R2 < theta2 * d2;
+            if (far) {
                multis.push_back(checks[ci]);
             } else if (!checks[ci].is_leaf()) {
                const auto child_checks = checks[ci].get_children().get();
@@ -336,6 +344,9 @@ kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack &stac
                parti.push_back(checks[ci]);
             }
          }
+#ifdef TEST_CHECKLIST_TIME
+         tm.stop();
+#endif
          checks = std::move(next_checks);
       } while (direct && checks.size());
 
@@ -351,17 +362,27 @@ kick_return tree::kick(expansion L, array<exp_real, NDIM> Lpos, kick_stack &stac
       const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
       stacks.dchecks[depth + 1] = stacks.dchecks[depth];
       stacks.echecks[depth + 1] = stacks.echecks[depth];
-      array<fast_future<kick_return>, NCHILD> futs;
-      futs[LEFT] = children[LEFT].kick(L, Lpos, stacks, depth + 1, try_thread);
+      array<hpx::future<kick_return>, NCHILD> futs;
+      futs[LEFT] = children[LEFT].kick(stacks, depth + 1, try_thread);
       //  printf("5\n");
       stacks.dchecks[depth + 1] = std::move(stacks.dchecks[depth]);
       stacks.echecks[depth + 1] = std::move(stacks.echecks[depth]);
-      futs[RIGHT] = children[RIGHT].kick(L, Lpos, stacks, depth + 1, false);
+      futs[RIGHT] = children[RIGHT].kick(stacks, depth + 1, false);
       //  printf("6\n");
-      const auto rcl = futs[LEFT].get();
-      const auto rcr = futs[RIGHT].get();
-      rc.rung = std::max(rcl.rung, rcr.rung);
+      return hpx::when_all(futs.begin(), futs.end()).then(
+            [](hpx::future<std::vector<hpx::future<kick_return>>> futs) {
+               auto tmp = futs.get();
+               kick_return rc;
+               rc.rung = std::max(tmp[LEFT].get().rung, tmp[RIGHT].get().rung);
+               return rc;
+            });
+   } else {
+      rc.rung = 0;
+      return hpx::make_ready_future(rc);
    }
-
-   return rc;
+#ifdef TEST_CHECKLIST_TIME
+   if (depth == 0) {
+      printf("Checklist time = %e\n", tm.read());
+   }
+#endif
 }

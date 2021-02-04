@@ -35,6 +35,7 @@ set(cosmictiger_source_files
     src/rand.cpp
     src/tests.cpp
     src/tree.cpp
+    src/tree.cu
 )
 set(cosmictiger_header_files
 	tiegrgrav/cosmo.hpp
