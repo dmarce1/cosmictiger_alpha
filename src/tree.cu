@@ -52,6 +52,7 @@ CUDA_DEVICE kick_return cuda_kick(tree_ptr tptr, kick_stack &stacks, kick_worksp
    int ninteractions = ((tree*) tptr)->children[0] == tree_ptr() ? 4 : 2;
    for (int type = 0; type < ninteractions; type++) {
       auto &checks = *(all_checks[type]);
+      CUDA_SYNC();
       if (tid == 0) {
          next_checks.resize(0);
          multis.resize(0);
@@ -61,7 +62,7 @@ CUDA_DEVICE kick_return cuda_kick(tree_ptr tptr, kick_stack &stacks, kick_worksp
       const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
       const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
       do {
-       const int cimax = ((checks.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
+         const int cimax = ((checks.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
          for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
             mindices[tid + 1] = cindices[tid + 1] = pindices[tid + 1] = 0;
             if (ci < checks.size()) {
@@ -123,11 +124,19 @@ CUDA_DEVICE kick_return cuda_kick(tree_ptr tptr, kick_stack &stacks, kick_worksp
 
    }
    if (!(((tree*) tptr)->children[0] == tree_ptr())) {
-      stacks.dchecks[depth + 1] = stacks.dchecks[depth];
-      stacks.echecks[depth + 1] = stacks.echecks[depth];
+      CUDA_SYNC();
+      if (tid == 0) {
+         stacks.dchecks[depth + 1] = stacks.dchecks[depth];
+         stacks.echecks[depth + 1] = stacks.echecks[depth];
+      }
+      CUDA_SYNC();
       kick_return rc1 = cuda_kick(((tree*) tptr)->children[LEFT], stacks, workspace, depth + 1);
-      stacks.dchecks[depth + 1] = std::move(stacks.dchecks[depth]);
-      stacks.echecks[depth + 1] = std::move(stacks.echecks[depth]);
+      CUDA_SYNC();
+      if (tid == 0) {
+         stacks.dchecks[depth + 1] = std::move(stacks.dchecks[depth]);
+         stacks.echecks[depth + 1] = std::move(stacks.echecks[depth]);
+      }
+      CUDA_SYNC();
       kick_return rc2 = cuda_kick(((tree*) tptr)->children[RIGHT], stacks, workspace, depth + 1);
       rc.rung = max(rc1.rung, rc2.rung);
    } else {
@@ -170,7 +179,7 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
    finite_vector<kick_stack, KICK_GRID_SIZE> *stacks_ptr;
    finite_vector<tree_ptr, KICK_GRID_SIZE> *roots_ptr;
    finite_vector<int, KICK_GRID_SIZE> *depths_ptr;
-   finite_vector<kick_workspace_t, KICK_GRID_SIZE>* workspaces_ptr;
+   finite_vector<kick_workspace_t, KICK_GRID_SIZE> *workspaces_ptr;
    CUDA_MALLOC(stacks_ptr, 1);
    CUDA_MALLOC(roots_ptr, 1);
    CUDA_MALLOC(depths_ptr, 1);
@@ -183,7 +192,7 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
 cuda_set_kick_params<<<1,1>>>(0.7,0);
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, 0, stream>>>(rcptr, stacks_ptr,roots_ptr, depths_ptr, workspaces_ptr);/**/
-/**/            CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
+/**/               CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
    /***************************************************************************************************************************************************/
 
    struct cuda_kick_future_shared {
@@ -195,7 +204,7 @@ cuda_set_kick_params<<<1,1>>>(0.7,0);
       finite_vector<kick_stack, KICK_GRID_SIZE> *stacks_ptr;
       finite_vector<tree_ptr, KICK_GRID_SIZE> *roots_ptr;
       finite_vector<int, KICK_GRID_SIZE> *depths_ptr;
-      finite_vector<kick_workspace_t, KICK_GRID_SIZE>* workspaces_ptr;
+      finite_vector<kick_workspace_t, KICK_GRID_SIZE> *workspaces_ptr;
       mutable bool ready;
    public:
       cuda_kick_future_shared() {
@@ -206,7 +215,7 @@ cuda_set_kick_params<<<1,1>>>(0.7,0);
             if (cudaEventQuery(event) == cudaSuccess) {
                ready = true;
                CUDA_CHECK(cudaStreamSynchronize(stream));
-        //       printf( "Kernel done\n");
+               //       printf( "Kernel done\n");
                CUDA_CHECK(cudaEventDestroy(event));
                CUDA_CHECK(cudaStreamDestroy(stream));
                *returns = std::move(*rcptr);
@@ -215,7 +224,8 @@ cuda_set_kick_params<<<1,1>>>(0.7,0);
                stacks_ptr->finite_vector<kick_stack, KICK_GRID_SIZE>::~finite_vector<kick_stack, KICK_GRID_SIZE>();
                roots_ptr->finite_vector<tree_ptr, KICK_GRID_SIZE>::~finite_vector<tree_ptr, KICK_GRID_SIZE>();
                depths_ptr->finite_vector<int, KICK_GRID_SIZE>::~finite_vector<int, KICK_GRID_SIZE>();
-               workspaces_ptr->finite_vector<kick_workspace_t, KICK_GRID_SIZE>::~finite_vector<kick_workspace_t, KICK_GRID_SIZE>();
+               workspaces_ptr->finite_vector<kick_workspace_t, KICK_GRID_SIZE>::~finite_vector<kick_workspace_t,
+                     KICK_GRID_SIZE>();
                CUDA_FREE(stacks_ptr);
                CUDA_FREE(roots_ptr);
                CUDA_FREE(depths_ptr);
