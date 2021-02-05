@@ -407,24 +407,20 @@ void tree::gpu_daemon() {
    daemon_running = true;
    std::vector < std::function < bool() >> finish;
 
+   int tries = 0;
+   int min_grid_size = KICK_GRID_SIZE;
    while (!shutdown_daemon) {
-      timer tm;
-      double wait_time = 1.0e-2;
-      tm.start();
-      do {
-         tm.start();
-         hpx::this_thread::yield();
-         tm.stop();
-      } while( tm.read() < wait_time);
-      int min_grid = KICK_GRID_SIZE;
-      std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
-      while (min_grid > gpu_queue.size() && min_grid > 1) {
-         min_grid /= 2;
+      hpx::this_thread::yield();
+      if (tries == 1024) {
+         min_grid_size = std::max(1,min_grid_size/2);
+         tries = 0;
+      } else {
+         tries++;
       }
-      while (gpu_queue.size() >= min_grid) {
-         int grid_size = std::min(min_grid, (int) gpu_queue.size());
-         //     printf("%li\n", gpu_queue.size());
-         min_grid = KICK_GRID_SIZE;
+      std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
+      while (gpu_queue.size() >= min_grid_size) {
+         int grid_size = std::min((int) gpu_queue.size(), min_grid_size);
+         min_grid_size = KICK_GRID_SIZE;
          finite_vector<kick_stack, KICK_GRID_SIZE> stacks;
          finite_vector<tree_ptr, KICK_GRID_SIZE> roots;
          finite_vector<int, KICK_GRID_SIZE> depths;
@@ -447,6 +443,7 @@ void tree::gpu_daemon() {
                promises[i].set_value((*exec_ret.second)[i]);
             }
          },std::move(promises));
+         tries = 0;
       }
    }
 }

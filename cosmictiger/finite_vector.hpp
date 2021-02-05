@@ -17,63 +17,69 @@
 
 template<size_t SIZE>
 class finite_vector_allocator {
-   static constexpr size_t page_size = 65536;
-   thread_local static std::vector<int8_t*> allocs;
-   thread_local static std::stack<int8_t*> freelist;
+   static constexpr size_t page_size = ALLOCATION_PAGE_SIZE / SIZE;
+   static std::stack<int8_t*> freelist;
+   static std::atomic<int> lock;
+   static size_t total_allocated;
 public:
    finite_vector_allocator() {
    }
    void* allocate() {
+      while (lock++ > 0) {
+         lock--;
+      }
       if (freelist.empty()) {
          int8_t *ptr;
          CUDA_MALLOC(ptr, page_size * SIZE);
-         // printf( "%li\n", page_size*SIZE);
-         allocs.push_back(ptr);
-         for (int i = 0; i < page_size - 1; i++) {
+         total_allocated += page_size * SIZE;
+         for (int i = 0; i < page_size; i++) {
             freelist.push(ptr + i * SIZE);
          }
       }
       int8_t *ptr = freelist.top();
       freelist.pop();
+      lock--;
       return ptr;
    }
    ~finite_vector_allocator() {
-      for (int i = 0; i < allocs.size(); i++) {
-         //       CUDA_FREE(allocs[i]);
-      }
    }
    void deallocate(void *ptr) {
+      while (lock++ > 0) {
+         lock--;
+      }
       freelist.push((int8_t*) ptr);
+      lock--;
    }
 
 };
 
 template<size_t SIZE>
-thread_local std::vector<int8_t*> finite_vector_allocator<SIZE>::allocs;
+std::atomic<int> finite_vector_allocator<SIZE>::lock(0);
 
 template<size_t SIZE>
-thread_local std::stack<int8_t*> finite_vector_allocator<SIZE>::freelist;
+size_t finite_vector_allocator<SIZE>::total_allocated(0);
+
+template<size_t SIZE>
+std::stack<int8_t*> finite_vector_allocator<SIZE>::freelist;
 
 template<class T, size_t N>
 class finite_vector {
    T *ptr;
-   static thread_local finite_vector_allocator<sizeof(T) * N> alloc;
    size_t sz;
+   static finite_vector_allocator<sizeof(T) * N> alloc;
    CUDA_EXPORT inline void destruct(size_t b, size_t e) {
       BLOCKSIZE;
       THREADID;
       for (size_t i = b + tid; i < e; i += blocksize) {
          ptr[i].T::~T();
-      }
-      CUDA_SYNC();
+      }CUDA_SYNC();
    }
    CUDA_EXPORT inline void construct(size_t b, size_t e) {
       BLOCKSIZE;
       THREADID;
       for (int i = b + tid; i < e; i += blocksize) {
          new (ptr + i) T();
-      }
-      CUDA_SYNC();
+      }CUDA_SYNC();
    }
 public:
    CUDA_EXPORT inline finite_vector() {
@@ -106,23 +112,22 @@ public:
       BLOCKSIZE;
       THREADID;
       destruct(0, sz);
+      CUDA_SYNC();
       if (tid == 0) {
          sz = other.sz;
-      }
-      CUDA_SYNC();
+      }CUDA_SYNC();
       construct(0, sz);
+      CUDA_SYNC();
       for (size_t i = tid; i < sz; i += blocksize) {
          ptr[i] = other.ptr[i];
-      }
-      CUDA_SYNC();
+      }CUDA_SYNC();
       return *this;
    }
    CUDA_EXPORT inline finite_vector& operator=(finite_vector &&other) {
       THREADID;
       if (tid == 0) {
          sz = 0;
-      }
-      CUDA_SYNC();
+      }CUDA_SYNC();
       swap(other);
       return *this;
    }
@@ -136,7 +141,7 @@ public:
       THREADID;
       if (tid == 0) {
          sz = _sz;
-      } CUDA_SYNC();
+      }CUDA_SYNC();
    }
    CUDA_EXPORT inline void push_back(const T &data) {
       new (ptr + sz++) T(data);
@@ -177,10 +182,9 @@ public:
          other.ptr = ptr;
          sz = tmp1;
          ptr = tmp3;
-      }
-      CUDA_SYNC();
+      }CUDA_SYNC();
    }
 };
 
 template<class T, size_t N>
-thread_local finite_vector_allocator<sizeof(T) * N> finite_vector<T, N>::alloc;
+finite_vector_allocator<sizeof(T) * N> finite_vector<T, N>::alloc;

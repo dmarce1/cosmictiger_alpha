@@ -38,13 +38,13 @@
 		if( a < b || a >= c ) {                                                             \
 			printf( "Bounds check failed on line %i in file %s:\n", __LINE__, __FILE__);     \
 			printf( "%li is not between %li and %li\n", (size_t) a, (size_t) b, (size_t) c); \
-			ABORT();                                                                         \
+			assert(false);                                                                         \
 		}
 #define BOUNDS_CHECK2(a,b)                                                            \
 		if( a >= b ) {                                                                  \
 			printf( "Bounds check failed on line %i in file %s:\n", __LINE__, __FILE__); \
 			printf( "%li should be less than %li\n",(size_t)  a, (size_t) b);            \
-			ABORT();                                                                     \
+			assert(false);                                                                     \
 		}
 #else
 #define BOUNDS_CHECK1(a,b,c)
