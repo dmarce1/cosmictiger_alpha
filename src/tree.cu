@@ -31,40 +31,51 @@ void reduce_indexes(array<int, KICK_BLOCK_SIZE + 1> &counts) {
    }
 }
 
+#define NITERS 3
+#define MI 0
+#define PI 1
+#define CI 2
+
 CUDA_DEVICE kick_return cuda_kick(tree_ptr tptr, kick_stack &stacks, kick_workspace_t &workspace, int depth) {
    const int &tid = threadIdx.x;
    kick_return rc;
-   __shared__ array<int, KICK_BLOCK_SIZE + 1>
-   mindices;
-   __shared__ array<int, KICK_BLOCK_SIZE + 1>
-   cindices;
-   __shared__ array<int, KICK_BLOCK_SIZE + 1>
-   pindices;
+   __shared__ array<array<int, KICK_BLOCK_SIZE + 1>, NITERS>
+   indices;
+   __shared__ array<int, NITERS>
+   count;
    const auto theta2 = theta * theta;
    array<checks_type*, N_INTERACTION_TYPES> all_checks;
    all_checks[CC_CP_DIRECT] = &stacks.dchecks[depth];
    all_checks[CC_CP_EWALD] = &stacks.echecks[depth];
    all_checks[PC_PP_DIRECT] = &stacks.dchecks[depth];
    all_checks[PC_PP_EWALD] = &stacks.echecks[depth];
+   array<finite_vector<tree_ptr, WORKSPACE_SIZE>*,NITERS> lists;
    auto &multis = workspace.multi_interactions;
    auto &parti = workspace.part_interactions;
    auto &next_checks = workspace.next_checks;
+   lists[MI] = &multis;
+   lists[PI] = &parti;
+   lists[CI] = &next_checks;
    int ninteractions = ((tree*) tptr)->children[0] == tree_ptr() ? 4 : 2;
    for (int type = 0; type < ninteractions; type++) {
       auto &checks = *(all_checks[type]);
       CUDA_SYNC();
-      if (tid == 0) {
-         next_checks.resize(0);
-         multis.resize(0);
-         parti.resize(0);
+      if (tid < NITERS) {
+         lists[tid]->resize(WORKSPACE_SIZE);
       }
       CUDA_SYNC();
       const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
       const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
+      if (tid < NITERS) {
+         count[tid] = 0;
+      }
       do {
          const int cimax = ((checks.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
          for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
-            mindices[tid + 1] = cindices[tid + 1] = pindices[tid + 1] = 0;
+            for (int i = 0; i < NITERS; i++) {
+               indices[i][tid + 1] = 0;
+            }
+            int list_index;
             if (ci < checks.size()) {
                const auto other_radius = ((tree*) checks[ci])->radius;
                const auto other_pos = ((tree*) checks[ci])->pos;
@@ -77,47 +88,30 @@ CUDA_DEVICE kick_return cuda_kick(tree_ptr tptr, kick_stack &stacks, kick_worksp
                   d2 = fmaxf(d2, EWALD_MIN_DIST2);
                }
                const bool far = R2 < theta2 * d2;
-               if (far) {
-                  mindices[tid + 1] = 1;
-               } else if (!checks[ci].is_leaf()) {
-                  cindices[tid + 1] = 1;
-               } else {
-                  pindices[tid + 1] = 1;
-               }
+               list_index = int(!far) * (1 + int(checks[ci].is_leaf()));
+               indices[list_index][tid + 1] = 1;
             }
-            reduce_indexes (mindices);
-            reduce_indexes (cindices);
-            reduce_indexes (pindices);
-            int moffset = multis.size();
-            int poffset = parti.size();
-            int coffset = next_checks.size();
-            CUDA_SYNC();
-            if (tid == 0) {
-               multis.resize(multis.size() + mindices[KICK_BLOCK_SIZE]);
-               parti.resize(parti.size() + pindices[KICK_BLOCK_SIZE]);
-               next_checks.resize(next_checks.size() + cindices[KICK_BLOCK_SIZE]);
+            for (int i = 0; i < NITERS; i++) {
+               reduce_indexes (indices[i]);
             }
             CUDA_SYNC();
             if (ci < checks.size()) {
-               if (mindices[tid] != mindices[tid + 1]) {
-                  multis[moffset + mindices[tid]] = checks[ci];
-               } else if (pindices[tid] != pindices[tid + 1]) {
-                  parti[poffset + pindices[tid]] = checks[ci];
-               } else if (cindices[tid] != cindices[tid + 1]) {
-                  next_checks[coffset + cindices[tid]] = checks[ci];
-               }
+               (*lists[list_index])[count[list_index] + indices[list_index][tid]] = checks[ci];
+            }
+            CUDA_SYNC();
+            if (tid < NITERS) {
+               count[tid] += indices[tid][KICK_BLOCK_SIZE];
             }
             CUDA_SYNC();
          }
          CUDA_SYNC();
-         checks.resize(NCHILD * next_checks.size());
-         for (int i = tid; i < next_checks.size(); i += KICK_BLOCK_SIZE) {
+         checks.resize(NCHILD * count[CI]);
+         for (int i = tid; i < count[CI]; i += KICK_BLOCK_SIZE) {
             auto children = next_checks[i].get_children();
             for (int ci = 0; ci < NCHILD; ci++) {
                checks[2 * i + ci] = children[ci];
             }
          }
-         next_checks.resize(0);
          CUDA_SYNC();
       } while (direct && checks.size());
 
@@ -193,7 +187,7 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
 cuda_set_kick_params<<<1,1>>>(0.7,0);
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, 0, stream>>>(rcptr, stacks_ptr,roots_ptr, depths_ptr, workspaces_ptr);/**/
-/**/                     CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
+/**/                        CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
    /***************************************************************************************************************************************************/
 
    struct cuda_kick_future_shared {
