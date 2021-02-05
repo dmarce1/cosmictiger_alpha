@@ -33,8 +33,8 @@ void reduce_indexes(array<int, KICK_BLOCK_SIZE + 1> &counts) {
 
 #define NITERS 3
 #define MI 0
-#define PI 1
-#define CI 2
+#define CI 1
+#define PI 2
 
 CUDA_DEVICE kick_return cuda_kick(tree_ptr tptr, kick_stack &stacks, kick_workspace_t &workspace, int depth) {
    const int &tid = threadIdx.x;
@@ -66,10 +66,10 @@ CUDA_DEVICE kick_return cuda_kick(tree_ptr tptr, kick_stack &stacks, kick_worksp
       CUDA_SYNC();
       const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
       const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
-      if (tid < NITERS) {
-         count[tid] = 0;
-      }
       do {
+         if (tid < NITERS) {
+            count[tid] = 0;
+         }
          const int cimax = ((checks.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
          for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
             for (int i = 0; i < NITERS; i++) {

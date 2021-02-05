@@ -9,10 +9,13 @@
 
 template<size_t SIZE>
 class finite_vector_allocator {
-   static constexpr size_t page_size = 1024;
+   static constexpr size_t page_size = 65536;
    thread_local static std::vector<int8_t*> allocs;
    thread_local static std::stack<int8_t*> freelist;
 public:
+   finite_vector_allocator() {
+ //     printf( "Threadlocal allocator %li\n", SIZE);
+   }
    void* allocate() {
       if (freelist.empty()) {
          int8_t *ptr;
