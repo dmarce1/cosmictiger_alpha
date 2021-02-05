@@ -18,8 +18,13 @@
 #endif
 
 #define CUDA_DEVICE __device__
-#define CUDA_SYNC() __syncthreads()
 #define CUDA_KERNEL __global__ void
+
+#ifdef __CUDA_ARCH__
+#define CUDA_SYNC() __syncthreads()
+#else
+#define CUDA_SYNC()
+#endif
 
 #include <cuda_runtime.h>
 

@@ -7,6 +7,14 @@
 
 #include <stack>
 
+#ifdef __CUDA_ARCH__
+#define BLOCKSIZE const int& blocksize = blockDim.x
+#define THREADID const int& tid = threadIdx.x
+#else
+#define BLOCKSIZE constexpr int blocksize = 1
+#define THREADID constexpr int tid = 0
+#endif
+
 template<size_t SIZE>
 class finite_vector_allocator {
    static constexpr size_t page_size = 65536;
@@ -14,13 +22,12 @@ class finite_vector_allocator {
    thread_local static std::stack<int8_t*> freelist;
 public:
    finite_vector_allocator() {
- //     printf( "Threadlocal allocator %li\n", SIZE);
    }
    void* allocate() {
       if (freelist.empty()) {
          int8_t *ptr;
          CUDA_MALLOC(ptr, page_size * SIZE);
-       // printf( "%li\n", page_size*SIZE);
+         // printf( "%li\n", page_size*SIZE);
          allocs.push_back(ptr);
          for (int i = 0; i < page_size - 1; i++) {
             freelist.push(ptr + i * SIZE);
@@ -53,14 +60,20 @@ class finite_vector {
    static thread_local finite_vector_allocator<sizeof(T) * N> alloc;
    size_t sz;
    CUDA_EXPORT inline void destruct(size_t b, size_t e) {
-      for (size_t i = b; i < e; i++) {
+      BLOCKSIZE;
+      THREADID;
+      for (size_t i = b + tid; i < e; i += blocksize) {
          ptr[i].T::~T();
       }
+      CUDA_SYNC();
    }
    CUDA_EXPORT inline void construct(size_t b, size_t e) {
-      for (int i = b; i < e; i++) {
+      BLOCKSIZE;
+      THREADID;
+      for (int i = b + tid; i < e; i += blocksize) {
          new (ptr + i) T();
       }
+      CUDA_SYNC();
    }
 public:
    CUDA_EXPORT inline finite_vector() {
@@ -90,16 +103,26 @@ public:
 #endif
    }
    CUDA_EXPORT inline finite_vector& operator=(const finite_vector &other) {
+      BLOCKSIZE;
+      THREADID;
       destruct(0, sz);
-      sz = other.sz;
+      if (tid == 0) {
+         sz = other.sz;
+      }
+      CUDA_SYNC();
       construct(0, sz);
-      for (size_t i = 0; i < sz; i++) {
+      for (size_t i = tid; i < sz; i += blocksize) {
          ptr[i] = other.ptr[i];
       }
+      CUDA_SYNC();
       return *this;
    }
    CUDA_EXPORT inline finite_vector& operator=(finite_vector &&other) {
-      sz = 0;
+      THREADID;
+      if (tid == 0) {
+         sz = 0;
+      }
+      CUDA_SYNC();
       swap(other);
       return *this;
    }
@@ -110,7 +133,10 @@ public:
       assert(_sz <= N);
       construct(sz, _sz);
       destruct(_sz, sz);
-      sz = _sz;
+      THREADID;
+      if (tid == 0) {
+         sz = _sz;
+      } CUDA_SYNC();
    }
    CUDA_EXPORT inline void push_back(const T &data) {
       new (ptr + sz++) T(data);
@@ -143,13 +169,16 @@ public:
       return ptr[i];
    }
    CUDA_EXPORT inline void swap(finite_vector &other) {
-      const auto tmp1 = other.sz;
-      const auto tmp3 = other.ptr;
-      other.sz = sz;
-      other.ptr = ptr;
-      sz = tmp1;
-      ptr = tmp3;
-
+      THREADID;
+      if (tid == 0) {
+         const auto tmp1 = other.sz;
+         const auto tmp3 = other.ptr;
+         other.sz = sz;
+         other.ptr = ptr;
+         sz = tmp1;
+         ptr = tmp3;
+      }
+      CUDA_SYNC();
    }
 };
 

@@ -15,7 +15,7 @@
 #define LEFT 0
 #define RIGHT 1
 #define WORKSPACE_SIZE 1024
-#define KICK_GRID_SIZE (2000)
+#define KICK_GRID_SIZE (2048)
 #define KICK_BLOCK_SIZE 32
 
 #define EWALD_MIN_DIST2 (0.25f * 0.25f)
@@ -119,8 +119,10 @@ struct tree_ptr {
    int constructed;
 #endif
    CUDA_EXPORT inline tree_ptr() {
+#ifndef __CUDA_ARCH__
       rank = -1;
       ptr = 0;
+#endif
 #ifndef NDEBUG
       constructed = 1234;
 #endif

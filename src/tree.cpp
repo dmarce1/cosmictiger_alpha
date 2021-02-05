@@ -254,7 +254,7 @@ void tree::cleanup_workspace(std::shared_ptr<kick_workspace_t> &&work) {
 }
 
 fast_future<kick_return> tree_ptr::kick(kick_stack &stack, int depth, bool try_thread) {
-   if (depth == 11) {
+   if (depth == 9) {
       return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(stack, depth));
    } else {
       static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
@@ -407,15 +407,24 @@ void tree::gpu_daemon() {
    daemon_running = true;
    std::vector < std::function < bool() >> finish;
 
-   int grid_min_size = KICK_GRID_SIZE;
-   int tries = 0;
    while (!shutdown_daemon) {
-
-      if (gpu_queue.size() > grid_min_size) {
-         grid_min_size = KICK_GRID_SIZE;
-         std::unique_lock<hpx::lcos::local::mutex> lock(gpu_mtx);
-         int grid_size = std::min(KICK_GRID_SIZE, (int) gpu_queue.size());
+      timer tm;
+      double wait_time = 1.0e-2;
+      tm.start();
+      do {
+         tm.start();
+         hpx::this_thread::yield();
+         tm.stop();
+      } while( tm.read() < wait_time);
+      int min_grid = KICK_GRID_SIZE;
+      std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
+      while (min_grid > gpu_queue.size() && min_grid > 1) {
+         min_grid /= 2;
+      }
+      while (gpu_queue.size() >= min_grid) {
+         int grid_size = std::min(min_grid, (int) gpu_queue.size());
          //     printf("%li\n", gpu_queue.size());
+         min_grid = KICK_GRID_SIZE;
          finite_vector<kick_stack, KICK_GRID_SIZE> stacks;
          finite_vector<tree_ptr, KICK_GRID_SIZE> roots;
          finite_vector<int, KICK_GRID_SIZE> depths;
@@ -428,7 +437,6 @@ void tree::gpu_daemon() {
             roots.push_back(work_item.tree);
             promises.push_back(std::move(work_item.promise));
          }
-         lock.unlock();
          printf("Executing %i blocks\n", grid_size);
          auto exec_ret = cuda_execute_kick_kernel(std::move(stacks), std::move(roots), std::move(depths), grid_size);
          hpx::apply([exec_ret, grid_size](std::vector<hpx::lcos::local::promise<kick_return>> &&promises) {
@@ -439,14 +447,6 @@ void tree::gpu_daemon() {
                promises[i].set_value((*exec_ret.second)[i]);
             }
          },std::move(promises));
-         tries = 0;
-      } else {
-         tries++;
-      }
-      hpx::this_thread::yield();
-      if (tries == 16*1024) {
-         grid_min_size = std::max(grid_min_size / 2, 1);
-         tries = 0;
       }
    }
 }

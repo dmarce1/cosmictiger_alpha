@@ -47,38 +47,40 @@ void kick_test() {
    particle_set parts(global().opts.nparts);
    parts.generate_random();
    tree::set_particle_set(&parts);
-   printf("Sorting\n");
-   tree root;
-   timer tm;
-   tm.start();
-   root.sort();
-   tm.stop();
-   printf("Sort in %e seconds\n", tm.read());
-   tm.reset();
-   tree_ptr root_ptr;
-   root_ptr.ptr = (uintptr_t) & root;
-   root_ptr.rank = hpx_rank();
-   // printf( "%li", size_t(WORKSPACE_SIZE));
-   kick_stack stack;
-   stack.dchecks[0].push_back(root_ptr);
-   stack.echecks[0].push_back(root_ptr);
-   // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
-   expansion L;
-   for (int i = 0; i < LP; i++) {
-      L[i] = 0.f;
+   for (int i = 0; i < 2; i++) {
+      printf("Sorting\n");
+      tree root;
+      timer tm;
+      tm.start();
+      root.sort();
+      tm.stop();
+      printf("Sort in %e seconds\n", tm.read());
+      tm.reset();
+      tree_ptr root_ptr;
+      root_ptr.ptr = (uintptr_t) & root;
+      root_ptr.rank = hpx_rank();
+      // printf( "%li", size_t(WORKSPACE_SIZE));
+      kick_stack stack;
+      stack.dchecks[0].push_back(root_ptr);
+      stack.echecks[0].push_back(root_ptr);
+      // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
+      expansion L;
+      for (int i = 0; i < LP; i++) {
+         L[i] = 0.f;
+      }
+      array<exp_real, NDIM> Lpos;
+      for (int dim = 0; dim < NDIM; dim++) {
+         Lpos[dim] = 0.5;
+      }
+      stack.L[0] = L;
+      stack.Lpos[0] = Lpos;
+      tree::set_kick_parameters(0.7, 0);
+      printf("Kicking\n");
+      tm.start();
+      root.kick(stack, 0).get();
+      tm.stop();
+      printf("Done kicking in %e seconds\n\n", tm.read());
    }
-   array<exp_real, NDIM> Lpos;
-   for (int dim = 0; dim < NDIM; dim++) {
-      Lpos[dim] = 0.5;
-   }
-   stack.L[0] = L;
-   stack.Lpos[0] = Lpos;
-   tree::set_kick_parameters(0.7, 0);
-   printf("Kicking\n");
-   tm.start();
-   root.kick(stack, 0).get();
-   tm.stop();
-   printf("Done kicking in %e seconds\n", tm.read());
 }
 
 static void sort() {
