@@ -48,14 +48,10 @@ void kick_test() {
    parts.generate_random();
    tree::set_particle_set(&parts);
    for (int i = 0; i < 2; i++) {
-      printf("Sorting\n");
       tree root;
       timer tm;
       tm.start();
       root.sort();
-      tm.stop();
-      printf("Sort in %e seconds\n", tm.read());
-      tm.reset();
       tree_ptr root_ptr;
       root_ptr.ptr = (uintptr_t) & root;
       root_ptr.rank = hpx_rank();
@@ -75,10 +71,9 @@ void kick_test() {
       stack.L[0] = L;
       stack.Lpos[0] = Lpos;
       tree::set_kick_parameters(0.7, 0);
-      printf("Kicking\n");
-      tm.start();
       root.kick(stack, 0).get();
       tm.stop();
+      tree::cleanup();
       printf("Done kicking in %e seconds\n\n", tm.read());
    }
 }

@@ -228,6 +228,7 @@ std::stack<std::shared_ptr<kick_workspace_t>> tree::kick_works;
 
 void tree::cleanup() {
    shutdown_daemon = true;
+   daemon_running = false;
    while (kick_works.size()) {
       kick_works.pop();
    }
@@ -446,6 +447,7 @@ void tree::gpu_daemon() {
          tries = 0;
       }
    }
+   shutdown_daemon = false;
 }
 
 hpx::future<kick_return> tree::send_kick_to_gpu(kick_stack &stack, int depth) {
