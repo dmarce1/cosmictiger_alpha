@@ -130,6 +130,7 @@ struct tree_ptr {
    CUDA_EXPORT inline tree_ptr(tree_ptr &&other) {
       rank = other.rank;
       ptr = other.ptr;
+      opened = other.opened;
 #ifndef NDEBUG
       constructed = 1234;
 #endif
@@ -137,6 +138,7 @@ struct tree_ptr {
    CUDA_EXPORT inline tree_ptr(const tree_ptr &other) {
       rank = other.rank;
       ptr = other.ptr;
+      opened = other.opened;
 #ifndef NDEBUG
       constructed = 1234;
 #endif
@@ -145,6 +147,7 @@ struct tree_ptr {
       assert(constructed == 1234);
       ptr = other.ptr;
       rank = other.rank;
+      opened = other.opened;
       return *this;
    }
    CUDA_EXPORT
@@ -152,17 +155,19 @@ struct tree_ptr {
       assert(constructed == 1234);
       ptr = other.ptr;
       rank = other.rank;
+      opened = other.opened;
       return *this;
    }
    CUDA_EXPORT
    inline bool operator==(const tree_ptr &other) const {
       assert(constructed == 1234);
-      return rank == other.rank && ptr == other.ptr;
+      return rank == other.rank && ptr == other.ptr && opened == other.opened;
    }
    template<class A>
    void serialization(A &&arc, unsigned) {
       arc & ptr;
       arc & rank;
+      arc & opened;
    }
    CUDA_EXPORT
 
@@ -205,7 +210,7 @@ struct kick_stack {
    finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> dchecks;
    finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> echecks;
    finite_vector<expansion, TREE_MAX_DEPTH> L;
-   finite_vector<array<exp_real, NDIM>, TREE_MAX_DEPTH> Lpos;
+   finite_vector<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
    kick_stack(kick_stack&&) = default;
    kick_stack& operator=(kick_stack&&) = default;
     kick_stack() {

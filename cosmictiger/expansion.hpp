@@ -272,7 +272,7 @@ CUDA_EXPORT inline void expansion_type<T>::translate_L2(array<T,NDIM>& g, T& phi
 	}
 }
 
-using exp_real = double;
+using exp_real = float;
 
 using expansion = expansion_type<exp_real>;
 

@@ -75,6 +75,7 @@ struct cuda_properties {
 cuda_properties cuda_init();
 
 
+
 template<class T>
 CUDA_EXPORT inline T sqr(T a) {
    return a * a;

@@ -51,7 +51,6 @@
 #define BOUNDS_CHECK2(a,b)
 #endif
 
-
 #ifdef __CUDA_ARCH__
 #define ABORT() __trap()
 #else

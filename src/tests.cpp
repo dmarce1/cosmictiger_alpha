@@ -68,7 +68,7 @@ void kick_test() {
       for (int i = 0; i < LP; i++) {
          L[i] = 0.f;
       }
-      array<exp_real, NDIM> Lpos;
+      array<fixed32, NDIM> Lpos;
       for (int dim = 0; dim < NDIM; dim++) {
          Lpos[dim] = 0.5;
       }
