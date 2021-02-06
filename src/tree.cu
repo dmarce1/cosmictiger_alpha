@@ -33,21 +33,45 @@ struct cuda_kick_params {
 using indices_array = array<array<int8_t, KICK_BLOCK_SIZE + 1>, NITERS>;
 using counts_array = array<int16_t, NITERS>;
 
-#define KICK_PP_MAX 256
+#define KICK_PP_MAX 128
 
 using pos_array = array<fixed32,KICK_PP_MAX>;
 
+#define MAX_BUCKET_SIZE 64
+struct cuda_kick_shmem {
+   indices_array indices;
+   counts_array count;
+   array<float, KICK_BLOCK_SIZE> f_x;
+   array<float, KICK_BLOCK_SIZE> f_y;
+   array<float, KICK_BLOCK_SIZE> f_z;
+   array<float, MAX_BUCKET_SIZE> Fx;
+   array<float, MAX_BUCKET_SIZE> Fy;
+   array<float, MAX_BUCKET_SIZE> Fz;
+   array<fixed32, KICK_PP_MAX> x;
+   array<fixed32, KICK_PP_MAX> y;
+   array<fixed32, KICK_PP_MAX> z;
+};
+
 CUDA_DEVICE void cuda_pp_interactions(cuda_kick_params &params) {
-   const int &tid = threadIdx.x;
-   const int &depth = params.depth;
    __shared__
-   extern int shmem[];
-   pos_array &xsource = *((pos_array*) (shmem));
-   pos_array &ysource = *((pos_array*) (shmem) + 1);
-   pos_array &zsource = *((pos_array*) (shmem) + 2);
+   extern int shmem_ptr[];
+   cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
+   auto &f_x = shmem.f_x;
+   auto &f_y = shmem.f_y;
+   auto &f_z = shmem.f_z;
+   auto &Fx = shmem.Fx;
+   auto &Fy = shmem.Fy;
+   auto &Fz = shmem.Fz;
+   auto &source_x = shmem.x;
+   auto &source_y = shmem.y;
+   auto &source_z = shmem.z;
+   const int &tid = threadIdx.x;
    auto &inters = params.workspace.part_interactions;
    if (inters.size()) {
       int i = 0;
+      const auto &myparts = ((tree*) params.tptr)->parts;
+      const size_t nsinks = myparts.second - myparts.first;
+      __syncthreads();
       while (i < inters.size()) {
          pair<size_t, size_t> these_parts;
          these_parts = ((tree*) inters[i])->parts;
@@ -61,13 +85,45 @@ CUDA_DEVICE void cuda_pp_interactions(cuda_kick_params &params) {
                break;
             }
          }
+         const auto offset = ((tree*) params.tptr)->parts.first;
          for (int j = these_parts.first + tid; j < these_parts.second; j += KICK_BLOCK_SIZE) {
-            const auto offset = these_parts.first;
-            assert(j - offset <= KICK_BLOCK_SIZE);
-            xsource[j - offset] = parts->pos(0, j);
-            ysource[j - offset] = parts->pos(1, j);
-            zsource[j - offset] = parts->pos(2, j);
-            //     printf("Loading\n");
+            const auto j0 = j - these_parts.first;
+            source_x[j0] = parts->pos(0, j);
+            source_y[j0] = parts->pos(1, j);
+            source_z[j0] = parts->pos(2, j);
+         }
+         __syncthreads();
+         for (int k = 0; k < nsinks; k++) {
+            f_x[tid] = f_y[tid] = f_x[tid];
+            const auto sink_x = parts->pos(0, offset + k);
+            const auto sink_y = parts->pos(1, offset + k);
+            const auto sink_z = parts->pos(2, offset + k);
+            for (int j = these_parts.first + tid; j < these_parts.second; j += KICK_BLOCK_SIZE) {
+               const auto j0 = j - these_parts.first;
+               const auto dx = (fixed<int32_t>(source_x[j0]) - fixed<int32_t>(sink_x)).to_float();
+               const auto dy = (fixed<int32_t>(source_y[j0]) - fixed<int32_t>(sink_y)).to_float();
+               const auto dz = (fixed<int32_t>(source_z[j0]) - fixed<int32_t>(sink_z)).to_float();
+               const auto r2 = sqr(dx) + sqr(dy) + sqr(dz);
+               const auto rinv = rsqrtf(r2);
+               const auto rinv3 = rinv * rinv * rinv;
+               f_x[tid] -= dx * rinv3;
+               f_y[tid] -= dy * rinv3;
+               f_z[tid] -= dz * rinv3;
+            }
+            for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+               if (tid < P) {
+                  f_x[tid] += f_x[tid + P];
+                  f_y[tid] += f_y[tid + P];
+                  f_z[tid] += f_z[tid + P];
+               }
+               __syncthreads();
+            }
+            if (tid == 0) {
+               Fx[k] += f_x[0];
+               Fy[k] += f_y[0];
+               Fz[k] += f_z[0];
+            }
+            __syncthreads();
          }
       }
    }
@@ -75,15 +131,27 @@ CUDA_DEVICE void cuda_pp_interactions(cuda_kick_params &params) {
 
 CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
    __shared__
-   extern int shmem[];
+   extern int shmem_ptr[];
+   cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    kick_stack &stacks = params.stacks;
    tree_ptr tptr = params.tptr;
    const int &tid = threadIdx.x;
    int depth = params.depth;
    kick_return rc;
+   auto &Fx = shmem.Fx;
+   auto &Fy = shmem.Fy;
+   auto &Fz = shmem.Fz;
+   if (((tree*) tptr)->children[0].rank == -1) {
+      for (int k = tid; k < MAX_BUCKET_SIZE; k += KICK_BLOCK_SIZE) {
+         Fx[k] = 0.f;
+         Fy[k] = 0.f;
+         Fz[k] = 0.f;
+      }
+      __syncthreads();
+   }
    {
-      indices_array &indices = *(indices_array*) shmem;
-      counts_array &count = *(counts_array*) (((uint8_t*) shmem) + sizeof(indices_array));
+      indices_array &indices = shmem.indices;
+      counts_array &count = shmem.count;
 
       kick_workspace_t &workspace = params.workspace;
 
@@ -243,7 +311,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_
 
 void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
-                              CUDA_CHECK(cudaDeviceSynchronize());
+                                                                                             CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(finite_vector<kick_return, KICK_GRID_SIZE> *rc,
@@ -280,11 +348,12 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
    CUDA_MALLOC(roots_ptr, 1);
    CUDA_MALLOC(depths_ptr, 1);
    CUDA_MALLOC(workspaces_ptr, 1);
+   //  printf("Shared mem requirements = %li\n", sizeof(cuda_kick_shmem));
    new (stacks_ptr) finite_vector<kick_stack, KICK_GRID_SIZE>(std::move(stacks));
    new (roots_ptr) finite_vector<tree_ptr, KICK_GRID_SIZE>(std::move(roots));
    new (depths_ptr) finite_vector<int, KICK_GRID_SIZE>(std::move(depths));
    new (workspaces_ptr) finite_vector<kick_workspace_t, KICK_GRID_SIZE>(std::move(workspaces));
-   const size_t shmemsize = std::max(sizeof(indices_array) + sizeof(counts_array), NDIM * sizeof(pos_array));
+   const size_t shmemsize = sizeof(cuda_kick_shmem);
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(rcptr, stacks_ptr,roots_ptr, depths_ptr, workspaces_ptr);/**/
    /**/   CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/

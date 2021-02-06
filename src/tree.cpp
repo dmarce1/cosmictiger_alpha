@@ -255,7 +255,7 @@ void tree::cleanup_workspace(std::shared_ptr<kick_workspace_t> &&work) {
 }
 
 fast_future<kick_return> tree_ptr::kick(kick_stack &stack, int depth, bool try_thread) {
-   if (depth == 7) {
+   if (depth == 8) {
       return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(stack, depth));
    } else {
       static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
@@ -268,9 +268,9 @@ fast_future<kick_return> tree_ptr::kick(kick_stack &stack, int depth, bool try_t
          } else {
             thread_cnt--;
          }
+         thread = true;
       }
 #endif
-      //    thread = false;
       if (!thread) {
          return fast_future<kick_return>(((tree*) ptr)->kick(stack, depth));
       } else {
@@ -414,7 +414,7 @@ void tree::gpu_daemon() {
    int min_grid_size = KICK_GRID_SIZE;
    while (!shutdown_daemon) {
       hpx::this_thread::yield();
-      if (tries == 1024) {
+      if (tries == min_grid_size) {
          min_grid_size = std::max(1, min_grid_size / 2);
          tries = 0;
       } else {

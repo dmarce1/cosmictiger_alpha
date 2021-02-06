@@ -47,6 +47,7 @@ cuda_properties cuda_init() {
       printf("Unable to set recursion limit to %i\n", RECUR_LIMIT);
       fail = true;
    }
+  // CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
    if (fail) {
       abort();
    }

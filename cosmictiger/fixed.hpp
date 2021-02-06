@@ -48,7 +48,7 @@ public:
    }
 
    CUDA_EXPORT
-   inline fixed<T>() = default;
+   constexpr inline fixed<T>() : i(0) {}
 
    CUDA_EXPORT
    inline
