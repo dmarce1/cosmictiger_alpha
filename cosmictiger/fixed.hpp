@@ -97,7 +97,7 @@ public:
 
    CUDA_EXPORT
    inline float to_float() const {
-      return i * cinv;
+      return float(i) * cinv;
 
    }
 

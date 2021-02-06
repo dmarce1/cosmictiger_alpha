@@ -255,7 +255,7 @@ void tree::cleanup_workspace(std::shared_ptr<kick_workspace_t> &&work) {
 }
 
 fast_future<kick_return> tree_ptr::kick(kick_stack &stack, int depth, bool try_thread) {
-   if (depth == 8) {
+   if (depth == 7) {
       return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(stack, depth));
    } else {
       static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
