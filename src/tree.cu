@@ -33,7 +33,9 @@ struct cuda_kick_params {
 using indices_array = array<array<int8_t, KICK_BLOCK_SIZE + 1>, NITERS>;
 using counts_array = array<int16_t, NITERS>;
 
-using pos_array = array<fixed32,WORKSPACE_SIZE>;
+#define KICK_PP_MAX 256
+
+using pos_array = array<fixed32,KICK_PP_MAX>;
 
 CUDA_DEVICE void cuda_pp_interactions(cuda_kick_params &params) {
    const int &tid = threadIdx.x;
@@ -41,8 +43,8 @@ CUDA_DEVICE void cuda_pp_interactions(cuda_kick_params &params) {
    __shared__
    extern int shmem[];
    pos_array &xsource = *((pos_array*) (shmem));
-   pos_array &ysource = *((pos_array*) ((int8_t*) shmem) + sizeof(pos_array));
-   pos_array &zsource = *((pos_array*) ((int8_t*) shmem) + 2 * sizeof(pos_array));
+   pos_array &ysource = *((pos_array*) (shmem) + 1);
+   pos_array &zsource = *((pos_array*) (shmem) + 2);
    auto &inters = params.workspace.part_interactions;
    if (inters.size()) {
       int i = 0;
@@ -51,7 +53,8 @@ CUDA_DEVICE void cuda_pp_interactions(cuda_kick_params &params) {
          these_parts = ((tree*) inters[i])->parts;
          i++;
          while (i < inters.size()) {
-            if (((tree*) inters[i])->parts.first == these_parts.second) {
+            auto next_parts = ((tree*) inters[i])->parts;
+            if (next_parts.first == these_parts.second && next_parts.second - these_parts.first <= KICK_PP_MAX) {
                these_parts.second = ((tree*) inters[i])->parts.second;
                i++;
             } else {
@@ -64,7 +67,7 @@ CUDA_DEVICE void cuda_pp_interactions(cuda_kick_params &params) {
             xsource[j - offset] = parts->pos(0, j);
             ysource[j - offset] = parts->pos(1, j);
             zsource[j - offset] = parts->pos(2, j);
-            printf("Loading\n");
+            //     printf("Loading\n");
          }
       }
    }
@@ -205,7 +208,7 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
          parti.resize(count[PI]);
 
          if (type == PC_PP_DIRECT) {
-            //    cuda_pp_interactions(params);
+            cuda_pp_interactions(params);
          }
 
          /*********** DO INTERACTIONS *********************/
@@ -240,7 +243,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_
 
 void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
-                        CUDA_CHECK(cudaDeviceSynchronize());
+                              CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(finite_vector<kick_return, KICK_GRID_SIZE> *rc,
