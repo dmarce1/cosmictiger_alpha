@@ -85,6 +85,7 @@ public:
    CUDA_EXPORT inline finite_vector() {
 #ifndef __CUDA_ARCH__
       ptr = (T*) alloc.allocate();
+      construct(0,N);
 #else
       assert(false);
 #endif
@@ -94,6 +95,7 @@ public:
    CUDA_EXPORT inline finite_vector(finite_vector &&other) {
 #ifndef __CUDA_ARCH__
       ptr = (T*) alloc.allocate();
+      construct(0,N);
 #else
       assert(false);
 #endif
@@ -101,8 +103,8 @@ public:
       swap(other);
    }
    CUDA_EXPORT inline ~finite_vector() {
-      destruct(0, sz);
 #ifndef __CUDA_ARCH__
+      destruct(0,N);
       alloc.deallocate(ptr);
 #else
       assert(false);
@@ -111,12 +113,10 @@ public:
    CUDA_EXPORT inline finite_vector& operator=(const finite_vector &other) {
       BLOCKSIZE;
       THREADID;
-      destruct(0, sz);
       CUDA_SYNC();
       if (tid == 0) {
          sz = other.sz;
       }CUDA_SYNC();
-      construct(0, sz);
       CUDA_SYNC();
       for (size_t i = tid; i < sz; i += blocksize) {
          ptr[i] = other.ptr[i];
@@ -136,18 +136,16 @@ public:
    }
    CUDA_EXPORT inline void resize(size_t _sz) {
       assert(_sz <= N);
-      construct(sz, _sz);
-      destruct(_sz, sz);
       THREADID;
       if (tid == 0) {
          sz = _sz;
       }CUDA_SYNC();
    }
    CUDA_EXPORT inline void push_back(const T &data) {
-      new (ptr + sz++) T(data);
+      ptr[sz++] = data;
    }
    CUDA_EXPORT inline void push_back(T &&data) {
-      new (ptr + sz++) T(std::move(data));
+      ptr[sz++] = std::move(data);
    }
    CUDA_EXPORT inline T& back() {
       BOUNDS_CHECK2(0, sz);

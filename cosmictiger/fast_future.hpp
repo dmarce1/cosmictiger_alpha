@@ -22,6 +22,10 @@ public:
       data = std::move(data_);
       return *this;
    }
+   inline fast_future(const T& data_) {
+      has_data = true;
+      data = data_;
+   }
    inline fast_future(T&& data_) {
       has_data = true;
       data = std::move(data_);

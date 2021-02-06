@@ -255,7 +255,7 @@ void tree::cleanup_workspace(std::shared_ptr<kick_workspace_t> &&work) {
 }
 
 fast_future<kick_return> tree_ptr::kick(kick_stack &stack, int depth, bool try_thread) {
-   if (depth == 9) {
+   if (depth == 8) {
       return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(stack, depth));
    } else {
       static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
@@ -345,6 +345,8 @@ hpx::future<kick_return> tree::kick(kick_stack &stacks, int depth) {
                const auto child_checks = checks[ci].get_children().get();
                next_checks.push_back(child_checks[LEFT]);
                next_checks.push_back(child_checks[RIGHT]);
+            } else if (!checks[ci].opened++) {
+               next_checks.push_back(checks[ci]);
             } else {
                parti.push_back(checks[ci]);
             }
@@ -359,7 +361,7 @@ hpx::future<kick_return> tree::kick(kick_stack &stacks, int depth) {
 
    }
 
-   // printf("3\n");
+// printf("3\n");
    cleanup_workspace(std::move(workspace));
 
    if (!is_leaf()) {
@@ -413,14 +415,14 @@ void tree::gpu_daemon() {
    while (!shutdown_daemon) {
       hpx::this_thread::yield();
       if (tries == 1024) {
-         min_grid_size = std::max(1,min_grid_size/2);
+         min_grid_size = std::max(1, min_grid_size / 2);
          tries = 0;
       } else {
          tries++;
       }
       std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
       while (gpu_queue.size() >= min_grid_size) {
-         int grid_size = std::min((int) gpu_queue.size(), min_grid_size);
+         int grid_size = min_grid_size;
          min_grid_size = KICK_GRID_SIZE;
          finite_vector<kick_stack, KICK_GRID_SIZE> stacks;
          finite_vector<tree_ptr, KICK_GRID_SIZE> roots;

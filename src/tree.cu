@@ -13,33 +13,39 @@
 CUDA_DEVICE float theta;
 CUDA_DEVICE int8_t rung;
 
-#define NITERS 3
+#define NITERS 4
 #define MI 0
 #define CI 1
-#define PI 2
+#define OI 2
+#define PI 3
 
 struct cuda_kick_params {
    tree_ptr tptr;
    kick_stack &stacks;
    kick_workspace_t &workspace;
+   finite_vector<int,TREE_MAX_DEPTH> dcheck_count;
+   finite_vector<int,TREE_MAX_DEPTH> echeck_count;
    int depth;
-   array<int, NITERS> counts;
-   array<array<int, KICK_BLOCK_SIZE + 1>, NITERS> indices;
-   CUDA_EXPORT cuda_kick_params(kick_stack &s, kick_workspace_t &w, array<array<int, KICK_BLOCK_SIZE + 1>, NITERS> &i,
-         array<int, NITERS> &c) :
-         stacks(s), workspace(w), indices(i), counts(c) {
+   CUDA_EXPORT cuda_kick_params(kick_stack &s, kick_workspace_t &w) :
+         stacks(s), workspace(w) {
    }
 };
 
+using indices_array = array<array<int, KICK_BLOCK_SIZE + 1>, NITERS>;
+using counts_array = array<int, NITERS>;
+
 CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
+   __shared__
+   extern int shmem[];
+   indices_array& indices = *(indices_array*)shmem;
+   counts_array& count = *(counts_array*)(((uint8_t*) shmem) + sizeof(indices_array));
+
    tree_ptr tptr = params.tptr;
    kick_stack &stacks = params.stacks;
    kick_workspace_t &workspace = params.workspace;
    int depth = params.depth;
    const int &tid = threadIdx.x;
    kick_return rc;
-   array<array<int, KICK_BLOCK_SIZE + 1>, NITERS>& indices = params.indices;
-   array<int, NITERS> count = params.counts;
 
    const auto theta2 = theta * theta;
    array<checks_type*, N_INTERACTION_TYPES> all_checks;
@@ -51,80 +57,109 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
    auto &multis = workspace.multi_interactions;
    auto &parti = workspace.part_interactions;
    auto &next_checks = workspace.next_checks;
+   auto &opened_checks = workspace.opened_checks;
    lists[MI] = &multis;
    lists[PI] = &parti;
    lists[CI] = &next_checks;
+   lists[OI] = &opened_checks;
+   for (int i = 0; i < NITERS; i++) {
+      lists[i]->resize(WORKSPACE_SIZE);
+   }
    int ninteractions = ((tree*) tptr)->children[0].rank == -1 ? 4 : 2;
    for (int type = 0; type < ninteractions; type++) {
       auto &checks = *(all_checks[type]);
-      for (int i = 0; i < NITERS; i++) {
-         lists[i]->resize(WORKSPACE_SIZE);
-      }
       const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
       const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
-      int check_count = checks.size();
-      checks.resize(WORKSPACE_SIZE);
       if (tid < NITERS) {
          count[tid] = 0;
-      } CUDA_SYNC();
+      }
+      __syncthreads();
+      int check_count;
       do {
-         const int cimax = ((check_count - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
-         for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
-            for (int i = 0; i < NITERS; i++) {
-               indices[i][tid + 1] = 0;
-            }
-            int list_index;
-            if (ci < check_count) {
-               const auto other_radius = ((tree*) checks[ci])->radius;
-               const auto other_pos = ((tree*) checks[ci])->pos;
-               float d2 = 0.f;
-               const float R2 = sqr(other_radius + ((tree*) tptr)->radius);
-               for (int dim = 0; dim < NDIM; dim++) {
-                  d2 += sqr(fixed<int32_t>(other_pos[dim]) - fixed<int32_t>(((tree*) tptr)->pos[dim])).to_float();
+         if (checks.size()) {
+            check_count = checks.size();
+            checks.resize(WORKSPACE_SIZE);
+            const int cimax = check_count > 0 ? ((check_count - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE : 0;
+            for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
+               for (int i = 0; i < NITERS; i++) {
+                  indices[i][tid + 1] = 0;
                }
-               if (ewald_dist) {
-                  d2 = fmaxf(d2, EWALD_MIN_DIST2);
+               __syncthreads();
+               if (tid < NITERS) {
+                  indices[tid][0] = 0;
                }
-               const bool far = R2 < theta2 * d2;
-               list_index = int(!far) * (1 + int(checks[ci].is_leaf()));
-               indices[list_index][tid + 1] = 1;
-            } CUDA_SYNC();
-            if (tid < NITERS) {
-               indices[tid][0] = 0;
-            } CUDA_SYNC();
-            for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
-               array<int, NITERS> tmp;
-               if (tid - P + 1 >= 0) {
-                  for (int i = 0; i < NITERS; i++) {
-                     tmp[i] = indices[i][tid - P + 1];
+               __syncthreads();
+               int list_index = -1;
+               if (ci < check_count) {
+                  const auto other_radius = ((tree*) checks[ci])->radius;
+                  const auto other_pos = ((tree*) checks[ci])->pos;
+                  float d2 = 0.f;
+                  const float R2 = sqr(other_radius + ((tree*) tptr)->radius);
+                  for (int dim = 0; dim < NDIM; dim++) {
+                     d2 += sqr(fixed<int32_t>(other_pos[dim]) - fixed<int32_t>(((tree*) tptr)->pos[dim])).to_float();
                   }
-               } CUDA_SYNC();
-               if (tid - P + 1 >= 0) {
-                  for (int i = 0; i < NITERS; i++) {
-                     indices[i][tid + 1] += tmp[i];
+                  if (ewald_dist) {
+                     d2 = fmaxf(d2, EWALD_MIN_DIST2);
                   }
-               } CUDA_SYNC();
-            } CUDA_SYNC();
-            if (ci < check_count) {
-               (*lists[list_index])[count[list_index] + indices[list_index][tid]] = checks[ci];
-            } CUDA_SYNC();
-            if (tid < NITERS) {
-               count[tid] += indices[tid][KICK_BLOCK_SIZE];
-            } CUDA_SYNC();
-         } CUDA_SYNC();
-         for (int i = tid; i < count[CI]; i += KICK_BLOCK_SIZE) {
-            auto children = next_checks[i].get_children();
-            for (int ci = 0; ci < NCHILD; ci++) {
-               checks[2 * i + ci] = children[ci];
+                  const bool far = R2 < theta2 * d2;
+                  const bool isleaf = ((tree*) checks[ci])->children[0].rank == -1;
+                  list_index = int(!far) * (1 + int(isleaf) + int(isleaf && bool(checks[ci].opened++)));
+                  indices[list_index][tid + 1] = 1;
+               }
+               __syncthreads();
+               for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
+                  array<int, NITERS> tmp;
+                  if (tid + 1 > P) {
+                     for (int i = 0; i < NITERS; i++) {
+                        tmp[i] = indices[i][tid - P + 1];
+                     }
+                  }
+                  __syncthreads();
+                  if (tid + 1 > P) {
+                     for (int i = 0; i < NITERS; i++) {
+                        indices[i][tid + 1] += tmp[i];
+                     }
+                  }
+                  __syncthreads();
+               }
+               __syncthreads();
+               if (ci < check_count) {
+                  assert(indices[list_index][tid] != indices[list_index][tid + 1]);
+                  (*lists[list_index])[count[list_index] + indices[list_index][tid]] = checks[ci];
+               }
+               __syncthreads();
+               if (tid < NITERS) {
+                  count[tid] += indices[tid][KICK_BLOCK_SIZE];
+               }
+               __syncthreads();
             }
+            __syncthreads();
+            for (int i = tid; i < count[CI]; i += KICK_BLOCK_SIZE) {
+               auto children = next_checks[i].get_children();
+               for (int j = 0; j < NCHILD; j++) {
+                  checks[2 * i + j] = children[j];
+               }
+            }
+            check_count = 2 * count[CI];
+            if (type == CC_CP_DIRECT || type == CC_CP_EWALD) {
+               for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
+                  checks[check_count + i] = opened_checks[i];
+               }
+               check_count += count[OI];
+            } else {
+               for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
+                  parti[count[PI] + i] = opened_checks[i];
+               }
+            }
+            __syncthreads();
+            if (tid == 0) {
+               count[CI] = 0;
+               count[OI] = 0;
+            }
+            __syncthreads();
+            checks.resize(check_count);
          }
-         check_count = 2 * count[CI];
-         CUDA_SYNC();
-         if (tid == 0) {
-            count[CI] = 0;
-         } CUDA_SYNC();
       } while (direct && check_count);
-      checks.resize(check_count);
       multis.resize(count[MI]);
       parti.resize(count[PI]);
 
@@ -160,11 +195,7 @@ CUDA_KERNEL cuda_kick_kernel(finite_vector<kick_return, KICK_GRID_SIZE> *rc,
       finite_vector<kick_stack, KICK_GRID_SIZE> *stacks, finite_vector<tree_ptr, KICK_GRID_SIZE> *roots,
       finite_vector<int, KICK_GRID_SIZE> *depths, finite_vector<kick_workspace_t, KICK_GRID_SIZE> *workspaces) {
    const int &bid = blockIdx.x;
-   __shared__ array<array<int, KICK_BLOCK_SIZE + 1>, NITERS>
-   indices;
-   __shared__ array<int, NITERS>
-   count;
-   cuda_kick_params params((*stacks)[bid], (*workspaces)[bid], indices, count);
+   cuda_kick_params params((*stacks)[bid], (*workspaces)[bid]);
    params.tptr = (*roots)[bid];
    params.depth = (*depths)[bid];
    (*rc)[bid] = cuda_kick(params);
@@ -198,10 +229,11 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
    new (roots_ptr) finite_vector<tree_ptr, KICK_GRID_SIZE>(std::move(roots));
    new (depths_ptr) finite_vector<int, KICK_GRID_SIZE>(std::move(depths));
    new (workspaces_ptr) finite_vector<kick_workspace_t, KICK_GRID_SIZE>(std::move(workspaces));
+   const size_t shmemsize = sizeof(indices_array) + sizeof(counts_array);
 cuda_set_kick_params<<<1,1>>>(0.7,0);
    /***************************************************************************************************************************************************/
-   /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, 0, stream>>>(rcptr, stacks_ptr,roots_ptr, depths_ptr, workspaces_ptr);/**/
-/**/                                          CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
+   /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(rcptr, stacks_ptr,roots_ptr, depths_ptr, workspaces_ptr);/**/
+/**/                                                                           CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
    /***************************************************************************************************************************************************/
 
    struct cuda_kick_future_shared {

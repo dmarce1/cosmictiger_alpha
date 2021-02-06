@@ -15,7 +15,7 @@
 #define LEFT 0
 #define RIGHT 1
 #define WORKSPACE_SIZE 1024
-#define KICK_GRID_SIZE  128
+#define KICK_GRID_SIZE  256
 #define KICK_BLOCK_SIZE 32
 
 #define EWALD_MIN_DIST2 (0.25f * 0.25f)
@@ -115,14 +115,14 @@ struct kick_stack;
 struct tree_ptr {
    uintptr_t ptr;
    int rank;
+   int8_t opened;
 #ifndef NDEBUG
    int constructed;
 #endif
    CUDA_EXPORT inline tree_ptr() {
-#ifndef __CUDA_ARCH__
       rank = -1;
       ptr = 0;
-#endif
+      opened = false;
 #ifndef NDEBUG
       constructed = 1234;
 #endif
@@ -198,6 +198,7 @@ struct kick_workspace_t {
    checks_type multi_interactions;
    checks_type part_interactions;
    checks_type next_checks;
+   checks_type opened_checks;
 };
 
 struct kick_stack {
@@ -206,7 +207,8 @@ struct kick_stack {
    finite_vector<expansion, TREE_MAX_DEPTH> L;
    finite_vector<array<exp_real, NDIM>, TREE_MAX_DEPTH> Lpos;
    kick_stack(kick_stack&&) = default;
-   kick_stack() {
+   kick_stack& operator=(kick_stack&&) = default;
+    kick_stack() {
       dchecks.resize(TREE_MAX_DEPTH);
       echecks.resize(TREE_MAX_DEPTH);
       L.resize(TREE_MAX_DEPTH);
@@ -259,7 +261,7 @@ public:
    static hpx::lcos::local::mutex mtx;
    static hpx::lcos::local::mutex gpu_mtx;
    static std::stack<std::shared_ptr<kick_workspace_t>> kick_works;
-   hpx::future<kick_return> send_kick_to_gpu(kick_stack &stack, int depth);
+   hpx::future<kick_return> send_kick_to_gpu(kick_stack& stack, int depth);
    static void gpu_daemon();
    inline bool is_leaf() const {
       return children[0] == tree_ptr();
@@ -278,7 +280,7 @@ public:
 inline fast_future<array<tree_ptr, NCHILD>> tree_ptr::get_children() const {
    assert(constructed == 1234);
    assert(ptr);
-   return fast_future<array<tree_ptr, NCHILD>>(std::move(((tree*) ptr)->children));
+   return fast_future<array<tree_ptr, NCHILD>>(((tree*) ptr)->children);
 }
 #else
 CUDA_EXPORT
