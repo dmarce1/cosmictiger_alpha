@@ -237,6 +237,12 @@ struct gpu_kick {
 };
 #endif
 
+template<class A, class B>
+struct pair {
+   A first;
+   B second;
+};
+
 struct tree {
 
 #ifndef __CUDACC__
@@ -245,12 +251,14 @@ private:
    array<fixed32, NDIM> pos;
    float radius;
    array<tree_ptr, NCHILD> children;
-   std::pair<size_t, size_t> parts;
+   pair<size_t, size_t> parts;
    multipole *multi;
    static float theta;
    static int8_t rung;
 public:
    static particle_set *particles;
+   static void set_cuda_particle_set(particle_set*);
+   static void cuda_set_kick_params(particle_set* p, float theta_, int rung_);
 #ifndef __CUDACC__
    static void set_particle_set(particle_set*);
    static std::shared_ptr<kick_workspace_t> get_workspace();

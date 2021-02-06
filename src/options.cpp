@@ -16,7 +16,7 @@ bool process_options(int argc, char *argv[], options &opts) {
    size_t parts_dim;
    command_opts.add_options()                                                                       //
    ("help", "produce help message")                                                                 //
-   ("bucket_size", po::value < size_t > (&(opts.bucket_size))->default_value(32), "maximum particles per leaf node") //
+   ("bucket_size", po::value < size_t > (&(opts.bucket_size))->default_value(64), "maximum particles per leaf node") //
    ("config", po::value < std::string > (&(opts.config))->default_value(""), "configuration file") //
    ("parts_dim", po::value < size_t > (&(parts_dim))->default_value(16), "number of particles = parts_dim^3") //
    ("test", po::value < std::string > (&(opts.test))->default_value(""), "test problem") //

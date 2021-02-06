@@ -9,7 +9,7 @@
 particle_set::particle_set(size_t size, size_t offset) {
    offset_ = offset;
    size_ = size;
-   format_ = format::soa;
+   virtual_ = false;
    CUDA_MALLOC(pptr_, size);
    CHECK_POINTER(pptr_);
    int8_t *data = (int8_t*) pptr_;
@@ -23,7 +23,9 @@ particle_set::particle_set(size_t size, size_t offset) {
 }
 
 particle_set::~particle_set() {
-   CUDA_FREE(pptr_);
+   if( !virtual_) {
+      CUDA_FREE(pptr_);
+   }
 }
 
 void particle_set::generate_random() {

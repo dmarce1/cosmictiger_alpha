@@ -52,7 +52,6 @@
 #endif
 
 
-
 #ifdef __CUDA_ARCH__
 #define ABORT() __trap()
 #else

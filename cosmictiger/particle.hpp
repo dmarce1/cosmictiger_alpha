@@ -18,7 +18,7 @@
 
 struct range;
 
-#include <array>
+#include <cosmictiger/array.hpp>
 #include <atomic>
 #include <vector>
 
@@ -46,34 +46,48 @@ struct particle {
 };
 
 struct particle_set {
-   enum format {
-      soa, aos
-   };
-
+   particle_set() = default;
    particle_set(size_t, size_t = 0);
    ~particle_set();
+   CUDA_EXPORT
    fixed32 pos(int dim, size_t index) const;
    std::array<fixed32, NDIM> pos(size_t index) const;
    float vel(int dim, size_t index) const;
    rung_t rung(size_t index) const;
    morton_t mid(size_t index) const;
    void set_mid(morton_t, size_t index);
+   CUDA_EXPORT
    fixed32& pos(int dim, size_t index);
    float& vel(int dim, size_t index);
    void set_rung(rung_t t, size_t index);
    particle part(size_t index) const;
-   std::vector<size_t> local_sort(size_t, size_t, int64_t, morton_t key_begin, morton_t key_end );
+   std::vector<size_t> local_sort(size_t, size_t, int64_t, morton_t key_begin, morton_t key_end);
    void generate_random();
 #ifndef __CUDACC__
 private:
 #endif
-   std::array<fixed32*, NDIM> xptr_;
-   std::array<float*, NDIM> vptr_;
+   array<fixed32*, NDIM> xptr_;
+   array<float*, NDIM> vptr_;
    particle::flags_t *rptr_;
    particle *pptr_;
-   format format_;
    size_t size_;
    size_t offset_;
+   bool virtual_;
+
+public:
+
+   particle_set get_virtual_particle_set() const {
+      particle_set v;
+      for (int dim = 0; dim < NDIM; dim++) {
+         v.vptr_[dim] = vptr_[dim];
+         v.xptr_[dim] = xptr_[dim];
+      }
+      v.pptr_ = pptr_;
+      v.size_ = size_;
+      v.offset_ = offset_;
+      v.virtual_ = true;
+      return v;
+   }
 };
 
 std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, int depth, morton_t, morton_t);
@@ -86,6 +100,7 @@ inline std::array<fixed32, NDIM> particle_set::pos(size_t index) const {
    return x;
 }
 
+CUDA_EXPORT
 inline fixed32 particle_set::pos(int dim, size_t index) const {
    return xptr_[dim][index - offset_];
 }
@@ -101,7 +116,7 @@ inline rung_t particle_set::rung(size_t index) const {
 inline morton_t particle_set::mid(size_t index) const {
    return rptr_[index - offset_].morton_id;
 }
-
+CUDA_EXPORT
 inline fixed32& particle_set::pos(int dim, size_t index) {
    return xptr_[dim][index - offset_];
 }

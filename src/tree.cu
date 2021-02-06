@@ -12,6 +12,7 @@
 
 CUDA_DEVICE float theta;
 CUDA_DEVICE int8_t rung;
+CUDA_DEVICE particle_set *parts;
 
 #define NITERS 4
 #define MI 0
@@ -30,7 +31,44 @@ struct cuda_kick_params {
 };
 
 using indices_array = array<array<int8_t, KICK_BLOCK_SIZE + 1>, NITERS>;
-using counts_array = array<int8_t, NITERS>;
+using counts_array = array<int16_t, NITERS>;
+
+using pos_array = array<fixed32,WORKSPACE_SIZE>;
+
+CUDA_DEVICE void cuda_pp_interactions(cuda_kick_params &params) {
+   const int &tid = threadIdx.x;
+   const int &depth = params.depth;
+   __shared__
+   extern int shmem[];
+   pos_array &xsource = *((pos_array*) (shmem));
+   pos_array &ysource = *((pos_array*) ((int8_t*) shmem) + sizeof(pos_array));
+   pos_array &zsource = *((pos_array*) ((int8_t*) shmem) + 2 * sizeof(pos_array));
+   auto &inters = params.workspace.part_interactions;
+   if (inters.size()) {
+      int i = 0;
+      while (i < inters.size()) {
+         pair<size_t, size_t> these_parts;
+         these_parts = ((tree*) inters[i])->parts;
+         i++;
+         while (i < inters.size()) {
+            if (((tree*) inters[i])->parts.first == these_parts.second) {
+               these_parts.second = ((tree*) inters[i])->parts.second;
+               i++;
+            } else {
+               break;
+            }
+         }
+         for (int j = these_parts.first + tid; j < these_parts.second; j += KICK_BLOCK_SIZE) {
+            const auto offset = these_parts.first;
+            assert(j - offset <= KICK_BLOCK_SIZE);
+            xsource[j - offset] = parts->pos(0, j);
+            ysource[j - offset] = parts->pos(1, j);
+            zsource[j - offset] = parts->pos(2, j);
+            printf("Loading\n");
+         }
+      }
+   }
+}
 
 CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
    __shared__
@@ -61,13 +99,13 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
       lists[PI] = &parti;
       lists[CI] = &next_checks;
       lists[OI] = &opened_checks;
-      const auto& myradius =  ((tree*) tptr)->radius;
-      const auto& mypos = ((tree*) tptr)->pos;
-      for (int i = 0; i < NITERS; i++) {
-         lists[i]->resize(WORKSPACE_SIZE);
-      }
+      const auto &myradius = ((tree*) tptr)->radius;
+      const auto &mypos = ((tree*) tptr)->pos;
       int ninteractions = ((tree*) tptr)->children[0].rank == -1 ? 4 : 2;
       for (int type = 0; type < ninteractions; type++) {
+         for (int i = 0; i < NITERS; i++) {
+            lists[i]->resize(WORKSPACE_SIZE);
+         }
          auto &checks = *(all_checks[type]);
          const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
          const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
@@ -80,7 +118,7 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
             if (checks.size()) {
                check_count = checks.size();
                checks.resize(WORKSPACE_SIZE);
-               const int cimax = check_count > 0 ? ((check_count - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE : 0;
+               const int cimax = ((check_count - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
                for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
                   for (int i = 0; i < NITERS; i++) {
                      indices[i][tid + 1] = 0;
@@ -92,9 +130,9 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
                   __syncthreads();
                   int list_index = -1;
                   if (ci < check_count) {
-                     auto& check = checks[ci];
-                     const auto& other_radius = ((const tree*) check)->radius;
-                     const auto& other_pos = ((const tree*) check)->pos;
+                     auto &check = checks[ci];
+                     const auto &other_radius = ((const tree*) check)->radius;
+                     const auto &other_pos = ((const tree*) check)->pos;
                      float d2 = 0.f;
                      const float R2 = sqr(other_radius + myradius);
                      for (int dim = 0; dim < NDIM; dim++) {
@@ -126,7 +164,8 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
                   }
                   __syncthreads();
                   if (ci < check_count) {
-                     const auto& check = checks[ci];
+                     const auto &check = checks[ci];
+                     assert(count[list_index] + indices[list_index][tid] >= 0);
                      (*lists[list_index])[count[list_index] + indices[list_index][tid]] = check;
                   }
                   __syncthreads();
@@ -165,6 +204,10 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
          multis.resize(count[MI]);
          parti.resize(count[PI]);
 
+         if (type == PC_PP_DIRECT) {
+            //    cuda_pp_interactions(params);
+         }
+
          /*********** DO INTERACTIONS *********************/
 
       }
@@ -187,11 +230,17 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
    return rc;
 }
 
-CUDA_KERNEL cuda_set_kick_params(float theta_, int rung_) {
+CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_) {
    if (threadIdx.x == 0) {
+      parts = p;
       theta = theta_;
       rung = rung_;
    }
+}
+
+void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
+cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
+                        CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(finite_vector<kick_return, KICK_GRID_SIZE> *rc,
@@ -232,8 +281,7 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
    new (roots_ptr) finite_vector<tree_ptr, KICK_GRID_SIZE>(std::move(roots));
    new (depths_ptr) finite_vector<int, KICK_GRID_SIZE>(std::move(depths));
    new (workspaces_ptr) finite_vector<kick_workspace_t, KICK_GRID_SIZE>(std::move(workspaces));
-   const size_t shmemsize = sizeof(indices_array) + sizeof(counts_array);
-cuda_set_kick_params<<<1,1>>>(0.7,0);
+   const size_t shmemsize = std::max(sizeof(indices_array) + sizeof(counts_array), NDIM * sizeof(pos_array));
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(rcptr, stacks_ptr,roots_ptr, depths_ptr, workspaces_ptr);/**/
    /**/   CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
