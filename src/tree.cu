@@ -476,51 +476,36 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_
 
 void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
-                                                                                                                                             CUDA_CHECK(cudaDeviceSynchronize());
+                                                                                                                                                   CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-CUDA_KERNEL cuda_kick_kernel(finite_vector<kick_return, KICK_GRID_SIZE> *rc,
-      finite_vector<kick_stack, KICK_GRID_SIZE> *stacks, finite_vector<tree_ptr, KICK_GRID_SIZE> *roots,
-      finite_vector<int, KICK_GRID_SIZE> *depths, finite_vector<kick_workspace_t, KICK_GRID_SIZE> *workspaces) {
+CUDA_KERNEL cuda_kick_kernel(cuda_workspace_t *workspace) {
    const int &bid = blockIdx.x;
-   cuda_kick_params params((*stacks)[bid], (*workspaces)[bid]);
-   params.tptr = (*roots)[bid];
-   params.depth = (*depths)[bid];
-   (*rc)[bid] = cuda_kick(params);
+   cuda_kick_params params((workspace->stacks[bid]), (workspace->workspace[bid]));
+   params.tptr = (workspace->roots[bid]);
+   params.depth = (workspace->depths[bid]);
+   workspace->rc[bid] = cuda_kick(params);
 
 }
 
 std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK_GRID_SIZE>>> cuda_execute_kick_kernel(
-      finite_vector<kick_stack, KICK_GRID_SIZE> &&stacks, finite_vector<tree_ptr, KICK_GRID_SIZE> &&roots,
-      finite_vector<int, KICK_GRID_SIZE> &&depths, int grid_size) {
+      cuda_workspace_t *workspace, int grid_size) {
    std::vector < std::function < kick_return() >> returns;
-   finite_vector<kick_return, KICK_GRID_SIZE> *rcptr;
-   CUDA_MALLOC(rcptr, 1);
-   new (rcptr) finite_vector<kick_return, KICK_GRID_SIZE>();
-   rcptr->resize(grid_size);
+   workspace->rc.resize(grid_size);
    cudaStream_t stream;
    cudaEvent_t event;
    CUDA_CHECK(cudaStreamCreate(&stream));
    CUDA_CHECK(cudaEventCreate(&event));
-   finite_vector<kick_workspace_t, KICK_GRID_SIZE> workspaces;
-   workspaces.resize(KICK_GRID_SIZE);
-
-   finite_vector<kick_stack, KICK_GRID_SIZE> *stacks_ptr;
-   finite_vector<tree_ptr, KICK_GRID_SIZE> *roots_ptr;
-   finite_vector<int, KICK_GRID_SIZE> *depths_ptr;
-   finite_vector<kick_workspace_t, KICK_GRID_SIZE> *workspaces_ptr;
-   CUDA_MALLOC(stacks_ptr, 1);
-   CUDA_MALLOC(roots_ptr, 1);
-   CUDA_MALLOC(depths_ptr, 1);
-   CUDA_MALLOC(workspaces_ptr, 1);
+   for (int bid = 0; bid < grid_size; bid++) {
+      workspace->workspace[bid].multi_interactions.resize(KICK_GRID_SIZE);
+      workspace->workspace[bid].part_interactions.resize(KICK_GRID_SIZE);
+      workspace->workspace[bid].next_checks.resize(KICK_GRID_SIZE);
+      workspace->workspace[bid].opened_checks.resize(KICK_GRID_SIZE);
+   }
    //  printf("Shared mem requirements = %li\n", sizeof(cuda_kick_shmem));
-   new (stacks_ptr) finite_vector<kick_stack, KICK_GRID_SIZE>(std::move(stacks));
-   new (roots_ptr) finite_vector<tree_ptr, KICK_GRID_SIZE>(std::move(roots));
-   new (depths_ptr) finite_vector<int, KICK_GRID_SIZE>(std::move(depths));
-   new (workspaces_ptr) finite_vector<kick_workspace_t, KICK_GRID_SIZE>(std::move(workspaces));
    const size_t shmemsize = sizeof(cuda_kick_shmem);
    /***************************************************************************************************************************************************/
-   /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(rcptr, stacks_ptr,roots_ptr, depths_ptr, workspaces_ptr);/**/
+   /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(workspace);/**/
    /**/   CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
    /***************************************************************************************************************************************************/
 
@@ -528,12 +513,8 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
       cudaStream_t stream;
       cudaEvent_t event;
       std::shared_ptr<finite_vector<kick_return, KICK_GRID_SIZE>> returns;
-      finite_vector<kick_return, KICK_GRID_SIZE> *rcptr;
       int grid_size;
-      finite_vector<kick_stack, KICK_GRID_SIZE> *stacks_ptr;
-      finite_vector<tree_ptr, KICK_GRID_SIZE> *roots_ptr;
-      finite_vector<int, KICK_GRID_SIZE> *depths_ptr;
-      finite_vector<kick_workspace_t, KICK_GRID_SIZE> *workspaces_ptr;
+      cuda_workspace_t* workptr;
       mutable bool ready;
    public:
       cuda_kick_future_shared() {
@@ -546,18 +527,7 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
                CUDA_CHECK(cudaStreamSynchronize(stream));
                CUDA_CHECK(cudaEventDestroy(event));
                CUDA_CHECK(cudaStreamDestroy(stream));
-               *returns = std::move(*rcptr);
-               rcptr->finite_vector<kick_return, KICK_GRID_SIZE>::~finite_vector<kick_return, KICK_GRID_SIZE>();
-               stacks_ptr->finite_vector<kick_stack, KICK_GRID_SIZE>::~finite_vector<kick_stack, KICK_GRID_SIZE>();
-               roots_ptr->finite_vector<tree_ptr, KICK_GRID_SIZE>::~finite_vector<tree_ptr, KICK_GRID_SIZE>();
-               depths_ptr->finite_vector<int, KICK_GRID_SIZE>::~finite_vector<int, KICK_GRID_SIZE>();
-               workspaces_ptr->finite_vector<kick_workspace_t, KICK_GRID_SIZE>::~finite_vector<kick_workspace_t,
-               KICK_GRID_SIZE>();
-               CUDA_FREE(rcptr);
-               CUDA_FREE(stacks_ptr);
-               CUDA_FREE(roots_ptr);
-               CUDA_FREE(depths_ptr);
-               CUDA_FREE(workspaces_ptr);
+               *returns = std::move(workptr->rc);
             }
          }
          return ready;
@@ -568,12 +538,8 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
    fut.returns = std::make_shared<finite_vector<kick_return, KICK_GRID_SIZE>>();
    fut.stream = stream;
    fut.event = event;
-   fut.rcptr = rcptr;
    fut.grid_size = grid_size;
-   fut.stacks_ptr = stacks_ptr;
-   fut.roots_ptr = roots_ptr;
-   fut.depths_ptr = depths_ptr;
-   fut.workspaces_ptr = workspaces_ptr;
+   fut.workptr = workspace;
    std::function < bool() > ready_func = [fut]() {
       return fut();
    };

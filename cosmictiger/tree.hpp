@@ -15,8 +15,9 @@
 #define LEFT 0
 #define RIGHT 1
 #define WORKSPACE_SIZE 512
-#define KICK_GRID_SIZE 64
+#define KICK_GRID_SIZE 128
 #define KICK_BLOCK_SIZE 32
+#define N_CUDA_WORKSPACE 8
 
 #define EWALD_MIN_DIST2 (0.25f * 0.25f)
 
@@ -246,6 +247,16 @@ template<class A, class B>
 struct pair {
    A first;
    B second;
+};
+
+
+
+struct cuda_workspace_t {
+   finite_vector<kick_stack, KICK_GRID_SIZE> stacks;
+   finite_vector<tree_ptr, KICK_GRID_SIZE> roots;
+   finite_vector<int, KICK_GRID_SIZE> depths;
+   finite_vector<kick_workspace_t, KICK_GRID_SIZE> workspace;
+   finite_vector<kick_return, KICK_GRID_SIZE> rc;
 };
 
 struct tree {

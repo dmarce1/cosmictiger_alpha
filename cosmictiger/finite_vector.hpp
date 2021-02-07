@@ -18,49 +18,61 @@
 template<size_t SIZE>
 class finite_vector_allocator {
    static constexpr size_t page_size = ALLOCATION_PAGE_SIZE / SIZE;
-   static std::stack<int8_t*> freelist;
+   thread_local static std::stack<int8_t*> freelist;
+   static std::stack<int8_t*> globallist;
    static std::atomic<int> lock;
-   static size_t total_allocated;
 public:
    finite_vector_allocator() {
    }
    void* allocate() {
-      while (lock++ > 0) {
-         lock--;
-      }
       if (freelist.empty()) {
-         int8_t *ptr;
-         CUDA_MALLOC(ptr, page_size * SIZE);
-         total_allocated += page_size * SIZE;
-         for (int i = 0; i < page_size; i++) {
-            freelist.push(ptr + i * SIZE);
+         while (lock++ != 0) {
+            lock--;
+         }
+         if (globallist.size() < 1024) {
+            lock--;
+            int8_t *ptr;
+            CUDA_MALLOC(ptr, page_size * SIZE);
+            for (int i = 0; i < page_size; i++) {
+               freelist.push(ptr + i * SIZE);
+            }
+         } else {
+            for (int i = 0; i < 1024; i++) {
+               freelist.push(globallist.top());
+               globallist.pop();
+            }
+            lock--;
          }
       }
       int8_t *ptr = freelist.top();
       freelist.pop();
-      lock--;
       return ptr;
    }
    ~finite_vector_allocator() {
    }
    void deallocate(void *ptr) {
-      while (lock++ > 0) {
+      freelist.push((int8_t*) ptr);
+      if (freelist.size() > 2048) {
+         while (lock++ != 0) {
+            lock--;
+         }
+         for (int i = 0; i < 1024; i++) {
+            globallist.push(freelist.top());
+            freelist.pop();
+         }
          lock--;
       }
-      freelist.push((int8_t*) ptr);
-      lock--;
    }
-
 };
 
 template<size_t SIZE>
 std::atomic<int> finite_vector_allocator<SIZE>::lock(0);
 
 template<size_t SIZE>
-size_t finite_vector_allocator<SIZE>::total_allocated(0);
+thread_local std::stack<int8_t*> finite_vector_allocator<SIZE>::freelist;
 
 template<size_t SIZE>
-std::stack<int8_t*> finite_vector_allocator<SIZE>::freelist;
+std::stack<int8_t*> finite_vector_allocator<SIZE>::globallist;
 
 template<class T, size_t N>
 class finite_vector {
@@ -85,7 +97,7 @@ public:
    CUDA_EXPORT inline finite_vector() {
 #ifndef __CUDA_ARCH__
       ptr = (T*) alloc.allocate();
-      construct(0,N);
+      construct(0, N);
 #else
       assert(false);
 #endif
@@ -95,7 +107,7 @@ public:
    CUDA_EXPORT inline finite_vector(finite_vector &&other) {
 #ifndef __CUDA_ARCH__
       ptr = (T*) alloc.allocate();
-      construct(0,N);
+      construct(0, N);
 #else
       assert(false);
 #endif
@@ -104,7 +116,7 @@ public:
    }
    CUDA_EXPORT inline ~finite_vector() {
 #ifndef __CUDA_ARCH__
-      destruct(0,N);
+      destruct(0, N);
       alloc.deallocate(ptr);
 #else
       assert(false);
@@ -116,8 +128,7 @@ public:
       CUDA_SYNC();
       if (tid == 0) {
          sz = other.sz;
-      }CUDA_SYNC();
-      CUDA_SYNC();
+      }CUDA_SYNC();CUDA_SYNC();
       for (size_t i = tid; i < sz; i += blocksize) {
          ptr[i] = other.ptr[i];
       }CUDA_SYNC();

@@ -400,16 +400,21 @@ bool tree::shutdown_daemon = false;
 using cuda_exec_return =
 std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK_GRID_SIZE>>>;
 
-cuda_exec_return cuda_execute_kick_kernel(finite_vector<kick_stack, KICK_GRID_SIZE> &&stacks,
-      finite_vector<tree_ptr, KICK_GRID_SIZE> &&roots, finite_vector<int, KICK_GRID_SIZE> &&depths, int grid_size);
+cuda_exec_return cuda_execute_kick_kernel(cuda_workspace_t* workspace, int grid_size);
+
 
 void tree::gpu_daemon() {
    using namespace std::chrono_literals;
 
    printf("Starting gpu kick daemon\n");
    daemon_running = true;
-   std::vector < std::function < bool() >> finish;
-
+   static std::stack<cuda_workspace_t*> workspaces;
+   for( int i = 0; i < N_CUDA_WORKSPACE; i++) {
+      cuda_workspace_t* ptr;
+      CUDA_MALLOC(ptr,1);
+      new(ptr) cuda_workspace_t();
+      workspaces.push(ptr);
+   }
    int tries = 0;
    int min_grid_size = KICK_GRID_SIZE;
    while (!shutdown_daemon) {
@@ -421,32 +426,32 @@ void tree::gpu_daemon() {
          tries++;
       }
       std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
-      while (gpu_queue.size() >= min_grid_size) {
+      while (gpu_queue.size() >= min_grid_size && workspaces.size()) {
          int grid_size = min_grid_size;
          min_grid_size = KICK_GRID_SIZE;
-         finite_vector<kick_stack, KICK_GRID_SIZE> stacks;
-         finite_vector<tree_ptr, KICK_GRID_SIZE> roots;
-         finite_vector<int, KICK_GRID_SIZE> depths;
          std::vector<hpx::lcos::local::promise<kick_return>> promises;
+         auto workspace = workspaces.top();
+         workspaces.pop();
          for (int i = 0; i < grid_size; i++) {
             auto work_item = std::move(gpu_queue.front());
             gpu_queue.pop();
-            stacks.push_back(std::move(work_item.stack));
-            depths.push_back(work_item.depth);
-            roots.push_back(work_item.tree);
+            workspace->stacks.push_back(std::move(work_item.stack));
+            workspace->depths.push_back(work_item.depth);
+            workspace->roots.push_back(work_item.tree);
             promises.push_back(std::move(work_item.promise));
          }
          printf("Executing %i blocks\n", grid_size);
-         auto exec_ret = cuda_execute_kick_kernel(std::move(stacks), std::move(roots), std::move(depths), grid_size);
-         hpx::apply([exec_ret, grid_size](std::vector<hpx::lcos::local::promise<kick_return>> &&promises) {
+         auto exec_ret = cuda_execute_kick_kernel(workspace, grid_size);
+         hpx::apply([exec_ret, grid_size,workspace](std::vector<hpx::lcos::local::promise<kick_return>> &&promises) {
             while (!exec_ret.first()) {
                hpx::this_thread::yield();
             }
             for (int i = 0; i < grid_size; i++) {
                promises[i].set_value((*exec_ret.second)[i]);
             }
+            std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
+            workspaces.push(workspace);
          },std::move(promises));
-         tries = 0;
       }
    }
    shutdown_daemon = false;
