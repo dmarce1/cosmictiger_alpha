@@ -45,8 +45,8 @@ struct cuda_kick_shmem {
    array<expansion, KICK_BLOCK_SIZE> L;
 };
 
-CUDA_DEVICE void cuda_cc_interactions(kick_params_type* params_ptr) {
-   kick_params_type& params = *params_ptr;
+CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr) {
+   kick_params_type &params = *params_ptr;
    const int &tid = threadIdx.x;
    __shared__
    extern int shmem_ptr[];
@@ -84,8 +84,8 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type* params_ptr) {
    }
 }
 
-CUDA_DEVICE void cuda_cp_interactions(kick_params_type* params_ptr) {
-   kick_params_type& params = *params_ptr;
+CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
+   kick_params_type &params = *params_ptr;
    const int &tid = threadIdx.x;
    __shared__
    extern int shmem_ptr[];
@@ -146,8 +146,8 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type* params_ptr) {
    }
 }
 
-CUDA_DEVICE void cuda_pp_interactions(kick_params_type* params_ptr) {
-   kick_params_type& params = *params_ptr;
+CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
+   kick_params_type &params = *params_ptr;
    const int &tid = threadIdx.x;
    __shared__
    extern int shmem_ptr[];
@@ -221,8 +221,8 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type* params_ptr) {
    }
 }
 
-CUDA_DEVICE void cuda_pc_interactions(kick_params_type* params_ptr) {
-   kick_params_type& params = *params_ptr;
+CUDA_DEVICE void cuda_pc_interactions(kick_params_type *params_ptr) {
+   kick_params_type &params = *params_ptr;
    const int &tid = threadIdx.x;
    __shared__
    extern int shmem_ptr[];
@@ -236,28 +236,31 @@ CUDA_DEVICE void cuda_pc_interactions(kick_params_type* params_ptr) {
    auto &inters = params.multi_interactions;
    const auto &myparts = ((tree*) params.tptr)->parts;
    const auto offset = myparts.first;
-   for (int i = tid; i < params.nmulti; i += KICK_BLOCK_SIZE) {
+   const int mmax = ((params.nmulti - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
+   for (int i = tid; i < mmax; i += KICK_BLOCK_SIZE) {
       const auto source_x = ((tree*) inters[i])->pos[0];
       const auto source_y = ((tree*) inters[i])->pos[1];
       const auto source_z = ((tree*) inters[i])->pos[2];
       const int nparts = myparts.second - myparts.first;
       for (int k = 0; k < nparts; k++) {
          f_x[tid] = f_y[tid] = f_x[tid];
-         const auto sink_x = parts->pos(0, offset + k);
-         const auto sink_y = parts->pos(1, offset + k);
-         const auto sink_z = parts->pos(2, offset + k);
-         array<float, NDIM> dx;
-         array<float, NDIM + 1> Lforce;
-         for (int l = 0; l < NDIM + 1; l++) {
-            Lforce[l] = 0.0f;
+         if (i < params.nmulti) {
+            const auto sink_x = parts->pos(0, offset + k);
+            const auto sink_y = parts->pos(1, offset + k);
+            const auto sink_z = parts->pos(2, offset + k);
+            array<float, NDIM> dx;
+            array<float, NDIM + 1> Lforce;
+            for (int l = 0; l < NDIM + 1; l++) {
+               Lforce[l] = 0.0f;
+            }
+            dx[0] = (fixed<int32_t>(source_x) - fixed<int32_t>(sink_x)).to_float();
+            dx[1] = (fixed<int32_t>(source_y) - fixed<int32_t>(sink_y)).to_float();
+            dx[2] = (fixed<int32_t>(source_z) - fixed<int32_t>(sink_z)).to_float();
+            multipole_interaction(Lforce, *((tree*) inters[i])->multi, dx, false);
+            f_x[tid] -= Lforce[1];
+            f_y[tid] -= Lforce[2];
+            f_z[tid] -= Lforce[3];
          }
-         dx[0] = (fixed<int32_t>(source_x) - fixed<int32_t>(sink_x)).to_float();
-         dx[1] = (fixed<int32_t>(source_y) - fixed<int32_t>(sink_y)).to_float();
-         dx[2] = (fixed<int32_t>(source_z) - fixed<int32_t>(sink_z)).to_float();
-         multipole_interaction(Lforce, *((tree*) inters[i])->multi, dx, false);
-         f_x[tid] -= Lforce[1];
-         f_y[tid] -= Lforce[2];
-         f_z[tid] -= Lforce[3];
          __syncthreads();
          for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
             if (tid < P) {
@@ -277,8 +280,8 @@ CUDA_DEVICE void cuda_pc_interactions(kick_params_type* params_ptr) {
    }
 }
 
-CUDA_DEVICE kick_return cuda_kick(kick_params_type* params_ptr) {
-   kick_params_type& params = *params_ptr;
+CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
+   kick_params_type &params = *params_ptr;
    __shared__
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
@@ -300,7 +303,6 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type* params_ptr) {
    {
       indices_array &indices = shmem.indices;
       counts_array &count = shmem.count;
-
 
       const auto theta2 = theta * theta;
       array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
@@ -428,12 +430,12 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type* params_ptr) {
          switch (type) {
          case PC_PP_DIRECT:
             //          printf( "%li %li\n", multis.size(), parti.size());
-      //      cuda_pc_interactions(params_ptr);
-           cuda_pp_interactions(params_ptr);
+            cuda_pc_interactions(params_ptr);
+            cuda_pp_interactions(params_ptr);
             break;
          case CC_CP_DIRECT:
-        //    cuda_cc_interactions(params_ptr);
-         //   cuda_cp_interactions(params_ptr);
+            cuda_cc_interactions(params_ptr);
+            cuda_cp_interactions(params_ptr);
             break;
          case PC_PP_EWALD:
             break;
@@ -473,25 +475,24 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_
 
 void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
-                                                                                                                                                         CUDA_CHECK(cudaDeviceSynchronize());
+                                                                                                                                                               CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-CUDA_KERNEL cuda_kick_kernel(kick_return* res, kick_params_type** params) {
+CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
    const int &bid = blockIdx.x;
    res[bid] = cuda_kick(params[bid]);
 
 }
 
-std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(
-      kick_params_type** params, int grid_size) {
+std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type **params, int grid_size) {
    cudaStream_t stream;
    cudaEvent_t event;
    CUDA_CHECK(cudaStreamCreate(&stream));
    CUDA_CHECK(cudaEventCreate(&event));
    //  printf("Shared mem requirements = %li\n", sizeof(cuda_kick_shmem));
    const size_t shmemsize = sizeof(cuda_kick_shmem);
-   kick_return* returns;
-   CUDA_MALLOC(returns,grid_size);
+   kick_return *returns;
+   CUDA_MALLOC(returns, grid_size);
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(returns,params);/**/
    /**/   CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
@@ -500,7 +501,7 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(
    struct cuda_kick_future_shared {
       cudaStream_t stream;
       cudaEvent_t event;
-      kick_return* returns;
+      kick_return *returns;
       int grid_size;
       mutable bool ready;
    public:
