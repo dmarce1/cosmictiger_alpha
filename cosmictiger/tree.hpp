@@ -207,16 +207,66 @@ struct kick_workspace_t {
    checks_type opened_checks;
 };
 
+#define WORKSPACE_STACK (64*1024)
+
+struct check_stack {
+   finite_vector<tree_ptr, WORKSPACE_STACK> stack;
+   finite_vector<int, WORKSPACE_STACK> counts;
+   CUDA_EXPORT tree_ptr* top_list() {
+      return &stack[stack.size() - counts.top()];
+   }
+   CUDA_EXPORT int top_count() const {
+      return counts.top();
+   }
+   CUDA_EXPORT void set_top_size(size_t sz) {
+      stack.resize(stack.size() - counts.top() + sz);
+      counts.top() = sz;
+   }
+   CUDA_EXPORT void pop() {
+      stack.resize(stack.size() - counts.top());
+      counts.pop_back();
+   }
+   CUDA_EXPORT void copy_top(check_stack &other) {
+      THREADID;
+      BLOCKSIZE;
+      if (&other != this) {
+         const size_t offset = other.stack.size();
+         other.stack.resize(offset + counts.top());
+         for (int i = tid; i < counts.top(); i += blocksize) {
+            other.stack[offset + i] = top_list()[i];
+         }
+         other.counts.push_back(counts.top());
+      } else {
+         const size_t offset = stack.size();
+         stack.resize(offset + counts.top());
+         for (int i = tid; i < counts.top(); i += blocksize) {
+            stack[offset + i] = stack[offset + i - counts.top()];
+         }
+         counts.push_back(counts.top());
+      }
+   }
+   template<size_t N>
+   CUDA_EXPORT void push(const finite_vector<tree_ptr, N> &list) {
+      THREADID;
+      BLOCKSIZE;
+      size_t offset = stack.size();
+      stack.resize(offset + list.size());
+      for (int i = tid; i < list.size(); i += blocksize) {
+         stack[offset + i] = list[i];
+      }
+      counts.push_back(list.size());
+   }
+
+};
+
 struct kick_stack {
-   finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> dchecks;
-   finite_vector<finite_vector<tree_ptr, WORKSPACE_SIZE>, TREE_MAX_DEPTH> echecks;
+   check_stack dchecks;
+   check_stack echecks;
    finite_vector<expansion, TREE_MAX_DEPTH> L;
    finite_vector<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
    kick_stack(kick_stack&&) = default;
    kick_stack& operator=(kick_stack&&) = default;
    kick_stack() {
-      dchecks.resize(TREE_MAX_DEPTH);
-      echecks.resize(TREE_MAX_DEPTH);
       L.resize(TREE_MAX_DEPTH);
       Lpos.resize(TREE_MAX_DEPTH);
    }

@@ -61,8 +61,11 @@ void kick_test() {
       root_ptr.rank = hpx_rank();
       // printf( "%li", size_t(WORKSPACE_SIZE));
       kick_stack stack;
-      stack.dchecks[0].push_back(root_ptr);
-      stack.echecks[0].push_back(root_ptr);
+      finite_vector<tree_ptr, 1> top_check;
+      top_check.resize(1);
+      top_check[0] = root_ptr;
+      stack.dchecks.push(top_check);
+      stack.echecks.push(top_check);
       // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
       expansion L;
       for (int i = 0; i < LP; i++) {

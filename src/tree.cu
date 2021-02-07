@@ -310,11 +310,16 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
       kick_workspace_t &workspace = params.workspace;
 
       const auto theta2 = theta * theta;
-      array<checks_type*, N_INTERACTION_TYPES> all_checks;
-      all_checks[CC_CP_DIRECT] = &stacks.dchecks[depth];
-      all_checks[CC_CP_EWALD] = &stacks.echecks[depth];
-      all_checks[PC_PP_DIRECT] = &stacks.dchecks[depth];
-      all_checks[PC_PP_EWALD] = &stacks.echecks[depth];
+      array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
+      array<int*, N_INTERACTION_TYPES> list_counts;
+      all_checks[CC_CP_DIRECT] = stacks.dchecks.top_list();
+      all_checks[CC_CP_EWALD] = stacks.echecks.top_list();
+      all_checks[PC_PP_DIRECT] = stacks.dchecks.top_list();
+      all_checks[PC_PP_EWALD] = stacks.echecks.top_list();
+      list_counts[CC_CP_DIRECT] = &stacks.dchecks.counts.top();
+      list_counts[CC_CP_EWALD] = &stacks.echecks.counts.top();
+      list_counts[PC_PP_DIRECT] = &stacks.dchecks.counts.top();
+      list_counts[PC_PP_EWALD] = &stacks.echecks.counts.top();
       array<finite_vector<tree_ptr, WORKSPACE_SIZE>*, NITERS> lists;
       auto &multis = workspace.multi_interactions;
       auto &parti = workspace.part_interactions;
@@ -331,7 +336,7 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
          for (int i = 0; i < NITERS; i++) {
             lists[i]->resize(WORKSPACE_SIZE);
          }
-         auto &checks = *(all_checks[type]);
+         auto *checks = (all_checks[type]);
          const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
          const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
          if (tid < NITERS) {
@@ -340,9 +345,8 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
          __syncthreads();
          int check_count;
          do {
-            if (checks.size()) {
-               check_count = checks.size();
-               checks.resize(WORKSPACE_SIZE);
+            check_count = (*list_counts[type]);
+            if (check_count) {
                const int cimax = ((check_count - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
                for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
                   for (int i = 0; i < NITERS; i++) {
@@ -400,18 +404,22 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
                   __syncthreads();
                }
                __syncthreads();
+               check_count = 2 * count[CI];
+               (type == CC_CP_DIRECT || type == PC_PP_DIRECT) ?
+                     stacks.dchecks.set_top_size(check_count) : stacks.echecks.set_top_size(check_count);
                for (int i = tid; i < count[CI]; i += KICK_BLOCK_SIZE) {
                   const auto children = next_checks[i].get_children();
                   for (int j = 0; j < NCHILD; j++) {
                      checks[2 * i + j] = children[j];
                   }
                }
-               check_count = 2 * count[CI];
                if (type == CC_CP_DIRECT || type == CC_CP_EWALD) {
-                  for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
-                     checks[check_count + i] = opened_checks[i];
-                  }
                   check_count += count[OI];
+                  (type == CC_CP_DIRECT || type == PC_PP_DIRECT) ?
+                        stacks.dchecks.set_top_size(check_count) : stacks.echecks.set_top_size(check_count);
+                  for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
+                     checks[2 * count[CI] + i] = opened_checks[i];
+                  }
                } else {
                   for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
                      parti[count[PI] + i] = opened_checks[i];
@@ -423,7 +431,6 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
                   count[OI] = 0;
                }
                __syncthreads();
-               checks.resize(check_count);
             }
          } while (direct && check_count);
          multis.resize(count[MI]);
@@ -449,13 +456,13 @@ CUDA_DEVICE kick_return cuda_kick(cuda_kick_params &params) {
       }
    }
    if (!(((tree*) tptr)->children[0].rank == -1)) {
-      stacks.dchecks[depth + 1] = stacks.dchecks[depth];
-      stacks.echecks[depth + 1] = stacks.echecks[depth];
+      stacks.dchecks.copy_top(stacks.dchecks);
+      stacks.echecks.copy_top(stacks.echecks);
       params.depth++;
       params.tptr = ((tree*) tptr)->children[LEFT];
       kick_return rc1 = cuda_kick(params);
-      stacks.dchecks[depth + 1] = std::move(stacks.dchecks[depth]);
-      stacks.echecks[depth + 1] = std::move(stacks.echecks[depth]);
+      stacks.dchecks.pop();
+      stacks.echecks.pop();
       params.tptr = ((tree*) tptr)->children[RIGHT];
       kick_return rc2 = cuda_kick(params);
       params.depth--;
@@ -476,7 +483,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_
 
 void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
-                                                                                                                                                   CUDA_CHECK(cudaDeviceSynchronize());
+                                                                                                                                                         CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(cuda_workspace_t *workspace) {
@@ -514,7 +521,7 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
       cudaEvent_t event;
       std::shared_ptr<finite_vector<kick_return, KICK_GRID_SIZE>> returns;
       int grid_size;
-      cuda_workspace_t* workptr;
+      cuda_workspace_t *workptr;
       mutable bool ready;
    public:
       cuda_kick_future_shared() {
@@ -528,7 +535,7 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
                CUDA_CHECK(cudaEventDestroy(event));
                CUDA_CHECK(cudaStreamDestroy(stream));
                returns->resize(grid_size);
-               for( int i = 0; i < grid_size; i++) {
+               for (int i = 0; i < grid_size; i++) {
                   (*returns)[i] = workptr->rc[i];
                }
             }

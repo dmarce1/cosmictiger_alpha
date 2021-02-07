@@ -275,8 +275,8 @@ fast_future<kick_return> tree_ptr::kick(kick_stack &stack, int depth, bool try_t
          return fast_future<kick_return>(((tree*) ptr)->kick(stack, depth));
       } else {
          auto new_stack = std::make_shared<kick_stack>();
-         new_stack->dchecks[depth] = stack.dchecks[depth];
-         new_stack->echecks[depth] = stack.echecks[depth];
+         stack.dchecks.copy_top(new_stack->dchecks);
+         stack.echecks.copy_top(new_stack->echecks);
          new_stack->L[depth] = stack.L[depth];
          new_stack->Lpos[depth] = stack.Lpos[depth];
          auto func = [this, depth, new_stack]() {
@@ -305,18 +305,23 @@ hpx::future<kick_return> tree::kick(kick_stack &stacks, int depth) {
    // printf( "%li\n", num_kicks);
    kick_return rc;
    const auto theta2 = theta * theta;
-   array<checks_type*, N_INTERACTION_TYPES> all_checks;
-   all_checks[CC_CP_DIRECT] = &stacks.dchecks[depth];
-   all_checks[CC_CP_EWALD] = &stacks.echecks[depth];
-   all_checks[PC_PP_DIRECT] = &stacks.dchecks[depth];
-   all_checks[PC_PP_EWALD] = &stacks.echecks[depth];
+   array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
+   array<int*, N_INTERACTION_TYPES> list_counts;
+   all_checks[CC_CP_DIRECT] = stacks.dchecks.top_list();
+   all_checks[CC_CP_EWALD] = stacks.echecks.top_list();
+   all_checks[PC_PP_DIRECT] = stacks.dchecks.top_list();
+   all_checks[PC_PP_EWALD] = stacks.echecks.top_list();
+   list_counts[CC_CP_DIRECT] = &stacks.dchecks.counts.top();
+   list_counts[CC_CP_EWALD] = &stacks.echecks.counts.top();
+   list_counts[PC_PP_DIRECT] = &stacks.dchecks.counts.top();
+   list_counts[PC_PP_EWALD] = &stacks.echecks.counts.top();
    auto workspace = get_workspace();
    auto &multis = workspace->multi_interactions;
    auto &parti = workspace->part_interactions;
    auto &next_checks = workspace->next_checks;
    int ninteractions = is_leaf() ? 4 : 2;
    for (int type = 0; type < ninteractions; type++) {
-      auto &checks = *(all_checks[type]);
+      auto *checks = (all_checks[type]);
       next_checks.resize(0);
       multis.resize(0);
       parti.resize(0);
@@ -327,7 +332,7 @@ hpx::future<kick_return> tree::kick(kick_stack &stacks, int depth) {
 #ifdef TEST_CHECKLIST_TIME
             tm.start();
 #endif
-         for (int ci = 0; ci < checks.size(); ci++) {
+         for (int ci = 0; ci < *(list_counts[type]); ci++) {
             const auto other_radius = checks[ci].get_radius();
             const auto other_pos = checks[ci].get_pos();
             float d2 = 0.f;
@@ -354,8 +359,14 @@ hpx::future<kick_return> tree::kick(kick_stack &stacks, int depth) {
 #ifdef TEST_CHECKLIST_TIME
          tm.stop();
 #endif
-         checks = std::move(next_checks);
-      } while (direct && checks.size());
+         if (type == PC_PP_DIRECT || type == CC_CP_DIRECT) {
+            stacks.dchecks.pop();
+            stacks.dchecks.push(next_checks);
+         } else {
+            stacks.echecks.pop();
+            stacks.echecks.push(next_checks);
+         }
+      } while (direct && *(list_counts[type]));
 
       /*********** DO INTERACTIONS *********************/
 
@@ -367,13 +378,13 @@ hpx::future<kick_return> tree::kick(kick_stack &stacks, int depth) {
    if (!is_leaf()) {
       // printf("4\n");
       const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
-      stacks.dchecks[depth + 1] = stacks.dchecks[depth];
-      stacks.echecks[depth + 1] = stacks.echecks[depth];
+      stacks.dchecks.copy_top(stacks.dchecks);
+      stacks.echecks.copy_top(stacks.echecks);
       array<hpx::future<kick_return>, NCHILD> futs;
       futs[LEFT] = children[LEFT].kick(stacks, depth + 1, try_thread);
       //  printf("5\n");
-      stacks.dchecks[depth + 1] = std::move(stacks.dchecks[depth]);
-      stacks.echecks[depth + 1] = std::move(stacks.echecks[depth]);
+      stacks.dchecks.pop();
+      stacks.echecks.pop();
       futs[RIGHT] = children[RIGHT].kick(stacks, depth + 1, false);
       //  printf("6\n");
       return hpx::when_all(futs.begin(), futs.end()).then([](hpx::future<std::vector<hpx::future<kick_return>>> futs) {
@@ -400,8 +411,7 @@ bool tree::shutdown_daemon = false;
 using cuda_exec_return =
 std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK_GRID_SIZE>>>;
 
-cuda_exec_return cuda_execute_kick_kernel(cuda_workspace_t* workspace, int grid_size);
-
+cuda_exec_return cuda_execute_kick_kernel(cuda_workspace_t *workspace, int grid_size);
 
 void tree::gpu_daemon() {
    using namespace std::chrono_literals;
@@ -423,8 +433,8 @@ void tree::gpu_daemon() {
          int grid_size = min_grid_size;
          min_grid_size = KICK_GRID_SIZE;
          std::vector<hpx::lcos::local::promise<kick_return>> promises;
-         cuda_workspace_t* workspace;
-         CUDA_MALLOC(workspace,1);
+         cuda_workspace_t *workspace;
+         CUDA_MALLOC(workspace, 1);
          new (workspace) cuda_workspace_t(grid_size);
          for (int i = 0; i < grid_size; i++) {
             auto work_item = std::move(gpu_queue.front());
@@ -436,7 +446,7 @@ void tree::gpu_daemon() {
          }
          printf("Executing %i blocks\n", grid_size);
          auto exec_ret = cuda_execute_kick_kernel(workspace, grid_size);
-         hpx::apply([exec_ret, grid_size,workspace](std::vector<hpx::lcos::local::promise<kick_return>> &&promises) {
+         hpx::apply([exec_ret, grid_size, workspace](std::vector<hpx::lcos::local::promise<kick_return>> &&promises) {
             while (!exec_ret.first()) {
                hpx::this_thread::yield();
             }
@@ -468,8 +478,8 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_stack &stack, int depth) {
    me.ptr = (uintptr_t)(this);
    me.rank = hpx_rank();
    gpu.tree = me;
-   gpu.stack.dchecks[depth] = stack.dchecks[depth];
-   gpu.stack.echecks[depth] = stack.echecks[depth];
+   stack.dchecks.copy_top(gpu.stack.dchecks);
+   stack.echecks.copy_top(gpu.stack.echecks);
    gpu.stack.L[depth] = stack.L[depth];
    gpu.stack.Lpos[depth] = stack.Lpos[depth];
    gpu.depth = depth;
