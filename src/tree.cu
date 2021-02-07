@@ -109,7 +109,6 @@ CUDA_DEVICE void cuda_cp_interactions(cuda_kick_params &params) {
    if (inters.size()) {
       int i = 0;
       const auto &myparts = ((tree*) params.tptr)->parts;
-      const size_t nsinks = myparts.second - myparts.first;
       __syncthreads();
       while (i < inters.size()) {
          pair<size_t, size_t> these_parts;
@@ -209,6 +208,7 @@ CUDA_DEVICE void cuda_pp_interactions(cuda_kick_params &params) {
                f_y[tid] -= dy * rinv3;
                f_z[tid] -= dz * rinv3;
             }
+            __syncthreads();
             for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
                if (tid < P) {
                   f_x[tid] += f_x[tid + P];
@@ -224,6 +224,61 @@ CUDA_DEVICE void cuda_pp_interactions(cuda_kick_params &params) {
             }
             __syncthreads();
          }
+      }
+   }
+}
+
+CUDA_DEVICE void cuda_pc_interactions(cuda_kick_params &params) {
+   const int &tid = threadIdx.x;
+   __shared__
+   extern int shmem_ptr[];
+   cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
+   auto &f_x = shmem.f_x;
+   auto &f_y = shmem.f_y;
+   auto &f_z = shmem.f_z;
+   auto &Fx = shmem.Fx;
+   auto &Fy = shmem.Fy;
+   auto &Fz = shmem.Fz;
+   auto &inters = params.workspace.multi_interactions;
+   const auto &myparts = ((tree*) params.tptr)->parts;
+   const auto offset = myparts.first;
+   for (int i = tid; i < inters.size(); i += KICK_BLOCK_SIZE) {
+      const auto source_x = ((tree*) inters[i])->pos[0];
+      const auto source_y = ((tree*) inters[i])->pos[1];
+      const auto source_z = ((tree*) inters[i])->pos[2];
+      const int nparts = myparts.second - myparts.first;
+      for (int k = 0; k < nparts; k++) {
+         f_x[tid] = f_y[tid] = f_x[tid];
+         const auto sink_x = parts->pos(0, offset + k);
+         const auto sink_y = parts->pos(1, offset + k);
+         const auto sink_z = parts->pos(2, offset + k);
+         array<float, NDIM> dx;
+         array<float, NDIM + 1> Lforce;
+         for (int l = 0; l < NDIM + 1; l++) {
+            Lforce[l] = 0.0f;
+         }
+         dx[0] = (fixed<int32_t>(source_x) - fixed<int32_t>(sink_x)).to_float();
+         dx[1] = (fixed<int32_t>(source_y) - fixed<int32_t>(sink_y)).to_float();
+         dx[2] = (fixed<int32_t>(source_z) - fixed<int32_t>(sink_z)).to_float();
+         multipole_interaction(Lforce, *((tree*) inters[i])->multi, dx, false);
+         f_x[tid] -= Lforce[1];
+         f_y[tid] -= Lforce[2];
+         f_z[tid] -= Lforce[3];
+         __syncthreads();
+         for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+            if (tid < P) {
+               f_x[tid] += f_x[tid + P];
+               f_y[tid] += f_y[tid + P];
+               f_z[tid] += f_z[tid + P];
+            }
+            __syncthreads();
+         }
+         if (tid == 0) {
+            Fx[k] += f_x[0];
+            Fy[k] += f_y[0];
+            Fz[k] += f_z[0];
+         }
+         __syncthreads();
       }
    }
 }
@@ -421,7 +476,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_
 
 void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
-                                                                                                                                 CUDA_CHECK(cudaDeviceSynchronize());
+                                                                                                                                             CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(finite_vector<kick_return, KICK_GRID_SIZE> *rc,
