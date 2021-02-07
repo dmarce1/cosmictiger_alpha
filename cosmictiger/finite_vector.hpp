@@ -15,9 +15,10 @@
 #define THREADID constexpr int tid = 0
 #endif
 
+
 template<size_t SIZE>
 class finite_vector_allocator {
-   static constexpr size_t page_size = ALLOCATION_PAGE_SIZE / SIZE;
+   static constexpr size_t page_size = (65536-1 / SIZE+32);
    thread_local static std::stack<int8_t*> freelist;
    static std::stack<int8_t*> globallist;
    static std::atomic<int> lock;

@@ -60,12 +60,12 @@ void kick_test() {
       root_ptr.ptr = (uintptr_t) & root;
       root_ptr.rank = hpx_rank();
       // printf( "%li", size_t(WORKSPACE_SIZE));
-      kick_stack stack;
-      finite_vector<tree_ptr, 1> top_check;
-      top_check.resize(1);
-      top_check[0] = root_ptr;
-      stack.dchecks.push(top_check);
-      stack.echecks.push(top_check);
+      kick_params_type* params_ptr;
+      CUDA_MALLOC(params_ptr,1);
+      new (params_ptr) kick_params_type();
+      params_ptr->dstack.copy_to(&root_ptr,1);
+      params_ptr->estack.copy_to(&root_ptr,1);
+
       // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
       expansion L;
       for (int i = 0; i < LP; i++) {
@@ -75,12 +75,14 @@ void kick_test() {
       for (int dim = 0; dim < NDIM; dim++) {
          Lpos[dim] = 0.5;
       }
-      stack.L[0] = L;
-      stack.Lpos[0] = Lpos;
+      params_ptr->L[0] = L;
+      params_ptr->Lpos[0] = Lpos;
       tree::set_kick_parameters(0.7, 0);
-      root.kick(stack, 0).get();
+      root.kick(params_ptr).get();
       tm.stop();
       tree::cleanup();
+      params_ptr->kick_params_type::~kick_params_type();
+      CUDA_FREE(params_ptr);
       printf("Done kicking in %e seconds\n\n", tm.read());
    }
    parts_ptr->particle_set::~particle_set();

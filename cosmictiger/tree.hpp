@@ -15,9 +15,10 @@
 #define LEFT 0
 #define RIGHT 1
 #define WORKSPACE_SIZE 512
-#define KICK_GRID_SIZE 128
+#define KICK_GRID_SIZE 92
 #define KICK_BLOCK_SIZE 32
 #define N_CUDA_WORKSPACE 8
+#define TREE_PTR_STACK (16*1024)
 
 #define EWALD_MIN_DIST2 (0.25f * 0.25f)
 
@@ -108,10 +109,7 @@ struct kick_return {
 };
 
 class tree_ptr;
-
-using checks_type = finite_vector<tree_ptr,WORKSPACE_SIZE>;
-
-struct kick_stack;
+class kick_params_type;
 
 struct tree_ptr {
    uintptr_t ptr;
@@ -196,80 +194,8 @@ struct tree_ptr {
    CUDA_EXPORT
    bool is_leaf() const;
 #ifndef __CUDACC__
-   fast_future<kick_return> kick(kick_stack&, int, bool);
+   fast_future<kick_return> kick(kick_params_type*, bool);
 #endif
-};
-
-struct kick_workspace_t {
-   checks_type multi_interactions;
-   checks_type part_interactions;
-   checks_type next_checks;
-   checks_type opened_checks;
-};
-
-#define WORKSPACE_STACK (64*1024)
-
-struct check_stack {
-   finite_vector<tree_ptr, WORKSPACE_STACK> stack;
-   finite_vector<int, WORKSPACE_STACK> counts;
-   CUDA_EXPORT tree_ptr* top_list() {
-      return &stack[stack.size() - counts.top()];
-   }
-   CUDA_EXPORT int top_count() const {
-      return counts.top();
-   }
-   CUDA_EXPORT void set_top_size(size_t sz) {
-      stack.resize(stack.size() - counts.top() + sz);
-      counts.top() = sz;
-   }
-   CUDA_EXPORT void pop() {
-      stack.resize(stack.size() - counts.top());
-      counts.pop_back();
-   }
-   CUDA_EXPORT void copy_top(check_stack &other) {
-      THREADID;
-      BLOCKSIZE;
-      if (&other != this) {
-         const size_t offset = other.stack.size();
-         other.stack.resize(offset + counts.top());
-         for (int i = tid; i < counts.top(); i += blocksize) {
-            other.stack[offset + i] = top_list()[i];
-         }
-         other.counts.push_back(counts.top());
-      } else {
-         const size_t offset = stack.size();
-         stack.resize(offset + counts.top());
-         for (int i = tid; i < counts.top(); i += blocksize) {
-            stack[offset + i] = stack[offset + i - counts.top()];
-         }
-         counts.push_back(counts.top());
-      }
-   }
-   template<size_t N>
-   CUDA_EXPORT void push(const finite_vector<tree_ptr, N> &list) {
-      THREADID;
-      BLOCKSIZE;
-      size_t offset = stack.size();
-      stack.resize(offset + list.size());
-      for (int i = tid; i < list.size(); i += blocksize) {
-         stack[offset + i] = list[i];
-      }
-      counts.push_back(list.size());
-   }
-
-};
-
-struct kick_stack {
-   check_stack dchecks;
-   check_stack echecks;
-   finite_vector<expansion, TREE_MAX_DEPTH> L;
-   finite_vector<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
-   kick_stack(kick_stack&&) = default;
-   kick_stack& operator=(kick_stack&&) = default;
-   kick_stack() {
-      L.resize(TREE_MAX_DEPTH);
-      Lpos.resize(TREE_MAX_DEPTH);
-   }
 };
 
 struct sort_return {
@@ -279,61 +205,106 @@ struct sort_return {
       assert(false);
    }
 };
-
-#ifndef __CUDACC__
-struct gpu_kick {
-   tree_ptr tree;
-   kick_workspace_t space;
-   kick_stack stack;
-   int depth;
-   hpx::lcos::local::promise<kick_return> promise;
-   gpu_kick(gpu_kick&&) = default;
-   gpu_kick() = default;
-
-};
-#endif
-
 template<class A, class B>
 struct pair {
    A first;
    B second;
 };
 
-struct cuda_workspace_t {
-   kick_stack *stacks;
-   tree_ptr *roots;
-   kick_workspace_t *workspace;
-   kick_return *rc;
-   int *depths;
-   int8_t *ptr;
-   size_t grid_size;
-   cuda_workspace_t(size_t grid_size_) {
-      grid_size = grid_size_;
-      const size_t sz = grid_size
-            * (sizeof(kick_stack) + sizeof(tree_ptr) + sizeof(int) + sizeof(kick_workspace_t) + sizeof(kick_return));
-      CUDA_MALLOC(ptr, sz);
-      stacks = (kick_stack*) ptr;
-      roots = (tree_ptr*) (stacks + grid_size);
-      workspace = (kick_workspace_t*) (roots + grid_size);
-      depths = (int*) (workspace + grid_size);
-      rc = (kick_return*) (workspace + grid_size);
-      for (int i = 0; i < grid_size; i++) {
-         new (stacks + i) kick_stack();
-         new (workspace + i) kick_workspace_t();
-         new (rc + i) kick_return();
-         new (roots + i) tree_ptr();
+struct kick_params_stack_type {
+   array<tree_ptr, TREE_PTR_STACK> checks;
+   array<int, TREE_MAX_DEPTH> counts;
+   int count_size;
+   int stack_size;
+   CUDA_EXPORT inline kick_params_stack_type() {
+      THREADID;
+      if (tid == 0) {
+         count_size = stack_size = 0;
+      }CUDA_SYNC();
+   }
+   CUDA_EXPORT inline tree_ptr* get_top_list() {
+      return &checks[stack_size - counts[count_size - 1]];
+   }
+   CUDA_EXPORT inline
+   int& get_top_count() {
+      return counts[count_size - 1];
+   }
+   CUDA_EXPORT inline
+   void pop() {
+      THREADID;
+      if (tid == 0) {
+         stack_size -= counts[count_size - 1];
+         count_size--;
+      }CUDA_SYNC();
+   }
+   CUDA_EXPORT inline
+   void copy_to(tree_ptr *stk, int sz) {
+      THREADID;
+       BLOCKSIZE;
+      for (int i = stack_size + tid; i < stack_size + sz; i += blocksize) {
+         checks[i] = stk[i - stack_size];
+      }CUDA_SYNC();
+      if (tid == 0) {
+         stack_size += sz;
+         counts[count_size] = sz;
+         count_size++;
       }
    }
-   ~cuda_workspace_t() {
-      for (int i = 0; i < grid_size; i++) {
-         stacks[i].kick_stack::~kick_stack();
-         roots[i].tree_ptr::~tree_ptr();
-         workspace[i].kick_workspace_t::~kick_workspace_t();
-         rc[i].kick_return::~kick_return();
+   CUDA_EXPORT inline
+   void copy_top() {
+      THREADID;
+       BLOCKSIZE;
+       for (int i = tid; i < counts[count_size - 1]; i += blocksize) {
+         checks[stack_size + i] = checks[stack_size - counts[count_size - 1] + i];
+      }CUDA_SYNC();
+      if (tid == 0) {
+         stack_size += counts[count_size - 1];
+         counts[count_size] = counts[count_size - 1];
+         count_size++;
       }
-      CUDA_FREE(ptr);
+   }
+   CUDA_EXPORT inline
+   void resize_top(int sz) {
+      THREADID;
+      if (tid == 0) {
+         const auto old_sz = counts[count_size - 1];
+         counts[count_size - 1] = sz;
+         stack_size += sz - old_sz;
+      }CUDA_SYNC();
    }
 };
+
+struct kick_params_type {
+   kick_params_stack_type dstack;
+   kick_params_stack_type estack;
+   array<tree_ptr, WORKSPACE_SIZE> multi_interactions;
+   array<tree_ptr, WORKSPACE_SIZE> part_interactions;
+   array<tree_ptr, WORKSPACE_SIZE> next_checks;
+   array<tree_ptr, WORKSPACE_SIZE> opened_checks;
+   array<expansion, TREE_MAX_DEPTH> L;
+   array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
+   tree_ptr tptr;
+   int nmulti;
+   int npart;
+   int nnext;
+   int nopen;
+   int depth;
+   CUDA_EXPORT inline kick_params_type() {
+      THREADID;
+      if (tid == 0) {
+         nmulti = npart = nnext = nopen = depth = 0;
+      }CUDA_SYNC();
+   }
+};
+
+struct kick_params_type;
+
+#ifndef __CUDACC__
+struct gpu_kick {
+   kick_params_type* params;
+   hpx::lcos::local::promise<kick_return> promise;
+};
+#endif
 
 struct tree {
 
@@ -353,22 +324,19 @@ public:
    static void cuda_set_kick_params(particle_set *p, float theta_, int rung_);
 #ifndef __CUDACC__
    static void set_particle_set(particle_set*);
-   static std::shared_ptr<kick_workspace_t> get_workspace();
-   static void cleanup_workspace(std::shared_ptr<kick_workspace_t>&&);
    inline static hpx::future<sort_return> create_child(sort_params&);
    static fast_future<sort_return> cleanup_child();
    static void set_kick_parameters(float theta, int8_t rung);
    static hpx::lcos::local::mutex mtx;
    static hpx::lcos::local::mutex gpu_mtx;
-   static std::stack<std::shared_ptr<kick_workspace_t>> kick_works;
-   hpx::future<kick_return> send_kick_to_gpu(kick_stack &stack, int depth);
+   hpx::future<kick_return> send_kick_to_gpu(kick_params_type *params);
    static void gpu_daemon();
    inline bool is_leaf() const {
       return children[0] == tree_ptr();
    }
    static void cleanup();
    sort_return sort(sort_params = sort_params());
-   hpx::future<kick_return> kick(kick_stack&, int depth);
+   hpx::future<kick_return> kick(kick_params_type*);
    static bool daemon_running;
    static bool shutdown_daemon;
    static std::queue<gpu_kick> gpu_queue;
