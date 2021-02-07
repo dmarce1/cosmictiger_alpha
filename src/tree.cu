@@ -491,7 +491,7 @@ CUDA_KERNEL cuda_kick_kernel(cuda_workspace_t *workspace) {
 std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK_GRID_SIZE>>> cuda_execute_kick_kernel(
       cuda_workspace_t *workspace, int grid_size) {
    std::vector < std::function < kick_return() >> returns;
-   workspace->rc.resize(grid_size);
+   workspace->rc;
    cudaStream_t stream;
    cudaEvent_t event;
    CUDA_CHECK(cudaStreamCreate(&stream));
@@ -527,7 +527,10 @@ std::pair<std::function<bool()>, std::shared_ptr<finite_vector<kick_return, KICK
                CUDA_CHECK(cudaStreamSynchronize(stream));
                CUDA_CHECK(cudaEventDestroy(event));
                CUDA_CHECK(cudaStreamDestroy(stream));
-               *returns = std::move(workptr->rc);
+               returns->resize(grid_size);
+               for( int i = 0; i < grid_size; i++) {
+                  (*returns)[i] = workptr->rc[i];
+               }
             }
          }
          return ready;

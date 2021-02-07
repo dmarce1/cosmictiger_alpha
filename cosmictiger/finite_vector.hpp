@@ -29,7 +29,7 @@ public:
          while (lock++ != 0) {
             lock--;
          }
-         if (globallist.size() < 1024) {
+         if (globallist.size() < page_size) {
             lock--;
             int8_t *ptr;
             CUDA_MALLOC(ptr, page_size * SIZE);
@@ -37,7 +37,7 @@ public:
                freelist.push(ptr + i * SIZE);
             }
          } else {
-            for (int i = 0; i < 1024; i++) {
+            for (int i = 0; i < page_size; i++) {
                freelist.push(globallist.top());
                globallist.pop();
             }
@@ -52,11 +52,11 @@ public:
    }
    void deallocate(void *ptr) {
       freelist.push((int8_t*) ptr);
-      if (freelist.size() > 2048) {
+      if (freelist.size() >= 2 * page_size) {
          while (lock++ != 0) {
             lock--;
          }
-         for (int i = 0; i < 1024; i++) {
+         for (int i = 0; i < page_size; i++) {
             globallist.push(freelist.top());
             freelist.pop();
          }

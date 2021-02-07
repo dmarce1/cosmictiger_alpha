@@ -408,13 +408,6 @@ void tree::gpu_daemon() {
 
    printf("Starting gpu kick daemon\n");
    daemon_running = true;
-   static std::stack<cuda_workspace_t*> workspaces;
-   for( int i = 0; i < N_CUDA_WORKSPACE; i++) {
-      cuda_workspace_t* ptr;
-      CUDA_MALLOC(ptr,1);
-      new(ptr) cuda_workspace_t();
-      workspaces.push(ptr);
-   }
    int tries = 0;
    int min_grid_size = KICK_GRID_SIZE;
    while (!shutdown_daemon) {
@@ -426,18 +419,19 @@ void tree::gpu_daemon() {
          tries++;
       }
       std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
-      while (gpu_queue.size() >= min_grid_size && workspaces.size()) {
+      while (gpu_queue.size() >= min_grid_size) {
          int grid_size = min_grid_size;
          min_grid_size = KICK_GRID_SIZE;
          std::vector<hpx::lcos::local::promise<kick_return>> promises;
-         auto workspace = workspaces.top();
-         workspaces.pop();
+         cuda_workspace_t* workspace;
+         CUDA_MALLOC(workspace,1);
+         new (workspace) cuda_workspace_t(grid_size);
          for (int i = 0; i < grid_size; i++) {
             auto work_item = std::move(gpu_queue.front());
             gpu_queue.pop();
-            workspace->stacks.push_back(std::move(work_item.stack));
-            workspace->depths.push_back(work_item.depth);
-            workspace->roots.push_back(work_item.tree);
+            workspace->stacks[i] = (std::move(work_item.stack));
+            workspace->depths[i] = (work_item.depth);
+            workspace->roots[i] = (work_item.tree);
             promises.push_back(std::move(work_item.promise));
          }
          printf("Executing %i blocks\n", grid_size);
@@ -449,8 +443,8 @@ void tree::gpu_daemon() {
             for (int i = 0; i < grid_size; i++) {
                promises[i].set_value((*exec_ret.second)[i]);
             }
-            std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
-            workspaces.push(workspace);
+            workspace->cuda_workspace_t::~cuda_workspace_t();
+            CUDA_FREE(workspace);
          },std::move(promises));
       }
    }

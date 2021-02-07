@@ -214,7 +214,7 @@ struct kick_stack {
    finite_vector<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
    kick_stack(kick_stack&&) = default;
    kick_stack& operator=(kick_stack&&) = default;
-    kick_stack() {
+   kick_stack() {
       dchecks.resize(TREE_MAX_DEPTH);
       echecks.resize(TREE_MAX_DEPTH);
       L.resize(TREE_MAX_DEPTH);
@@ -249,14 +249,40 @@ struct pair {
    B second;
 };
 
-
-
 struct cuda_workspace_t {
-   finite_vector<kick_stack, KICK_GRID_SIZE> stacks;
-   finite_vector<tree_ptr, KICK_GRID_SIZE> roots;
-   finite_vector<int, KICK_GRID_SIZE> depths;
-   finite_vector<kick_workspace_t, KICK_GRID_SIZE> workspace;
-   finite_vector<kick_return, KICK_GRID_SIZE> rc;
+   kick_stack *stacks;
+   tree_ptr *roots;
+   kick_workspace_t *workspace;
+   kick_return *rc;
+   int *depths;
+   int8_t *ptr;
+   size_t grid_size;
+   cuda_workspace_t(size_t grid_size_) {
+      grid_size = grid_size_;
+      const size_t sz = grid_size
+            * (sizeof(kick_stack) + sizeof(tree_ptr) + sizeof(int) + sizeof(kick_workspace_t) + sizeof(kick_return));
+      CUDA_MALLOC(ptr, sz);
+      stacks = (kick_stack*) ptr;
+      roots = (tree_ptr*) (stacks + grid_size);
+      workspace = (kick_workspace_t*) (roots + grid_size);
+      depths = (int*) (workspace + grid_size);
+      rc = (kick_return*) (workspace + grid_size);
+      for (int i = 0; i < grid_size; i++) {
+         new (stacks + i) kick_stack();
+         new (workspace + i) kick_workspace_t();
+         new (rc + i) kick_return();
+         new (roots + i) tree_ptr();
+      }
+   }
+   ~cuda_workspace_t() {
+      for (int i = 0; i < grid_size; i++) {
+         stacks[i].kick_stack::~kick_stack();
+         roots[i].tree_ptr::~tree_ptr();
+         workspace[i].kick_workspace_t::~kick_workspace_t();
+         rc[i].kick_return::~kick_return();
+      }
+      CUDA_FREE(ptr);
+   }
 };
 
 struct tree {
@@ -274,7 +300,7 @@ private:
 public:
    static particle_set *particles;
    static void set_cuda_particle_set(particle_set*);
-   static void cuda_set_kick_params(particle_set* p, float theta_, int rung_);
+   static void cuda_set_kick_params(particle_set *p, float theta_, int rung_);
 #ifndef __CUDACC__
    static void set_particle_set(particle_set*);
    static std::shared_ptr<kick_workspace_t> get_workspace();
@@ -285,7 +311,7 @@ public:
    static hpx::lcos::local::mutex mtx;
    static hpx::lcos::local::mutex gpu_mtx;
    static std::stack<std::shared_ptr<kick_workspace_t>> kick_works;
-   hpx::future<kick_return> send_kick_to_gpu(kick_stack& stack, int depth);
+   hpx::future<kick_return> send_kick_to_gpu(kick_stack &stack, int depth);
    static void gpu_daemon();
    inline bool is_leaf() const {
       return children[0] == tree_ptr();
