@@ -33,18 +33,10 @@ using pos_array = array<fixed32,KICK_PP_MAX>;
 struct cuda_kick_shmem {
    indices_array indices;
    counts_array count;
-   array<float, KICK_BLOCK_SIZE> f_x;
-   array<float, KICK_BLOCK_SIZE> f_y;
-   array<float, KICK_BLOCK_SIZE> f_z;
-   array<float, MAX_BUCKET_SIZE> Fx;
-   array<float, MAX_BUCKET_SIZE> Fy;
-   array<float, MAX_BUCKET_SIZE> Fz;
-   array<fixed32, KICK_PP_MAX> srcx;
-   array<fixed32, KICK_PP_MAX> srcy;
-   array<fixed32, KICK_PP_MAX> srcz;
-   array<fixed32, MAX_BUCKET_SIZE> sinkx;
-   array<fixed32, MAX_BUCKET_SIZE> sinky;
-   array<fixed32, MAX_BUCKET_SIZE> sinkz;
+   array<array<float, KICK_BLOCK_SIZE>, NDIM> f;
+   array<array<float, MAX_BUCKET_SIZE>, NDIM> F;
+   array<array<fixed32, KICK_PP_MAX>, NDIM> src;
+   array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;
    array<expansion, KICK_BLOCK_SIZE> L;
 };
 
@@ -94,13 +86,9 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    auto &Lreduce = shmem.L;
-   auto &source_x = shmem.srcx;
-   auto &source_y = shmem.srcy;
-   auto &source_z = shmem.srcz;
+   auto &sources = shmem.src;
    auto &inters = params.part_interactions;
-   const auto sink_x = params.Lpos[params.depth][0];
-   const auto sink_y = params.Lpos[params.depth][1];
-   const auto sink_z = params.Lpos[params.depth][2];
+   const auto &sinks = params.Lpos[params.depth];
    if (params.npart) {
       int i = 0;
       const auto &myparts = ((tree*) params.tptr)->parts;
@@ -120,13 +108,13 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
          }
          for (int j = these_parts.first + tid; j < these_parts.second; j += KICK_BLOCK_SIZE) {
             const auto j0 = j - these_parts.first;
-            source_x[j0] = parts->pos(0, j);
-            source_y[j0] = parts->pos(1, j);
-            source_z[j0] = parts->pos(2, j);
+            for (int dim = 0; dim < NDIM; dim++) {
+               sources[dim][j0] = parts->pos(dim, j);
+            }
             array<float, NDIM> dx;
-            dx[0] = (fixed<int32_t>(source_x[j0]) - fixed<int32_t>(sink_x)).to_float();
-            dx[1] = (fixed<int32_t>(source_y[j0]) - fixed<int32_t>(sink_y)).to_float();
-            dx[2] = (fixed<int32_t>(source_z[j0]) - fixed<int32_t>(sink_z)).to_float();
+            for (int dim = 0; dim < NDIM; dim++) {
+               dx[dim] = (fixed<int32_t>(sources[dim][j0]) - fixed<int32_t>(sinks[dim])).to_float();
+            }
             expansion L;
             multipole_interaction(L, 1.0f, dx, false);
             for (int j = 0; j < LP; j++) {
@@ -155,27 +143,18 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
    __shared__
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-   auto &f_x = shmem.f_x;
-   auto &f_y = shmem.f_y;
-   auto &f_z = shmem.f_z;
-   auto &Fx = shmem.Fx;
-   auto &Fy = shmem.Fy;
-   auto &Fz = shmem.Fz;
-   auto &source_x = shmem.srcx;
-   auto &source_y = shmem.srcy;
-   auto &source_z = shmem.srcz;
-   auto &sink_x = shmem.sinkx;
-   auto &sink_y = shmem.sinky;
-   auto &sink_z = shmem.sinkz;
+   auto &f = shmem.f;
+   auto &F = shmem.F;
+   auto &sources = shmem.src;
+   auto &sinks = shmem.sink;
    auto &inters = params.part_interactions;
    if (params.npart) {
       const auto &myparts = ((tree*) params.tptr)->parts;
       const size_t nsinks = myparts.second - myparts.first;
-      const auto offset = ((tree*) params.tptr)->parts.first;
       for (int i = tid; i < nsinks; i += KICK_BLOCK_SIZE) {
-         sink_x[i] = parts->pos(0, offset + i);
-         sink_y[i] = parts->pos(1, offset + i);
-         sink_z[i] = parts->pos(2, offset + i);
+         for (int dim = 0; dim < NDIM; dim++) {
+            sinks[dim][i] = parts->pos(dim, i + myparts.first);
+         }
       }
       int i = 0;
       __syncthreads();
@@ -192,88 +171,110 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
                break;
             }
          }
-         const auto offset = ((tree*) params.tptr)->parts.first;
-         for( int k = tid; k < nsinks; k++) {
-            Fx[k] = 0.f;
-            Fy[k] = 0.f;
-            Fz[k] = 0.f;
+         array<fixed32*, NDIM> part_pos;
+         if (tid < NDIM) {
+            part_pos[tid] = &parts->pos(tid, these_parts.first);
          }
-         for (int j = these_parts.first; j < these_parts.second; j++) {
-            const auto j0 = j - these_parts.first;
-            source_x[j0] = parts->pos(0, j);
-            source_y[j0] = parts->pos(1, j);
-            source_z[j0] = parts->pos(2, j);
-            for (int k = tid; k < nsinks; k+=KICK_BLOCK_SIZE) {
-               f_x[tid] = f_y[tid] = f_x[tid] = 0;
+         __syncthreads();
+         const auto nparts = these_parts.second - these_parts.first;
+         for (int j = tid; j < nparts; j += KICK_BLOCK_SIZE) {
+            for (int dim = 0; dim < NDIM; dim++) {
+               sources[dim][j] = parts->pos(dim, j + these_parts.first);
+            }
+         }
+         __syncthreads();
+         const auto offset = ((tree*) params.tptr)->parts.first;
+         for (int k = 0; k < nsinks; k++) {
+            for (int dim = 0; dim < NDIM; dim++) {
+               f[dim][tid] = 0.f;
+            }
+            for (int j = these_parts.first + tid; j < these_parts.second; j += KICK_BLOCK_SIZE) {
                const auto j0 = j - these_parts.first;
-               const auto dx = (fixed<int32_t>(source_x[j0]) - fixed<int32_t>(sink_x[k])).to_float();
-               const auto dy = (fixed<int32_t>(source_y[j0]) - fixed<int32_t>(sink_y[k])).to_float();
-               const auto dz = (fixed<int32_t>(source_z[j0]) - fixed<int32_t>(sink_z[k])).to_float();
-               const auto r2 = sqr(dx) + sqr(dy) + sqr(dz);
+               array<float, NDIM> dx;
+               for (int dim = 0; dim < NDIM; dim++) {
+                  dx[dim] = (fixed<int32_t>(sources[dim][j0]) - fixed<int32_t>(sinks[dim][k])).to_float();
+               }
+               const auto r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);
                const auto rinv = rsqrtf(r2);
                const auto rinv3 = rinv * rinv * rinv;
-               Fx[k] -= dx * rinv3;
-               Fy[k] -= dy * rinv3;
-               Fz[k] -= dz * rinv3;
+               for (int dim = 0; dim < NDIM; dim++) {
+                  f[dim][tid] -= dx[dim] * rinv3;
+               }
             }
+            __syncthreads();
+            for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+               if (tid < P) {
+                  for (int dim = 0; dim < NDIM; dim++) {
+                     f[dim][tid] += f[dim][tid + P];
+                  }
+               }
+               __syncthreads();
+            }
+            if (tid == 0) {
+               for (int dim = 0; dim < NDIM; dim++) {
+                  F[dim][k] += f[dim][0];
+               }
+            }
+            __syncthreads();
          }
       }
    }
 }
 
-CUDA_DEVICE void cuda_pc_interactions(kick_params_type *params_ptr) {
+CUDA_DEVICE
+void cuda_pc_interactions(kick_params_type *params_ptr) {
    kick_params_type &params = *params_ptr;
    const int &tid = threadIdx.x;
    __shared__
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-   auto &f_x = shmem.f_x;
-   auto &f_y = shmem.f_y;
-   auto &f_z = shmem.f_z;
-   auto &Fx = shmem.Fx;
-   auto &Fy = shmem.Fy;
-   auto &Fz = shmem.Fz;
+   auto &f = shmem.f;
+   auto &F = shmem.F;
    auto &inters = params.multi_interactions;
    const auto &myparts = ((tree*) params.tptr)->parts;
    const auto offset = myparts.first;
    const int mmax = ((params.nmulti - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
    for (int i = tid; i < mmax; i += KICK_BLOCK_SIZE) {
-      const auto source_x = ((tree*) inters[i])->pos[0];
-      const auto source_y = ((tree*) inters[i])->pos[1];
-      const auto source_z = ((tree*) inters[i])->pos[2];
+      const auto sources = ((tree*) inters[i])->pos;
       const int nparts = myparts.second - myparts.first;
       for (int k = 0; k < nparts; k++) {
-         f_x[tid] = f_y[tid] = f_x[tid];
+         for (int dim = 0; dim < NDIM; dim++) {
+            f[dim][tid] = 0.f;
+         }
+         array<fixed32, NDIM> sinks;
          if (i < params.nmulti) {
-            const auto sink_x = parts->pos(0, offset + k);
-            const auto sink_y = parts->pos(1, offset + k);
-            const auto sink_z = parts->pos(2, offset + k);
+            if (tid < NDIM) {
+               sinks[tid] = parts->pos(tid, offset + k);
+            }
+         }
+         __syncthreads();
+         if (i < params.nmulti) {
             array<float, NDIM> dx;
             array<float, NDIM + 1> Lforce;
             for (int l = 0; l < NDIM + 1; l++) {
                Lforce[l] = 0.0f;
             }
-            dx[0] = (fixed<int32_t>(source_x) - fixed<int32_t>(sink_x)).to_float();
-            dx[1] = (fixed<int32_t>(source_y) - fixed<int32_t>(sink_y)).to_float();
-            dx[2] = (fixed<int32_t>(source_z) - fixed<int32_t>(sink_z)).to_float();
+            for (int dim = 0; dim < NDIM; dim++) {
+               dx[dim] = (fixed<int32_t>(sources[dim]) - fixed<int32_t>(sinks[dim])).to_float();
+            }
             multipole_interaction(Lforce, *((tree*) inters[i])->multi, dx, false);
-            f_x[tid] -= Lforce[1];
-            f_y[tid] -= Lforce[2];
-            f_z[tid] -= Lforce[3];
+            for (int dim = 0; dim < NDIM; dim++) {
+               f[dim][tid] -= Lforce[dim + 1];
+            }
          }
          __syncthreads();
          for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
             if (tid < P) {
-               f_x[tid] += f_x[tid + P];
-               f_y[tid] += f_y[tid + P];
-               f_z[tid] += f_z[tid + P];
+               for (int dim = 0; dim < NDIM; dim++) {
+                  f[dim][tid] += f[dim][tid + P];
+               }
             }
             __syncthreads();
          }
          if (tid == 0) {
-            Fx[k] += f_x[0];
-            Fy[k] += f_y[0];
-            Fz[k] += f_z[0];
+            for (int dim = 0; dim < NDIM; dim++) {
+               F[dim][k] += f[dim][0];
+            }
          }
          __syncthreads();
       }
@@ -289,14 +290,12 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
    const int &tid = threadIdx.x;
    int depth = params.depth;
    kick_return rc;
-   auto &Fx = shmem.Fx;
-   auto &Fy = shmem.Fy;
-   auto &Fz = shmem.Fz;
+   auto &F = shmem.F;
    if (((tree*) tptr)->children[0].rank == -1) {
       for (int k = tid; k < MAX_BUCKET_SIZE; k += KICK_BLOCK_SIZE) {
-         Fx[k] = 0.f;
-         Fy[k] = 0.f;
-         Fz[k] = 0.f;
+         for (int dim = 0; dim < NDIM; dim++) {
+            F[dim][k] = 0.f;
+         }
       }
       __syncthreads();
    }
@@ -475,7 +474,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_
 
 void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
-                                                                                                                                                                        CUDA_CHECK(cudaDeviceSynchronize());
+                              CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
@@ -489,13 +488,13 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    cudaEvent_t event;
    CUDA_CHECK(cudaStreamCreate(&stream));
    CUDA_CHECK(cudaEventCreate(&event));
-//  printf("Shared mem requirements = %li\n", sizeof(cuda_kick_shmem));
+   //  printf("Shared mem requirements = %li\n", sizeof(cuda_kick_shmem));
    const size_t shmemsize = sizeof(cuda_kick_shmem);
    kick_return *returns;
    CUDA_MALLOC(returns, grid_size);
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(returns,params);/**/
-   /**/   CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
+   /**/CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
    /***************************************************************************************************************************************************/
 
    struct cuda_kick_future_shared {
