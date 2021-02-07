@@ -7,6 +7,7 @@
 #include <cosmictiger/fast_future.hpp>
 #include <cosmictiger/expansion.hpp>
 #include <cosmictiger/finite_vector.hpp>
+#include <cosmictiger/lockfree_queue.hpp>
 
 #include <queue>
 #include <memory>
@@ -15,9 +16,10 @@
 #define LEFT 0
 #define RIGHT 1
 #define WORKSPACE_SIZE 512
-#define KICK_GRID_SIZE 256
+#define KICK_GRID_SIZE (8*46)
 #define KICK_BLOCK_SIZE 32
 #define N_CUDA_WORKSPACE 8
+#define GPU_QUEUE_SIZE (1024*1024)
 #define TREE_PTR_STACK (TREE_MAX_DEPTH*WORKSPACE_SIZE)
 
 #define EWALD_MIN_DIST2 (0.25f * 0.25f)
@@ -339,7 +341,7 @@ public:
    hpx::future<kick_return> kick(kick_params_type*);
    static bool daemon_running;
    static bool shutdown_daemon;
-   static std::queue<gpu_kick> gpu_queue;
+   static lockfree_queue<gpu_kick,GPU_QUEUE_SIZE> gpu_queue;
 #endif
    friend class tree_ptr;
 };
