@@ -32,7 +32,7 @@
 
 #define ALLOCATION_PAGE_SIZE (2*1024*1024LL)
 #define MIN_CUDA_SORT 65536LL
-#define OVERSUBSCRIPTION 2
+#define OVERSUBSCRIPTION 8
 
 #ifdef TEST_BOUNDS
 #define BOUNDS_CHECK1(a,b,c)                                                              \

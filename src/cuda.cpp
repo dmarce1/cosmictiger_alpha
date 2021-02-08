@@ -11,6 +11,8 @@
 #define STACK_SIZE (4*1024)
 #define HEAP_SIZE 4*1024*1024
 #define RECUR_LIMIT 0
+#define L2FETCH 32
+#define PENDINGLAUNCHES 4
 
 cuda_properties cuda_init() {
    cuda_properties props;
@@ -25,6 +27,7 @@ cuda_properties cuda_init() {
    for (int i = 0; i < props.num_devices; i++) {
       printf("\t %s: %i\n", props.devices[i].name, props.devices[i].multiProcessorCount);
    }
+   CUDA_CHECK(cudaDeviceReset());
    size_t value = STACK_SIZE;
    CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, value));
    CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitStackSize));
@@ -47,7 +50,23 @@ cuda_properties cuda_init() {
       printf("Unable to set recursion limit to %i\n", RECUR_LIMIT);
       fail = true;
    }
-  // CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
+   value = L2FETCH;
+   CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMaxL2FetchGranularity , value));
+   CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitMaxL2FetchGranularity ));
+   if (value != L2FETCH) {
+      printf("Unable to set L2 fetch granularity to to %li\n", L2FETCH);
+      fail = true;
+   }
+   value = PENDINGLAUNCHES;
+   CUDA_CHECK(cudaDeviceSetLimit(cudaLimitDevRuntimePendingLaunchCount , value));
+   CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitDevRuntimePendingLaunchCount ));
+   if (value != L2FETCH) {
+      printf("Unable to set pending launch count to %li\n",  PENDINGLAUNCHES);
+      fail = true;
+   }
+ //  CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferCache));
+   CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
+   // CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
    if (fail) {
       abort();
    }

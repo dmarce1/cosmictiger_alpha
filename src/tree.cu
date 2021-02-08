@@ -129,6 +129,8 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
    }
 }
 
+CUDA_DEVICE double ndirect = 0;
+
 CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
    kick_params_type &params = *params_ptr;
    const int &tid = threadIdx.x;
@@ -140,6 +142,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
    auto &sources = shmem.src;
    auto &sinks = shmem.sink;
    auto &inters = params.part_interactions;
+   size_t part_index;
    if (params.npart) {
       const auto &myparts = ((tree*) params.tptr)->parts;
       const size_t nsinks = myparts.second - myparts.first;
@@ -150,28 +153,32 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
       }
       int i = 0;
       __syncthreads();
+      auto these_parts = ((tree*) inters[0])->parts;
       while (i < params.npart) {
-         pair<size_t, size_t> these_parts;
-         these_parts = ((tree*) inters[i])->parts;
-         i++;
-         while (i < params.npart) {
-            auto next_parts = ((tree*) inters[i])->parts;
-            if (next_parts.first == these_parts.second && next_parts.second - these_parts.first <= KICK_PP_MAX) {
-               these_parts.second = ((tree*) inters[i])->parts.second;
-               i++;
-            } else {
-               break;
+         part_index = 0;
+         while (part_index < KICK_PP_MAX && i < params.npart) {
+            while (i + 1 < params.npart) {
+               if (these_parts.second == ((tree*) inters[i + 1])->parts.first) {
+                  these_parts.second = ((tree*) inters[i + 1])->parts.second;
+                  i++;
+               } else {
+                  break;
+               }
             }
-         }
-         array<fixed32*, NDIM> part_pos;
-         if (tid < NDIM) {
-            part_pos[tid] = &parts->pos(tid, these_parts.first);
-         }
-         __syncthreads();
-         const auto nparts = these_parts.second - these_parts.first;
-         for (int j = tid; j < nparts; j += KICK_BLOCK_SIZE) {
-            for (int dim = 0; dim < NDIM; dim++) {
-               sources[dim][j] = parts->pos(dim, j + these_parts.first);
+            const size_t imin = these_parts.first;
+            const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
+            for (size_t j = imin + tid; j < imax; j += KICK_BLOCK_SIZE) {
+               for (int dim = 0; dim < NDIM; dim++) {
+                  sources[dim][part_index + j - imin] = parts->pos(dim, j);
+               }
+            }
+            these_parts.first += imax - imin;
+            part_index += imax - imin;
+            if (these_parts.first == these_parts.second) {
+               i++;
+               if (i < params.npart) {
+                  these_parts = ((tree*) inters[i])->parts;
+               }
             }
          }
          __syncthreads();
@@ -180,11 +187,10 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
             for (int dim = 0; dim < NDIM; dim++) {
                f[dim][tid] = 0.f;
             }
-            for (int j = these_parts.first + tid; j < these_parts.second; j += KICK_BLOCK_SIZE) {
-               const auto j0 = j - these_parts.first;
+            for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
                array<float, NDIM> dx;
                for (int dim = 0; dim < NDIM; dim++) {
-                  dx[dim] = (fixed<int32_t>(sources[dim][j0]) - fixed<int32_t>(sinks[dim][k])).to_float();
+                  dx[dim] = (fixed<int32_t>(sources[dim][j]) - fixed<int32_t>(sinks[dim][k])).to_float();
                }
                const auto r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);
                const auto rinv = rsqrtf(r2);
@@ -436,7 +442,8 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
          case PC_PP_EWALD:
             break;
          case CC_CP_EWALD:
-            if( count[CI] ) printf( "Ewald\n");
+            if (count[CI])
+               printf("Ewald\n");
             break;
          }
 
@@ -481,7 +488,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_
 
 void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
-                                       CUDA_CHECK(cudaDeviceSynchronize());
+                                                CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
@@ -496,12 +503,12 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    CUDA_CHECK(cudaStreamCreate(&stream));
    CUDA_CHECK(cudaEventCreate(&event));
    for (int i = 0; i < grid_size; i++) {
-    //  for (int dim = 0; dim < NDIM; dim++) {
-     //    CUDA_CHECK(cudaMemPrefetchAsync(params[i]->pref_ptr[dim], params[i]->pref_size, 0, stream));
-    //  }
+      //  for (int dim = 0; dim < NDIM; dim++) {
+      //    CUDA_CHECK(cudaMemPrefetchAsync(params[i]->pref_ptr[dim], params[i]->pref_size, 0, stream));
+      //  }
    }
 
-   //  printf("Shared mem requirements = %li\n", sizeof(cuda_kick_shmem));
+//  printf("Shared mem requirements = %li\n", sizeof(cuda_kick_shmem));
    const size_t shmemsize = sizeof(cuda_kick_shmem);
    kick_return *returns;
    CUDA_MALLOC(returns, grid_size);

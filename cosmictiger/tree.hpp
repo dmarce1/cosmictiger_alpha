@@ -16,10 +16,11 @@
 #define LEFT 0
 #define RIGHT 1
 #define WORKSPACE_SIZE 512
-#define KICK_GRID_SIZE (256)
+#define KICK_GRID_SIZE (128)
 #define KICK_BLOCK_SIZE 32
-#define KICK_PP_MAX 128
+#define KICK_PP_MAX size_t(256)
 #define GPU_QUEUE_SIZE (1024*1024)
+#define KICK_CUDA_SIZE (1<<15)
 #define TREE_PTR_STACK (TREE_MAX_DEPTH*WORKSPACE_SIZE)
 
 #define EWALD_MIN_DIST2 (0.25f * 0.25f)
