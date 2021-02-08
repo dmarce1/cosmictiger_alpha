@@ -16,7 +16,7 @@
 #define LEFT 0
 #define RIGHT 1
 #define WORKSPACE_SIZE 512
-#define KICK_GRID_SIZE (92)
+#define KICK_GRID_SIZE (256)
 #define KICK_BLOCK_SIZE 32
 #define KICK_PP_MAX 128
 #define GPU_QUEUE_SIZE (1024*1024)
@@ -342,8 +342,8 @@ public:
    static void cleanup();
    sort_return sort(sort_params = sort_params());
    hpx::future<kick_return> kick(kick_params_type*);
-   static bool daemon_running;
-   static bool shutdown_daemon;
+   static std::atomic<bool> daemon_running;
+   static std::atomic<bool> shutdown_daemon;
    static lockfree_queue<gpu_kick,GPU_QUEUE_SIZE> gpu_queue;
 #endif
    friend class tree_ptr;

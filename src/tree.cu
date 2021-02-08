@@ -436,6 +436,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
          case PC_PP_EWALD:
             break;
          case CC_CP_EWALD:
+            if( count[CI] ) printf( "Ewald\n");
             break;
          }
 

@@ -229,19 +229,21 @@ hpx::lcos::local::mutex tree::gpu_mtx;
 
 void tree::cleanup() {
    shutdown_daemon = true;
-   daemon_running = false;
+   while( daemon_running ) {
+      hpx::this_thread::yield();
+   }
 }
 
 fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_thread) {
    kick_params_type &params = *params_ptr;
    if (params.depth == 10) {
-      const auto part_begin = ((tree*)(*this))->parts.first;
-      const auto part_end = ((tree*)(*this))->parts.second;
-      for( int dim = 0; dim < NDIM; dim++) {
-         params_ptr->pref_ptr[dim] = &(tree::particles->pos(dim,part_begin));
+      const auto part_begin = ((tree*) (*this))->parts.first;
+      const auto part_end = ((tree*) (*this))->parts.second;
+      for (int dim = 0; dim < NDIM; dim++) {
+         params_ptr->pref_ptr[dim] = &(tree::particles->pos(dim, part_begin));
       }
-      params_ptr->pref_size = (part_end - part_begin)*sizeof(fixed32);
-     return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(params_ptr));
+      params_ptr->pref_size = (part_end - part_begin) * sizeof(fixed32);
+      return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(params_ptr));
    } else {
       static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
       bool thread = false;
@@ -392,8 +394,8 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 }
 
 lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> tree::gpu_queue;
-bool tree::daemon_running = false;
-bool tree::shutdown_daemon = false;
+std::atomic<bool> tree::daemon_running(false);
+std::atomic<bool> tree::shutdown_daemon(false);
 
 using cuda_exec_return =
 std::pair<std::function<bool()>, kick_return*>;
@@ -408,19 +410,19 @@ void tree::gpu_daemon() {
    int tries = 0;
    double wait_time = 1.0e-2;
    int min_grid_size = 2 * KICK_GRID_SIZE;
-  while (!shutdown_daemon) {
+   while (!shutdown_daemon) {
       timer tm;
       do {
          tm.start();
          hpx::this_thread::yield();
          tm.stop();
-   //      printf( "%e %li %li\n", tm.read(), gpu_queue.size(),  min_grid_size);
+         //      printf( "%e %li %li\n", tm.read(), gpu_queue.size(),  min_grid_size);
       } while (tm.read() < wait_time);
       min_grid_size /= 2;
-      min_grid_size = std::max(1,min_grid_size);
+      min_grid_size = std::max(1, min_grid_size);
       while (gpu_queue.size() >= min_grid_size) {
+         int grid_size = std::min(min_grid_size, KICK_GRID_SIZE);
          min_grid_size = KICK_GRID_SIZE;
-         int grid_size = std::min((int) gpu_queue.size(), KICK_GRID_SIZE);
          std::vector<hpx::lcos::local::promise<kick_return>> promises;
          static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
          kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate();
@@ -443,8 +445,9 @@ void tree::gpu_daemon() {
          },std::move(promises));
       }
    }
+   daemon_running = false;
    shutdown_daemon = false;
-}
+   printf( "Shutting down GPU kick daemon\n");}
 
 hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    if (!daemon_running) {
