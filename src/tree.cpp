@@ -235,7 +235,13 @@ void tree::cleanup() {
 fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_thread) {
    kick_params_type &params = *params_ptr;
    if (params.depth == 10) {
-      return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(params_ptr));
+      const auto part_begin = ((tree*)(*this))->parts.first;
+      const auto part_end = ((tree*)(*this))->parts.second;
+      for( int dim = 0; dim < NDIM; dim++) {
+         params_ptr->pref_ptr[dim] = &(tree::particles->pos(dim,part_begin));
+      }
+      params_ptr->pref_size = (part_end - part_begin)*sizeof(fixed32);
+     return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(params_ptr));
    } else {
       static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
       bool thread = false;
@@ -464,6 +470,8 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    new_params->L[params->depth] = params->L[params->depth];
    new_params->Lpos[params->depth] = params->Lpos[params->depth];
    new_params->depth = params->depth;
+   new_params->pref_ptr = params->pref_ptr;
+   new_params->pref_size = params->pref_size;
    gpu.params = new_params;
    auto fut = gpu.promise.get_future();
    gpu_queue.push(std::move(gpu));

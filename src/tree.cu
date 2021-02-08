@@ -24,9 +24,6 @@ CUDA_DEVICE particle_set *parts;
 using indices_array = array<array<int8_t, KICK_BLOCK_SIZE + 1>, NITERS>;
 using counts_array = array<int16_t, NITERS>;
 
-#define KICK_PP_MAX 128
-#define KICK_CC_MAX 32
-
 using pos_array = array<fixed32,KICK_PP_MAX>;
 
 #define MAX_BUCKET_SIZE 64
@@ -48,7 +45,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr) {
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    auto &Lreduce = shmem.L;
    auto &multis = params.multi_interactions;
-   for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
+   for (int i = 0; i < LP; i++) {
       Lreduce[tid][i] = 0.0;
    }
    __syncthreads();
@@ -400,6 +397,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
                      checks[2 * i + j] = children[j];
                   }
                }
+               __syncthreads();
                if (type == CC_CP_DIRECT || type == CC_CP_EWALD) {
                   check_count += count[OI];
                   (type == CC_CP_DIRECT || type == PC_PP_DIRECT) ?
@@ -420,8 +418,11 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
                __syncthreads();
             }
          } while (direct && check_count);
-         params.nmulti = count[MI];
-         params.npart = count[PI];
+         if (tid == 0) {
+            params.nmulti = count[MI];
+            params.npart = count[PI];
+         }
+         __syncthreads();
          switch (type) {
          case PC_PP_DIRECT:
             //          printf( "%li %li\n", multis.size(), parti.size());
@@ -445,14 +446,23 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
    if (!(((tree*) tptr)->children[0].rank == -1)) {
       params.dstack.copy_top();
       params.estack.copy_top();
-      params.tptr = ((tree*) tptr)->children[LEFT];
-      params.depth++;
+      if (tid == 0) {
+         params.tptr = ((tree*) tptr)->children[LEFT];
+         params.depth++;
+      }
+      __syncthreads();
       kick_return rc1 = cuda_kick(params_ptr);
       params.dstack.pop();
       params.estack.pop();
-      params.tptr = ((tree*) tptr)->children[RIGHT];
+      if (tid == 0) {
+         params.tptr = ((tree*) tptr)->children[RIGHT];
+      }
+      __syncthreads();
       kick_return rc2 = cuda_kick(params_ptr);
-      params.depth--;
+      if (tid == 0) {
+         params.depth--;
+      }
+      __syncthreads();
       rc.rung = max(rc1.rung, rc2.rung);
    } else {
       rc.rung = 0;
@@ -470,7 +480,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_
 
 void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
-                                 CUDA_CHECK(cudaDeviceSynchronize());
+                                       CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
@@ -484,6 +494,12 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    cudaEvent_t event;
    CUDA_CHECK(cudaStreamCreate(&stream));
    CUDA_CHECK(cudaEventCreate(&event));
+   for (int i = 0; i < grid_size; i++) {
+    //  for (int dim = 0; dim < NDIM; dim++) {
+     //    CUDA_CHECK(cudaMemPrefetchAsync(params[i]->pref_ptr[dim], params[i]->pref_size, 0, stream));
+    //  }
+   }
+
    //  printf("Shared mem requirements = %li\n", sizeof(cuda_kick_shmem));
    const size_t shmemsize = sizeof(cuda_kick_shmem);
    kick_return *returns;

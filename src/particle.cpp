@@ -6,6 +6,11 @@
 #include <unordered_map>
 #include <algorithm>
 
+void particle_set::set_read_mostly(bool flag) {
+   auto advice = flag ? cudaMemAdviseSetReadMostly : cudaMemAdviseUnsetReadMostly;
+   CUDA_CHECK(cudaMemAdvise((void* )pptr_, size_ * sizeof(particle), advice, 0));
+}
+
 particle_set::particle_set(size_t size, size_t offset) {
    offset_ = offset;
    size_ = size;
@@ -23,7 +28,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 }
 
 particle_set::~particle_set() {
-   if( !virtual_) {
+   if (!virtual_) {
       CUDA_FREE(pptr_);
    }
 }
@@ -57,23 +62,23 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
       }
       assert(end[key_max - 1 - key_min] == stop);
       tm.stop();
-    //  printf( "%e\n", (double)tm.read());
+      //  printf( "%e\n", (double)tm.read());
    } else {
-      std::vector <int > counts(key_max-key_min,0);
+      std::vector<int> counts(key_max - key_min, 0);
       for (size_t i = start; i < stop; i++) {
          const auto x = pos(i);
          const auto key = morton_key(x, depth);
-         assert( key >= key_min);
-         assert( key < key_max);
-         counts[key-key_min]++;
-            set_mid(key, i);
+         assert(key >= key_min);
+         assert(key < key_max);
+         counts[key - key_min]++;
+         set_mid(key, i);
       }
       begin.resize(key_max - key_min + 1);
       end.resize(key_max - key_min + 1);
       begin[0] = start;
       end[0] = start + counts[0];
       for (int key = key_min + 1; key < key_max; key++) {
-         const auto this_count = counts[key-key_min];
+         const auto this_count = counts[key - key_min];
          const auto key_i = key - key_min;
          begin[key_i] = end[key_i - 1];
          end[key_i] = end[key_i - 1] + this_count;

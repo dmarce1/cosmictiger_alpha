@@ -16,9 +16,9 @@
 #define LEFT 0
 #define RIGHT 1
 #define WORKSPACE_SIZE 512
-#define KICK_GRID_SIZE (8*46)
+#define KICK_GRID_SIZE (92)
 #define KICK_BLOCK_SIZE 32
-#define N_CUDA_WORKSPACE 8
+#define KICK_PP_MAX 128
 #define GPU_QUEUE_SIZE (1024*1024)
 #define TREE_PTR_STACK (TREE_MAX_DEPTH*WORKSPACE_SIZE)
 
@@ -291,12 +291,15 @@ struct kick_params_type {
    int nnext;
    int nopen;
    int depth;
+   array<void*,NDIM> pref_ptr;
+   size_t pref_size;
    CUDA_EXPORT inline kick_params_type() {
       THREADID;
       if (tid == 0) {
          nmulti = npart = nnext = nopen = depth = 0;
       }CUDA_SYNC();
    }
+   friend class tree_ptr;
 };
 
 struct kick_params_type;
