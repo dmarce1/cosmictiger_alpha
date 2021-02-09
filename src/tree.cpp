@@ -363,7 +363,9 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          cpu_cc_direct(params_ptr);
          break;
       case CC_CP_EWALD:
-         send_ewald_to_gpu(params_ptr).get();
+         if( params_ptr->nmulti) {
+            send_ewald_to_gpu(params_ptr).get();
+         }
          break;
       case PC_PP_DIRECT:
          break;
