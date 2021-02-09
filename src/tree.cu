@@ -3,9 +3,9 @@ struct periodic_parts;
 #include <cosmictiger/cuda.hpp>
 #include <stack>
 
-CUDA_DEVICE ewald_indices *four_indices_ptr;
-CUDA_DEVICE ewald_indices *real_indices_ptr;
-CUDA_DEVICE periodic_parts *periodic_parts_ptr;
+__managed__ ewald_indices *four_indices_ptr;
+__managed__  ewald_indices *real_indices_ptr;
+__managed__ periodic_parts *periodic_parts_ptr;
 
 #define TREECU
 #include <cosmictiger/tree.hpp>
@@ -554,21 +554,22 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
    return rc;
 }
 
-CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_, ewald_indices *four_indices,
-      ewald_indices *real_indices, periodic_parts *periodic_parts) {
+CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_) {
    if (threadIdx.x == 0) {
       parts = p;
       theta = theta_;
       rung = rung_;
-      four_indices_ptr = four_indices;
-      real_indices_ptr = real_indices;
-      periodic_parts_ptr = periodic_parts;
    }
 }
 
-void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_, ewald_indices *four_indices,
-      ewald_indices *real_indices, periodic_parts *parts) {
-cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_, real_indices, four_indices, parts);
+void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
+   CUDA_MALLOC(real_indices_ptr,1);
+   CUDA_MALLOC(four_indices_ptr,1);
+   CUDA_MALLOC(periodic_parts_ptr,1);
+   new (real_indices_ptr) ewald_indices(EWALD_NREAL,false);
+   new (four_indices_ptr) ewald_indices(EWALD_NFOUR,true);
+   new (periodic_parts_ptr) periodic_parts();
+   cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
          CUDA_CHECK(cudaDeviceSynchronize());
 }
 

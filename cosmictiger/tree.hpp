@@ -350,8 +350,7 @@ private:
 public:
    static particle_set *particles;
    static void set_cuda_particle_set(particle_set*);
-   static void cuda_set_kick_params(particle_set *p, float theta_, int rung, ewald_indices *four_indices,
-         ewald_indices *real_indices, periodic_parts *periodic_parts);
+   static void cuda_set_kick_params(particle_set *p, float theta_, int rung);
 #ifndef __CUDACC__
    static void set_particle_set(particle_set*);
    inline static hpx::future<sort_return> create_child(sort_params&);
