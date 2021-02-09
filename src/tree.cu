@@ -22,7 +22,13 @@ CUDA_DEVICE periodic_parts *periodic_parts_ptr;
 
 CUDA_DEVICE float theta;
 CUDA_DEVICE int8_t rung;
-CUDA_DEVICE particle_set *parts;
+__managed__ particle_set *parts;
+
+
+
+void cuda_initialize_tree(particle_set* p) {
+  parts = p;
+}
 
 #define NITERS 4
 #define MI 0
@@ -67,7 +73,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, bool ewald =
       expansion<float> L;
       array<float, NDIM> fpos;
       for (int dim = 0; dim < NDIM; dim++) {
-         fpos[dim] = (fixed<int32_t>(params.Lpos[params.depth][dim]) - fixed<int32_t>(pos[dim])).to_float();
+         fpos[dim] = (fixed<int32_t>(((tree*)(params.tptr))->pos[dim]) - fixed<int32_t>(pos[dim])).to_float();
       }
       multipole_interaction(L, mpole, fpos, ewald, false);
       for (int j = 0; j < LP; j++) {
@@ -110,7 +116,7 @@ CUDA_DEVICE void cuda_ewald_cc_interactions(kick_params_type *params_ptr, bool e
       expansion<ewald_real> L;
       array<ewald_real, NDIM> fpos;
       for (int dim = 0; dim < NDIM; dim++) {
-         fpos[dim] = (fixed<int32_t>(params.Lpos[params.depth][dim]) - fixed<int32_t>(pos[dim])).to_double();
+         fpos[dim] = (fixed<int32_t>(((tree*)(params.tptr))->pos[dim]) - fixed<int32_t>(pos[dim])).to_double();
       }
       multipole_interaction_ewald(L, mpole, fpos, ewald, false);
       for (int j = 0; j < LP; j++) {
@@ -139,7 +145,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    auto &Lreduce = shmem.Lreduce;
    auto &inters = params.part_interactions;
-   const auto &sinks = params.Lpos[params.depth];
+   const auto &sinks = ((tree*)(params.tptr))->pos;
    auto &sources = shmem.src;
    const auto &myparts = ((tree*) params.tptr)->parts;
    size_t part_index;

@@ -216,6 +216,12 @@ class simd_fixed32 {
    static constexpr size_t width = (sizeof(float) * CHAR_BIT);
 public:
 
+   inline simd_fixed32( fixed<int32_t> j) {
+      for( int k = 0; k < size(); k++) {
+         i[k] = j.i;
+      }
+   }
+
    static inline size_t size() {
       return 8;
    }

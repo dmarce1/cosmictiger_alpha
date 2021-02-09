@@ -15,8 +15,11 @@ int8_t tree::rung;
 
 static finite_vector_allocator<sizeof(kick_params_type)> kick_params_alloc;
 
+void cuda_initialize_tree(particle_set* p);
+
 void tree::set_particle_set(particle_set *parts) {
    particles = parts;
+   cuda_initialize_tree(parts);
 }
 
 inline hpx::future<sort_return> tree::create_child(sort_params &params) {
@@ -262,12 +265,7 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
       } else {
          kick_params_type *new_params;
          new_params = (kick_params_type*) kick_params_alloc.allocate();
-         new (new_params) kick_params_type;
-         new_params->dstack.copy_to(params_ptr->dstack.get_top_list(), params_ptr->dstack.get_top_count());
-         new_params->estack.copy_to(params_ptr->estack.get_top_list(), params_ptr->estack.get_top_count());
-         new_params->L[params_ptr->depth] = params_ptr->L[params_ptr->depth];
-         new_params->Lpos[params_ptr->depth] = params_ptr->Lpos[params_ptr->depth];
-         new_params->depth = params_ptr->depth;
+         new (new_params) kick_params_type(*params_ptr);
          auto func = [this, new_params]() {
             auto rc = ((tree*) ptr)->kick(new_params);
             thread_cnt--;
@@ -513,9 +511,8 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    new_params->tptr = me;
    new_params->dstack.copy_to(params->dstack.get_top_list(), params->dstack.get_top_count());
    new_params->estack.copy_to(params->estack.get_top_list(), params->estack.get_top_count());
-   new_params->L[params->depth] = params->L[params->depth];
-   new_params->Lpos[params->depth] = params->Lpos[params->depth];
-   new_params->depth = params->depth;
+   new_params->L[0] = params->L[params->depth];
+   new_params->depth = 0;
    new_params->pref_ptr = params->pref_ptr;
    new_params->pref_size = params->pref_size;
    gpu.params = new_params;
@@ -553,7 +550,7 @@ hpx::future<void> tree::send_ewald_to_gpu(kick_params_type *params) {
 void tree::cpu_cc_direct(kick_params_type *params_ptr) {
    kick_params_type &params = *params_ptr;
    auto &L = params.L[params.depth];
-   const auto &Lpos = params.Lpos[params.depth];
+   const auto &Lpos = pos;
    const auto &multis = params.multi_interactions;
    int nmulti = params.nmulti;
    if (nmulti != 0) {

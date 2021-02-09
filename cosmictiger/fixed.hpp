@@ -34,6 +34,8 @@ class fixed {
    static constexpr T width = (sizeof(float) * CHAR_BIT);
 public:
 
+   friend class simd_fixed32;
+
    CUDA_EXPORT
    inline static fixed<T> max() {
       fixed<T> num;

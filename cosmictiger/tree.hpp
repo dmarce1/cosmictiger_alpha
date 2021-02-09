@@ -233,11 +233,18 @@ struct kick_params_stack_type {
    CUDA_EXPORT inline tree_ptr* get_top_list() {
       return &checks[stack_size - counts[count_size - 1]];
    }
-   CUDA_EXPORT inline
-   int& get_top_count() {
-      return counts[count_size - 1];
+   CUDA_EXPORT inline const tree_ptr* get_top_list() const {
+      return &checks[stack_size - counts[count_size - 1]];
    }
    CUDA_EXPORT inline
+    int& get_top_count() {
+       return counts[count_size - 1];
+    }
+   CUDA_EXPORT inline
+    int get_top_count() const {
+       return counts[count_size - 1];
+    }
+    CUDA_EXPORT inline
    void pop() {
       THREADID;
       if (tid == 0) {
@@ -246,7 +253,7 @@ struct kick_params_stack_type {
       }CUDA_SYNC();
    }
    CUDA_EXPORT inline
-   void copy_to(tree_ptr *stk, int sz) {
+   void copy_to(const tree_ptr *stk, int sz) {
       THREADID;
       BLOCKSIZE;
       for (int i = stack_size + tid; i < stack_size + sz; i += blocksize) {
@@ -290,7 +297,6 @@ struct kick_params_type {
    array<tree_ptr, WORKSPACE_SIZE> next_checks;
    array<tree_ptr, WORKSPACE_SIZE> opened_checks;
    array<expansion<accum_real>, TREE_MAX_DEPTH> L;
-   array<array<accum_real, NDIM>, TREE_MAX_DEPTH> Lpos;
    tree_ptr tptr;
    int nmulti;
    int npart;
@@ -304,6 +310,13 @@ struct kick_params_type {
       if (tid == 0) {
          nmulti = npart = nnext = nopen = depth = 0;
       }CUDA_SYNC();
+   }
+   kick_params_type(const kick_params_type& params ) {
+      dstack.copy_to(params.dstack.get_top_list(), params.dstack.get_top_count());
+      estack.copy_to(params.estack.get_top_list(), params.estack.get_top_count());
+      L[0] = params.L[params.depth];
+      depth = 0;
+      nmulti = npart = nnext = nopen = depth = 0;
    }
    friend class tree_ptr;
 };
