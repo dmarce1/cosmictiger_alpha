@@ -420,7 +420,7 @@ void tree::gpu_daemon() {
    printf("Starting gpu kick daemon\n");
    daemon_running = true;
    int tries = 0;
-   double wait_time = 1.0e-3;
+   double wait_time = 5.0e-3;
    int min_grid_size = 2 * KICK_GRID_SIZE;
    while (!shutdown_daemon) {
       timer tm;
@@ -538,6 +538,7 @@ hpx::future<void> tree::send_ewald_to_gpu(kick_params_type *params) {
    tree_ptr me;
    me.ptr = (uintptr_t)(this);
    me.rank = hpx_rank();
+   params->tptr = me;
    gpu.params = params;
    auto fut = gpu.promise.get_future();
    gpu_ewald_queue.push(std::move(gpu));

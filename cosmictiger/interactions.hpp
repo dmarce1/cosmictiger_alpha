@@ -18,7 +18,24 @@ CUDA_EXPORT inline T fmaf(T a, T b, T c) {
 }
 #endif
 
+//#define EWALD_DOUBLE_PRECISION
+
+using accum_real = float;
+#ifdef EWALD_DOUBLE_PRECISION
+using ewald_real = double;
+#define EWALD_NREAL 17
+#define EWALD_REAL_CUTOFF 3.6
+#define EWALD_NFOUR 10
+#else
+#define EWALD_NREAL 13
+#define EWALD_REAL_CUTOFF 2.6
+#define EWALD_NFOUR 8
 using ewald_real = float;
+#endif
+
+template<class T>
+CUDA_EXPORT void inline green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
+      const T &d4, const array<T, NDIM> &dx);
 
 struct ewald_indices {
 private:
@@ -62,20 +79,20 @@ public:
 
 struct periodic_parts {
 private:
-   expansion_type<ewald_real> *L;
+   expansion<ewald_real> *L;
    size_t count;
 public:
    ~periodic_parts() {
       CUDA_FREE(L);
    }
    periodic_parts() {
-      const ewald_indices indices(7, true);
+      const ewald_indices indices(EWALD_NFOUR, true);
       CUDA_MALLOC(L, indices.size());
       count = 0;
       for (int i = 0; i < indices.size(); i++) {
          array<ewald_real, NDIM> h = indices.get(i);
          const ewald_real h2 = sqr(h[0]) + sqr(h[1]) + sqr(h[2]);                     // 5 OP
-         expansion_type<ewald_real> D;
+         expansion<ewald_real> D;
          D = 0.0;
          if (h2 > 0) {
             const ewald_real c0 = 1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0);
@@ -102,7 +119,7 @@ public:
       return count;
    }
    CUDA_EXPORT
-   expansion_type<ewald_real> get(size_t i) const {
+   expansion<ewald_real> get(size_t i) const {
       assert(i < count);
       return L[i];
    }
@@ -114,8 +131,18 @@ extern CUDA_DEVICE ewald_indices *real_indices_ptr;
 extern CUDA_DEVICE periodic_parts *periodic_parts_ptr;
 #endif
 
+#ifdef EWALD_DOUBLE_PRECISION
+#define SINCOS sincos
+#define EXP exp
+#define ERFC erfc
+#else
+#define SINCOS sincosf
+#define EXP expf
+#define ERFC erfcf
+#endif
+
 template<class T>
-CUDA_EXPORT inline void green_direct(expansion &D, const array<T, NDIM> &dX) {
+CUDA_EXPORT inline void green_direct(expansion<T> &D, const array<T, NDIM> &dX) {
    static const T r0 = 1.0e-9;
 // static const T H = options::get().soft_len;
    static const T nthree(-3.0);
@@ -133,7 +160,7 @@ CUDA_EXPORT inline void green_direct(expansion &D, const array<T, NDIM> &dX) {
    return green_deriv_direct(D, d0, d1, d2, d3, d4, dX);
 }
 
-CUDA_DEVICE inline void green_deriv_ewald(expansion_type<ewald_real> &D, const ewald_real &d0, const ewald_real &d1,
+CUDA_DEVICE inline void green_deriv_ewald(expansion<ewald_real> &D, const ewald_real &d0, const ewald_real &d1,
       const ewald_real &d2, const ewald_real &d3, const ewald_real &d4, const array<ewald_real, NDIM> &dx) {
    ewald_real threedxadxb;
    ewald_real dxadxbdxc;
@@ -196,16 +223,16 @@ CUDA_DEVICE inline void green_deriv_ewald(expansion_type<ewald_real> &D, const e
    const auto dx1d2 = dx[1] * d2;
    const auto dx2d2 = dx[2] * d2;
    D[4] += d1;
-   D[10] = fma(float(3), dx0d2, D[10]);
-   D[20] = fma(float(6) * dx0dx0, d3, D[20]);
-   D[20] = fma(float(2), d2, D[20]);
+   D[10] = fma(ewald_real(3), dx0d2, D[10]);
+   D[20] = fma(ewald_real(6) * dx0dx0, d3, D[20]);
+   D[20] = fma(ewald_real(2), d2, D[20]);
    D[20] += d2;
    D[7] += d1;
-   D[16] = fma(float(3), dx1d2, D[16]);
-   D[30] = fma(float(6) * dx1dx1, d3, D[30]);
-   D[30] = fma(float(2), d2, D[30]);
+   D[16] = fma(ewald_real(3), dx1d2, D[16]);
+   D[30] = fma(ewald_real(6) * dx1dx1, d3, D[30]);
+   D[30] = fma(ewald_real(2), d2, D[30]);
    D[30] += d2;
-   threedxadxb = float(3) * dx1dx0;
+   threedxadxb = ewald_real(3) * dx1dx0;
    D[13] += dx0d2;
    D[11] += dx1d2;
    D[26] = fma(threedxadxb, d3, D[26]);
@@ -214,11 +241,11 @@ CUDA_DEVICE inline void green_deriv_ewald(expansion_type<ewald_real> &D, const e
    D[23] = fma(dx0dx0, d3, D[23]);
    D[23] = fma(dx1dx1, d3, D[23]);
    D[9] += d1;
-   D[19] = fma(float(3), dx2d2, D[19]);
-   D[34] = fma(float(6) * dx2dx2, d3, D[34]);
-   D[34] = fma(float(2), d2, D[34]);
+   D[19] = fma(ewald_real(3), dx2d2, D[19]);
+   D[34] = fma(ewald_real(6) * dx2dx2, d3, D[34]);
+   D[34] = fma(ewald_real(2), d2, D[34]);
    D[34] += d2;
-   threedxadxb = float(3) * dx2dx0;
+   threedxadxb = ewald_real(3) * dx2dx0;
    D[15] += dx0d2;
    D[12] += dx2d2;
    D[29] = fma(threedxadxb, d3, D[29]);
@@ -226,7 +253,7 @@ CUDA_DEVICE inline void green_deriv_ewald(expansion_type<ewald_real> &D, const e
    D[25] += d2;
    D[25] = fma(dx0dx0, d3, D[25]);
    D[25] = fma(dx2dx2, d3, D[25]);
-   threedxadxb = float(3) * dx2dx1;
+   threedxadxb = ewald_real(3) * dx2dx1;
    D[18] += dx1d2;
    D[17] += dx2d2;
    D[33] = fma(threedxadxb, d3, D[33]);
@@ -239,124 +266,117 @@ CUDA_DEVICE inline void green_deriv_ewald(expansion_type<ewald_real> &D, const e
    D[27] = fma(dx2dx0, d3, D[27]);
 }
 
-CUDA_DEVICE inline void green_ewald(expansion_type<ewald_real> &D, const array<ewald_real, NDIM> &X) {
-//   const auto &hparts = *periodic_parts_ptr;
-//   const auto &four_indices = *four_indices_ptr;
-//   const auto &real_indices = *real_indices_ptr;
-//   const ewald_real fouroversqrtpi(4.0 / sqrt(M_PI));
-//   static const ewald_real one(1.0);
-//   static const ewald_real two(2.0);
-//   static const ewald_real nthree(-3.0);
-//   static const ewald_real nfour(-4.0);
-//   static const ewald_real nfive(-5.0);
-//   static const ewald_real nseven(-7.0);
-//   static const ewald_real neight(-8.0);
-//   static const ewald_real p(0.3275911);
-//   static const ewald_real rcut(1.0e-6);
-//   const ewald_real r = sqrt(sqr(X[0]) + sqrt(X[1]) + sqr(X[2]));          // 5
-//   const ewald_real zmask = r > rcut;    // 1
-//   expansion_type<ewald_real> &Dreal = D;
-//   expansion_type<ewald_real> Dfour;
-//   Dreal = 0.0;
-//   Dfour = 0.0;
-//   for (int ix = -4; ix <= 4; ix++) {
-//      for (int iy = -4; iy <= 4; iy++) {
-//         for (int iz = -4; iz <= 4; iz++) {
-//            array<ewald_real,NDIM> n;
-//            n[0] = ix;
-//            n[1] = iy;
-//            n[2] = iz;
-//            array<ewald_real, NDIM> dx;
-//            for (int dim = 0; dim < NDIM; dim++) {
-//               dx[dim] = X[dim] - n[dim];
-//            }
-//            constexpr float EWALD_RADIUS_CUTOFF = 2.6;
-//            const ewald_real r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);                    // 5
-//            if (r2 < (EWALD_RADIUS_CUTOFF * EWALD_RADIUS_CUTOFF)) {  // 1
-//               const ewald_real r = sqrt(r2);              // 1
-//               const ewald_real cmask = one - (sqr(n[0]) + sqr(n[1]) + sqr(n[2]) > 0.0); // 7
-//               const ewald_real mask = (one - (one - zmask) * cmask); // 3
-//               const ewald_real rinv = mask / fmaxf(r, rcut);      // 2
-//               const ewald_real r2inv = rinv * rinv;       // 1
-//               const ewald_real r3inv = r2inv * rinv;         // 1
-//               const ewald_real exp0 = exp(nfour * r2);               // 26
-//               const ewald_real erfc0 = erf(2.f * r);          // 10
-//               const ewald_real expfactor = fouroversqrtpi * r * exp0;    // 2
-//               const ewald_real e1 = expfactor * r3inv;                // 1
-//               const ewald_real e2 = neight * e1;                   // 1
-//               const ewald_real e3 = neight * e2;                   // 1
-//               const ewald_real e4 = neight * e3;                   // 1
-//               const ewald_real d0 = -erfc0 * rinv;                    // 2
-//               const ewald_real d1 = fma(-d0, r2inv, e1);             // 3
-//               const ewald_real d2 = fma(nthree * d1, r2inv, e2);       // 3
-//               const ewald_real d3 = fma(nfive * d2, r2inv, e3);           // 3
-//               const ewald_real d4 = fma(nseven * d3, r2inv, e4);       // 3
-//               green_deriv_ewald(Dreal, d0, d1, d2, d3, d4, dx);
-//           }
-//         }
-//      }
-//   }
-//   static const ewald_real twopi = 2.0 * M_PI;
-//
-//   for (int i = 0; i < four_indices.size(); i++) {
-//      const auto &h = four_indices.get(i);
-//      const auto &hpart = hparts.get(i);
-////    printf( "H = %e %e %e\n", h[0], h[1], h[2]);
-//      const ewald_real h2 = sqrt(h[0]) + sqr(h[1]) + sqr(h[2]);
-//      const ewald_real hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];
-//      ewald_real co;
-//      ewald_real so;
-//      sincosf(twopi * hdotx, &so, &co);            // 35
-//      Dfour[0] = fma(hpart[0], co, Dfour[0]);         // 2 * 35
-//      Dfour[1] = fma(hpart[1], so, Dfour[1]);
-//      Dfour[2] = fma(hpart[2], so, Dfour[2]);
-//      Dfour[3] = fma(hpart[3], so, Dfour[3]);
-//      Dfour[4] = fma(hpart[4], co, Dfour[4]);
-//      Dfour[5] = fma(hpart[5], co, Dfour[5]);
-//      Dfour[6] = fma(hpart[6], co, Dfour[6]);
-//      Dfour[7] = fma(hpart[7], co, Dfour[7]);
-//      Dfour[8] = fma(hpart[8], co, Dfour[8]);
-//      Dfour[9] = fma(hpart[9], co, Dfour[9]);
-//      Dfour[10] = fma(hpart[10], so, Dfour[10]);
-//      Dfour[11] = fma(hpart[11], so, Dfour[11]);
-//      Dfour[12] = fma(hpart[12], so, Dfour[12]);
-//      Dfour[13] = fma(hpart[13], so, Dfour[13]);
-//      Dfour[14] = fma(hpart[14], so, Dfour[14]);
-//      Dfour[15] = fma(hpart[15], so, Dfour[15]);
-//      Dfour[16] = fma(hpart[16], so, Dfour[16]);
-//      Dfour[17] = fma(hpart[17], so, Dfour[17]);
-//      Dfour[18] = fma(hpart[18], so, Dfour[18]);
-//      Dfour[19] = fma(hpart[19], so, Dfour[19]);
-//      Dfour[20] = fma(hpart[20], co, Dfour[20]);
-//      Dfour[21] = fma(hpart[21], co, Dfour[21]);
-//      Dfour[22] = fma(hpart[22], co, Dfour[22]);
-//      Dfour[23] = fma(hpart[23], co, Dfour[23]);
-//      Dfour[24] = fma(hpart[24], co, Dfour[24]);
-//      Dfour[25] = fma(hpart[25], co, Dfour[25]);
-//      Dfour[26] = fma(hpart[26], co, Dfour[26]);
-//      Dfour[27] = fma(hpart[27], co, Dfour[27]);
-//      Dfour[28] = fma(hpart[28], co, Dfour[28]);
-//      Dfour[30] = fma(hpart[30], co, Dfour[30]);
-//      Dfour[29] = fma(hpart[29], co, Dfour[29]);
-//      Dfour[31] = fma(hpart[31], co, Dfour[31]);
-//      Dfour[32] = fma(hpart[32], co, Dfour[32]);
-//      Dfour[33] = fma(hpart[33], co, Dfour[33]);
-//      Dfour[34] = fma(hpart[34], co, Dfour[34]);
-//   }
-//   for (int i = 0; i < LP; i++) {
-//      Dreal[i] += Dfour[i];
-//   }
-//
-//   expansion_type<ewald_real> D1;
-//   green_direct(D1, X);
-//   D() = (M_PI / 4.0) + D();
-//   for (int i = 0; i < LP; i++) {
-//      D[i] = fma(-zmask, D1[i], D[i]);
-//   }
+CUDA_DEVICE inline void green_ewald(expansion<ewald_real> &D, const array<ewald_real, NDIM> &X) {
+   const auto &hparts = *periodic_parts_ptr;
+   const auto &four_indices = *four_indices_ptr;
+   const auto &real_indices = *real_indices_ptr;
+   const ewald_real fouroversqrtpi(4.0 / sqrt(M_PI));
+   static const ewald_real one(1.0);
+   static const ewald_real two(2.0);
+   static const ewald_real nthree(-3.0);
+   static const ewald_real nfour(-4.0);
+   static const ewald_real nfive(-5.0);
+   static const ewald_real nseven(-7.0);
+   static const ewald_real neight(-8.0);
+   static const ewald_real p(0.3275911);
+   static const ewald_real rcut(1.0e-6);
+   const ewald_real r = sqrt(sqr(X[0]) + sqrt(X[1]) + sqr(X[2]));          // 5
+   const ewald_real zmask = r > rcut;    // 1
+   expansion<ewald_real> &Dreal = D;
+   expansion<ewald_real> Dfour;
+   Dreal = 0.0;
+   Dfour = 0.0;
+   for (int i = 0; i < real_indices.size(); i++) {
+      const auto n = real_indices.get(i);
+      array<ewald_real, NDIM> dx;
+      for (int dim = 0; dim < NDIM; dim++) {
+         dx[dim] = X[dim] - n[dim];
+      }
+      const ewald_real r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);                    // 5
+      if (r2 < (EWALD_REAL_CUTOFF * EWALD_REAL_CUTOFF)) {  // 1
+         const ewald_real r = sqrt(r2);              // 1
+         const ewald_real cmask = one - (sqr(n[0]) + sqr(n[1]) + sqr(n[2]) > 0.0); // 7
+         const ewald_real mask = (one - (one - zmask) * cmask); // 3
+         const ewald_real rinv = mask / fmaxf(r, rcut);      // 2
+         const ewald_real r2inv = rinv * rinv;       // 1
+         const ewald_real r3inv = r2inv * rinv;         // 1
+         const ewald_real exp0 = EXP(nfour * r2);               // 26
+         const ewald_real erfc0 = ERFC(2.f * r);          // 10
+         const ewald_real expfactor = fouroversqrtpi * r * exp0;    // 2
+         const ewald_real e1 = expfactor * r3inv;                // 1
+         const ewald_real e2 = neight * e1;                   // 1
+         const ewald_real e3 = neight * e2;                   // 1
+         const ewald_real e4 = neight * e3;                   // 1
+         const ewald_real d0 = -erfc0 * rinv;                    // 2
+         const ewald_real d1 = fma(-d0, r2inv, e1);             // 3
+         const ewald_real d2 = fma(nthree * d1, r2inv, e2);       // 3
+         const ewald_real d3 = fma(nfive * d2, r2inv, e3);           // 3
+         const ewald_real d4 = fma(nseven * d3, r2inv, e4);       // 3
+         green_deriv_ewald(Dreal, d0, d1, d2, d3, d4, dx);
+      }
+
+   }
+   static const ewald_real twopi = 2.0 * M_PI;
+
+   for (int i = 0; i < four_indices.size(); i++) {
+      const auto &h = four_indices.get(i);
+      const auto &hpart = hparts.get(i);
+//    printf( "H = %e %e %e\n", h[0], h[1], h[2]);
+      const ewald_real h2 = sqrt(h[0]) + sqr(h[1]) + sqr(h[2]);
+      const ewald_real hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];
+      ewald_real co;
+      ewald_real so;
+      SINCOS(twopi * hdotx, &so, &co);            // 35
+      Dfour[0] = fma(hpart[0], co, Dfour[0]);         // 2 * 35
+      Dfour[1] = fma(hpart[1], so, Dfour[1]);
+      Dfour[2] = fma(hpart[2], so, Dfour[2]);
+      Dfour[3] = fma(hpart[3], so, Dfour[3]);
+      Dfour[4] = fma(hpart[4], co, Dfour[4]);
+      Dfour[5] = fma(hpart[5], co, Dfour[5]);
+      Dfour[6] = fma(hpart[6], co, Dfour[6]);
+      Dfour[7] = fma(hpart[7], co, Dfour[7]);
+      Dfour[8] = fma(hpart[8], co, Dfour[8]);
+      Dfour[9] = fma(hpart[9], co, Dfour[9]);
+      Dfour[10] = fma(hpart[10], so, Dfour[10]);
+      Dfour[11] = fma(hpart[11], so, Dfour[11]);
+      Dfour[12] = fma(hpart[12], so, Dfour[12]);
+      Dfour[13] = fma(hpart[13], so, Dfour[13]);
+      Dfour[14] = fma(hpart[14], so, Dfour[14]);
+      Dfour[15] = fma(hpart[15], so, Dfour[15]);
+      Dfour[16] = fma(hpart[16], so, Dfour[16]);
+      Dfour[17] = fma(hpart[17], so, Dfour[17]);
+      Dfour[18] = fma(hpart[18], so, Dfour[18]);
+      Dfour[19] = fma(hpart[19], so, Dfour[19]);
+      Dfour[20] = fma(hpart[20], co, Dfour[20]);
+      Dfour[21] = fma(hpart[21], co, Dfour[21]);
+      Dfour[22] = fma(hpart[22], co, Dfour[22]);
+      Dfour[23] = fma(hpart[23], co, Dfour[23]);
+      Dfour[24] = fma(hpart[24], co, Dfour[24]);
+      Dfour[25] = fma(hpart[25], co, Dfour[25]);
+      Dfour[26] = fma(hpart[26], co, Dfour[26]);
+      Dfour[27] = fma(hpart[27], co, Dfour[27]);
+      Dfour[28] = fma(hpart[28], co, Dfour[28]);
+      Dfour[30] = fma(hpart[30], co, Dfour[30]);
+      Dfour[29] = fma(hpart[29], co, Dfour[29]);
+      Dfour[31] = fma(hpart[31], co, Dfour[31]);
+      Dfour[32] = fma(hpart[32], co, Dfour[32]);
+      Dfour[33] = fma(hpart[33], co, Dfour[33]);
+      Dfour[34] = fma(hpart[34], co, Dfour[34]);
+   }
+   for (int i = 0; i < LP; i++) {
+      Dreal[i] += Dfour[i];
+   }
+
+   expansion<ewald_real> D1;
+   green_direct(D1, X);
+   D() = (M_PI / 4.0) + D();
+   for (int i = 0; i < LP; i++) {
+      D[i] = fma(-zmask, D1[i], D[i]);
+   }
 }
 
-template<class T>  // 167
-CUDA_EXPORT void inline green_deriv_direct(expansion &D, const T &d0, const T &d1, const T &d2, const T &d3,
+template<class T>
+CUDA_EXPORT void inline green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
       const T &d4, const array<T, NDIM> &dx) {
    T threedxadxb;
    T dxadxbdxc;
@@ -419,16 +439,16 @@ CUDA_EXPORT void inline green_deriv_direct(expansion &D, const T &d0, const T &d
    const auto dx1d2 = dx[1] * d2;
    const auto dx2d2 = dx[2] * d2;
    D[4] += d1;
-   D[10] = fmaf(float(3), dx0d2, D[10]);
-   D[20] = fmaf(float(6) * dx0dx0, d3, D[20]);
-   D[20] = fmaf(float(2), d2, D[20]);
+   D[10] = fmaf(ewald_real(3), dx0d2, D[10]);
+   D[20] = fmaf(ewald_real(6) * dx0dx0, d3, D[20]);
+   D[20] = fmaf(ewald_real(2), d2, D[20]);
    D[20] += d2;
    D[7] += d1;
-   D[16] = fmaf(float(3), dx1d2, D[16]);
-   D[30] = fmaf(float(6) * dx1dx1, d3, D[30]);
-   D[30] = fmaf(float(2), d2, D[30]);
+   D[16] = fmaf(ewald_real(3), dx1d2, D[16]);
+   D[30] = fmaf(ewald_real(6) * dx1dx1, d3, D[30]);
+   D[30] = fmaf(ewald_real(2), d2, D[30]);
    D[30] += d2;
-   threedxadxb = float(3) * dx1dx0;
+   threedxadxb = ewald_real(3) * dx1dx0;
    D[13] += dx0d2;
    D[11] += dx1d2;
    D[26] = fmaf(threedxadxb, d3, D[26]);
@@ -437,11 +457,11 @@ CUDA_EXPORT void inline green_deriv_direct(expansion &D, const T &d0, const T &d
    D[23] = fmaf(dx0dx0, d3, D[23]);
    D[23] = fmaf(dx1dx1, d3, D[23]);
    D[9] += d1;
-   D[19] = fmaf(float(3), dx2d2, D[19]);
-   D[34] = fmaf(float(6) * dx2dx2, d3, D[34]);
-   D[34] = fmaf(float(2), d2, D[34]);
+   D[19] = fmaf(ewald_real(3), dx2d2, D[19]);
+   D[34] = fmaf(ewald_real(6) * dx2dx2, d3, D[34]);
+   D[34] = fmaf(ewald_real(2), d2, D[34]);
    D[34] += d2;
-   threedxadxb = float(3) * dx2dx0;
+   threedxadxb = ewald_real(3) * dx2dx0;
    D[15] += dx0d2;
    D[12] += dx2d2;
    D[29] = fmaf(threedxadxb, d3, D[29]);
@@ -449,7 +469,7 @@ CUDA_EXPORT void inline green_deriv_direct(expansion &D, const T &d0, const T &d
    D[25] += d2;
    D[25] = fmaf(dx0dx0, d3, D[25]);
    D[25] = fmaf(dx2dx2, d3, D[25]);
-   threedxadxb = float(3) * dx2dx1;
+   threedxadxb = ewald_real(3) * dx2dx1;
    D[18] += dx1d2;
    D[17] += dx2d2;
    D[33] = fmaf(threedxadxb, d3, D[33]);
@@ -462,11 +482,11 @@ CUDA_EXPORT void inline green_deriv_direct(expansion &D, const T &d0, const T &d
    D[27] = fmaf(dx2dx0, d3, D[27]);
 }
 
-template<class T> // 986 // 251936
-CUDA_EXPORT inline void multipole_interaction(expansion &L, const multipole &M, array<T, NDIM> dX, bool ewald,
+// 986 // 251936
+CUDA_EXPORT inline void multipole_interaction(expansion<float> &L, const multipole &M, array<float, NDIM> dX, bool ewald,
       bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
-   expansion D;
-   ewald ? green_ewald(D, dX) : green_direct(D, dX);
+   expansion<float> D;
+   green_direct(D, dX);
    for (int i = 1 - do_phi; i < LP; i++) {
       L[i] = fmaf(M[0], D[i], L[i]);
    }
@@ -594,16 +614,147 @@ CUDA_EXPORT inline void multipole_interaction(expansion &L, const multipole &M, 
    L[9] = fmaf(M[6], D[34] * half, L[9]);
 }
 
-template<class T> // 516 / 251466
-CUDA_EXPORT inline void multipole_interaction(array<exp_real, NDIM + 1> L, const multipole &M, array<T, NDIM> dX,
+// 986 // 251936
+CUDA_EXPORT inline void multipole_interaction_ewald(expansion<ewald_real> &L, const multipole_type<ewald_real> &M, array<ewald_real, NDIM> dX, bool ewald,
+      bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
+   expansion<ewald_real> D;
+   green_direct(D, dX);
+   for (int i = 1 - do_phi; i < LP; i++) {
+      L[i] = fmaf(M[0], D[i], L[i]);
+   }
+   const auto half = (0.5f);
+   const auto sixth = (1.0f / 6.0f);
+   const auto halfD11 = half * D[11];
+   const auto halfD12 = half * D[12];
+   const auto halfD13 = half * D[13];
+   const auto halfD15 = half * D[15];
+   const auto halfD17 = half * D[17];
+   const auto halfD18 = half * D[18];                 // 6
+   if (do_phi) {
+      L[0] = fmaf(M[1], D[4] * half, L[0]);
+      L[0] = fmaf(M[7], D[10] * sixth, L[0]);    // 6
+      L[0] = fmaf(M[8], halfD11, L[0]);
+      L[0] = fmaf(M[9], halfD12, L[0]);
+      L[0] = fmaf(M[2], D[5], L[0]);
+      L[0] = fmaf(M[10], halfD13, L[0]);
+      L[0] = fmaf(M[11], D[14], L[0]);
+      L[0] = fmaf(M[3], D[6], L[0]);
+      L[0] = fmaf(M[12], halfD15, L[0]);    // 14
+      L[0] = fmaf(M[4], D[7] * half, L[0]);
+      L[0] = fmaf(M[13], D[16] * sixth, L[0]);    // 6
+      L[0] = fmaf(M[14], halfD17, L[0]);
+      L[0] = fmaf(M[5], D[8], L[0]);
+      L[0] = fmaf(M[15], halfD18, L[0]);    // 6
+      L[0] = fmaf(M[6], D[9] * half, L[0]);
+      L[0] = fmaf(M[16], D[19] * sixth, L[0]);    // 6
+   }
+   const auto halfD21 = half * D[21];
+   const auto halfD22 = half * D[22];
+   const auto halfD23 = half * D[23];
+   const auto halfD24 = half * D[24];
+   const auto halfD25 = half * D[25];
+   const auto halfD26 = half * D[26];
+   const auto halfD27 = half * D[27];
+   const auto halfD28 = half * D[28];
+   const auto halfD29 = half * D[29];
+   const auto halfD31 = half * D[31];
+   const auto halfD32 = half * D[32];
+   const auto halfD33 = half * D[33];
+   L[1] = fmaf(M[1], D[10] * half, L[1]);
+   L[1] = fmaf(M[7], D[20] * sixth, L[1]);
+   L[1] = fmaf(M[8], halfD21, L[1]);
+   L[1] = fmaf(M[9], halfD22, L[1]);
+   L[1] = fmaf(M[2], D[11], L[1]);
+   L[1] = fmaf(M[10], halfD23, L[1]);
+   L[1] = fmaf(M[11], D[24], L[1]);
+   L[1] = fmaf(M[3], D[12], L[1]);
+   L[1] = fmaf(M[12], halfD25, L[1]);
+   L[1] = fmaf(M[4], halfD13, L[1]);
+   L[1] = fmaf(M[13], D[26] * sixth, L[1]);
+   L[1] = fmaf(M[14], halfD27, L[1]);
+   L[1] = fmaf(M[5], D[14], L[1]);
+   L[1] = fmaf(M[15], halfD28, L[1]);
+   L[1] = fmaf(M[6], halfD15, L[1]);
+   L[1] = fmaf(M[16], D[29] * sixth, L[1]);
+   L[2] = fmaf(M[1], halfD11, L[2]);
+   L[2] = fmaf(M[7], D[21] * sixth, L[2]);
+   L[2] = fmaf(M[8], halfD23, L[2]);
+   L[2] = fmaf(M[9], halfD24, L[2]);
+   L[2] = fmaf(M[2], D[13], L[2]);
+   L[2] = fmaf(M[10], halfD26, L[2]);
+   L[2] = fmaf(M[11], D[27], L[2]);
+   L[2] = fmaf(M[3], D[14], L[2]);
+   L[2] = fmaf(M[12], halfD28, L[2]);
+   L[2] = fmaf(M[4], D[16] * half, L[2]);
+   L[2] = fmaf(M[13], D[30] * sixth, L[2]);
+   L[2] = fmaf(M[14], halfD31, L[2]);
+   L[2] = fmaf(M[5], D[17], L[2]);
+   L[2] = fmaf(M[15], halfD32, L[2]);
+   L[2] = fmaf(M[6], halfD18, L[2]);
+   L[2] = fmaf(M[16], D[33] * sixth, L[2]);
+   L[3] = fmaf(M[1], halfD12, L[3]);
+   L[3] = fmaf(M[7], D[22] * sixth, L[3]);
+   L[3] = fmaf(M[8], halfD24, L[3]);
+   L[3] = fmaf(M[9], halfD25, L[3]);
+   L[3] = fmaf(M[2], D[14], L[3]);
+   L[3] = fmaf(M[10], halfD27, L[3]);
+   L[3] = fmaf(M[11], D[28], L[3]);
+   L[3] = fmaf(M[3], D[15], L[3]);
+   L[3] = fmaf(M[12], halfD29, L[3]);
+   L[3] = fmaf(M[4], halfD17, L[3]);
+   L[3] = fmaf(M[13], D[31] * sixth, L[3]);
+   L[3] = fmaf(M[14], halfD32, L[3]);
+   L[3] = fmaf(M[5], D[18], L[3]);
+   L[3] = fmaf(M[15], halfD33, L[3]);
+   L[3] = fmaf(M[6], D[19] * half, L[3]);
+   L[3] = fmaf(M[16], D[34] * sixth, L[3]);
+   L[4] = fmaf(M[1], D[20] * half, L[4]);
+   L[4] = fmaf(M[2], D[21], L[4]);
+   L[4] = fmaf(M[3], D[22], L[4]);
+   L[4] = fmaf(M[4], halfD23, L[4]);
+   L[4] = fmaf(M[5], D[24], L[4]);
+   L[4] = fmaf(M[6], halfD25, L[4]);
+   L[5] = fmaf(M[1], halfD21, L[5]);
+   L[5] = fmaf(M[2], D[23], L[5]);
+   L[5] = fmaf(M[3], D[24], L[5]);
+   L[5] = fmaf(M[4], halfD26, L[5]);
+   L[5] = fmaf(M[5], D[27], L[5]);
+   L[5] = fmaf(M[6], halfD28, L[5]);
+   L[6] = fmaf(M[1], halfD22, L[6]);
+   L[6] = fmaf(M[2], D[24], L[6]);
+   L[6] = fmaf(M[3], D[25], L[6]);
+   L[6] = fmaf(M[4], halfD27, L[6]);
+   L[6] = fmaf(M[5], D[28], L[6]);
+   L[6] = fmaf(M[6], halfD29, L[6]);
+   L[7] = fmaf(M[1], halfD23, L[7]);
+   L[7] = fmaf(M[2], D[26], L[7]);
+   L[7] = fmaf(M[3], D[27], L[7]);
+   L[7] = fmaf(M[4], D[30] * half, L[7]);
+   L[7] = fmaf(M[5], D[31], L[7]);
+   L[7] = fmaf(M[6], halfD32, L[7]);
+   L[8] = fmaf(M[1], halfD24, L[8]);
+   L[8] = fmaf(M[2], D[27], L[8]);
+   L[8] = fmaf(M[3], D[28], L[8]);
+   L[8] = fmaf(M[4], halfD31, L[8]);
+   L[8] = fmaf(M[5], D[32], L[8]);
+   L[8] = fmaf(M[6], halfD33, L[8]);
+   L[9] = fmaf(M[1], halfD25, L[9]);
+   L[9] = fmaf(M[2], D[28], L[9]);
+   L[9] = fmaf(M[3], D[29], L[9]);
+   L[9] = fmaf(M[4], halfD32, L[9]);
+   L[9] = fmaf(M[5], D[33], L[9]);
+   L[9] = fmaf(M[6], D[34] * half, L[9]);
+}
+ // 516 / 251466
+CUDA_EXPORT inline void multipole_interaction(array<float, NDIM + 1> L, const multipole &M, array<float, NDIM> dX,
       bool do_phi) { // 517 / 47428
-   expansion D;
+   expansion<float> D;
    green_direct(D, dX);
    for (int i = 1 - do_phi; i < NDIM + 1; i++) {
       L[i] = M[0] * D[i];
    }
-   static const auto half = T(0.5);
-   static const auto sixth = T(1.0 / 6.0);
+   static const auto half = float(0.5);
+   static const auto sixth = float(1.0 / 6.0);
    const auto halfD11 = half * D[11];
    const auto halfD12 = half * D[12];
    const auto halfD13 = half * D[13];
@@ -690,9 +841,8 @@ CUDA_EXPORT inline void multipole_interaction(array<exp_real, NDIM + 1> L, const
    L[3] = fma(M[16], D[34] * sixth, L[3]);
 }
 
-template<class T> // 401 / 251351
-CUDA_EXPORT inline void multipole_interaction(expansion &L, const T &M, array<T, NDIM> dX, bool do_phi) { // 390 / 47301
-   expansion D;
+CUDA_EXPORT inline void multipole_interaction(expansion<float> &L, const float &M, array<float, NDIM> dX, bool do_phi) { // 390 / 47301
+   expansion<float> D;
    green_direct(D, dX);
    for (int i = 0; i < LP; i++) {
       L[i] = fmaf(M, D[i], L[i]);

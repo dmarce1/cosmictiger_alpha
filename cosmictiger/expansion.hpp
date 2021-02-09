@@ -35,17 +35,17 @@ struct force {
 };
 
 template<class T>
-class expansion_type {
+class expansion {
 
 	array<T,LP> data;
 public:
-	expansion_type<T>& operator*=(T r) {
+	expansion<T>& operator*=(T r) {
 		for (int i = 0; i != LP; ++i) {
 			data[i] *= r;
 		}
 		return *this;
 	}
-	CUDA_EXPORT expansion_type();
+	CUDA_EXPORT expansion();
 	CUDA_EXPORT T operator ()() const;
 	CUDA_EXPORT T& operator ()();
 	CUDA_EXPORT T operator ()(int i) const;
@@ -56,13 +56,13 @@ public:
 	CUDA_EXPORT T& operator ()(int i, int j, int k);
 	CUDA_EXPORT T operator ()(int i, int j, int k, int l) const;
 	CUDA_EXPORT T& operator ()(int i, int j, int k, int l);
-	CUDA_EXPORT expansion_type<T>& operator =(const expansion_type<T> &expansion_type);
-	CUDA_EXPORT expansion_type<T>& operator =(T expansion_type);
+	CUDA_EXPORT expansion<T>& operator =(const expansion<T> &expansion);
+	CUDA_EXPORT expansion<T>& operator =(T expansion);
 	CUDA_EXPORT void translate_L2(array<T,NDIM>& g, T& phi, const array<T,NDIM> &dX) const;
-	CUDA_EXPORT expansion_type<T> operator<<(const array<T,NDIM> &dX) const;
-	CUDA_EXPORT expansion_type<T>& operator<<=(const array<T,NDIM> &dX);
+	CUDA_EXPORT expansion<T> operator<<(const array<T,NDIM> &dX) const;
+	CUDA_EXPORT expansion<T>& operator<<=(const array<T,NDIM> &dX);
 	CUDA_EXPORT void compute_D(const array<T,NDIM> &Y);
-	CUDA_EXPORT std::array<expansion_type<T>, NDIM> get_derivatives() const;
+	CUDA_EXPORT std::array<expansion<T>, NDIM> get_derivatives() const;
 	CUDA_EXPORT inline T& operator[]( int i ) {
 		return data[i];
 	}
@@ -78,47 +78,47 @@ public:
 };
 
 template<class T>
-CUDA_EXPORT inline expansion_type<T>::expansion_type() {
+CUDA_EXPORT inline expansion<T>::expansion() {
 }
 
 template<class T>
-CUDA_EXPORT inline T expansion_type<T>::operator ()() const {
+CUDA_EXPORT inline T expansion<T>::operator ()() const {
 	return data[0];
 }
 template<class T>
-CUDA_EXPORT inline T& expansion_type<T>::operator ()() {
+CUDA_EXPORT inline T& expansion<T>::operator ()() {
 	return data[0];
 }
 
 template<class T>
-CUDA_EXPORT inline T expansion_type<T>::operator ()(int i) const {
+CUDA_EXPORT inline T expansion<T>::operator ()(int i) const {
 	return data[1 + i];
 }
 template<class T>
-CUDA_EXPORT inline T& expansion_type<T>::operator ()(int i) {
+CUDA_EXPORT inline T& expansion<T>::operator ()(int i) {
 	return data[1 + i];
 }
 
 template<class T>
-CUDA_EXPORT inline T expansion_type<T>::operator ()(int i, int j) const {
+CUDA_EXPORT inline T expansion<T>::operator ()(int i, int j) const {
 	static constexpr size_t map2[3][3] = { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } };
 	return data[4 + map2[i][j]];
 }
 template<class T>
-CUDA_EXPORT inline T& expansion_type<T>::operator ()(int i, int j) {
+CUDA_EXPORT inline T& expansion<T>::operator ()(int i, int j) {
 	static constexpr size_t map2[3][3] = { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } };
 	return data[4 + map2[i][j]];
 }
 
 template<class T>
-CUDA_EXPORT inline T expansion_type<T>::operator ()(int i, int j, int k) const {
+CUDA_EXPORT inline T expansion<T>::operator ()(int i, int j, int k) const {
 	static constexpr size_t map3[3][3][3] = { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7, 8 },
 			{ 5, 8, 9 } } };
 
 	return data[10 + map3[i][j][k]];
 }
 template<class T>
-CUDA_EXPORT inline T& expansion_type<T>::operator ()(int i, int j, int k) {
+CUDA_EXPORT inline T& expansion<T>::operator ()(int i, int j, int k) {
 	static constexpr size_t map3[3][3][3] = { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7, 8 },
 			{ 5, 8, 9 } } };
 
@@ -126,7 +126,7 @@ CUDA_EXPORT inline T& expansion_type<T>::operator ()(int i, int j, int k) {
 }
 
 template<class T>
-CUDA_EXPORT inline T& expansion_type<T>::operator ()(int i, int j, int k, int l) {
+CUDA_EXPORT inline T& expansion<T>::operator ()(int i, int j, int k, int l) {
 	static constexpr size_t map4[3][3][3][3] = { { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7,
 			8 }, { 5, 8, 9 } } }, { { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 3, 6, 7 }, { 6, 10, 11 }, { 7, 11, 12 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8,
 			12, 13 } } }, { { { 2, 4, 5 }, { 4, 7, 8 }, { 5, 8, 9 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8, 12, 13 } }, { { 5, 8, 9 }, { 8, 12, 13 },
@@ -135,7 +135,7 @@ CUDA_EXPORT inline T& expansion_type<T>::operator ()(int i, int j, int k, int l)
 }
 
 template<class T>
-CUDA_EXPORT inline T expansion_type<T>::operator ()(int i, int j, int k, int l) const {
+CUDA_EXPORT inline T expansion<T>::operator ()(int i, int j, int k, int l) const {
 	static constexpr size_t map4[3][3][3][3] = { { { { 0, 1, 2 }, { 1, 3, 4 }, { 2, 4, 5 } }, { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 2, 4, 5 }, { 4, 7,
 			8 }, { 5, 8, 9 } } }, { { { 1, 3, 4 }, { 3, 6, 7 }, { 4, 7, 8 } }, { { 3, 6, 7 }, { 6, 10, 11 }, { 7, 11, 12 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8,
 			12, 13 } } }, { { { 2, 4, 5 }, { 4, 7, 8 }, { 5, 8, 9 } }, { { 4, 7, 8 }, { 7, 11, 12 }, { 8, 12, 13 } }, { { 5, 8, 9 }, { 8, 12, 13 },
@@ -144,7 +144,7 @@ CUDA_EXPORT inline T expansion_type<T>::operator ()(int i, int j, int k, int l) 
 }
 
 template<class T>
-CUDA_EXPORT inline expansion_type<T>& expansion_type<T>::operator =(const expansion_type<T> &expansion) {
+CUDA_EXPORT inline expansion<T>& expansion<T>::operator =(const expansion<T> &expansion) {
 	for (int i = 0; i < LP; i++) {
 		data[i] = expansion[i];
 	}
@@ -152,7 +152,7 @@ CUDA_EXPORT inline expansion_type<T>& expansion_type<T>::operator =(const expans
 }
 
 template<class T>
-CUDA_EXPORT inline expansion_type<T>& expansion_type<T>::operator =(T expansion) {
+CUDA_EXPORT inline expansion<T>& expansion<T>::operator =(T expansion) {
 	for (int i = 0; i < LP; i++) {
 		data[i] = expansion;
 	}
@@ -160,14 +160,14 @@ CUDA_EXPORT inline expansion_type<T>& expansion_type<T>::operator =(T expansion)
 }
 
 template<class T>
-CUDA_EXPORT inline expansion_type<T> expansion_type<T>::operator<<(const array<T,NDIM> &dX) const {
-	expansion_type<T> you = *this;
+CUDA_EXPORT inline expansion<T> expansion<T>::operator<<(const array<T,NDIM> &dX) const {
+	expansion<T> you = *this;
 	you <<= dX;
 	return you;
 }
 
 template<class T>
-struct expansion_factors: public expansion_type<T> {
+struct expansion_factors: public expansion<T> {
 	expansion_factors() {
 		for (int i = 0; i < LP; i++) {
 			(*this)[i] = T(0.0);
@@ -189,9 +189,9 @@ struct expansion_factors: public expansion_type<T> {
 };
 
 template<class T>
-CUDA_EXPORT inline expansion_type<T>& expansion_type<T>::operator<<=(const array<T,NDIM> &dX) {
+CUDA_EXPORT inline expansion<T>& expansion<T>::operator<<=(const array<T,NDIM> &dX) {
 	const static expansion_factors<T> factor;
-	expansion_type<T> &me = *this;
+	expansion<T> &me = *this;
 	for (int a = 0; a < 3; a++) {
 		me() += me(a) * dX[a];
 		for (int b = 0; b <= a; b++) {
@@ -240,7 +240,7 @@ CUDA_EXPORT inline expansion_type<T>& expansion_type<T>::operator<<=(const array
 }
 
 template<class T>
-CUDA_EXPORT inline void expansion_type<T>::translate_L2(array<T,NDIM>& g, T& phi, const array<T,NDIM> &dX) const {
+CUDA_EXPORT inline void expansion<T>::translate_L2(array<T,NDIM>& g, T& phi, const array<T,NDIM> &dX) const {
 	const static expansion_factors<T> factor;
 
 	const auto &me = *this;
@@ -271,10 +271,6 @@ CUDA_EXPORT inline void expansion_type<T>::translate_L2(array<T,NDIM>& g, T& phi
 		}
 	}
 }
-
-using exp_real = float;
-
-using expansion = expansion_type<exp_real>;
 
 /* namespace fmmx */
 #endif /* expansion_H_ */

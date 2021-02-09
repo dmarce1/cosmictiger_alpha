@@ -56,8 +56,8 @@ void kick_test() {
    CUDA_MALLOC(real_indices,1);
    CUDA_MALLOC(four_indices,1);
    CUDA_MALLOC(pparts,1);
-   new (real_indices) ewald_indices(10,false);
-   new (four_indices) ewald_indices(7,true);
+   new (real_indices) ewald_indices(EWALD_NREAL,false);
+   new (four_indices) ewald_indices(EWALD_NFOUR,true);
    new (pparts) periodic_parts();
    tree::cuda_set_kick_params(parts_ptr, 0.7, 0, real_indices, four_indices, pparts);
    for (int i = 0; i < 2; i++) {
@@ -76,11 +76,11 @@ void kick_test() {
       params_ptr->estack.copy_to(&root_ptr,1);
 
       // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
-      expansion L;
+      expansion<accum_real> L;
       for (int i = 0; i < LP; i++) {
          L[i] = 0.f;
       }
-      array<fixed32, NDIM> Lpos;
+      array<accum_real, NDIM> Lpos;
       for (int dim = 0; dim < NDIM; dim++) {
          Lpos[dim] = 0.5;
       }

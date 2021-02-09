@@ -289,8 +289,8 @@ struct kick_params_type {
    array<tree_ptr, WORKSPACE_SIZE> part_interactions;
    array<tree_ptr, WORKSPACE_SIZE> next_checks;
    array<tree_ptr, WORKSPACE_SIZE> opened_checks;
-   array<expansion, TREE_MAX_DEPTH> L;
-   array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
+   array<expansion<accum_real>, TREE_MAX_DEPTH> L;
+   array<array<accum_real, NDIM>, TREE_MAX_DEPTH> Lpos;
    tree_ptr tptr;
    int nmulti;
    int npart;

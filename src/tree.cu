@@ -38,11 +38,15 @@ using pos_array = array<fixed32,KICK_PP_MAX>;
 struct cuda_kick_shmem {
    indices_array indices;
    counts_array count;
-   array<array<float, KICK_BLOCK_SIZE>, NDIM> f;
-   array<array<float, MAX_BUCKET_SIZE>, NDIM> F;
+   array<array<accum_real, KICK_BLOCK_SIZE>, NDIM> f;
+   array<array<accum_real, MAX_BUCKET_SIZE>, NDIM> F;
    array<array<fixed32, KICK_PP_MAX>, NDIM> src;
    array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;
-   array<expansion, KICK_BLOCK_SIZE> Lreduce;
+   array<expansion<accum_real>, KICK_BLOCK_SIZE> Lreduce;
+};
+
+struct cuda_ewald_shmem {
+   array<expansion<accum_real>, KICK_BLOCK_SIZE> Lreduce;
 };
 
 CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, bool ewald = false) {
@@ -60,12 +64,55 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, bool ewald =
    const auto &pos = ((tree*) params.tptr)->pos;
    for (int i = tid; i < params.nmulti; i += KICK_BLOCK_SIZE) {
       const multipole mpole = *((tree*) multis[i])->multi;
-      expansion L;
+      expansion<float> L;
       array<float, NDIM> fpos;
       for (int dim = 0; dim < NDIM; dim++) {
          fpos[dim] = (fixed<int32_t>(params.Lpos[params.depth][dim]) - fixed<int32_t>(pos[dim])).to_float();
       }
       multipole_interaction(L, mpole, fpos, ewald, false);
+      for (int j = 0; j < LP; j++) {
+         Lreduce[tid][j] += L[j];
+      }
+   }
+   __syncthreads();
+   for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+      if (tid < P) {
+         for (int i = 0; i < LP; i++) {
+            Lreduce[tid][i] += Lreduce[tid + P][i];
+         }
+      }
+      __syncthreads();
+   }
+   for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
+      params.L[params.depth][i] += Lreduce[0][i];
+   }
+}
+
+CUDA_DEVICE void cuda_ewald_cc_interactions(kick_params_type *params_ptr, bool ewald = false) {
+   kick_params_type &params = *params_ptr;
+   const int &tid = threadIdx.x;
+   __shared__
+   extern int shmem_ptr[];
+   cuda_ewald_shmem &shmem = *(cuda_ewald_shmem*) shmem_ptr;
+   auto &Lreduce = shmem.Lreduce;
+   auto &multis = params.multi_interactions;
+   for (int i = 0; i < LP; i++) {
+      Lreduce[tid][i] = 0.0;
+   }
+   __syncthreads();
+   const auto &pos = ((tree*) params.tptr)->pos;
+   for (int i = tid; i < params.nmulti; i += KICK_BLOCK_SIZE) {
+      const multipole mpole_float = *((tree*) multis[i])->multi;
+      multipole_type<ewald_real> mpole;
+      for( int i = 0; i < MP; i++) {
+         mpole[i] = mpole_float[i];
+      }
+      expansion<ewald_real> L;
+      array<ewald_real, NDIM> fpos;
+      for (int dim = 0; dim < NDIM; dim++) {
+         fpos[dim] = (fixed<int32_t>(params.Lpos[params.depth][dim]) - fixed<int32_t>(pos[dim])).to_double();
+      }
+      multipole_interaction_ewald(L, mpole, fpos, ewald, false);
       for (int j = 0; j < LP; j++) {
          Lreduce[tid][j] += L[j];
       }
@@ -132,7 +179,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
             for (int dim = 0; dim < NDIM; dim++) {
                dx[dim] = (fixed<int32_t>(parts->pos(dim, j)) - fixed<int32_t>(sinks[dim])).to_float();
             }
-            expansion L;
+            expansion<float> L;
             multipole_interaction(L, 1.0f, dx, false);
             for (int j = 0; j < LP; j++) {
                Lreduce[tid][j] += L[j];
@@ -546,12 +593,12 @@ void cleanup_stream(std::pair<cudaStream_t, cudaEvent_t> s) {
 
 CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
    const int &bid = blockIdx.x;
-   cuda_cc_interactions(params_ptr[bid], true);
+   cuda_ewald_cc_interactions(params_ptr[bid], true);
 }
 
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
-   cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_kick_shmem),stream.first>>>(params_ptr);
+   cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream.first>>>(params_ptr);
    CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
 
    struct cuda_ewald_future_shared {
