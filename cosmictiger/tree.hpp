@@ -363,7 +363,7 @@ private:
   public:
    static particle_set *particles;
    static void set_cuda_particle_set(particle_set*);
-   static void cuda_set_kick_params(particle_set *p, float theta_, int rung);
+   static void cuda_set_kick_params(particle_set *p);
 #ifndef __CUDACC__
    static void set_particle_set(particle_set*);
    inline static hpx::future<sort_return> create_child(sort_params&);

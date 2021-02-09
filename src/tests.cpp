@@ -47,10 +47,6 @@ void kick_test() {
    particle_set parts(global().opts.nparts);
    parts.generate_random();
    tree::set_particle_set(&parts);
-   particle_set* parts_ptr;
-   CUDA_MALLOC(parts_ptr,sizeof(particle_set));
-   new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-   tree::cuda_set_kick_params(parts_ptr, 0.7, 0);
    for (int i = 0; i < 2; i++) {
       tree root;
       timer tm;
@@ -85,8 +81,6 @@ void kick_test() {
       CUDA_FREE(params_ptr);
       printf("Done kicking in %e seconds\n\n", tm.read());
    }
-   parts_ptr->particle_set::~particle_set();
-   CUDA_FREE(parts_ptr);
 }
 
 static void sort() {

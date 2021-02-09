@@ -24,9 +24,6 @@ __managed__ particle_set *parts;
 
 
 
-void cuda_initialize_tree(particle_set* p) {
-  parts = p;
-}
 
 #define NITERS 4
 #define MI 0
@@ -552,20 +549,20 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
    return rc;
 }
 
-CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_) {
+CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p) {
    if (threadIdx.x == 0) {
       parts = p;
    }
 }
 
-void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
+void tree::cuda_set_kick_params(particle_set *p) {
    CUDA_MALLOC(real_indices_ptr,1);
    CUDA_MALLOC(four_indices_ptr,1);
    CUDA_MALLOC(periodic_parts_ptr,1);
    new (real_indices_ptr) ewald_indices(EWALD_NREAL,false);
    new (four_indices_ptr) ewald_indices(EWALD_NFOUR,true);
    new (periodic_parts_ptr) periodic_parts();
-   cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
+   cuda_set_kick_params_kernel<<<1,1>>>(p);
          CUDA_CHECK(cudaDeviceSynchronize());
 }
 

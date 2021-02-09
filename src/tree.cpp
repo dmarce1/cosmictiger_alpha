@@ -13,11 +13,14 @@ particle_set *tree::particles;
 
 static finite_vector_allocator<sizeof(kick_params_type)> kick_params_alloc;
 
-void cuda_initialize_tree(particle_set* p);
+void cuda_initialize_tree(particle_set *p);
 
 void tree::set_particle_set(particle_set *parts) {
    particles = parts;
-   cuda_initialize_tree(parts);
+   particle_set *parts_ptr;
+   CUDA_MALLOC(parts_ptr, sizeof(particle_set));
+   new (parts_ptr) particle_set(parts->get_virtual_particle_set());
+   tree::cuda_set_kick_params(parts_ptr);
 }
 
 inline hpx::future<sort_return> tree::create_child(sort_params &params) {
@@ -220,7 +223,6 @@ sort_return tree::sort(sort_params params) {
    return rc;
 }
 
-
 hpx::lcos::local::mutex tree::mtx;
 hpx::lcos::local::mutex tree::gpu_mtx;
 
@@ -355,7 +357,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          cpu_cc_direct(params_ptr);
          break;
       case CC_CP_EWALD:
-         if( params_ptr->nmulti) {
+         if (params_ptr->nmulti) {
             send_ewald_to_gpu(params_ptr).get();
          }
          break;
@@ -564,17 +566,17 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
       for (int j = 0; j < cnt1; j += simd_float::size()) {
          for (int k = 0; k < simd_float::size(); k++) {
             if (j + k < cnt1) {
-               for( int dim = 0; dim < NDIM; dim++) {
-                  Y[dim][k] = ((const tree*) multis[j+k])->pos[dim];
+               for (int dim = 0; dim < NDIM; dim++) {
+                  Y[dim][k] = ((const tree*) multis[j + k])->pos[dim];
                }
-               for( int i = 0; i < MP; i++) {
-                  M[k][i] = (*((const tree*) multis[j+k])->multi)[i];
+               for (int i = 0; i < MP; i++) {
+                  M[k][i] = (*((const tree*) multis[j + k])->multi)[i];
                }
             } else {
-               for( int dim = 0; dim < NDIM; dim++) {
-                  Y[dim][k] = ((const tree*) multis[cnt1-1])->pos[dim];
+               for (int dim = 0; dim < NDIM; dim++) {
+                  Y[dim][k] = ((const tree*) multis[cnt1 - 1])->pos[dim];
                }
-               for( int i = 0; i < MP; i++) {
+               for (int i = 0; i < MP; i++) {
                   M[k][i] = 0.0;
                }
             }
