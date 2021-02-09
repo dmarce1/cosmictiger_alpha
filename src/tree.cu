@@ -1,5 +1,14 @@
-#include <cosmictiger/tree.hpp>
+struct ewald_indices;
+struct periodic_parts;
 #include <cosmictiger/cuda.hpp>
+#include <stack>
+
+CUDA_DEVICE ewald_indices *four_indices_ptr;
+CUDA_DEVICE ewald_indices *real_indices_ptr;
+CUDA_DEVICE periodic_parts *periodic_parts_ptr;
+
+#define TREECU
+#include <cosmictiger/tree.hpp>
 #include <cosmictiger/interactions.hpp>
 #include <functional>
 
@@ -26,7 +35,6 @@ using counts_array = array<int16_t, NITERS>;
 
 using pos_array = array<fixed32,KICK_PP_MAX>;
 
-#define MAX_BUCKET_SIZE 64
 struct cuda_kick_shmem {
    indices_array indices;
    counts_array count;
@@ -34,16 +42,16 @@ struct cuda_kick_shmem {
    array<array<float, MAX_BUCKET_SIZE>, NDIM> F;
    array<array<fixed32, KICK_PP_MAX>, NDIM> src;
    array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;
-   array<expansion, KICK_BLOCK_SIZE> L;
+   array<expansion, KICK_BLOCK_SIZE> Lreduce;
 };
 
-CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr) {
+CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, bool ewald = false) {
    kick_params_type &params = *params_ptr;
    const int &tid = threadIdx.x;
    __shared__
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-   auto &Lreduce = shmem.L;
+   auto &Lreduce = shmem.Lreduce;
    auto &multis = params.multi_interactions;
    for (int i = 0; i < LP; i++) {
       Lreduce[tid][i] = 0.0;
@@ -57,7 +65,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr) {
       for (int dim = 0; dim < NDIM; dim++) {
          fpos[dim] = (fixed<int32_t>(params.Lpos[params.depth][dim]) - fixed<int32_t>(pos[dim])).to_float();
       }
-      multipole_interaction(L, mpole, fpos, false);
+      multipole_interaction(L, mpole, fpos, ewald, false);
       for (int j = 0; j < LP; j++) {
          Lreduce[tid][j] += L[j];
       }
@@ -82,54 +90,67 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
    __shared__
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-   auto &Lreduce = shmem.L;
+   auto &Lreduce = shmem.Lreduce;
    auto &inters = params.part_interactions;
    const auto &sinks = params.Lpos[params.depth];
-   if (params.npart) {
-      int i = 0;
-      const auto &myparts = ((tree*) params.tptr)->parts;
-      __syncthreads();
-      while (i < params.npart) {
-         pair<size_t, size_t> these_parts;
-         these_parts = ((tree*) inters[i])->parts;
-         i++;
-         while (i < params.npart) {
-            auto next_parts = ((tree*) inters[i])->parts;
-            if (next_parts.first == these_parts.second && next_parts.second - these_parts.first <= KICK_PP_MAX) {
-               these_parts.second = ((tree*) inters[i])->parts.second;
+   auto &sources = shmem.src;
+   const auto &myparts = ((tree*) params.tptr)->parts;
+   size_t part_index;
+   int i = 0;
+   __syncthreads();
+   auto these_parts = ((tree*) inters[0])->parts;
+   while (i < params.npart) {
+      part_index = 0;
+      while (part_index < KICK_PP_MAX && i < params.npart) {
+         while (i + 1 < params.npart) {
+            if (these_parts.second == ((tree*) inters[i + 1])->parts.first) {
+               these_parts.second = ((tree*) inters[i + 1])->parts.second;
                i++;
             } else {
                break;
             }
          }
-         for (int j = these_parts.first + tid; j < these_parts.second; j += KICK_BLOCK_SIZE) {
-            array<float, NDIM> dx;
+         const size_t imin = these_parts.first;
+         const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
+         for (size_t j = imin + tid; j < imax; j += KICK_BLOCK_SIZE) {
             for (int dim = 0; dim < NDIM; dim++) {
-               dx[dim] = (fixed<int32_t>(parts->pos(dim, j)) - fixed<int32_t>(sinks[dim])).to_float();
+               sources[dim][part_index + j - imin] = parts->pos(dim, j);
             }
-            expansion L;
-            multipole_interaction(L, 1.0f, dx, false);
-            for (int j = 0; j < LP; j++) {
-               Lreduce[tid][j] += L[j];
+         }
+         these_parts.first += imax - imin;
+         part_index += imax - imin;
+         if (these_parts.first == these_parts.second) {
+            i++;
+            if (i < params.npart) {
+               these_parts = ((tree*) inters[i])->parts;
+            }
+         }
+      }
+      for (int j = these_parts.first + tid; j < these_parts.second; j += KICK_BLOCK_SIZE) {
+         array<float, NDIM> dx;
+         for (int dim = 0; dim < NDIM; dim++) {
+            dx[dim] = (fixed<int32_t>(parts->pos(dim, j)) - fixed<int32_t>(sinks[dim])).to_float();
+         }
+         expansion L;
+         multipole_interaction(L, 1.0f, dx, false);
+         for (int j = 0; j < LP; j++) {
+            Lreduce[tid][j] += L[j];
+         }
+      }
+      __syncthreads();
+      for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+         if (tid < P) {
+            for (int i = 0; i < LP; i++) {
+               Lreduce[tid][i] += Lreduce[tid + P][i];
             }
          }
          __syncthreads();
-         for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-            if (tid < P) {
-               for (int i = 0; i < LP; i++) {
-                  Lreduce[tid][i] += Lreduce[tid + P][i];
-               }
-            }
-            __syncthreads();
-         }
-         for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
-            params.L[params.depth][i] += Lreduce[0][i];
-         }
+      }
+      for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
+         params.L[params.depth][i] += Lreduce[0][i];
       }
    }
 }
-
-CUDA_DEVICE double ndirect = 0;
 
 CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
    kick_params_type &params = *params_ptr;
@@ -488,7 +509,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_
 
 void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
-                                                CUDA_CHECK(cudaDeviceSynchronize());
+                                                                  CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
@@ -497,29 +518,46 @@ CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
 
 }
 
-std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type **params, int grid_size) {
-   cudaStream_t stream;
-   cudaEvent_t event;
-   CUDA_CHECK(cudaStreamCreate(&stream));
-   CUDA_CHECK(cudaEventCreate(&event));
-   for (int i = 0; i < grid_size; i++) {
-      //  for (int dim = 0; dim < NDIM; dim++) {
-      //    CUDA_CHECK(cudaMemPrefetchAsync(params[i]->pref_ptr[dim], params[i]->pref_size, 0, stream));
-      //  }
-   }
+static std::stack<std::pair<cudaStream_t, cudaEvent_t>> streams;
+static std::atomic<int> streams_mtx;
 
-//  printf("Shared mem requirements = %li\n", sizeof(cuda_kick_shmem));
+std::pair<cudaStream_t,cudaEvent_t> get_stream() {
+   while (streams_mtx++ != 0) {
+      streams_mtx--;
+   }
+   if (streams.empty()) {
+      cudaStream_t stream;
+      cudaEvent_t event;
+      CUDA_CHECK(cudaStreamCreate(&stream));
+      CUDA_CHECK(cudaEventCreate(&event));
+      streams.push(std::make_pair(stream, event));
+   }
+   auto stream = streams.top();
+   streams.pop();
+   streams_mtx--;
+   return stream;
+}
+
+void cleanup_stream(std::pair<cudaStream_t, cudaEvent_t> s) {
+   while (streams_mtx++ != 0) {
+      streams_mtx--;
+   }
+   streams.push(s);
+   streams_mtx--;
+}
+
+std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type **params, int grid_size) {
+   auto stream = get_stream();
    const size_t shmemsize = sizeof(cuda_kick_shmem);
    kick_return *returns;
    CUDA_MALLOC(returns, grid_size);
    /***************************************************************************************************************************************************/
-   /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(returns,params);/**/
-   /**/CUDA_CHECK(cudaEventRecord(event, stream));/*******************************************************************************************************/
+   /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream.first>>>(returns,params);/**/
+   /**/CUDA_CHECK(cudaEventRecord(stream.second, stream.first));/*******************************************************************************************************/
    /***************************************************************************************************************************************************/
 
    struct cuda_kick_future_shared {
-      cudaStream_t stream;
-      cudaEvent_t event;
+      std::pair<cudaStream_t, cudaEvent_t> stream;
       kick_return *returns;
       int grid_size;
       mutable bool ready;
@@ -529,11 +567,10 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
       }
       bool operator()() const {
          if (!ready) {
-            if (cudaEventQuery(event) == cudaSuccess) {
+            if (cudaEventQuery(stream.second) == cudaSuccess) {
                ready = true;
-               CUDA_CHECK(cudaStreamSynchronize(stream));
-               CUDA_CHECK(cudaEventDestroy(event));
-               CUDA_CHECK(cudaStreamDestroy(stream));
+               CUDA_CHECK(cudaStreamSynchronize(stream.first));
+               cleanup_stream(stream);
             }
          }
          return ready;
@@ -543,7 +580,6 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    cuda_kick_future_shared fut;
    fut.returns = returns;
    fut.stream = stream;
-   fut.event = event;
    fut.grid_size = grid_size;
    std::function < bool() > ready_func = [fut]() {
       return fut();

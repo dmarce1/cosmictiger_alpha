@@ -422,7 +422,7 @@ void tree::gpu_daemon() {
       min_grid_size = std::max(1, min_grid_size);
       while (gpu_queue.size() >= min_grid_size) {
          int grid_size = std::min(KICK_GRID_SIZE,min_grid_size);
-         min_grid_size = std::min(KICK_GRID_SIZE, 2* min_grid_size);
+         min_grid_size = KICK_GRID_SIZE;
          std::vector<hpx::lcos::local::promise<kick_return>> promises;
          static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
          kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate();
