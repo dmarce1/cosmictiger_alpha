@@ -50,7 +50,16 @@ void kick_test() {
    particle_set* parts_ptr;
    CUDA_MALLOC(parts_ptr,sizeof(particle_set));
    new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-   tree::cuda_set_kick_params(parts_ptr, 0.7, 0);
+   ewald_indices* real_indices;
+   ewald_indices* four_indices;
+   periodic_parts* pparts;
+   CUDA_MALLOC(real_indices,1);
+   CUDA_MALLOC(four_indices,1);
+   CUDA_MALLOC(pparts,1);
+   new (real_indices) ewald_indices(10,false);
+   new (four_indices) ewald_indices(7,true);
+   new (pparts) periodic_parts();
+   tree::cuda_set_kick_params(parts_ptr, 0.7, 0, real_indices, four_indices, pparts);
    for (int i = 0; i < 2; i++) {
       tree root;
       timer tm;

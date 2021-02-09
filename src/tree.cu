@@ -98,56 +98,58 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
    size_t part_index;
    int i = 0;
    __syncthreads();
-   auto these_parts = ((tree*) inters[0])->parts;
-   while (i < params.npart) {
-      part_index = 0;
-      while (part_index < KICK_PP_MAX && i < params.npart) {
-         while (i + 1 < params.npart) {
-            if (these_parts.second == ((tree*) inters[i + 1])->parts.first) {
-               these_parts.second = ((tree*) inters[i + 1])->parts.second;
+   if (params.npart > 0) {
+      auto these_parts = ((tree*) inters[0])->parts;
+      while (i < params.npart) {
+         part_index = 0;
+         while (part_index < KICK_PP_MAX && i < params.npart) {
+            while (i + 1 < params.npart) {
+               if (these_parts.second == ((tree*) inters[i + 1])->parts.first) {
+                  these_parts.second = ((tree*) inters[i + 1])->parts.second;
+                  i++;
+               } else {
+                  break;
+               }
+            }
+            const size_t imin = these_parts.first;
+            const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
+            for (size_t j = imin + tid; j < imax; j += KICK_BLOCK_SIZE) {
+               for (int dim = 0; dim < NDIM; dim++) {
+                  sources[dim][part_index + j - imin] = parts->pos(dim, j);
+               }
+            }
+            these_parts.first += imax - imin;
+            part_index += imax - imin;
+            if (these_parts.first == these_parts.second) {
                i++;
-            } else {
-               break;
+               if (i < params.npart) {
+                  these_parts = ((tree*) inters[i])->parts;
+               }
             }
          }
-         const size_t imin = these_parts.first;
-         const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
-         for (size_t j = imin + tid; j < imax; j += KICK_BLOCK_SIZE) {
+         for (int j = these_parts.first + tid; j < these_parts.second; j += KICK_BLOCK_SIZE) {
+            array<float, NDIM> dx;
             for (int dim = 0; dim < NDIM; dim++) {
-               sources[dim][part_index + j - imin] = parts->pos(dim, j);
+               dx[dim] = (fixed<int32_t>(parts->pos(dim, j)) - fixed<int32_t>(sinks[dim])).to_float();
             }
-         }
-         these_parts.first += imax - imin;
-         part_index += imax - imin;
-         if (these_parts.first == these_parts.second) {
-            i++;
-            if (i < params.npart) {
-               these_parts = ((tree*) inters[i])->parts;
-            }
-         }
-      }
-      for (int j = these_parts.first + tid; j < these_parts.second; j += KICK_BLOCK_SIZE) {
-         array<float, NDIM> dx;
-         for (int dim = 0; dim < NDIM; dim++) {
-            dx[dim] = (fixed<int32_t>(parts->pos(dim, j)) - fixed<int32_t>(sinks[dim])).to_float();
-         }
-         expansion L;
-         multipole_interaction(L, 1.0f, dx, false);
-         for (int j = 0; j < LP; j++) {
-            Lreduce[tid][j] += L[j];
-         }
-      }
-      __syncthreads();
-      for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-         if (tid < P) {
-            for (int i = 0; i < LP; i++) {
-               Lreduce[tid][i] += Lreduce[tid + P][i];
+            expansion L;
+            multipole_interaction(L, 1.0f, dx, false);
+            for (int j = 0; j < LP; j++) {
+               Lreduce[tid][j] += L[j];
             }
          }
          __syncthreads();
-      }
-      for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
-         params.L[params.depth][i] += Lreduce[0][i];
+         for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+            if (tid < P) {
+               for (int i = 0; i < LP; i++) {
+                  Lreduce[tid][i] += Lreduce[tid + P][i];
+               }
+            }
+            __syncthreads();
+         }
+         for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
+            params.L[params.depth][i] += Lreduce[0][i];
+         }
       }
    }
 }
@@ -499,17 +501,22 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
    return rc;
 }
 
-CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_) {
+CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_, ewald_indices *four_indices,
+      ewald_indices *real_indices, periodic_parts *periodic_parts) {
    if (threadIdx.x == 0) {
       parts = p;
       theta = theta_;
       rung = rung_;
+      four_indices_ptr = four_indices;
+      real_indices_ptr = real_indices;
+      periodic_parts_ptr = periodic_parts;
    }
 }
 
-void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_) {
-cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_);
-                                                                  CUDA_CHECK(cudaDeviceSynchronize());
+void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_, ewald_indices *four_indices,
+      ewald_indices *real_indices, periodic_parts *parts) {
+cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_, real_indices, four_indices, parts);
+         CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
@@ -518,13 +525,9 @@ CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
 
 }
 
-static std::stack<std::pair<cudaStream_t, cudaEvent_t>> streams;
-static std::atomic<int> streams_mtx;
+thread_local static std::stack<std::pair<cudaStream_t, cudaEvent_t>> streams;
 
-std::pair<cudaStream_t,cudaEvent_t> get_stream() {
-   while (streams_mtx++ != 0) {
-      streams_mtx--;
-   }
+std::pair<cudaStream_t, cudaEvent_t> get_stream() {
    if (streams.empty()) {
       cudaStream_t stream;
       cudaEvent_t event;
@@ -534,16 +537,50 @@ std::pair<cudaStream_t,cudaEvent_t> get_stream() {
    }
    auto stream = streams.top();
    streams.pop();
-   streams_mtx--;
    return stream;
 }
 
 void cleanup_stream(std::pair<cudaStream_t, cudaEvent_t> s) {
-   while (streams_mtx++ != 0) {
-      streams_mtx--;
-   }
    streams.push(s);
-   streams_mtx--;
+}
+
+CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
+   const int &bid = blockIdx.x;
+   cuda_cc_interactions(params_ptr[bid], true);
+}
+
+std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
+   auto stream = get_stream();
+   cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_kick_shmem),stream.first>>>(params_ptr);
+   CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
+
+   struct cuda_ewald_future_shared {
+      std::pair<cudaStream_t, cudaEvent_t> stream;
+      int grid_size;
+      mutable bool ready;
+   public:
+      cuda_ewald_future_shared() {
+         ready = false;
+      }
+      bool operator()() const {
+         if (!ready) {
+            if (cudaEventQuery(stream.second) == cudaSuccess) {
+               ready = true;
+               CUDA_CHECK(cudaStreamSynchronize(stream.first));
+               cleanup_stream(stream);
+            }
+         }
+         return ready;
+      }
+   };
+
+   cuda_ewald_future_shared fut;
+   fut.stream = stream;
+   fut.grid_size = grid_size;
+   std::function < bool() > ready_func = [fut]() {
+      return fut();
+   };
+   return ready_func;
 }
 
 std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type **params, int grid_size) {

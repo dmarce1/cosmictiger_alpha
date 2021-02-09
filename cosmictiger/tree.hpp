@@ -8,6 +8,9 @@
 #include <cosmictiger/expansion.hpp>
 #include <cosmictiger/finite_vector.hpp>
 #include <cosmictiger/lockfree_queue.hpp>
+#include <cosmictiger/interactions.hpp>
+
+#include <functional>
 
 #include <queue>
 #include <memory>
@@ -16,11 +19,11 @@
 #define LEFT 0
 #define RIGHT 1
 #define WORKSPACE_SIZE 512
-#define KICK_GRID_SIZE (1024)
+#define KICK_GRID_SIZE (256)
 #define KICK_BLOCK_SIZE 32
 #define KICK_PP_MAX size_t(256)
 #define GPU_QUEUE_SIZE (1024*1024)
-#define KICK_CUDA_SIZE (1<<15)
+#define KICK_CUDA_SIZE (1<<16)
 #define MAX_BUCKET_SIZE 64
 
 #define TREE_PTR_STACK (TREE_MAX_DEPTH*WORKSPACE_SIZE)
@@ -245,7 +248,7 @@ struct kick_params_stack_type {
    CUDA_EXPORT inline
    void copy_to(tree_ptr *stk, int sz) {
       THREADID;
-       BLOCKSIZE;
+      BLOCKSIZE;
       for (int i = stack_size + tid; i < stack_size + sz; i += blocksize) {
          checks[i] = stk[i - stack_size];
       }CUDA_SYNC();
@@ -258,8 +261,8 @@ struct kick_params_stack_type {
    CUDA_EXPORT inline
    void copy_top() {
       THREADID;
-       BLOCKSIZE;
-       for (int i = tid; i < counts[count_size - 1]; i += blocksize) {
+      BLOCKSIZE;
+      for (int i = tid; i < counts[count_size - 1]; i += blocksize) {
          checks[stack_size + i] = checks[stack_size - counts[count_size - 1] + i];
       }CUDA_SYNC();
       if (tid == 0) {
@@ -294,7 +297,7 @@ struct kick_params_type {
    int nnext;
    int nopen;
    int depth;
-   array<void*,NDIM> pref_ptr;
+   array<void*, NDIM> pref_ptr;
    size_t pref_size;
    CUDA_EXPORT inline kick_params_type() {
       THREADID;
@@ -309,8 +312,13 @@ struct kick_params_type;
 
 #ifndef __CUDACC__
 struct gpu_kick {
-   kick_params_type* params;
+   kick_params_type *params;
    hpx::lcos::local::promise<kick_return> promise;
+};
+
+struct gpu_ewald {
+   kick_params_type *params;
+   hpx::lcos::local::promise<void> promise;
 };
 #endif
 
@@ -329,7 +337,8 @@ private:
 public:
    static particle_set *particles;
    static void set_cuda_particle_set(particle_set*);
-   static void cuda_set_kick_params(particle_set *p, float theta_, int rung_);
+   static void cuda_set_kick_params(particle_set *p, float theta_, int rung, ewald_indices *four_indices,
+         ewald_indices *real_indices, periodic_parts *periodic_parts);
 #ifndef __CUDACC__
    static void set_particle_set(particle_set*);
    inline static hpx::future<sort_return> create_child(sort_params&);
@@ -338,6 +347,7 @@ public:
    static hpx::lcos::local::mutex mtx;
    static hpx::lcos::local::mutex gpu_mtx;
    hpx::future<kick_return> send_kick_to_gpu(kick_params_type *params);
+   hpx::future<void> send_ewald_to_gpu(kick_params_type *params);
    static void gpu_daemon();
    inline bool is_leaf() const {
       return children[0] == tree_ptr();
@@ -347,7 +357,8 @@ public:
    hpx::future<kick_return> kick(kick_params_type*);
    static std::atomic<bool> daemon_running;
    static std::atomic<bool> shutdown_daemon;
-   static lockfree_queue<gpu_kick,GPU_QUEUE_SIZE> gpu_queue;
+   static lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> gpu_queue;
+   static lockfree_queue<gpu_ewald, GPU_QUEUE_SIZE> gpu_ewald_queue;
 #endif
    friend class tree_ptr;
 };
@@ -389,3 +400,5 @@ inline bool tree_ptr::is_leaf() const {
    return ((tree*) ptr)->children[0] == tree_ptr();
 }
 
+
+std::function<bool()> cuda_execute_ewald_kernel(kick_params_type** params_ptr, int grid_size);

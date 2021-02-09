@@ -229,7 +229,7 @@ hpx::lcos::local::mutex tree::gpu_mtx;
 
 void tree::cleanup() {
    shutdown_daemon = true;
-   while( daemon_running ) {
+   while (daemon_running) {
       hpx::this_thread::yield();
    }
 }
@@ -358,7 +358,17 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          }
       } while (direct && *(list_counts[type]));
 
-      /*********** DO INTERACTIONS *********************/
+      switch (type) {
+      case CC_CP_DIRECT:
+         break;
+      case CC_CP_EWALD:
+         send_ewald_to_gpu(params_ptr).get();
+         break;
+      case PC_PP_DIRECT:
+         break;
+      case PC_PP_EWALD:
+         break;
+      }
 
    }
 
@@ -394,6 +404,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 }
 
 lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> tree::gpu_queue;
+lockfree_queue<gpu_ewald, GPU_QUEUE_SIZE> tree::gpu_ewald_queue;
 std::atomic<bool> tree::daemon_running(false);
 std::atomic<bool> tree::shutdown_daemon(false);
 
@@ -401,6 +412,7 @@ using cuda_exec_return =
 std::pair<std::function<bool()>, kick_return*>;
 
 cuda_exec_return cuda_execute_kick_kernel(kick_params_type **params, int grid_size);
+void cuda_execute_ewald_cc_kernel(kick_params_type *params_ptr);
 
 void tree::gpu_daemon() {
    using namespace std::chrono_literals;
@@ -416,39 +428,66 @@ void tree::gpu_daemon() {
          tm.start();
          hpx::this_thread::yield();
          tm.stop();
-         //      printf( "%e %li %li\n", tm.read(), gpu_queue.size(),  min_grid_size);
       } while (tm.read() < wait_time);
       min_grid_size /= 2;
       min_grid_size = std::max(1, min_grid_size);
-      while (gpu_queue.size() >= min_grid_size) {
-         int grid_size = std::min(KICK_GRID_SIZE,min_grid_size);
-         min_grid_size = KICK_GRID_SIZE;
-         std::vector<hpx::lcos::local::promise<kick_return>> promises;
+      while (gpu_ewald_queue.size() >= min_grid_size) {
+         int grid_size = std::min(KICK_GRID_SIZE, min_grid_size);
+         min_grid_size = 2 * KICK_GRID_SIZE;
+         std::vector<hpx::lcos::local::promise<void>> promises;
          static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
          kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate();
          for (int i = 0; i < grid_size; i++) {
-            auto tmp = gpu_queue.pop();
+            auto tmp = gpu_ewald_queue.pop();
             all_params[i] = tmp.params;
             promises.push_back(std::move(tmp.promise));
          }
-         printf("Executing %i blocks\n", grid_size);
-         auto exec_ret = cuda_execute_kick_kernel(all_params, grid_size);
-         hpx::apply([all_params, exec_ret, grid_size](std::vector<hpx::lcos::local::promise<kick_return>> &&promises) {
-            while (!exec_ret.first()) {
+         printf("Executing %i ewald blocks\n", grid_size);
+         auto exec_ret = cuda_execute_ewald_kernel(all_params, grid_size);
+         hpx::apply([all_params, exec_ret, grid_size](std::vector<hpx::lcos::local::promise<void>> &&promises) {
+            while (!exec_ret()) {
                hpx::this_thread::yield();
             }
             for (int i = 0; i < grid_size; i++) {
-               promises[i].set_value(exec_ret.second[i]);
-               kick_params_alloc.deallocate(all_params[i]);
+               promises[i].set_value();
             }
-            CUDA_FREE(exec_ret.second);
             all_params_alloc.deallocate(all_params);
          },std::move(promises));
+      }
+      if (gpu_ewald_queue.size() == 0) {
+         while (gpu_queue.size() >= min_grid_size) {
+            int grid_size = std::min(KICK_GRID_SIZE, min_grid_size);
+            min_grid_size = 2 * KICK_GRID_SIZE;
+            std::vector<hpx::lcos::local::promise<kick_return>> promises;
+            static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
+            kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate();
+            for (int i = 0; i < grid_size; i++) {
+               auto tmp = gpu_queue.pop();
+               all_params[i] = tmp.params;
+               promises.push_back(std::move(tmp.promise));
+            }
+            printf("Executing %i blocks\n", grid_size);
+            auto exec_ret = cuda_execute_kick_kernel(all_params, grid_size);
+            hpx::apply(
+                  [all_params, exec_ret, grid_size](std::vector<hpx::lcos::local::promise<kick_return>> &&promises) {
+                     while (!exec_ret.first()) {
+                        hpx::this_thread::yield();
+                     }
+                     for (int i = 0; i < grid_size; i++) {
+                        promises[i].set_value();
+                        all_params[i]->kick_params_type::~kick_params_type();
+                        kick_params_alloc.deallocate(all_params[i]);
+                     }
+                     CUDA_FREE(exec_ret.second);
+                     all_params_alloc.deallocate(all_params);
+                  },std::move(promises));
+         }
       }
    }
    daemon_running = false;
    shutdown_daemon = false;
-   printf( "Shutting down GPU kick daemon\n");}
+   printf("Shutting down GPU kick daemon\n");
+}
 
 hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    if (!daemon_running) {
@@ -479,6 +518,29 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    gpu.params = new_params;
    auto fut = gpu.promise.get_future();
    gpu_queue.push(std::move(gpu));
+
+   return std::move(fut);
+
+}
+
+hpx::future<void> tree::send_ewald_to_gpu(kick_params_type *params) {
+   if (!daemon_running) {
+      std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
+      if (!daemon_running) {
+         shutdown_daemon = false;
+         daemon_running = true;
+         hpx::apply([]() {
+            gpu_daemon();
+         });
+      }
+   }
+   gpu_ewald gpu;
+   tree_ptr me;
+   me.ptr = (uintptr_t)(this);
+   me.rank = hpx_rank();
+   gpu.params = params;
+   auto fut = gpu.promise.get_future();
+   gpu_ewald_queue.push(std::move(gpu));
 
    return std::move(fut);
 

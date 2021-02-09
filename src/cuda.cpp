@@ -8,8 +8,8 @@
 #include <cosmictiger/cuda.hpp>
 #include <cstdlib>
 
-#define STACK_SIZE (4*1024)
-#define HEAP_SIZE 4*1024*1024
+#define STACK_SIZE (16*1024)
+#define HEAP_SIZE 16*1024*1024
 #define RECUR_LIMIT 0
 #define L2FETCH 32
 #define PENDINGLAUNCHES 4
