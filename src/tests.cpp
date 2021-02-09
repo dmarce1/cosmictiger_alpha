@@ -76,7 +76,6 @@ void kick_test() {
          Lpos[dim] = 0.5;
       }
       params_ptr->L[0] = L;
-      tree::set_kick_parameters(0.7, 0);
     //  parts_ptr->set_read_mostly(true);
       root.kick(params_ptr).get();
      // parts_ptr->set_read_mostly(false);

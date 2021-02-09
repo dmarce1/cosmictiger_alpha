@@ -20,8 +20,6 @@ __managed__ periodic_parts *periodic_parts_ptr;
 #define PC_PP_EWALD 3
 #define N_INTERACTION_TYPES 4
 
-CUDA_DEVICE float theta;
-CUDA_DEVICE int8_t rung;
 __managed__ particle_set *parts;
 
 
@@ -378,7 +376,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
       indices_array &indices = shmem.indices;
       counts_array &count = shmem.count;
 
-      const auto theta2 = theta * theta;
+      const auto theta2 = params.theta * params.theta;
       array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
       array<int*, N_INTERACTION_TYPES> list_counts;
       all_checks[CC_CP_DIRECT] = params.dstack.get_top_list();
@@ -557,8 +555,6 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
 CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_) {
    if (threadIdx.x == 0) {
       parts = p;
-      theta = theta_;
-      rung = rung_;
    }
 }
 

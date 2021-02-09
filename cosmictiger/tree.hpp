@@ -303,11 +303,21 @@ struct kick_params_type {
    int nnext;
    int nopen;
    int depth;
+   double a;
+   double theta;
+   double eta;
+   double t0;
+   int rung;
    array<void*, NDIM> pref_ptr;
    size_t pref_size;
    CUDA_EXPORT inline kick_params_type() {
       THREADID;
       if (tid == 0) {
+         a = 1.0;
+         theta = 0.7;
+         eta = 0.2;
+         t0 = 1.0;
+         rung = 0;
          nmulti = npart = nnext = nopen = depth = 0;
       }CUDA_SYNC();
    }
@@ -316,6 +326,11 @@ struct kick_params_type {
       estack.copy_to(params.estack.get_top_list(), params.estack.get_top_count());
       L[0] = params.L[params.depth];
       depth = 0;
+      a = params.a;
+      theta = params.theta;
+      eta = params.eta;
+      t0 = params.t0;
+      rung = params.rung;
       nmulti = npart = nnext = nopen = depth = 0;
    }
    friend class tree_ptr;
@@ -345,9 +360,7 @@ private:
    array<tree_ptr, NCHILD> children;
    pair<size_t, size_t> parts;
    multipole *multi;
-   static float theta;
-   static int8_t rung;
-public:
+  public:
    static particle_set *particles;
    static void set_cuda_particle_set(particle_set*);
    static void cuda_set_kick_params(particle_set *p, float theta_, int rung);
@@ -355,7 +368,6 @@ public:
    static void set_particle_set(particle_set*);
    inline static hpx::future<sort_return> create_child(sort_params&);
    static fast_future<sort_return> cleanup_child();
-   static void set_kick_parameters(float theta, int8_t rung);
    static hpx::lcos::local::mutex mtx;
    static hpx::lcos::local::mutex gpu_mtx;
    hpx::future<kick_return> send_kick_to_gpu(kick_params_type *params);

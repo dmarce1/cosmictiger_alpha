@@ -10,8 +10,6 @@
 #define KICK_MAX_PARTS 1024
 #define KICK_MAX_CHECKS 1024
 particle_set *tree::particles;
-float tree::theta;
-int8_t tree::rung;
 
 static finite_vector_allocator<sizeof(kick_params_type)> kick_params_alloc;
 
@@ -222,10 +220,6 @@ sort_return tree::sort(sort_params params) {
    return rc;
 }
 
-void tree::set_kick_parameters(float theta_, int8_t rung_) {
-   theta = theta_;
-   rung = rung_;
-}
 
 hpx::lcos::local::mutex tree::mtx;
 hpx::lcos::local::mutex tree::gpu_mtx;
@@ -293,7 +287,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
    // num_kicks++;
    // printf( "%li\n", num_kicks);
    kick_return rc;
-   const auto theta2 = theta * theta;
+   const auto theta2 = params.theta * params.theta;
    array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
    array<int*, N_INTERACTION_TYPES> list_counts;
    all_checks[CC_CP_DIRECT] = params.dstack.get_top_list();
