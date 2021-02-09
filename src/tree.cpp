@@ -408,7 +408,7 @@ void tree::gpu_daemon() {
    printf("Starting gpu kick daemon\n");
    daemon_running = true;
    int tries = 0;
-   double wait_time = 1.0e-2;
+   double wait_time = 1.0e-3;
    int min_grid_size = 2 * KICK_GRID_SIZE;
    while (!shutdown_daemon) {
       timer tm;
@@ -441,6 +441,7 @@ void tree::gpu_daemon() {
                promises[i].set_value(exec_ret.second[i]);
                kick_params_alloc.deallocate(all_params[i]);
             }
+            CUDA_FREE(exec_ret.second);
             all_params_alloc.deallocate(all_params);
          },std::move(promises));
       }
