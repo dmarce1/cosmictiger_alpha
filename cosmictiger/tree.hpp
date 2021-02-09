@@ -353,6 +353,7 @@ public:
       return children[0] == tree_ptr();
    }
    static void cleanup();
+   void cpu_cc_direct(kick_params_type *params);
    sort_return sort(sort_params = sort_params());
    hpx::future<kick_return> kick(kick_params_type*);
    static std::atomic<bool> daemon_running;

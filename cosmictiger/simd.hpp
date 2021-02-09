@@ -9,169 +9,82 @@
 
 class simd_double;
 
-class simd_int64 {
-   int64_t i __attribute__ ((vector_size (sizeof(int64_t)*4)));
+class simd_int32 {
+   int32_t i __attribute__ ((vector_size (sizeof(int32_t)*8)));
 public:
-   simd_int64() = default;
-   simd_int64(const simd_int64&) = default;
-   simd_int64(simd_int64&&) = default;
-   simd_int64& operator=(const simd_int64&) = default;
-   simd_int64& operator=(simd_int64&&) = default;
+   simd_int32() = default;
+   simd_int32(const simd_int32&) = default;
+   simd_int32(simd_int32&&) = default;
+   simd_int32& operator=(const simd_int32&) = default;
+   simd_int32& operator=(simd_int32&&) = default;
 
    static inline size_t size() {
-      return 4;
+      return 8;
    }
 
-   simd_int64(simd_double r);
+   simd_int32(simd_double r);
 
-   inline simd_int64(int64_t j) {
+   inline simd_int32(int32_t j) {
       for (int k = 0; k < size(); k++) {
          i[k] = j;
       }
    }
 
-   inline simd_int64 operator+(const simd_int64 &other) const {
-      simd_int64 res;
+   inline simd_int32 operator+(const simd_int32 &other) const {
+      simd_int32 res;
       res.i = (i + other.i);
       return res;
    }
 
-   inline simd_int64 operator-(const simd_int64 &other) const {
-      simd_int64 res;
+   inline simd_int32 operator-(const simd_int32 &other) const {
+      simd_int32 res;
       res.i = (i - other.i);
       return res;
    }
 
-   inline simd_int64 operator*(const simd_int64 &other) const {
-      simd_int64 res;
+   inline simd_int32 operator*(const simd_int32 &other) const {
+      simd_int32 res;
       res.i = i * (other.i);
       return res;
    }
 
-   inline simd_int64& operator+=(const simd_int64 &other) {
+   inline simd_int32& operator+=(const simd_int32 &other) {
       *this = *this + other;
       return *this;
    }
 
-   inline simd_int64& operator-=(const simd_int64 &other) {
+   inline simd_int32& operator-=(const simd_int32 &other) {
       *this = *this - other;
       return *this;
    }
 
-   inline simd_int64& operator*=(const simd_int64 &other) {
+   inline simd_int32& operator*=(const simd_int32 &other) {
       *this = *this * other;
       return *this;
    }
 
-   inline simd_int64 operator<<(int64_t shift) const {
-      return *this * simd_int64(1LL << shift);
+   inline simd_int32 operator<<(int32_t shift) const {
+      return *this * simd_int32(1LL << shift);
    }
 
-   inline simd_int64& operator<<=(const int64_t &other) {
+   inline simd_int32& operator<<=(const int32_t &other) {
       *this = *this << other;
       return *this;
    }
 
-   inline int64_t operator[](int j) const {
+   inline int32_t operator[](int j) const {
       assert(j >= 0);
       assert(j < size());
       return i[j];
    }
 
-   inline int64_t& operator[](int j) {
+   inline int32_t& operator[](int j) {
       assert(j >= 0);
       assert(j < size());
-      return reinterpret_cast<int64_t*>(&i)[j];
+      return reinterpret_cast<int32_t*>(&i)[j];
    }
-
+   friend class simd_float;
    friend class simd_double;
-};
-
-class simd_double {
-   double r __attribute__ ((vector_size (sizeof(double)*4)));
-public:
-   simd_double() = default;
-   simd_double(const simd_double&) = default;
-   simd_double(simd_double&&) = default;
-   simd_double& operator=(const simd_double&) = default;
-   simd_double& operator=(simd_double&&) = default;
-
-   static inline size_t size() {
-      return 4;
-   }
-
-   inline simd_double(double j) {
-      for (int k = 0; k < size(); k++) {
-         r[k] = j;
-      }
-   }
-
-   inline double operator[](int j) const {
-      assert(j >= 0);
-      assert(j < size());
-      return r[j];
-   }
-
-   inline double& operator[](int j) {
-      assert(j >= 0);
-      assert(j < size());
-      return r[j];
-   }
-
-   inline simd_double operator+(const simd_double &other) const {
-      simd_double res;
-      res.r = _mm256_add_pd(r, other.r);
-      return res;
-   }
-
-   inline simd_double operator-(const simd_double &other) const {
-      simd_double res;
-      res.r = _mm256_sub_pd(r, other.r);
-      return res;
-   }
-
-   inline simd_double operator*(const simd_double &other) const {
-      simd_double res;
-      res.r = _mm256_mul_pd(r, other.r);
-      return res;
-   }
-
-   inline simd_double operator/(const simd_double &other) const {
-      simd_double res;
-      res.r = _mm256_div_pd(r, other.r);
-      return res;
-   }
-
-   inline simd_double& operator+=(const simd_double &other) {
-      *this = *this + other;
-      return *this;
-   }
-
-   inline simd_double& operator-=(const simd_double &other) {
-      *this = *this - other;
-      return *this;
-   }
-
-   inline simd_double& operator*=(const simd_double &other) {
-      *this = *this * other;
-      return *this;
-   }
-
-   inline simd_double& operator/=(const simd_double &other) {
-      *this = *this / other;
-      return *this;
-   }
-   inline double sum() const {
-      double s = 0.0;
-      for (int i = 0; i < size(); i++) {
-         s += (*this)[i];
-      }
-      return s;
-   }
-
-   simd_double(simd_int64 i64);
-
-   friend class simd_int64;
 };
 
 class simd_float {
@@ -187,22 +100,28 @@ public:
       return 8;
    }
 
+   inline simd_float(simd_int32 i) {
+      for (int k = 0; k < size(); k++) {
+         r[k] = i[k];
+      }
+   }
+
    inline simd_float(float j) {
       for (int k = 0; k < size(); k++) {
          r[k] = j;
       }
    }
 
-   inline double operator[](int j) const {
+   inline float operator[](int j) const {
       assert(j >= 0);
       assert(j < size());
       return r[j];
    }
 
-   inline double& operator[](int j) {
+   inline float& operator[](int j) {
       assert(j >= 0);
       assert(j < size());
-      return reinterpret_cast<double*>(&r)[j];
+      return reinterpret_cast<float*>(&r)[j];
    }
 
    inline simd_float operator+(const simd_float &other) const {
@@ -256,74 +175,94 @@ public:
       }
       return s;
    }
+   simd_float operator-() const {
+      return simd_float(0) - *this;
+   }
 
+   simd_float operator>(simd_float other ) const {
+       auto i = r > other.r;
+      simd_int32 res;
+      res.i = i;
+      return res;
+   }
+
+   friend inline simd_float operator*(float a, const simd_float &other);
+   friend inline simd_float sqrt(simd_float);
+   friend inline simd_float fmax(simd_float,simd_float);
 };
 
-class simd_fixed64 {
-   simd_int64 i;
+inline simd_float fmax(simd_float a,simd_float b) {
+   simd_float res;
+   res.r = _mm256_max_ps(a.r,b.r);
+   return res;
+}
+
+inline simd_float sqrt(simd_float r) {
+   simd_float res;
+   res.r = _mm256_sqrt_ps(r.r);
+   return res;
+}
+
+inline simd_float operator*(float a, const simd_float &other){
+   simd_float res;
+   res.r = _mm256_mul_ps(other.r, simd_float(a).r);
+   return res;
+}
+
+class simd_fixed32 {
+   simd_int32 i;
    static constexpr float c0 = float(size_t(1) << size_t(32));
    static constexpr float cinv = 1.f / c0;
    static constexpr size_t width = (sizeof(float) * CHAR_BIT);
 public:
 
    static inline size_t size() {
-      return 4;
+      return 8;
    }
 
-   inline fixed64 operator[](int j) const {
+   inline fixed32 operator[](int j) const {
       assert(j >= 0);
       assert(j < size());
-      return reinterpret_cast<const fixed64*>(&i)[j];
+      return reinterpret_cast<const fixed32*>(&i)[j];
    }
 
-   inline fixed64& operator[](int j) {
+   inline fixed32& operator[](int j) {
       assert(j >= 0);
       assert(j < size());
-      return reinterpret_cast<fixed64*>(&i)[j];
+      return reinterpret_cast<fixed32*>(&i)[j];
    }
 
-   inline simd_fixed64() = default;
+   inline simd_fixed32() = default;
 
-   inline simd_fixed64(float number) :
+   inline simd_fixed32(float number) :
          i(c0 * number) {
    }
-   inline simd_double to_double() const {
-      return simd_double(i) * simd_double(cinv);
+   inline simd_float to_float() const {
+      return simd_float(i) * simd_float(cinv);
 
    }
 
-   inline simd_fixed64 operator+(const simd_fixed64 &other) const {
-      simd_fixed64 a;
+   inline simd_fixed32 operator+(const simd_fixed32 &other) const {
+      simd_fixed32 a;
       a.i = i + other.i;
       return a;
    }
 
-   inline simd_fixed64 operator-(const simd_fixed64 &other) const {
-      simd_fixed64 a;
+   inline simd_fixed32 operator-(const simd_fixed32 &other) const {
+      simd_fixed32 a;
       a.i = i - other.i;
       return a;
    }
 
-   inline simd_fixed64& operator+=(const simd_fixed64 &other) {
+   inline simd_fixed32& operator+=(const simd_fixed32 &other) {
       i += other.i;
       return *this;
    }
 
-   inline simd_fixed64& operator-=(const simd_fixed64 &other) {
+   inline simd_fixed32& operator-=(const simd_fixed32 &other) {
       i -= other.i;
       return *this;
    }
 
 };
 
-#ifndef __CUDACC__
-inline simd_int64::simd_int64(simd_double r) {
-i = __builtin_convertvector(r.r,decltype(i));
-}
-
-inline simd_double::simd_double(simd_int64 i64) {
-r = __builtin_convertvector(i64.i,decltype(r));
-}
-
-
-#endif

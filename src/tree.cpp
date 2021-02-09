@@ -360,6 +360,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 
       switch (type) {
       case CC_CP_DIRECT:
+         cpu_cc_direct(params_ptr);
          break;
       case CC_CP_EWALD:
          send_ewald_to_gpu(params_ptr).get();
@@ -545,5 +546,54 @@ hpx::future<void> tree::send_ewald_to_gpu(kick_params_type *params) {
 
    return std::move(fut);
 
+}
+
+void tree::cpu_cc_direct(kick_params_type *params_ptr) {
+   kick_params_type &params = *params_ptr;
+   auto &L = params.L[params.depth];
+   const auto &Lpos = params.Lpos[params.depth];
+   const auto &multis = params.multi_interactions;
+   int nmulti = params.nmulti;
+   if (nmulti != 0) {
+      static const auto one = simd_float(1.0);
+      static const auto half = simd_float(0.5);
+      array<simd_fixed32, NDIM> X, Y;
+      multipole_type<simd_float> M;
+      expansion<simd_float> Lacc;
+      Lacc = simd_float(0);
+      const auto cnt1 = nmulti;
+      const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
+      nmulti = cnt2;
+      for (int dim = 0; dim < NDIM; dim++) {
+         X[dim] = simd_fixed32(Lpos[dim]);
+      }
+      array<simd_float, NDIM> dX;
+      for (int j = 0; j < cnt1; j += simd_float::size()) {
+         for (int k = 0; k < simd_float::size(); k++) {
+            if (j + k < cnt1) {
+               for( int dim = 0; dim < NDIM; dim++) {
+                  Y[dim][k] = ((const tree*) multis[j+k])->pos[dim];
+               }
+               for( int i = 0; i < MP; i++) {
+                  M[k][i] = (*((const tree*) multis[j+k])->multi)[i];
+               }
+            } else {
+               for( int dim = 0; dim < NDIM; dim++) {
+                  Y[dim][k] = ((const tree*) multis[cnt1-1])->pos[dim];
+               }
+               for( int i = 0; i < MP; i++) {
+                  M[k][i] = 0.0;
+               }
+            }
+         }
+         for (int dim = 0; dim < NDIM; dim++) {
+            dX[dim] = (simd_fixed32(X[dim]) - simd_fixed32(Y[dim])).to_float(); // 3
+         }
+         multipole_interaction(Lacc, M, dX, false, false);                                   // 986
+      }
+      for (int i = 0; i < LP; i++) {
+         L[i] += Lacc[i].sum();
+      }
+   }
 }
 

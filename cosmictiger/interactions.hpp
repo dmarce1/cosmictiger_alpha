@@ -375,6 +375,7 @@ CUDA_DEVICE inline void green_ewald(expansion<ewald_real> &D, const array<ewald_
    }
 }
 
+
 template<class T>
 CUDA_EXPORT void inline green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
       const T &d4, const array<T, NDIM> &dx) {
@@ -439,14 +440,14 @@ CUDA_EXPORT void inline green_deriv_direct(expansion<T> &D, const T &d0, const T
    const auto dx1d2 = dx[1] * d2;
    const auto dx2d2 = dx[2] * d2;
    D[4] += d1;
-   D[10] = fmaf(ewald_real(3), dx0d2, D[10]);
-   D[20] = fmaf(ewald_real(6) * dx0dx0, d3, D[20]);
-   D[20] = fmaf(ewald_real(2), d2, D[20]);
+   D[10] = fmaf(T(3), dx0d2, D[10]);
+   D[20] = fmaf(T(6) * dx0dx0, d3, D[20]);
+   D[20] = fmaf(T(2), d2, D[20]);
    D[20] += d2;
    D[7] += d1;
-   D[16] = fmaf(ewald_real(3), dx1d2, D[16]);
-   D[30] = fmaf(ewald_real(6) * dx1dx1, d3, D[30]);
-   D[30] = fmaf(ewald_real(2), d2, D[30]);
+   D[16] = fmaf(T(3), dx1d2, D[16]);
+   D[30] = fmaf(T(6) * dx1dx1, d3, D[30]);
+   D[30] = fmaf(T(2), d2, D[30]);
    D[30] += d2;
    threedxadxb = ewald_real(3) * dx1dx0;
    D[13] += dx0d2;
@@ -457,11 +458,11 @@ CUDA_EXPORT void inline green_deriv_direct(expansion<T> &D, const T &d0, const T
    D[23] = fmaf(dx0dx0, d3, D[23]);
    D[23] = fmaf(dx1dx1, d3, D[23]);
    D[9] += d1;
-   D[19] = fmaf(ewald_real(3), dx2d2, D[19]);
-   D[34] = fmaf(ewald_real(6) * dx2dx2, d3, D[34]);
-   D[34] = fmaf(ewald_real(2), d2, D[34]);
+   D[19] = fmaf(T(3), dx2d2, D[19]);
+   D[34] = fmaf(T(6) * dx2dx2, d3, D[34]);
+   D[34] = fmaf(T(2), d2, D[34]);
    D[34] += d2;
-   threedxadxb = ewald_real(3) * dx2dx0;
+   threedxadxb = T(3) * dx2dx0;
    D[15] += dx0d2;
    D[12] += dx2d2;
    D[29] = fmaf(threedxadxb, d3, D[29]);
@@ -469,7 +470,7 @@ CUDA_EXPORT void inline green_deriv_direct(expansion<T> &D, const T &d0, const T
    D[25] += d2;
    D[25] = fmaf(dx0dx0, d3, D[25]);
    D[25] = fmaf(dx2dx2, d3, D[25]);
-   threedxadxb = ewald_real(3) * dx2dx1;
+   threedxadxb = T(3) * dx2dx1;
    D[18] += dx1d2;
    D[17] += dx2d2;
    D[33] = fmaf(threedxadxb, d3, D[33]);
@@ -483,9 +484,10 @@ CUDA_EXPORT void inline green_deriv_direct(expansion<T> &D, const T &d0, const T
 }
 
 // 986 // 251936
-CUDA_EXPORT inline void multipole_interaction(expansion<float> &L, const multipole &M, array<float, NDIM> dX, bool ewald,
-      bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
-   expansion<float> D;
+template<class T>
+CUDA_EXPORT inline void multipole_interaction(expansion<T> &L, const multipole_type<T> &M, array<T, NDIM> dX,
+      bool ewald, bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
+   expansion<T> D;
    green_direct(D, dX);
    for (int i = 1 - do_phi; i < LP; i++) {
       L[i] = fmaf(M[0], D[i], L[i]);
@@ -615,8 +617,8 @@ CUDA_EXPORT inline void multipole_interaction(expansion<float> &L, const multipo
 }
 
 // 986 // 251936
-CUDA_EXPORT inline void multipole_interaction_ewald(expansion<ewald_real> &L, const multipole_type<ewald_real> &M, array<ewald_real, NDIM> dX, bool ewald,
-      bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
+CUDA_EXPORT inline void multipole_interaction_ewald(expansion<ewald_real> &L, const multipole_type<ewald_real> &M,
+      array<ewald_real, NDIM> dX, bool ewald, bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
    expansion<ewald_real> D;
    green_direct(D, dX);
    for (int i = 1 - do_phi; i < LP; i++) {
@@ -745,7 +747,7 @@ CUDA_EXPORT inline void multipole_interaction_ewald(expansion<ewald_real> &L, co
    L[9] = fmaf(M[5], D[33], L[9]);
    L[9] = fmaf(M[6], D[34] * half, L[9]);
 }
- // 516 / 251466
+// 516 / 251466
 CUDA_EXPORT inline void multipole_interaction(array<float, NDIM + 1> L, const multipole &M, array<float, NDIM> dX,
       bool do_phi) { // 517 / 47428
    expansion<float> D;
