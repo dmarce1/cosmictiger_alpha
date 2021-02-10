@@ -102,7 +102,7 @@ CUDA_DEVICE void cuda_ewald_cc_interactions(kick_params_type *params_ptr, bool e
    for (int i = tid; i < params.nmulti; i += KICK_BLOCK_SIZE) {
       const multipole mpole_float = *((tree*) multis[i])->multi;
       multipole_type<ewald_real> mpole;
-      for( int i = 0; i < MP; i++) {
+      for (int i = 0; i < MP; i++) {
          mpole[i] = mpole_float[i];
       }
       expansion<ewald_real> L;
@@ -137,7 +137,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    auto &Lreduce = shmem.Lreduce;
    auto &inters = params.part_interactions;
-   const auto &sinks = ((tree*)params.tptr)->pos;
+   const auto &sinks = ((tree*) params.tptr)->pos;
    auto &sources = shmem.src;
    const auto &myparts = ((tree*) params.tptr)->parts;
    size_t part_index;
@@ -252,36 +252,38 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
          __syncthreads();
          const auto offset = ((tree*) params.tptr)->parts.first;
          for (int k = 0; k < nsinks; k++) {
-            for (int dim = 0; dim < NDIM; dim++) {
-               f[dim][tid] = 0.f;
-            }
-            for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
-               array<float, NDIM> dx;
+            if (parts->rung(k + offset) >= 0) {
                for (int dim = 0; dim < NDIM; dim++) {
-                  dx[dim] = (fixed<int32_t>(sources[dim][j]) - fixed<int32_t>(sinks[dim][k])).to_float();
+                  f[dim][tid] = 0.f;
                }
-               const auto r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);
-               const auto rinv = rsqrtf(r2);
-               const auto rinv3 = rinv * rinv * rinv;
-               for (int dim = 0; dim < NDIM; dim++) {
-                  f[dim][tid] -= dx[dim] * rinv3;
-               }
-            }
-            __syncthreads();
-            for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-               if (tid < P) {
+               for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
+                  array<float, NDIM> dx;
                   for (int dim = 0; dim < NDIM; dim++) {
-                     f[dim][tid] += f[dim][tid + P];
+                     dx[dim] = (fixed<int32_t>(sources[dim][j]) - fixed<int32_t>(sinks[dim][k])).to_float();
+                  }
+                  const auto r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);
+                  const auto rinv = rsqrtf(r2);
+                  const auto rinv3 = rinv * rinv * rinv;
+                  for (int dim = 0; dim < NDIM; dim++) {
+                     f[dim][tid] -= dx[dim] * rinv3;
+                  }
+               }
+               __syncthreads();
+               for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+                  if (tid < P) {
+                     for (int dim = 0; dim < NDIM; dim++) {
+                        f[dim][tid] += f[dim][tid + P];
+                     }
+                  }
+                  __syncthreads();
+               }
+               if (tid == 0) {
+                  for (int dim = 0; dim < NDIM; dim++) {
+                     F[dim][k] += f[dim][0];
                   }
                }
                __syncthreads();
             }
-            if (tid == 0) {
-               for (int dim = 0; dim < NDIM; dim++) {
-                  F[dim][k] += f[dim][0];
-               }
-            }
-            __syncthreads();
          }
       }
    }
@@ -546,8 +548,8 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
    return rc;
 }
 
-CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_indices,
-      ewald_indices *real_indices, periodic_parts *periodic_parts) {
+CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
+      periodic_parts *periodic_parts) {
    if (threadIdx.x == 0) {
       parts = p;
       four_indices_ptr = four_indices;
@@ -556,10 +558,10 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
    }
 }
 
-void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices,
-      ewald_indices *real_indices, periodic_parts *parts) {
+void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
+      periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-         CUDA_CHECK(cudaDeviceSynchronize());
+            CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
@@ -594,8 +596,8 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
-   cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream.first>>>(params_ptr);
-   CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
+cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream.first>>>(params_ptr);
+      CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
 
    struct cuda_ewald_future_shared {
       std::pair<cudaStream_t, cudaEvent_t> stream;
