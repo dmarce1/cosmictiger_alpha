@@ -80,17 +80,18 @@ void kick_test() {
       for (int i = 0; i < LP; i++) {
          L[i] = 0.f;
       }
-      array<accum_real, NDIM> Lpos;
-      for (int dim = 0; dim < NDIM; dim++) {
-         Lpos[dim] = 0.5;
-      }
       params_ptr->L[0] = L;
       root.kick(params_ptr).get();
       tm.stop();
+      printf("Done kicking in %e seconds\n\n", tm.read());
+      tm.reset();
+      tm.start();
+      drift(parts_ptr, 1.0,1.0,1.0);
+      tm.stop();
+      printf( "Drift took %e s\n", tm.read());
       tree::cleanup();
       params_ptr->kick_params_type::~kick_params_type();
       CUDA_FREE(params_ptr);
-      printf("Done kicking in %e seconds\n\n", tm.read());
    }
    parts_ptr->particle_set::~particle_set();
    CUDA_FREE(parts_ptr);

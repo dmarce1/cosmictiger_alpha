@@ -56,6 +56,12 @@ public:
 #ifdef NDEBUG
    constexpr
 #endif
+   CUDA_EXPORT
+   fixed<T>& operator=(double number) {
+      i = (c0 * number);
+      return *this;
+   }
+
    fixed<T>(float number) :
          i(c0 * number) {
    }

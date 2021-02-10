@@ -59,12 +59,18 @@ struct particle_set {
    void set_mid(morton_t, size_t index);
    CUDA_EXPORT
    fixed32& pos(int dim, size_t index);
+   CUDA_EXPORT
    float& vel(int dim, size_t index);
+   CUDA_EXPORT
    void set_rung(rung_t t, size_t index);
    particle part(size_t index) const;
    std::vector<size_t> local_sort(size_t, size_t, int64_t, morton_t key_begin, morton_t key_end);
    void generate_random();
    void set_read_mostly(bool);
+   CUDA_EXPORT
+   size_t size() const {
+      return size_;
+   }
 #ifndef __CUDACC__
 private:
 #endif
@@ -137,6 +143,7 @@ inline fixed32& particle_set::pos(int dim, size_t index) {
    return xptr_[dim][index - offset_];
 }
 
+CUDA_EXPORT
 inline float& particle_set::vel(int dim, size_t index) {
    assert(index>=0);
    assert(index <size_);
@@ -149,6 +156,7 @@ inline void particle_set::set_mid(morton_t t, size_t index) {
    rptr_[index - offset_].morton_id = t;
 }
 
+CUDA_EXPORT
 inline void particle_set::set_rung(rung_t t, size_t index) {
    assert(index>=0);
    assert(index <size_);
@@ -169,5 +177,7 @@ inline particle particle_set::part(size_t index) const {
    p.flags.morton_id = mid(index);
    return p;
 }
+
+void drift(particle_set* parts, double a1, double a2, double dtau);
 
 #endif /* COSMICTIGER_PARTICLE_HPP_ */

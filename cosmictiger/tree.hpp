@@ -9,6 +9,7 @@
 #include <cosmictiger/finite_vector.hpp>
 #include <cosmictiger/lockfree_queue.hpp>
 #include <cosmictiger/interactions.hpp>
+#include <cosmictiger/global.hpp>
 
 #include <functional>
 
@@ -67,8 +68,8 @@ struct sort_params {
    void set_root() {
       const auto opts = global().opts;
       for (int dim = 0; dim < NDIM; dim++) {
-         box.begin[dim] = fixed64(0.f);
-         box.end[dim] = fixed64(1.f);
+         box.begin[dim] = 0.f;
+         box.end[dim] = 1.f;
       }
 #ifdef TEST_STACK
       stack_ptr = (uint8_t*) &stack_ptr;
@@ -296,9 +297,10 @@ struct kick_params_type {
    int nnext;
    int nopen;
    int depth;
-   double theta;
-   double eta;
-   double scale;
+   float theta;
+   float eta;
+   float scale;
+   float hsoft;
    double t0;
    int rung;
    CUDA_EXPORT inline kick_params_type() {
@@ -309,6 +311,7 @@ struct kick_params_type {
          scale = 1.0;
          t0 = 1.0;
          rung = 0;
+         hsoft = 1.0 / pow(global().opts.nparts,1.0/3.0) / 50.0;
          nmulti = npart = nnext = nopen = depth = 0;
       }CUDA_SYNC();
    }
