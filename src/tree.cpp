@@ -579,7 +579,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
                   Y[dim][k] = ((const tree*) multis[cnt1 - 1])->pos[dim];
                }
                for (int i = 0; i < MP; i++) {
-                  M[k][i] = 0.0;
+                  M[i][k] = 0.0;
                }
             }
          }
