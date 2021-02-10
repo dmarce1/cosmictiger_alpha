@@ -59,7 +59,7 @@ void kick_test() {
    new (real_indices) ewald_indices(EWALD_NREAL,false);
    new (four_indices) ewald_indices(EWALD_NFOUR,true);
    new (pparts) periodic_parts();
-   tree::cuda_set_kick_params(parts_ptr, 0.7, 0, real_indices, four_indices, pparts);
+   tree::cuda_set_kick_params(parts_ptr, real_indices, four_indices, pparts);
    for (int i = 0; i < 2; i++) {
       tree root;
       timer tm;
@@ -85,11 +85,7 @@ void kick_test() {
          Lpos[dim] = 0.5;
       }
       params_ptr->L[0] = L;
-      params_ptr->Lpos[0] = Lpos;
-      tree::set_kick_parameters(0.7, 0);
-    //  parts_ptr->set_read_mostly(true);
       root.kick(params_ptr).get();
-     // parts_ptr->set_read_mostly(false);
       tm.stop();
       tree::cleanup();
       params_ptr->kick_params_type::~kick_params_type();

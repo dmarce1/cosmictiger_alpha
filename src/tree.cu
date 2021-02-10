@@ -20,8 +20,6 @@ CUDA_DEVICE periodic_parts *periodic_parts_ptr;
 #define PC_PP_EWALD 3
 #define N_INTERACTION_TYPES 4
 
-CUDA_DEVICE float theta;
-CUDA_DEVICE int8_t rung;
 CUDA_DEVICE particle_set *parts;
 
 #define NITERS 4
@@ -67,7 +65,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, bool ewald =
       expansion<float> L;
       array<float, NDIM> fpos;
       for (int dim = 0; dim < NDIM; dim++) {
-         fpos[dim] = (fixed<int32_t>(params.Lpos[params.depth][dim]) - fixed<int32_t>(pos[dim])).to_float();
+         fpos[dim] = (fixed<int32_t>(pos[dim]) - fixed<int32_t>(pos[dim])).to_float();
       }
       multipole_interaction(L, mpole, fpos, ewald, false);
       for (int j = 0; j < LP; j++) {
@@ -110,7 +108,7 @@ CUDA_DEVICE void cuda_ewald_cc_interactions(kick_params_type *params_ptr, bool e
       expansion<ewald_real> L;
       array<ewald_real, NDIM> fpos;
       for (int dim = 0; dim < NDIM; dim++) {
-         fpos[dim] = (fixed<int32_t>(params.Lpos[params.depth][dim]) - fixed<int32_t>(pos[dim])).to_double();
+         fpos[dim] = (fixed<int32_t>(pos[dim]) - fixed<int32_t>(pos[dim])).to_double();
       }
       multipole_interaction_ewald(L, mpole, fpos, ewald, false);
       for (int j = 0; j < LP; j++) {
@@ -139,7 +137,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    auto &Lreduce = shmem.Lreduce;
    auto &inters = params.part_interactions;
-   const auto &sinks = params.Lpos[params.depth];
+   const auto &sinks = ((tree*)params.tptr)->pos;
    auto &sources = shmem.src;
    const auto &myparts = ((tree*) params.tptr)->parts;
    size_t part_index;
@@ -372,7 +370,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
       indices_array &indices = shmem.indices;
       counts_array &count = shmem.count;
 
-      const auto theta2 = theta * theta;
+      const auto theta2 = params.theta * params.theta;
       array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
       array<int*, N_INTERACTION_TYPES> list_counts;
       all_checks[CC_CP_DIRECT] = params.dstack.get_top_list();
@@ -548,21 +546,19 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type *params_ptr) {
    return rc;
 }
 
-CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, float theta_, int rung_, ewald_indices *four_indices,
+CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_indices,
       ewald_indices *real_indices, periodic_parts *periodic_parts) {
    if (threadIdx.x == 0) {
       parts = p;
-      theta = theta_;
-      rung = rung_;
       four_indices_ptr = four_indices;
       real_indices_ptr = real_indices;
       periodic_parts_ptr = periodic_parts;
    }
 }
 
-void tree::cuda_set_kick_params(particle_set *p, float theta_, int rung_, ewald_indices *four_indices,
+void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices,
       ewald_indices *real_indices, periodic_parts *parts) {
-cuda_set_kick_params_kernel<<<1,1>>>(p,theta_,rung_, real_indices, four_indices, parts);
+cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
          CUDA_CHECK(cudaDeviceSynchronize());
 }
 

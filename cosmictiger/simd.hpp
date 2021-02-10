@@ -179,8 +179,8 @@ public:
       return simd_float(0) - *this;
    }
 
-   simd_float operator>(simd_float other ) const {
-       auto i = r > other.r;
+   simd_float operator>(simd_float other) const {
+      auto i = r > other.r;
       simd_int32 res;
       res.i = i;
       return res;
@@ -188,12 +188,12 @@ public:
 
    friend inline simd_float operator*(float a, const simd_float &other);
    friend inline simd_float sqrt(simd_float);
-   friend inline simd_float fmax(simd_float,simd_float);
+   friend inline simd_float fmax(simd_float, simd_float);
 };
 
-inline simd_float fmax(simd_float a,simd_float b) {
+inline simd_float fmax(simd_float a, simd_float b) {
    simd_float res;
-   res.r = _mm256_max_ps(a.r,b.r);
+   res.r = _mm256_max_ps(a.r, b.r);
    return res;
 }
 
@@ -203,7 +203,7 @@ inline simd_float sqrt(simd_float r) {
    return res;
 }
 
-inline simd_float operator*(float a, const simd_float &other){
+inline simd_float operator*(float a, const simd_float &other) {
    simd_float res;
    res.r = _mm256_mul_ps(other.r, simd_float(a).r);
    return res;
@@ -216,6 +216,11 @@ class simd_fixed32 {
    static constexpr size_t width = (sizeof(float) * CHAR_BIT);
 public:
 
+   inline simd_fixed32(fixed32 other) {
+       for( int j = 0; j < size(); j++) {
+         i[j] = other.i;
+      }
+   }
    static inline size_t size() {
       return 8;
    }

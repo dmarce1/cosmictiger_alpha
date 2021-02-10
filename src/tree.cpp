@@ -10,8 +10,6 @@
 #define KICK_MAX_PARTS 1024
 #define KICK_MAX_CHECKS 1024
 particle_set *tree::particles;
-float tree::theta;
-int8_t tree::rung;
 
 static finite_vector_allocator<sizeof(kick_params_type)> kick_params_alloc;
 
@@ -219,10 +217,6 @@ sort_return tree::sort(sort_params params) {
    return rc;
 }
 
-void tree::set_kick_parameters(float theta_, int8_t rung_) {
-   theta = theta_;
-   rung = rung_;
-}
 
 hpx::lcos::local::mutex tree::mtx;
 hpx::lcos::local::mutex tree::gpu_mtx;
@@ -239,10 +233,6 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
    const auto part_begin = ((tree*) (*this))->parts.first;
    const auto part_end = ((tree*) (*this))->parts.second;
    if (part_end - part_begin <= KICK_CUDA_SIZE) {
-      for (int dim = 0; dim < NDIM; dim++) {
-         params_ptr->pref_ptr[dim] = &(tree::particles->pos(dim, part_begin));
-      }
-      params_ptr->pref_size = (part_end - part_begin) * sizeof(fixed32);
       return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(params_ptr));
    } else {
       static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
@@ -266,8 +256,12 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
          new_params->dstack.copy_to(params_ptr->dstack.get_top_list(), params_ptr->dstack.get_top_count());
          new_params->estack.copy_to(params_ptr->estack.get_top_list(), params_ptr->estack.get_top_count());
          new_params->L[params_ptr->depth] = params_ptr->L[params_ptr->depth];
-         new_params->Lpos[params_ptr->depth] = params_ptr->Lpos[params_ptr->depth];
          new_params->depth = params_ptr->depth;
+         new_params->theta = params_ptr->theta;
+         new_params->eta = params_ptr->eta;
+         new_params->scale = params_ptr->scale;
+         new_params->t0 = params_ptr->t0;
+         new_params->rung = params_ptr->rung;
          auto func = [this, new_params]() {
             auto rc = ((tree*) ptr)->kick(new_params);
             thread_cnt--;
@@ -295,7 +289,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
    // num_kicks++;
    // printf( "%li\n", num_kicks);
    kick_return rc;
-   const auto theta2 = theta * theta;
+   const auto theta2 = params.theta * params.theta;
    array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
    array<int*, N_INTERACTION_TYPES> list_counts;
    all_checks[CC_CP_DIRECT] = params.dstack.get_top_list();
@@ -363,7 +357,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          cpu_cc_direct(params_ptr);
          break;
       case CC_CP_EWALD:
-         if( params_ptr->nmulti) {
+         if (params_ptr->nmulti) {
             send_ewald_to_gpu(params_ptr).get();
          }
          break;
@@ -514,10 +508,12 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    new_params->dstack.copy_to(params->dstack.get_top_list(), params->dstack.get_top_count());
    new_params->estack.copy_to(params->estack.get_top_list(), params->estack.get_top_count());
    new_params->L[params->depth] = params->L[params->depth];
-   new_params->Lpos[params->depth] = params->Lpos[params->depth];
    new_params->depth = params->depth;
-   new_params->pref_ptr = params->pref_ptr;
-   new_params->pref_size = params->pref_size;
+   new_params->theta = params->theta;
+   new_params->eta = params->eta;
+   new_params->scale = params->scale;
+   new_params->t0 = params->t0;
+   new_params->rung = params->rung;
    gpu.params = new_params;
    auto fut = gpu.promise.get_future();
    gpu_queue.push(std::move(gpu));
@@ -553,7 +549,6 @@ hpx::future<void> tree::send_ewald_to_gpu(kick_params_type *params) {
 void tree::cpu_cc_direct(kick_params_type *params_ptr) {
    kick_params_type &params = *params_ptr;
    auto &L = params.L[params.depth];
-   const auto &Lpos = params.Lpos[params.depth];
    const auto &multis = params.multi_interactions;
    int nmulti = params.nmulti;
    if (nmulti != 0) {
@@ -567,23 +562,23 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
       const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
       nmulti = cnt2;
       for (int dim = 0; dim < NDIM; dim++) {
-         X[dim] = simd_fixed32(Lpos[dim]);
+         X[dim] = simd_fixed32(pos[dim]);
       }
       array<simd_float, NDIM> dX;
       for (int j = 0; j < cnt1; j += simd_float::size()) {
          for (int k = 0; k < simd_float::size(); k++) {
             if (j + k < cnt1) {
-               for( int dim = 0; dim < NDIM; dim++) {
-                  Y[dim][k] = ((const tree*) multis[j+k])->pos[dim];
+               for (int dim = 0; dim < NDIM; dim++) {
+                  Y[dim][k] = ((const tree*) multis[j + k])->pos[dim];
                }
-               for( int i = 0; i < MP; i++) {
-                  M[k][i] = (*((const tree*) multis[j+k])->multi)[i];
+               for (int i = 0; i < MP; i++) {
+                  M[k][i] = (*((const tree*) multis[j + k])->multi)[i];
                }
             } else {
-               for( int dim = 0; dim < NDIM; dim++) {
-                  Y[dim][k] = ((const tree*) multis[cnt1-1])->pos[dim];
+               for (int dim = 0; dim < NDIM; dim++) {
+                  Y[dim][k] = ((const tree*) multis[cnt1 - 1])->pos[dim];
                }
-               for( int i = 0; i < MP; i++) {
+               for (int i = 0; i < MP; i++) {
                   M[k][i] = 0.0;
                }
             }

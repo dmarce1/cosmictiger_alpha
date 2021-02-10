@@ -290,18 +290,25 @@ struct kick_params_type {
    array<tree_ptr, WORKSPACE_SIZE> next_checks;
    array<tree_ptr, WORKSPACE_SIZE> opened_checks;
    array<expansion<accum_real>, TREE_MAX_DEPTH> L;
-   array<array<accum_real, NDIM>, TREE_MAX_DEPTH> Lpos;
    tree_ptr tptr;
    int nmulti;
    int npart;
    int nnext;
    int nopen;
    int depth;
-   array<void*, NDIM> pref_ptr;
-   size_t pref_size;
+   double theta;
+   double eta;
+   double scale;
+   double t0;
+   int rung;
    CUDA_EXPORT inline kick_params_type() {
       THREADID;
       if (tid == 0) {
+         theta = 0.7;
+         eta = 0.2;
+         scale = 1.0;
+         t0 = 1.0;
+         rung = 0;
          nmulti = npart = nnext = nopen = depth = 0;
       }CUDA_SYNC();
    }
@@ -332,18 +339,15 @@ private:
    array<tree_ptr, NCHILD> children;
    pair<size_t, size_t> parts;
    multipole *multi;
-   static float theta;
-   static int8_t rung;
 public:
    static particle_set *particles;
    static void set_cuda_particle_set(particle_set*);
-   static void cuda_set_kick_params(particle_set *p, float theta_, int rung, ewald_indices *four_indices,
+   static void cuda_set_kick_params(particle_set *p,  ewald_indices *four_indices,
          ewald_indices *real_indices, periodic_parts *periodic_parts);
 #ifndef __CUDACC__
    static void set_particle_set(particle_set*);
    inline static hpx::future<sort_return> create_child(sort_params&);
    static fast_future<sort_return> cleanup_child();
-   static void set_kick_parameters(float theta, int8_t rung);
    static hpx::lcos::local::mutex mtx;
    static hpx::lcos::local::mutex gpu_mtx;
    hpx::future<kick_return> send_kick_to_gpu(kick_params_type *params);
