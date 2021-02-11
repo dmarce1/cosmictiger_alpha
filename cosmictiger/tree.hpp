@@ -19,13 +19,7 @@
 
 #define LEFT 0
 #define RIGHT 1
-#define WORKSPACE_SIZE 2048
-#define KICK_GRID_SIZE (64)
-#define KICK_BLOCK_SIZE 32
-#define KICK_PP_MAX size_t(256)
-#define GPU_QUEUE_SIZE (1024*1024)
 //#define KICK_CUDA_SIZE (1<<16)
-#define MAX_BUCKET_SIZE 64
 
 #define TREE_PTR_STACK (TREE_MAX_DEPTH*WORKSPACE_SIZE)
 
@@ -330,7 +324,7 @@ struct kick_params_type {
    CUDA_EXPORT inline kick_params_type() {
       THREADID;
       if (tid == 0) {
-         theta = 0.4;
+         theta = 0.5;
          eta = 0.2;
          scale = 1.0;
          t0 = 1.0;
@@ -368,6 +362,8 @@ private:
    multipole *multi;
 public:
    static particle_set *particles;
+   static std::atomic<int> cuda_node_count;
+   static std::atomic<int> cpu_node_count;
    static void set_cuda_particle_set(particle_set*);
    static void cuda_set_kick_params(particle_set *p,  ewald_indices *four_indices,
          ewald_indices *real_indices, periodic_parts *periodic_parts);

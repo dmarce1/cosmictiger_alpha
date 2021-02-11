@@ -266,7 +266,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
                      f[dim][tid] -= dx[dim] * rinv3;
                   }
 #ifdef COUNT_FLOPS
-                  flops[tid] += 42;
+                  flops[tid] += 24;
 #endif
 #ifndef TEST_FORCE
                }
