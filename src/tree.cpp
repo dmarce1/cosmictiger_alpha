@@ -231,7 +231,9 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
    kick_params_type &params = *params_ptr;
    const auto part_begin = ((tree*) (*this))->parts.first;
    const auto part_end = ((tree*) (*this))->parts.second;
-   if (part_end - part_begin <= KICK_CUDA_SIZE) {
+   static const auto cuda_depth = int(log(global().cuda.devices[0].multiProcessorCount * OVERSUBSCRIPTION)/log(2));
+ //  printf( "%i\n", cuda_depth);
+   if (params_ptr->depth == cuda_depth) {
       return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(params_ptr));
    } else {
       static std::atomic<int> thread_cnt(hpx_rank() == 0 ? 1 : 0);
