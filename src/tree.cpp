@@ -256,9 +256,9 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
          } else {
             thread_cnt--;
          }
-         thread = true;
       }
 #endif
+      thread = true;
       if (!thread) {
          return fast_future<kick_return>(((tree*) ptr)->kick(params_ptr));
       } else {
@@ -456,11 +456,9 @@ void tree::gpu_daemon() {
 
    printf("Starting gpu kick daemon\n");
    daemon_running = true;
-   int eminsize = 1;
-   int cminsize = 1;
    while (!shutdown_daemon) {
       hpx::this_thread::yield();
-      int grid_size = std::min(eminsize, (int) cpu_node_count);
+      int grid_size = std::min(KICK_GRID_SIZE, (int) cpu_node_count);
       while (gpu_ewald_queue.size() >= grid_size && gpu_ewald_queue.size()) {
          std::vector < hpx::lcos::local::promise < int32_t >> promises;
          static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
@@ -473,8 +471,6 @@ void tree::gpu_daemon() {
          }
          printf("Executing %i ewald blocks\n", grid_size);
          auto exec_ret = cuda_execute_ewald_kernel(all_params, grid_size);
-         eminsize = std::min(2*eminsize, KICK_GRID_SIZE);
-         grid_size = std::max(std::min(eminsize, (int) cpu_node_count),1);
          hpx::apply([all_params, exec_ret, grid_size](std::vector<hpx::lcos::local::promise<int32_t>> &&promises) {
             while (!exec_ret()) {
                hpx::this_thread::yield();
@@ -484,7 +480,9 @@ void tree::gpu_daemon() {
             }
             all_params_alloc.deallocate(all_params);
          },std::move(promises));
+         grid_size = std::min(KICK_GRID_SIZE, (int) cpu_node_count);
       }
+      grid_size = std::min(KICK_GRID_SIZE, (int) cuda_node_count);
       while (gpu_queue.size() >= std::min((int) cuda_node_count, KICK_GRID_SIZE) && cuda_node_count) {
          int grid_size = std::min((int) cuda_node_count, KICK_GRID_SIZE);
          cuda_node_count -= grid_size;
@@ -510,6 +508,7 @@ void tree::gpu_daemon() {
             CUDA_FREE(exec_ret.second);
             all_params_alloc.deallocate(all_params);
          },std::move(promises));
+         grid_size = std::min(KICK_GRID_SIZE, (int) cuda_node_count);
       }
    }
    daemon_running = false;

@@ -300,12 +300,12 @@ struct cuda_kick_shmem {
 };
 
 struct kick_params_type {
-   kick_params_stack_type dstack;
-   kick_params_stack_type estack;
    array<tree_ptr, WORKSPACE_SIZE> multi_interactions;
    array<tree_ptr, WORKSPACE_SIZE> part_interactions;
    array<tree_ptr, WORKSPACE_SIZE> next_checks;
    array<tree_ptr, WORKSPACE_SIZE> opened_checks;
+   kick_params_stack_type dstack;
+   kick_params_stack_type estack;
    array<expansion<accum_real>, TREE_MAX_DEPTH> L;
    array<array<fixed32,NDIM>,TREE_MAX_DEPTH> Lpos;
    tree_ptr tptr;
