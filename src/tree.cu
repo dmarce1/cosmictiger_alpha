@@ -260,7 +260,10 @@ cuda_kick(kick_params_type * params_ptr)
       const auto invlog2 = 1.0f / logf(2);
       for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
          const auto this_rung = parts->rung(k+myparts.first);
+#ifndef TEST_FORCE
          if( this_rung >= params.rung ) {
+#endif
+
             array<accum_real,NDIM> g;
             accum_real phi;
             array<accum_real,NDIM> dx;
@@ -278,6 +281,11 @@ cuda_kick(kick_params_type * params_ptr)
             for (int dim = 0; dim < NDIM; dim++) {
                F[dim][k] += g[dim];
             }
+#ifdef TEST_FORCE
+            for( int dim = 0; dim < NDIM; dim++) {
+               parts->force(dim,k+myparts.first) = F[dim][k];
+            }
+#endif
             float dt = params.t0 / (1<<this_rung);
             for( int dim = 0; dim < NDIM; dim++) {
                parts->vel(dim,k+myparts.first) += 0.5 * dt * F[dim][k];
@@ -296,7 +304,9 @@ cuda_kick(kick_params_type * params_ptr)
             }
             rungs[tid] = fmaxf(rungs[tid],new_rung);
             parts->set_rung(new_rung, k+myparts.first);
+#ifndef TEST_FORCE
          }
+#endif
       }
       __syncthreads();
       for( int P = KICK_BLOCK_SIZE/2; P>=1; P/=2) {

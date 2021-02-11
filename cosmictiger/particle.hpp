@@ -27,6 +27,9 @@ using rung_t = int8_t;
 struct particle {
    std::array<fixed32, NDIM> x;
    std::array<float, NDIM> v;
+#ifdef TEST_FORCE
+   std::array<float, NDIM> g;
+#endif
    struct flags_t {
       uint64_t morton_id :56;
       uint64_t rung :8;
@@ -71,11 +74,18 @@ struct particle_set {
    size_t size() const {
       return size_;
    }
+#ifdef TEST_FORCE
+   CUDA_EXPORT inline float force(int dim, int index) const;
+   CUDA_EXPORT inline float& force(int dim, int index);
+#endif
 #ifndef __CUDACC__
 private:
 #endif
    array<fixed32*, NDIM> xptr_;
    array<float*, NDIM> vptr_;
+#ifdef TEST_FORCE
+   array<float*, NDIM> fptr_;
+#endif
    particle::flags_t *rptr_;
    particle *pptr_;
    size_t size_;
@@ -92,6 +102,9 @@ public:
       }
       v.rptr_ = rptr_;
       v.pptr_ = pptr_;
+#ifdef TEST_FORCE
+      v.fptr_ = fptr_;
+#endif
       v.size_ = size_;
       v.offset_ = offset_;
       v.virtual_ = true;
@@ -102,8 +115,8 @@ public:
 std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, int depth, morton_t, morton_t);
 
 inline std::array<fixed32, NDIM> particle_set::pos(size_t index) const {
-   assert(index>=0);
-   assert(index <size_);
+   assert(index >= 0);
+   assert(index < size_);
    std::array<fixed32, NDIM> x;
    for (int dim = 0; dim < NDIM; dim++) {
       x[dim] = pos(dim, index);
@@ -113,59 +126,59 @@ inline std::array<fixed32, NDIM> particle_set::pos(size_t index) const {
 
 CUDA_EXPORT
 inline fixed32 particle_set::pos(int dim, size_t index) const {
-   assert(index>=0);
-   assert(index <size_);
+   assert(index >= 0);
+   assert(index < size_);
    return xptr_[dim][index - offset_];
 }
 
 inline float particle_set::vel(int dim, size_t index) const {
-   assert(index>=0);
-   assert(index <size_);
+   assert(index >= 0);
+   assert(index < size_);
    return vptr_[dim][index - offset_];
 }
 
 CUDA_EXPORT
 inline rung_t particle_set::rung(size_t index) const {
-   assert(index>=0);
-   assert(index <size_);
+   assert(index >= 0);
+   assert(index < size_);
    return rptr_[index - offset_].rung;
 }
 
 inline morton_t particle_set::mid(size_t index) const {
-   assert(index>=0);
-   assert(index <size_);
+   assert(index >= 0);
+   assert(index < size_);
    return rptr_[index - offset_].morton_id;
 }
 CUDA_EXPORT
 inline fixed32& particle_set::pos(int dim, size_t index) {
-   assert(index>=0);
-   assert(index <size_);
+   assert(index >= 0);
+   assert(index < size_);
    return xptr_[dim][index - offset_];
 }
 
 CUDA_EXPORT
 inline float& particle_set::vel(int dim, size_t index) {
-   assert(index>=0);
-   assert(index <size_);
+   assert(index >= 0);
+   assert(index < size_);
    return vptr_[dim][index - offset_];
 }
 
 inline void particle_set::set_mid(morton_t t, size_t index) {
-   assert(index>=0);
-   assert(index <size_);
+   assert(index >= 0);
+   assert(index < size_);
    rptr_[index - offset_].morton_id = t;
 }
 
 CUDA_EXPORT
 inline void particle_set::set_rung(rung_t t, size_t index) {
-   assert(index>=0);
-   assert(index <size_);
+   assert(index >= 0);
+   assert(index < size_);
    rptr_[index - offset_].rung = t;
 }
 
 inline particle particle_set::part(size_t index) const {
-   assert(index>=0);
-   assert(index <size_);
+   assert(index >= 0);
+   assert(index < size_);
    particle p;
    for (int dim = 0; dim < NDIM; dim++) {
       p.x[dim] = pos(dim, index);
@@ -178,6 +191,19 @@ inline particle particle_set::part(size_t index) const {
    return p;
 }
 
-void drift(particle_set* parts, double a1, double a2, double dtau);
+void drift(particle_set *parts, double a1, double a2, double dtau);
+
+#ifdef TEST_FORCE
+CUDA_EXPORT inline float force(int dim, size_t index) const {
+   assert(index < size_);
+   return fptr_[dim][index - offset_];
+
+}
+CUDA_EXPORT inline float& force(int dim, size_t index) {
+   assert(index < size_);
+   return fptr_[dim][index - offset_];
+
+}
+#endif
 
 #endif /* COSMICTIGER_PARTICLE_HPP_ */

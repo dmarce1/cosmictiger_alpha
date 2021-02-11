@@ -25,6 +25,11 @@ particle_set::particle_set(size_t size, size_t offset) {
       vptr_[dim] = (float*) (data + size_t(NDIM) * size * sizeof(fixed32) + dim * size * sizeof(float));
    }
    rptr_ = (particle::flags_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size);
+#ifdef TEST_FORCE
+   for (size_t dim = 0; dim < NDIM; dim++) {
+      fptr_[dim] = (float*) ((data + size_t(NDIM) * sizeof(fixed32) + dim * sizeof(float) + sizeof(flags_t)) * size);
+   }
+#endif
 }
 
 particle_set::~particle_set() {
