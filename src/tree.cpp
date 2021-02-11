@@ -611,7 +611,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
          for (int dim = 0; dim < NDIM; dim++) {
             dX[dim] = (simd_fixed32(X[dim]) - simd_fixed32(Y[dim])).to_float(); // 3
          }
-         multipole_interaction(Lacc, M, dX, false, false);                                   // 986
+         multipole_interaction(Lacc, M, dX, false);                                   // 986
       }
       for (int i = 0; i < LP; i++) {
          L[i] += Lacc[i].sum();

@@ -28,6 +28,7 @@ set(cosmictiger_source_files
     src/cuda.cpp
     src/expansion.cu
     src/global.cpp
+    src/gravity.cu
     src/hpx.cpp
     src/main.cpp
     src/options.cpp
@@ -44,6 +45,7 @@ set(cosmictiger_header_files
 	cosmictiger/gravity_cuda.hpp
 	cosmictiger/gravity.hpp
 	cosmictiger/gravity_work.hpp
+	cosmictiger/gravity.hpp
 	cosmictiger/green.hpp
 	cosmictiger/groups.hpp
 	cosmictiger/initialize.hpp

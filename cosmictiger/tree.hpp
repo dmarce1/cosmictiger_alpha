@@ -284,6 +284,27 @@ struct kick_params_stack_type {
    }
 };
 
+
+struct cuda_ewald_shmem {
+   array<expansion<accum_real>, KICK_BLOCK_SIZE> Lreduce;
+   array<int32_t, KICK_BLOCK_SIZE> flops;
+};
+
+#define NITERS 4
+struct cuda_kick_shmem {
+   array<array<int8_t, KICK_BLOCK_SIZE + 1>, NITERS> indices;
+   array<int16_t, NITERS> count;
+   array<array<accum_real, KICK_BLOCK_SIZE>, NDIM> f;
+   array<array<accum_real, MAX_BUCKET_SIZE>, NDIM> F;
+   array<array<fixed32, KICK_PP_MAX>, NDIM> src;
+   array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;
+   array<expansion<accum_real>, KICK_BLOCK_SIZE> Lreduce;
+   array<int8_t, KICK_BLOCK_SIZE> rungs;
+#ifdef COUNT_FLOPS
+   array<int32_t, KICK_BLOCK_SIZE> flops;
+#endif
+};
+
 struct kick_params_type {
    kick_params_stack_type dstack;
    kick_params_stack_type estack;
