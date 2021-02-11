@@ -324,7 +324,7 @@ struct kick_params_type {
    CUDA_EXPORT inline kick_params_type() {
       THREADID;
       if (tid == 0) {
-         theta = 0.5;
+         theta = 0.7;
          eta = 0.2;
          scale = 1.0;
          t0 = 1.0;

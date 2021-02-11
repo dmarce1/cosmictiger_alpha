@@ -75,8 +75,8 @@ struct particle_set {
       return size_;
    }
 #ifdef TEST_FORCE
-   CUDA_EXPORT inline float force(int dim, int index) const;
-   CUDA_EXPORT inline float& force(int dim, int index);
+   CUDA_EXPORT inline float force(int dim, size_t index) const;
+   CUDA_EXPORT inline float& force(int dim, size_t index);
 #endif
 #ifndef __CUDACC__
 private:
@@ -194,12 +194,12 @@ inline particle particle_set::part(size_t index) const {
 void drift(particle_set *parts, double a1, double a2, double dtau);
 
 #ifdef TEST_FORCE
-CUDA_EXPORT inline float force(int dim, size_t index) const {
+CUDA_EXPORT inline float particle_set::force(int dim, size_t index) const {
    assert(index < size_);
    return fptr_[dim][index - offset_];
 
 }
-CUDA_EXPORT inline float& force(int dim, size_t index) {
+CUDA_EXPORT inline float& particle_set::force(int dim, size_t index) {
    assert(index < size_);
    return fptr_[dim][index - offset_];
 

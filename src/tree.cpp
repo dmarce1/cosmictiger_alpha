@@ -456,17 +456,11 @@ void tree::gpu_daemon() {
 
    printf("Starting gpu kick daemon\n");
    daemon_running = true;
-   int tries = 0;
-   double wait_time = 1.0e-2;
-   int min_grid_size = 2 * KICK_GRID_SIZE;
+   int eminsize = 1;
+   int cminsize = 1;
    while (!shutdown_daemon) {
-      timer tm;
-      do {
-         tm.start();
-         hpx::this_thread::yield();
-         tm.stop();
-      } while (tm.read() < wait_time);
-      int grid_size = std::min(KICK_GRID_SIZE, std::max((int) cpu_node_count, (int) gpu_ewald_queue.size()));
+      hpx::this_thread::yield();
+      int grid_size = std::min(eminsize, (int) cpu_node_count);
       while (gpu_ewald_queue.size() >= grid_size && gpu_ewald_queue.size()) {
          std::vector < hpx::lcos::local::promise < int32_t >> promises;
          static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
@@ -479,6 +473,8 @@ void tree::gpu_daemon() {
          }
          printf("Executing %i ewald blocks\n", grid_size);
          auto exec_ret = cuda_execute_ewald_kernel(all_params, grid_size);
+         eminsize = std::min(2*eminsize, KICK_GRID_SIZE);
+         grid_size = std::max(std::min(eminsize, (int) cpu_node_count),1);
          hpx::apply([all_params, exec_ret, grid_size](std::vector<hpx::lcos::local::promise<int32_t>> &&promises) {
             while (!exec_ret()) {
                hpx::this_thread::yield();
@@ -492,7 +488,6 @@ void tree::gpu_daemon() {
       while (gpu_queue.size() >= std::min((int) cuda_node_count, KICK_GRID_SIZE) && cuda_node_count) {
          int grid_size = std::min((int) cuda_node_count, KICK_GRID_SIZE);
          cuda_node_count -= grid_size;
-         min_grid_size = 2 * KICK_GRID_SIZE;
          std::vector < hpx::lcos::local::promise < kick_return >> promises;
          static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
          kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate();
@@ -610,14 +605,14 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
                   Y[dim][k] = ((const tree*) multis[j + k])->pos[dim];
                }
                for (int i = 0; i < MP; i++) {
-                  M[k][i] = (*((const tree*) multis[j + k])->multi)[i];
+                  M[i][k] = (*((const tree*) multis[j + k])->multi)[i];
                }
             } else {
                for (int dim = 0; dim < NDIM; dim++) {
                   Y[dim][k] = ((const tree*) multis[cnt1 - 1])->pos[dim];
                }
                for (int i = 0; i < MP; i++) {
-                  M[i][k] = 0.0;
+                  M[k][i] = 0.0;
                }
             }
          }

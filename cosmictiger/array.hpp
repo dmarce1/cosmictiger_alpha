@@ -9,6 +9,7 @@
 #define COSMICTIGER_ARRAY_HPP_
 
 
+#include <cassert>
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/cuda.hpp>
 
