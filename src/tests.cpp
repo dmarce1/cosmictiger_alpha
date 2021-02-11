@@ -62,9 +62,11 @@ void kick_test() {
    tree::cuda_set_kick_params(parts_ptr, real_indices, four_indices, pparts);
    for (int i = 0; i < 2; i++) {
       tree root;
-      timer tm;
-      tm.start();
+      timer tm_sort, tm_kick, tm_cleanup;
+      tm_sort.start();
       root.sort();
+      tm_sort.stop();
+      tm_kick.start();
       tree_ptr root_ptr;
       root_ptr.ptr = (uintptr_t) & root;
       root_ptr.rank = hpx_rank();
@@ -87,17 +89,22 @@ void kick_test() {
       params_ptr->L[0] = L;
       params_ptr->Lpos[0] = Lpos;
       auto rc = root.kick(params_ptr).get();
-      tm.stop();
-      printf("Done kicking in %e seconds\n\n", tm.read());
-      printf( "TFLOP/s = %e\n", rc.flops/1024./1024./1024./1024./tm.read());
-      tm.reset();
+      tm_kick.stop();
    /*   tm.start();
       drift(parts_ptr, 1.0,1.0,1.0);
       tm.stop();
       printf( "Drift took %e s\n", tm.read());*/
       tree::cleanup();
+      tm_cleanup.start();
       params_ptr->kick_params_type::~kick_params_type();
       CUDA_FREE(params_ptr);
+      tm_cleanup.stop();
+      const auto total = tm_sort.read() + tm_kick.read() + tm_cleanup.read();
+      printf("Sort    = %e s\n", tm_sort.read());
+      printf("Kick    = %e s\n", tm_kick.read());
+      printf("Cleanup = %e s\n", tm_cleanup.read());
+      printf("Total   = %e s\n", total);
+      printf( "TFLOP/s = %e\n", rc.flops/1024./1024./1024./1024./total);
    }
    parts_ptr->particle_set::~particle_set();
    CUDA_FREE(parts_ptr);
@@ -135,6 +142,10 @@ void test_run(const std::string test) {
       tree_test();
    } else if (test == "kick") {
       kick_test();
+#ifdef TEST_FORCE
+   } else if (test == "force") {
+      kick_test();
+#endif
    } else {
       printf("%s is an unknown test.\n", test.c_str());
    }

@@ -231,8 +231,8 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
    kick_params_type &params = *params_ptr;
    const auto part_begin = ((tree*) (*this))->parts.first;
    const auto part_end = ((tree*) (*this))->parts.second;
-   static const auto cuda_depth = int(log(global().cuda.devices[0].multiProcessorCount * OVERSUBSCRIPTION)/log(2));
- //  printf( "%i\n", cuda_depth);
+   static const auto cuda_depth = int(log(global().cuda.devices[0].multiProcessorCount * OVERSUBSCRIPTION) / log(2));
+   //  printf( "%i\n", cuda_depth);
    if (params_ptr->depth == cuda_depth) {
       return fast_future<kick_return>(((tree*) ptr)->send_kick_to_gpu(params_ptr));
    } else {
@@ -292,10 +292,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
    // printf( "%li\n", num_kicks);
    kick_return rc;
    rc.flops = 0;
-   const auto &L1 = params.L[params.depth];
-   auto &L = params.L[params.depth + 1];
-   params.Lpos[params.depth + 1] = pos;
-   L = L1;
+   auto& L = params.L[params.depth];
    const auto &Lpos = params.Lpos[params.depth];
    array<accum_real, NDIM> dx;
    for (int dim = 0; dim < NDIM; dim++) {
@@ -397,11 +394,14 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
       params.dstack.copy_top();
       params.estack.copy_top();
       params.depth++;
+      params.L[params.depth] = L;
+      params.Lpos[params.depth] = pos;
       array<hpx::future<kick_return>, NCHILD> futs;
       futs[LEFT] = children[LEFT].kick(params_ptr, try_thread);
       //  printf("5\n");
       params.dstack.pop();
       params.estack.pop();
+      params.L[params.depth] = L;
       futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
       params.depth--;
       //  printf("6\n");

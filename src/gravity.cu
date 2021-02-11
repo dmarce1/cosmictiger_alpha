@@ -244,22 +244,22 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
 #ifndef TEST_FORCE
             if (this_rung >= params.rung || this_rung == -1) {
 #endif
-            for (int dim = 0; dim < NDIM; dim++) {
-               f[dim][tid] = 0.f;
-            }
-            for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
-               array<float, NDIM> dx;
-               for (int dim = 0; dim < NDIM; dim++) { // 3
-                  dx[dim] = (fixed<int32_t>(sources[dim][j]) - fixed<int32_t>(sinks[dim][k])).to_float();
+               for (int dim = 0; dim < NDIM; dim++) {
+                  f[dim][tid] = 0.f;
                }
-               const auto r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]); // 5
-               const auto rinv = rsqrtf(fmaxf(r2, h2)); // 8
-               const auto rinv3 = rinv * rinv * rinv; // 2
-               for (int dim = 0; dim < NDIM; dim++) { // 6
-                  f[dim][tid] -= dx[dim] * rinv3;
-               }
+               for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
+                  array<float, NDIM> dx;
+                  for (int dim = 0; dim < NDIM; dim++) { // 3
+                     dx[dim] = (fixed<int32_t>(sources[dim][j]) - fixed<int32_t>(sinks[dim][k])).to_float();
+                  }
+                  const auto r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]); // 5
+                  const auto rinv = rsqrtf(fmaxf(r2, h2)); // 8
+                  const auto rinv3 = rinv * rinv * rinv; // 2
+                  for (int dim = 0; dim < NDIM; dim++) { // 6
+                     f[dim][tid] -= dx[dim] * rinv3;
+                  }
 #ifdef COUNT_FLOPS
-               flops[tid] += 24;
+                  flops[tid] += 24;
 #endif
 #ifndef TEST_FORCE
                }
@@ -323,46 +323,51 @@ void cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
 #ifndef TEST_FORCE
          if (this_rung >= params.rung || this_rung == -1) {
 #endif
-         for (int dim = 0; dim < NDIM; dim++) {
-            f[dim][tid] = 0.f;
-         }
-         __syncthreads();
-         if (i < params.nmulti) {
-            array<float, NDIM> dx;
-            array<float, NDIM + 1> Lforce;
             for (int dim = 0; dim < NDIM; dim++) {
-               dx[dim] = (fixed<int32_t>(sources[dim]) - fixed<int32_t>(sinks[dim][k])).to_float();
+               f[dim][tid] = 0.f;
             }
-            flops[tid] += NDIM;
-            flops[tid] += multipole_interaction(Lforce, *((tree*) inters[i])->multi, dx, false);
-            for (int dim = 0; dim < NDIM; dim++) {
-               f[dim][tid] -= Lforce[dim + 1];
-            }
-            flops[tid] += NDIM;
-         }
-         __syncthreads();
-         for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-            if (tid < P) {
+            __syncthreads();
+            if (i < params.nmulti) {
+               array<float, NDIM> dx;
+               array<float, NDIM + 1> Lforce;
+               for (int l = 0; l < NDIM + 1; l++) {
+                  Lforce[l] = 0.f;
+               }
                for (int dim = 0; dim < NDIM; dim++) {
-                  f[dim][tid] += f[dim][tid + P];
+                  dx[dim] = (fixed<int32_t>(sources[dim]) - fixed<int32_t>(sinks[dim][k])).to_float();
+               }
+               flops[tid] += NDIM;
+               flops[tid] += multipole_interaction(Lforce, *((tree*) inters[i])->multi, dx, false);
+               for (int dim = 0; dim < NDIM; dim++) {
+                  f[dim][tid] -= Lforce[dim + 1];
                }
                flops[tid] += NDIM;
             }
             __syncthreads();
-         }
-         if (tid == 0) {
-            for (int dim = 0; dim < NDIM; dim++) {
-               F[dim][k] += f[dim][0];
+            for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+               if (tid < P) {
+                  for (int dim = 0; dim < NDIM; dim++) {
+                     f[dim][tid] += f[dim][tid + P];
+                  }
+                  flops[tid] += NDIM;
+               }
+               __syncthreads();
             }
-            flops[tid] += NDIM;
-         }
-         __syncthreads();
+            if (tid == 0) {
+               for (int dim = 0; dim < NDIM; dim++) {
+                  F[dim][k] += f[dim][0];
+               }
+               flops[tid] += NDIM;
+            }
+            __syncthreads();
 #ifndef TEST_FORCE
          }
 #endif
       }
    }
 }
+
+#ifdef TEST_FORCE
 
 CUDA_DEVICE extern ewald_indices *four_indices_ptr;
 CUDA_DEVICE extern ewald_indices *real_indices_ptr;
@@ -421,8 +426,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
          const auto &hpart = hparts.get(i);
          const float h2 = sqrt(h[0]) + sqr(h[1]) + sqr(h[2]);
          const float hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];
-         float so;
-         so = sinf(2.0 * M_PI * hdotx);
+         float so = sinf(2.0 * M_PI * hdotx);
          for (int dim = 0; dim < NDIM; dim++) {
             f[dim][tid] -= hpart(dim) * so;
          }
@@ -442,3 +446,4 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
    }
 }
 
+#endif

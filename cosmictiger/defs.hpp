@@ -16,7 +16,7 @@
 #define TEST_TREE
 #define TEST_RADIX
 #define TEST_BOUNDS
-#define TEST_FORCE
+//#define TEST_FORCE
 #endif
 //#define TEST_STACK
 

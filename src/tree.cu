@@ -28,7 +28,6 @@ CUDA_DEVICE particle_set *parts;
 #define OI 2
 #define PI 3
 
-
 CUDA_DEVICE kick_return
 cuda_kick(kick_params_type * params_ptr)
 {
@@ -39,14 +38,10 @@ cuda_kick(kick_params_type * params_ptr)
    tree_ptr tptr = params.tptr;
    tree& me = *((tree*) tptr);
    const int &tid = threadIdx.x;
-   int depth = params.depth;
    kick_return rc;
    auto &F = shmem.F;
-   const auto &L1 = params.L[params.depth];
-   auto &L = params.L[params.depth + 1];
+   auto &L = params.L[params.depth];
    if( tid == 0 ) {
-      params.Lpos[params.depth + 1] = me.pos;
-      L = L1;
       const auto &Lpos = params.Lpos[params.depth];
       array<accum_real, NDIM> dx;
       for (int dim = 0; dim < NDIM; dim++) {
@@ -218,10 +213,25 @@ cuda_kick(kick_params_type * params_ptr)
             cuda_cp_interactions(parts,params_ptr);
             break;
             case PC_PP_EWALD:
+            if(count[PI] > 0 ) {
+               printf( "PP Ewald should not exist\n");
+               __trap();
+            }
+            if(count[MI] > 0 ) {
+               printf( "PC Ewald should not exist\n");
+               __trap();
+            }
             break;
             case CC_CP_EWALD:
-            if (count[CI])
-            printf("Ewald\n");
+            if(count[PI] > 0 ) {
+               printf( "CP Ewald should not exist\n");
+               __trap();
+            }
+            if( count[MI] > 0 ) {
+               float old_flops = flops[tid];
+               cuda_ewald_cc_interactions(parts,params_ptr);
+               flops[tid] += old_flops;
+            }
             break;
          }
 
@@ -234,14 +244,17 @@ cuda_kick(kick_params_type * params_ptr)
       params.dstack.copy_top();
       params.estack.copy_top();
       if (tid == 0) {
-         params.tptr = ((tree*) tptr)->children[LEFT];
          params.depth++;
+         params.L[params.depth] = L;
+         params.Lpos[params.depth] = me.pos;
+         params.tptr = ((tree*) tptr)->children[LEFT];
       }
       __syncthreads();
       kick_return rc1 = cuda_kick(params_ptr);
       params.dstack.pop();
       params.estack.pop();
       if (tid == 0) {
+         params.L[params.depth] = L;
          params.tptr = ((tree*) tptr)->children[RIGHT];
       }
       __syncthreads();
@@ -343,7 +356,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-               CUDA_CHECK(cudaDeviceSynchronize());
+                  CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
@@ -373,7 +386,7 @@ void cleanup_stream(std::pair<cudaStream_t, cudaEvent_t> s) {
 
 CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
    const int &bid = blockIdx.x;
-   auto rc = cuda_ewald_cc_interactions(parts,params_ptr[bid]);
+   auto rc = cuda_ewald_cc_interactions(parts, params_ptr[bid]);
    __syncthreads();
    if (threadIdx.x == 0) {
       params_ptr[bid]->flops = rc;
@@ -383,7 +396,7 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
 cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream.first>>>(params_ptr);
-               CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
+                  CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
 
    struct cuda_ewald_future_shared {
       std::pair<cudaStream_t, cudaEvent_t> stream;
@@ -454,6 +467,4 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    };
    return std::make_pair(std::move(ready_func), std::move(fut.returns));
 }
-
-
 

@@ -261,13 +261,11 @@ CUDA_DEVICE inline int green_ewald(expansion<ewald_real> &D, const array<ewald_r
    const auto &real_indices = *real_indices_ptr;
    const ewald_real fouroversqrtpi(4.0 / sqrt(M_PI));
    static const ewald_real one(1.0);
-   static const ewald_real two(2.0);
    static const ewald_real nthree(-3.0);
    static const ewald_real nfour(-4.0);
    static const ewald_real nfive(-5.0);
    static const ewald_real nseven(-7.0);
    static const ewald_real neight(-8.0);
-   static const ewald_real p(0.3275911);
    static const ewald_real rcut(1.0e-6);
    const ewald_real r = sqrt(sqr(X[0]) + sqrt(X[1]) + sqr(X[2]));                   // 5
    const ewald_real zmask = r > rcut;    // 1
