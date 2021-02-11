@@ -818,3 +818,5 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    return std::make_pair(std::move(ready_func), std::move(fut.returns));
 }
 
+
+

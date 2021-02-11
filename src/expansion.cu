@@ -8,9 +8,11 @@
 #include <cosmictiger/expansion.hpp>
 #include <cosmictiger/array.hpp>
 
+
+
 CUDA_DEVICE void expansion_init();
 
-CUDA_DEVICE expansion<accum_real> Lfactor;
+__managed__ expansion<accum_real> Lfactor;
 
 CUDA_DEVICE void expansion_init() {
    for (int i = 0; i < LP; i++) {
@@ -31,7 +33,7 @@ CUDA_DEVICE void expansion_init() {
    }
 }
 
-CUDA_DEVICE inline expansion<accum_real>& shift_expansion(expansion<accum_real> &me,
+CUDA_DEVICE expansion<accum_real>& shift_expansion(expansion<accum_real> &me,
       const array<accum_real, NDIM> &dX) {
    for (int a = 0; a < 3; a++) {
       me() += me(a) * dX[a];
@@ -80,7 +82,7 @@ CUDA_DEVICE inline expansion<accum_real>& shift_expansion(expansion<accum_real> 
    return me;
 }
 
-CUDA_DEVICE inline void shift_expansion(expansion<accum_real> &me, array<accum_real, NDIM> &g, accum_real &phi,
+CUDA_DEVICE void shift_expansion(expansion<accum_real> &me, array<accum_real, NDIM> &g, accum_real &phi,
       const array<accum_real, NDIM> &dX) {
    phi = me();
    for (int a = 0; a < 3; a++) {
@@ -108,4 +110,3 @@ CUDA_DEVICE inline void shift_expansion(expansion<accum_real> &me, array<accum_r
       }
    }
 }
-
