@@ -229,17 +229,24 @@ cuda_kick(kick_params_type * params_ptr)
             }
             if( count[MI] > 0 ) {
                float old_flops = flops[tid];
-               cuda_ewald_cc_interactions(parts,params_ptr);
-               flops[tid] += old_flops;
+               int cuda_flops = cuda_ewald_cc_interactions(parts,params_ptr);
+               flops[tid] = old_flops;
+               flops[0] += cuda_flops;
             }
             break;
          }
-
-         /*********** DO INTERACTIONS *********************/
-
       }
+#ifdef COUNT_FLOPS
+         __syncthreads();
+         for( int P = KICK_BLOCK_SIZE/2; P >= 1; P/=2) {
+            if( tid < P ) {
+               flops[tid] += flops[tid+P];
+            }
+            __syncthreads();
+         }
+         rc.flops = flops[0];
+#endif
    }
-   rc.flops = 0;
    if (!(((tree*) tptr)->children[0].rank == -1)) {
       params.dstack.copy_top();
       params.estack.copy_top();
@@ -330,16 +337,6 @@ cuda_kick(kick_params_type * params_ptr)
       }
       rc.rung = rungs[0];
    }
-#ifdef COUNT_FLOPS
-   __syncthreads();
-   for( int P = KICK_BLOCK_SIZE/2; P >= 1; P/=2) {
-      if( tid < P ) {
-         flops[tid] += flops[tid+P];
-      }
-      __syncthreads();
-   }
-   rc.flops += flops[0];
-#endif
    return rc;
 }
 
@@ -356,7 +353,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                  CUDA_CHECK(cudaDeviceSynchronize());
+                     CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
@@ -396,7 +393,7 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
 cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream.first>>>(params_ptr);
-                  CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
+                     CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
 
    struct cuda_ewald_future_shared {
       std::pair<cudaStream_t, cudaEvent_t> stream;

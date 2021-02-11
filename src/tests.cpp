@@ -104,7 +104,8 @@ void kick_test() {
       printf("Kick    = %e s\n", tm_kick.read());
       printf("Cleanup = %e s\n", tm_cleanup.read());
       printf("Total   = %e s\n", total);
-      printf( "TFLOP/s = %e\n", rc.flops/1024./1024./1024./1024./total);
+      printf("GFLOP   = %e s\n", rc.flops/1024./1024./1024.);
+      printf( "GFLOP/s = %e\n", rc.flops/1024./1024./1024./total);
    }
    parts_ptr->particle_set::~particle_set();
    CUDA_FREE(parts_ptr);

@@ -372,7 +372,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 
       switch (type) {
       case CC_CP_DIRECT:
-         cpu_cc_direct(params_ptr);
+         rc.flops += cpu_cc_direct(params_ptr);
          break;
       case CC_CP_EWALD:
          if (params_ptr->nmulti) {
@@ -573,11 +573,12 @@ hpx::future<int32_t> tree::send_ewald_to_gpu(kick_params_type *params) {
 
 }
 
-void tree::cpu_cc_direct(kick_params_type *params_ptr) {
+int tree::cpu_cc_direct(kick_params_type *params_ptr) {
    kick_params_type &params = *params_ptr;
    auto &L = params.L[params.depth];
    const auto &multis = params.multi_interactions;
    int nmulti = params.nmulti;
+   int flops = 0;
    if (nmulti != 0) {
       static const auto one = simd_float(1.0);
       static const auto half = simd_float(0.5);
@@ -611,13 +612,19 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
             }
          }
          for (int dim = 0; dim < NDIM; dim++) {
-            dX[dim] = (simd_fixed32(X[dim]) - simd_fixed32(Y[dim])).to_float(); // 3
+            dX[dim] = (simd_fixed32(X[dim]) - simd_fixed32(Y[dim])).to_float();
          }
-         multipole_interaction(Lacc, M, dX, false);                                   // 986
+         auto tmp = multipole_interaction(Lacc, M, dX, false);
+         if( j == 0 ) {
+            flops = 3 + tmp;
+         }
       }
+      flops *= cnt1;
       for (int i = 0; i < LP; i++) {
          L[i] += Lacc[i].sum();
+         flops++;
       }
    }
+   return flops;
 }
 

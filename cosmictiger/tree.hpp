@@ -19,7 +19,7 @@
 
 #define LEFT 0
 #define RIGHT 1
-#define WORKSPACE_SIZE 512
+#define WORKSPACE_SIZE 2048
 #define KICK_GRID_SIZE (64)
 #define KICK_BLOCK_SIZE 32
 #define KICK_PP_MAX size_t(256)
@@ -330,7 +330,7 @@ struct kick_params_type {
    CUDA_EXPORT inline kick_params_type() {
       THREADID;
       if (tid == 0) {
-         theta = 0.7;
+         theta = 0.4;
          eta = 0.2;
          scale = 1.0;
          t0 = 1.0;
@@ -384,7 +384,7 @@ public:
       return children[0] == tree_ptr();
    }
    static void cleanup();
-   void cpu_cc_direct(kick_params_type *params);
+   int cpu_cc_direct(kick_params_type *params);
    sort_return sort(sort_params = sort_params());
    hpx::future<kick_return> kick(kick_params_type*);
    static std::atomic<bool> daemon_running;

@@ -100,8 +100,15 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
    }
    for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
       params.L[params.depth][i] += Lreduce[0][i];
-      flops[0]++;
+      flops[tid]++;
    }
+   for( int P = KICK_BLOCK_SIZE / 2; P >=1; P/=2) {
+      __syncthreads();
+      if( tid < P) {
+         flops[tid] += flops[tid+P];
+      }
+   }
+   __syncthreads();
    return flops[0];
 }
 
@@ -259,7 +266,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
                      f[dim][tid] -= dx[dim] * rinv3;
                   }
 #ifdef COUNT_FLOPS
-                  flops[tid] += 24;
+                  flops[tid] += 42;
 #endif
 #ifndef TEST_FORCE
                }
