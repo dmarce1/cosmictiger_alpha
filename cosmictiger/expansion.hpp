@@ -168,109 +168,117 @@ CUDA_EXPORT inline expansion<T> expansion<T>::operator<<(const array<T,NDIM> &dX
 
 template<class T>
 struct expansion_factors: public expansion<T> {
-	expansion_factors() {
-		for (int i = 0; i < LP; i++) {
-			(*this)[i] = T(0.0);
-		}
-		(*this)() += T(1);
-		for (int a = 0; a < NDIM; ++a) {
-			(*this)(a) += T(1.0);
-			for (int b = 0; b < NDIM; ++b) {
-				(*this)(a, b) += T(0.5);
-				for (int c = 0; c < NDIM; ++c) {
-					(*this)(a, b, c) += T(1.0 / 6.0);
-					for (int d = 0; d < NDIM; ++d) {
-						(*this)(a, b, c, d) += T(1.0 / 24.0);
-					}
-				}
-			}
-		}
-	}
+   expansion_factors() {
+      for (int i = 0; i < LP; i++) {
+         (*this)[i] = T(0.0);
+      }
+      (*this)() += T(1);
+      for (int a = 0; a < NDIM; ++a) {
+         (*this)(a) += T(1.0);
+         for (int b = 0; b < NDIM; ++b) {
+            (*this)(a, b) += T(0.5);
+            for (int c = 0; c < NDIM; ++c) {
+               (*this)(a, b, c) += T(1.0 / 6.0);
+               for (int d = 0; d < NDIM; ++d) {
+                  (*this)(a, b, c, d) += T(1.0 / 24.0);
+               }
+            }
+         }
+      }
+   }
 };
 
 template<class T>
 CUDA_EXPORT inline expansion<T>& expansion<T>::operator<<=(const array<T,NDIM> &dX) {
-	const static expansion_factors<T> factor;
-	expansion<T> &me = *this;
-	for (int a = 0; a < 3; a++) {
-		me() += me(a) * dX[a];
-		for (int b = 0; b <= a; b++) {
-			me() += me(a, b) * dX[a] * dX[b] * factor(a, b);
-			for (int c = 0; c <= b; c++) {
-				me() += me(a, b, c) * dX[a] * dX[b] * dX[c] * factor(a, b, c);
-				for (int d = 0; d <= c; d++) {
-					me() += me(a, b, c, d) * dX[a] * dX[b] * dX[c] * dX[d] * factor(a, b, c, d);
-				}
-			}
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b < 3; b++) {
-			me(a) += me(a, b) * dX[b];
-			for (int c = 0; c <= b; c++) {
-				me(a) += me(a, b, c) * dX[b] * dX[c] * factor(b, c);
-				for (int d = 0; d <= c; d++) {
-					me(a) += me(a, b, c, d) * dX[b] * dX[c] * dX[d] * factor(b, c, d);
-				}
-			}
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b <= a; b++) {
-			for (int c = 0; c < NDIM; c++) {
-				me(a, b) += me(a, b, c) * dX[c];
-				for (int d = 0; d <= c; d++) {
-					me(a, b) += me(a, b, c, d) * dX[c] * dX[d] * factor(c, d);
-				}
-			}
-		}
-	}
+#ifndef __CUDA_ARCH__
+   const static expansion_factors<T> factor;
+#endif
+   expansion<T> &me = *this;
+   for (int a = 0; a < 3; a++) {
+      me() += me(a) * dX[a];
+      for (int b = 0; b <= a; b++) {
+         me() += me(a, b) * dX[a] * dX[b] * factor(a, b);
+         for (int c = 0; c <= b; c++) {
+            me() += me(a, b, c) * dX[a] * dX[b] * dX[c] * factor(a, b, c);
+            for (int d = 0; d <= c; d++) {
+               me() += me(a, b, c, d) * dX[a] * dX[b] * dX[c] * dX[d] * factor(a, b, c, d);
+            }
+         }
+      }
+   }
+   for (int a = 0; a < 3; a++) {
+      for (int b = 0; b < 3; b++) {
+         me(a) += me(a, b) * dX[b];
+         for (int c = 0; c <= b; c++) {
+            me(a) += me(a, b, c) * dX[b] * dX[c] * factor(b, c);
+            for (int d = 0; d <= c; d++) {
+               me(a) += me(a, b, c, d) * dX[b] * dX[c] * dX[d] * factor(b, c, d);
+            }
+         }
+      }
+   }
+   for (int a = 0; a < 3; a++) {
+      for (int b = 0; b <= a; b++) {
+         for (int c = 0; c < NDIM; c++) {
+            me(a, b) += me(a, b, c) * dX[c];
+            for (int d = 0; d <= c; d++) {
+               me(a, b) += me(a, b, c, d) * dX[c] * dX[d] * factor(c, d);
+            }
+         }
+      }
+   }
 
-	for (int a = 0; a < 3; a++) {
-		for (int b = 0; b <= a; b++) {
-			for (int c = 0; c <= b; c++) {
-				for (int d = 0; d < 3; d++) {
-					me(a, b, c) += me(a, b, c, d) * dX[d];
-				}
-			}
-		}
-	}
+   for (int a = 0; a < 3; a++) {
+      for (int b = 0; b <= a; b++) {
+         for (int c = 0; c <= b; c++) {
+            for (int d = 0; d < 3; d++) {
+               me(a, b, c) += me(a, b, c, d) * dX[d];
+            }
+         }
+      }
+   }
 
-	return me;
+   return me;
 }
 
 template<class T>
 CUDA_EXPORT inline void expansion<T>::translate_L2(array<T,NDIM>& g, T& phi, const array<T,NDIM> &dX) const {
-	const static expansion_factors<T> factor;
+   const static expansion_factors<T> factor;
 
-	const auto &me = *this;
-	force f;
-	phi = (*this)();
-	for (int a = 0; a < 3; a++) {
-		phi += me(a) * dX[a];
-		for (int b = a; b < 3; b++) {
-			phi += me(a, b) * dX[a] * dX[b] * factor(a, b);
-			for (int c = b; c < 3; c++) {
-				phi += me(a, b, c) * dX[a] * dX[b] * dX[c] * factor(a, b, c);
-				for (int d = c; d < 3; d++) {
-					phi += me(a, b, c, d) * dX[a] * dX[b] * dX[c] * dX[d] * factor(a, b, c, d);
-				}
-			}
-		}
-	}
-	for (int a = 0; a < 3; a++) {
-		g[a] = -(*this)(a);
-		for (int b = 0; b < 3; b++) {
-			g[a] -= me(a, b) * dX[b];
-			for (int c = b; c < 3; c++) {
-				g[a] -= me(a, b, c) * dX[b] * dX[c] * factor(b, c);
-				for (int d = c; d < 3; d++) {
-					g[a] -= me(a, b, c, d) * dX[b] * dX[c] * dX[d] * factor(b, c, d);
-				}
-			}
-		}
-	}
+   const auto &me = *this;
+   force f;
+   phi = (*this)();
+   for (int a = 0; a < 3; a++) {
+      phi += me(a) * dX[a];
+      for (int b = a; b < 3; b++) {
+         phi += me(a, b) * dX[a] * dX[b] * factor(a, b);
+         for (int c = b; c < 3; c++) {
+            phi += me(a, b, c) * dX[a] * dX[b] * dX[c] * factor(a, b, c);
+            for (int d = c; d < 3; d++) {
+               phi += me(a, b, c, d) * dX[a] * dX[b] * dX[c] * dX[d] * factor(a, b, c, d);
+            }
+         }
+      }
+   }
+   for (int a = 0; a < 3; a++) {
+      g[a] = -(*this)(a);
+      for (int b = 0; b < 3; b++) {
+         g[a] -= me(a, b) * dX[b];
+         for (int c = b; c < 3; c++) {
+            g[a] -= me(a, b, c) * dX[b] * dX[c] * factor(b, c);
+            for (int d = c; d < 3; d++) {
+               g[a] -= me(a, b, c, d) * dX[b] * dX[c] * dX[d] * factor(b, c, d);
+            }
+         }
+      }
+   }
 }
+
+
+CUDA_DEVICE expansion<accum_real>& shift_expansion(expansion<accum_real> &me, const array<accum_real, NDIM> &dX);
+CUDA_DEVICE void shift_expansion(expansion<accum_real> &me, array<accum_real, NDIM> &g, accum_real &phi,
+      const array<accum_real, NDIM> &dX);
+CUDA_DEVICE void expansion_init();
 
 /* namespace fmmx */
 #endif /* expansion_H_ */

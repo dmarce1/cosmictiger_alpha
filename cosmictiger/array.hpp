@@ -10,6 +10,7 @@
 
 
 #include <cosmictiger/defs.hpp>
+#include <cosmictiger/cuda.hpp>
 
 template<class T, size_t N>
 class array {

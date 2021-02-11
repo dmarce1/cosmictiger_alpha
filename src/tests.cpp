@@ -76,19 +76,25 @@ void kick_test() {
       params_ptr->estack.copy_to(&root_ptr,1);
 
       // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
+      array<fixed32,NDIM> Lpos;
       expansion<accum_real> L;
       for (int i = 0; i < LP; i++) {
          L[i] = 0.f;
       }
+      for( int dim = 0; dim < NDIM; dim++) {
+         Lpos[dim] = 0.5;
+      }
       params_ptr->L[0] = L;
-      root.kick(params_ptr).get();
+      params_ptr->Lpos[0] = Lpos;
+      auto rc = root.kick(params_ptr).get();
       tm.stop();
       printf("Done kicking in %e seconds\n\n", tm.read());
+      printf( "TFLOP/s = %e\n", rc.flops/1024./1024./1024./1024./tm.read());
       tm.reset();
-      tm.start();
+   /*   tm.start();
       drift(parts_ptr, 1.0,1.0,1.0);
       tm.stop();
-      printf( "Drift took %e s\n", tm.read());
+      printf( "Drift took %e s\n", tm.read());*/
       tree::cleanup();
       params_ptr->kick_params_type::~kick_params_type();
       CUDA_FREE(params_ptr);

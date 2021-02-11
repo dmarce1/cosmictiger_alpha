@@ -26,6 +26,7 @@ enable_language(CUDA)
 
 set(cosmictiger_source_files
     src/cuda.cpp
+    src/expansion.cu
     src/global.cpp
     src/hpx.cpp
     src/main.cpp

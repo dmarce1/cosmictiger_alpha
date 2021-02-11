@@ -27,12 +27,33 @@
 #define TREE_MIN_PARTS2THREAD (64*1024)
 
 
+#ifdef ACCUMULATE_DOUBLE_PRECISION
+using accum_real = double;
+#else
+using accum_real = float;
+#endif
+
+
+#ifdef EWALD_DOUBLE_PRECISION
+using ewald_real = double;
+#define EWALD_NREAL 17
+#define EWALD_REAL_CUTOFF 3.6
+#define EWALD_NFOUR 10
+#else
+#define EWALD_NREAL 13
+#define EWALD_REAL_CUTOFF 2.6
+#define EWALD_NFOUR 8
+using ewald_real = float;
+#endif
+
 #define NCHILD 2
 //#define PARALLEL_RADIX
 
 #define ALLOCATION_PAGE_SIZE (2*1024*1024LL)
 #define MIN_CUDA_SORT 65536LL
 #define OVERSUBSCRIPTION 8
+
+#define COUNT_FLOPS
 
 #ifdef TEST_BOUNDS
 #define BOUNDS_CHECK1(a,b,c)                                                              \
@@ -57,5 +78,7 @@
 #else
 #define ABORT() abort()
 #endif
+
+
 
 #endif /* COSMICTIGER_DEFS_HPP_ */

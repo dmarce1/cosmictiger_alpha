@@ -115,6 +115,7 @@ struct sort_params {
 
 struct kick_return {
    int8_t rung;
+   size_t flops;
 };
 
 class tree_ptr;
@@ -291,6 +292,7 @@ struct kick_params_type {
    array<tree_ptr, WORKSPACE_SIZE> next_checks;
    array<tree_ptr, WORKSPACE_SIZE> opened_checks;
    array<expansion<accum_real>, TREE_MAX_DEPTH> L;
+   array<array<fixed32,NDIM>,TREE_MAX_DEPTH> Lpos;
    tree_ptr tptr;
    int nmulti;
    int npart;
@@ -303,6 +305,7 @@ struct kick_params_type {
    float hsoft;
    double t0;
    int rung;
+   size_t flops;
    CUDA_EXPORT inline kick_params_type() {
       THREADID;
       if (tid == 0) {
@@ -328,7 +331,7 @@ struct gpu_kick {
 
 struct gpu_ewald {
    kick_params_type *params;
-   hpx::lcos::local::promise<void> promise;
+   hpx::lcos::local::promise<int32_t> promise;
 };
 #endif
 
@@ -354,7 +357,7 @@ public:
    static hpx::lcos::local::mutex mtx;
    static hpx::lcos::local::mutex gpu_mtx;
    hpx::future<kick_return> send_kick_to_gpu(kick_params_type *params);
-   hpx::future<void> send_ewald_to_gpu(kick_params_type *params);
+   hpx::future<int32_t> send_ewald_to_gpu(kick_params_type *params);
    static void gpu_daemon();
    inline bool is_leaf() const {
       return children[0] == tree_ptr();

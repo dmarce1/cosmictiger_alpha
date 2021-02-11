@@ -5,7 +5,9 @@
 #include <cosmictiger/cuda.hpp>
 #include <cosmictiger/defs.hpp>
 
+#include <cassert>
 #include <stack>
+#include <atomic>
 
 #ifdef __CUDA_ARCH__
 #define BLOCKSIZE const int& blocksize = blockDim.x
