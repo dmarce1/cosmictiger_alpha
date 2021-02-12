@@ -31,6 +31,7 @@ set(cosmictiger_source_files
     src/gravity.cu
     src/hpx.cpp
     src/main.cpp
+    src/memory.cpp
     src/options.cpp
     src/particle.cpp
     src/particle.cu

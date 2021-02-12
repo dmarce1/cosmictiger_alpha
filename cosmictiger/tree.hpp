@@ -280,6 +280,7 @@ struct kick_params_type;
 struct gpu_kick {
    kick_params_type *params;
    hpx::lcos::local::promise<kick_return> promise;
+   std::pair<cudaStream_t, cudaEvent_t> stream;
 };
 
 struct gpu_ewald {
@@ -367,4 +368,9 @@ inline bool tree_ptr::is_leaf() const {
 }
 
 
+std::pair<cudaStream_t, cudaEvent_t> get_stream();
+void cleanup_stream(std::pair<cudaStream_t, cudaEvent_t> s);
+
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type** params_ptr, int grid_size);
+
+std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type** params_ptr, int grid_size,std::pair<cudaStream_t, cudaEvent_t> stream);

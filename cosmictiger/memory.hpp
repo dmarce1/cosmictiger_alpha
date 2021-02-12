@@ -18,6 +18,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
+#include <stack>
+#include <unordered_map>
 
 #define CHECK_POINTER(ptr)   MEM_CHECK_POINTER(ptr,__FILE__,__LINE__)
 
@@ -122,6 +124,17 @@ hpx::lcos::local::mutex managed_allocator<T>::mtx;
 template<class T>
 std::vector<T*> managed_allocator<T>::allocs;
 
+
+
+class cuda_allocator {
+private:
+   static std::vector<std::stack<void*>> freelist;
+   static std::unordered_map<void*, int> delete_indexes;
+   static hpx::lcos::local::mutex mtx;
+public:
+   void* allocate(size_t sz);
+   void deallocate(void *ptr);
+};
 #endif
 
 #endif /* COSMICTIGER_MEM_HPP_ */

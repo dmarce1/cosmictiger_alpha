@@ -256,9 +256,9 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
          } else {
             thread_cnt--;
          }
+         thread = true;
       }
 #endif
-      thread = true;
       if (!thread) {
          return fast_future<kick_return>(((tree*) ptr)->kick(params_ptr));
       } else {
@@ -483,16 +483,20 @@ void tree::gpu_daemon() {
          int grid_size = std::min((int) cuda_node_count, KICK_GRID_SIZE);
          cuda_node_count -= grid_size;
          std::vector < hpx::lcos::local::promise < kick_return >> promises;
+         std::vector<std::function<void()>> deleters;
          static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
          kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate();
+         auto stream = get_stream();
          for (int i = 0; i < grid_size; i++) {
             auto tmp = gpu_queue.pop();
             all_params[i] = tmp.params;
+            deleters.push_back(tmp.params->dchecks[tmp.params->depth].to_device(stream.first));
+            deleters.push_back(tmp.params->echecks[tmp.params->depth].to_device(stream.first));
             promises.push_back(std::move(tmp.promise));
          }
          printf("Executing %i blocks\n", grid_size);
-         auto exec_ret = cuda_execute_kick_kernel(all_params, grid_size);
-         hpx::apply([all_params, exec_ret, grid_size](std::vector<hpx::lcos::local::promise<kick_return>> &&promises) {
+         auto exec_ret = cuda_execute_kick_kernel(all_params, grid_size, stream);
+         hpx::apply([all_params, exec_ret, grid_size](std::vector<hpx::lcos::local::promise<kick_return>> &&promises, std::vector<std::function<void()>>&& deleters) {
             while (!exec_ret.first()) {
                hpx::this_thread::yield();
             }
@@ -500,9 +504,13 @@ void tree::gpu_daemon() {
                promises[i].set_value(exec_ret.second[i]);
                kick_params_alloc.deallocate(all_params[i]);
             }
+            std::atomic<int> ds(0);
+            for( auto& d : deleters) {
+               d();
+            }
             CUDA_FREE(exec_ret.second);
             all_params_alloc.deallocate(all_params);
-         },std::move(promises));
+         },std::move(promises), std::move(deleters));
          grid_size = std::min(KICK_GRID_SIZE, (int) cuda_node_count);
       }
    }
@@ -522,8 +530,10 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
          });
       }
    }
+
    gpu_kick gpu;
    tree_ptr me;
+   gpu.stream = get_stream();
    me.ptr = (uintptr_t)(this);
    me.rank = hpx_rank();
    kick_params_type *new_params;
@@ -532,8 +542,6 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    new_params->tptr = me;
    new_params->dchecks[params->depth] = params->dchecks[params->depth];
    new_params->echecks[params->depth] = params->echecks[params->depth];
-   new_params->dchecks[params->depth].to_device();
-   new_params->echecks[params->depth].to_device();
    new_params->L[params->depth] = params->L[params->depth];
    new_params->Lpos[params->depth] = params->Lpos[params->depth];
    new_params->depth = params->depth;

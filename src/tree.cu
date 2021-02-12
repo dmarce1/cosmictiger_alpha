@@ -417,8 +417,7 @@ cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream
    return ready_func;
 }
 
-std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type **params, int grid_size) {
-   auto stream = get_stream();
+std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type **params, int grid_size,std::pair<cudaStream_t,cudaEvent_t> stream) {
    const size_t shmemsize = sizeof(cuda_kick_shmem);
    kick_return * returns;
    CUDA_MALLOC(returns, grid_size);
