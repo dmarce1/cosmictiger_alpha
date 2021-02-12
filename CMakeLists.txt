@@ -22,7 +22,7 @@ find_package(Silo REQUIRED)
 find_package(Boost REQUIRED)
 enable_language(CUDA)
 
-#set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -ffast-math -march=native")
+set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -ffast-math -march=native")
 
 set(cosmictiger_source_files
     src/cuda.cpp
@@ -97,7 +97,7 @@ add_hpx_executable(
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                       --use_fast_math --gpu-architecture=compute_60;
+                       --use_fast_math -G --gpu-architecture=compute_75;
                         >)
                         
                         

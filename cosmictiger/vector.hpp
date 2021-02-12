@@ -34,7 +34,7 @@ class vector {
       BLOCK;
       SYNC;
       for (size_t i = b + tid; i < e; i += blocksize) {
-         ptr[i].T::~T();
+         (*this)[i].T::~T();
       }SYNC;
    }
    CUDA_EXPORT
@@ -65,13 +65,14 @@ public:
       auto func = [dptr, sz_, new_ptr_]() {
          cuda_allocator allocator;
          if (dptr) {
-            for( size_t i = 0; i < sz_; i++) {
-               dptr[i].T::~T();
-            }
+ //           for( size_t i = 0; i < sz_; i++) {
+//               dptr[i].T::~T();
+ //           }
             allocator.deallocate(new_ptr_);
             CUDA_FREE(dptr);
          }
       };
+      dontfree = true;
       ptr = new_ptr;
       return func;
    }
@@ -96,7 +97,7 @@ public:
          ptr = nullptr;
          cap = 0;
       }SYNC;
-      reserve(other.sz);
+      reserve(other.cap);
       if (tid == 0) {
          sz = other.sz;
          cap = other.sz;
@@ -104,16 +105,17 @@ public:
       construct(0, other.sz);
       SYNC;
       for (size_t i = tid; i < other.sz; i += blocksize) {
-         ptr[i] = other.ptr[i];
+         (*this)[i] = other[i];
       }SYNC;
    }
    CUDA_EXPORT
    inline vector& operator=(const vector &other) {
       THREAD;
       BLOCK;
+      reserve(other.cap);
       resize(other.size());
       for (int i = tid; i < other.size(); i += blocksize) {
-         ptr[i] = other.ptr[i];
+         (*this)[i] = other[i];
       }
       return *this;
    }
@@ -164,7 +166,7 @@ public:
          }SYNC;
          for (size_t i = tid; i < sz; i += blocksize) {
             new (new_ptr + i) T();
-            new_ptr[i] = std::move(ptr[i]);
+            new_ptr[i] = std::move((*this)[i]);
          }
          destruct(0, sz);
          if (tid == 0) {
@@ -184,11 +186,11 @@ public:
       reserve(new_size);
       auto oldsz = sz;
       SYNC;
+      destruct(new_size, oldsz);
       if (tid == 0) {
          sz = new_size;
       }SYNC;
       construct(oldsz, new_size);
-      destruct(new_size, oldsz);
       SYNC;
    }
    CUDA_EXPORT

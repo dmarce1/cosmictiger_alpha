@@ -16,7 +16,7 @@
 #define TEST_TREE
 #define TEST_RADIX
 #define TEST_BOUNDS
-#define TEST_FORCE
+//#define TEST_FORCE
 #endif
 //#define TEST_STACK
 
@@ -26,7 +26,7 @@
 #define TREE_RADIX_MAX 52
 #define TREE_SORT_MULTITHREAD
 #define TREE_MIN_PARTS2THREAD (64*1024)
-#define WORKSPACE_SIZE 512
+#define WORKSPACE_SIZE 2048
 #define KICK_GRID_SIZE (64)
 #define KICK_BLOCK_SIZE 32
 #define KICK_PP_MAX size_t(256)

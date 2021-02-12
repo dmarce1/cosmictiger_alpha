@@ -67,6 +67,7 @@ template<class T>
 CUDA_EXPORT inline void cuda_malloc(T **ptr, int64_t nele, const char *file, int line) {
 #ifdef __CUDA_ARCH__
    *ptr = (T*) malloc(nele * sizeof(T));
+   MEM_CHECK_POINTER(*ptr, file, line);
 #else
    const auto ec = cudaMallocManaged(ptr, nele * sizeof(T));
    MEM_CHECK_POINTER(*ptr, file, line);
@@ -99,14 +100,13 @@ public:
       allocs = decltype(allocs)();
    }
    managed_allocator() {
-      CUDA_MALLOC(current_alloc, page_size);
       current_index = page_size;
    }
    T* allocate() {
+      std::lock_guard<hpx::lcos::local::mutex> lock(mtx);
       if (current_index == page_size) {
          CUDA_MALLOC(current_alloc, page_size);
          current_index = 0;
-         std::lock_guard<hpx::lcos::local::mutex> lock(mtx);
          allocs.push_back(current_alloc);
       }
       new (current_alloc + current_index) T();

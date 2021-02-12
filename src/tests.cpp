@@ -60,7 +60,7 @@ void kick_test() {
    new (four_indices) ewald_indices(EWALD_NFOUR,true);
    new (pparts) periodic_parts();
    tree::cuda_set_kick_params(parts_ptr, real_indices, four_indices, pparts);
-   for (int i = 0; i < 2; i++) {
+   for (int i = 0; i < 3; i++) {
       tree root;
       timer tm_sort, tm_kick, tm_cleanup;
       tm_sort.start();
