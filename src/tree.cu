@@ -74,16 +74,6 @@ cuda_kick(kick_params_type * params_ptr)
       auto &count = shmem.count;
 
       const auto theta2 = params.theta * params.theta;
-      array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
-      array<int*, N_INTERACTION_TYPES> list_counts;
-      all_checks[CC_CP_DIRECT] = params.dstack.get_top_list();
-      all_checks[CC_CP_EWALD] = params.estack.get_top_list();
-      all_checks[PC_PP_DIRECT] = params.dstack.get_top_list();
-      all_checks[PC_PP_EWALD] = params.estack.get_top_list();
-      list_counts[CC_CP_DIRECT] = &params.dstack.get_top_count();
-      list_counts[CC_CP_EWALD] = &params.estack.get_top_count();
-      list_counts[PC_PP_DIRECT] = &params.dstack.get_top_count();
-      list_counts[PC_PP_EWALD] = &params.estack.get_top_count();
       array<array<tree_ptr, WORKSPACE_SIZE>*, NITERS> lists;
       auto &multis = params.multi_interactions;
       auto &parti = params.part_interactions;
@@ -97,8 +87,8 @@ cuda_kick(kick_params_type * params_ptr)
       const auto &mypos = ((tree*) tptr)->pos;
       int ninteractions = ((tree*) tptr)->children[0].rank == -1 ? 4 : 2;
       for (int type = 0; type < ninteractions; type++) {
-         auto *checks = (all_checks[type]);
          const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
+         auto& checks = ewald_dist ? params.echecks[params.depth] : params.dchecks[params.depth];
          const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
          if (tid < NITERS) {
             count[tid] = 0;
@@ -106,7 +96,7 @@ cuda_kick(kick_params_type * params_ptr)
          __syncthreads();
          int check_count;
          do {
-            check_count = (*list_counts[type]);
+            check_count = checks.size();
             if (check_count) {
                const int cimax = ((check_count - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
                for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
@@ -168,8 +158,7 @@ cuda_kick(kick_params_type * params_ptr)
                }
                __syncthreads();
                check_count = 2 * count[CI];
-               (type == CC_CP_DIRECT || type == PC_PP_DIRECT) ?
-               params.dstack.resize_top(check_count) : params.estack.resize_top(check_count);
+               checks.resize(check_count);
                for (int i = tid; i < count[CI]; i += KICK_BLOCK_SIZE) {
                   const auto children = next_checks[i].get_children();
                   for (int j = 0; j < NCHILD; j++) {
@@ -179,8 +168,7 @@ cuda_kick(kick_params_type * params_ptr)
                __syncthreads();
                if (type == CC_CP_DIRECT || type == CC_CP_EWALD) {
                   check_count += count[OI];
-                  (type == CC_CP_DIRECT || type == PC_PP_DIRECT) ?
-                  params.dstack.resize_top(check_count) : params.estack.resize_top(check_count);
+                  checks.resize(check_count);
                   for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
                      checks[2 * count[CI] + i] = opened_checks[i];
                   }
@@ -237,19 +225,19 @@ cuda_kick(kick_params_type * params_ptr)
          }
       }
 #ifdef COUNT_FLOPS
-         __syncthreads();
-         for( int P = KICK_BLOCK_SIZE/2; P >= 1; P/=2) {
-            if( tid < P ) {
-               flops[tid] += flops[tid+P];
-            }
-            __syncthreads();
+      __syncthreads();
+      for( int P = KICK_BLOCK_SIZE/2; P >= 1; P/=2) {
+         if( tid < P ) {
+            flops[tid] += flops[tid+P];
          }
-         rc.flops = flops[0];
+         __syncthreads();
+      }
+      rc.flops = flops[0];
 #endif
    }
    if (!(((tree*) tptr)->children[0].rank == -1)) {
-      params.dstack.copy_top();
-      params.estack.copy_top();
+      params.dchecks[params.depth+1] = params.dchecks[params.depth];
+      params.echecks[params.depth+1] = params.echecks[params.depth];
       if (tid == 0) {
          params.depth++;
          params.L[params.depth] = L;
@@ -258,8 +246,8 @@ cuda_kick(kick_params_type * params_ptr)
       }
       __syncthreads();
       kick_return rc1 = cuda_kick(params_ptr);
-      params.dstack.pop();
-      params.estack.pop();
+      params.dchecks[params.depth].swap(params.dchecks[params.depth-1]);
+      params.echecks[params.depth].swap(params.echecks[params.depth-1]);
       if (tid == 0) {
          params.L[params.depth] = L;
          params.tptr = ((tree*) tptr)->children[RIGHT];
@@ -353,12 +341,17 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                     CUDA_CHECK(cudaDeviceSynchronize());
+                        CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
    const int &bid = blockIdx.x;
    res[bid] = cuda_kick(params[bid]);
+   __syncthreads();
+   if( threadIdx.x == 0 ) {
+      params[bid]->kick_params_type::~kick_params_type();
+   }
+
 
 }
 
@@ -393,7 +386,7 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
 cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream.first>>>(params_ptr);
-                     CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
+                        CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
 
    struct cuda_ewald_future_shared {
       std::pair<cudaStream_t, cudaEvent_t> stream;

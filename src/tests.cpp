@@ -74,8 +74,8 @@ void kick_test() {
       kick_params_type* params_ptr;
       CUDA_MALLOC(params_ptr,1);
       new (params_ptr) kick_params_type();
-      params_ptr->dstack.copy_to(&root_ptr,1);
-      params_ptr->estack.copy_to(&root_ptr,1);
+      params_ptr->dchecks[0].push_back(root_ptr);
+      params_ptr->echecks[0].push_back(root_ptr);
 
       // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
       array<fixed32,NDIM> Lpos;

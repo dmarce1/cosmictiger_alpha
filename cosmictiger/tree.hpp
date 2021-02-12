@@ -10,6 +10,7 @@
 #include <cosmictiger/lockfree_queue.hpp>
 #include <cosmictiger/interactions.hpp>
 #include <cosmictiger/global.hpp>
+#include <cosmictiger/vector.hpp>
 
 #include <functional>
 
@@ -215,69 +216,6 @@ struct pair {
    B second;
 };
 
-struct kick_params_stack_type {
-   array<tree_ptr, TREE_PTR_STACK> checks;
-   array<int, TREE_MAX_DEPTH> counts;
-   int count_size;
-   int stack_size;
-   CUDA_EXPORT inline kick_params_stack_type() {
-      THREADID;
-      if (tid == 0) {
-         count_size = stack_size = 0;
-      }CUDA_SYNC();
-   }
-   CUDA_EXPORT inline tree_ptr* get_top_list() {
-      return &checks[stack_size - counts[count_size - 1]];
-   }
-   CUDA_EXPORT inline
-   int& get_top_count() {
-      return counts[count_size - 1];
-   }
-   CUDA_EXPORT inline
-   void pop() {
-      THREADID;
-      if (tid == 0) {
-         stack_size -= counts[count_size - 1];
-         count_size--;
-      }CUDA_SYNC();
-   }
-   CUDA_EXPORT inline
-   void copy_to(tree_ptr *stk, int sz) {
-      THREADID;
-      BLOCKSIZE;
-      for (int i = stack_size + tid; i < stack_size + sz; i += blocksize) {
-         checks[i] = stk[i - stack_size];
-      }CUDA_SYNC();
-      if (tid == 0) {
-         stack_size += sz;
-         counts[count_size] = sz;
-         count_size++;
-      }
-   }
-   CUDA_EXPORT inline
-   void copy_top() {
-      THREADID;
-      BLOCKSIZE;
-      for (int i = tid; i < counts[count_size - 1]; i += blocksize) {
-         checks[stack_size + i] = checks[stack_size - counts[count_size - 1] + i];
-      }CUDA_SYNC();
-      if (tid == 0) {
-         stack_size += counts[count_size - 1];
-         counts[count_size] = counts[count_size - 1];
-         count_size++;
-      }
-   }
-   CUDA_EXPORT inline
-   void resize_top(int sz) {
-      THREADID;
-      if (tid == 0) {
-         const auto old_sz = counts[count_size - 1];
-         counts[count_size - 1] = sz;
-         stack_size += sz - old_sz;
-      }CUDA_SYNC();
-   }
-};
-
 
 struct cuda_ewald_shmem {
    array<expansion<accum_real>, KICK_BLOCK_SIZE> Lreduce;
@@ -304,8 +242,8 @@ struct kick_params_type {
    array<tree_ptr, WORKSPACE_SIZE> part_interactions;
    array<tree_ptr, WORKSPACE_SIZE> next_checks;
    array<tree_ptr, WORKSPACE_SIZE> opened_checks;
-   kick_params_stack_type dstack;
-   kick_params_stack_type estack;
+   array<vector<tree_ptr>, TREE_MAX_DEPTH> dchecks;
+   array<vector<tree_ptr>, TREE_MAX_DEPTH> echecks;
    array<expansion<accum_real>, TREE_MAX_DEPTH> L;
    array<array<fixed32,NDIM>,TREE_MAX_DEPTH> Lpos;
    tree_ptr tptr;

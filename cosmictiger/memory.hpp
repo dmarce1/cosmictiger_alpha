@@ -33,6 +33,15 @@
       ABORT();                                                                               \
    }
 
+#ifdef __CUDA_ARCH__
+#define CUDA_FREE(ptr)                                                                                       \
+      if( ptr == nullptr ) {                                                                                 \
+         printf( "Attempt to free null pointer. File: %s Line %i\n", __FILE__, __LINE__);                    \
+         ABORT();                                                                                            \
+      } else {                                                                                               \
+         free(ptr);                                                                      \
+      }
+#else
 #define CUDA_FREE(ptr)                                                                                       \
       if( ptr == nullptr ) {                                                                                 \
          printf( "Attempt to free null pointer. File: %s Line %i\n", __FILE__, __LINE__);                    \
@@ -44,6 +53,8 @@
             ABORT();                                                                                         \
          }                                                                                                   \
       }
+#endif
+
 
 #define CUDA_MALLOC(ptr,nele) cuda_malloc(&ptr,nele,__FILE__,__LINE__)
 
@@ -51,17 +62,14 @@
 #define FREE(ptr) free(ptr)
 
 template<class T>
-void cuda_malloc(T **ptr, int64_t nele, const char *file, int line) {
+CUDA_EXPORT inline void cuda_malloc(T **ptr, int64_t nele, const char *file, int line) {
+#ifdef __CUDA_ARCH__
+   *ptr = (T*) malloc(nele * sizeof(T));
+#else
    const auto ec = cudaMallocManaged(ptr, nele * sizeof(T));
-//   size_t free, total;
-//   CUDA_CHECK(cudaMemGetInfo(&free, &total));
-//   if (free < nele * sizeof(T)) {
-//      printf("Attempt to allocate %li bytes from line %i in file %s with only %li bytes remaining.\n", sizeof(T) * nele,
-//            line, file, free);
-//      ABORT();
-//   }
    MEM_CHECK_POINTER(*ptr, file, line);
    MEM_CHECK_ERROR(ec, file, line);
+#endif
 }
 
 template<class T>

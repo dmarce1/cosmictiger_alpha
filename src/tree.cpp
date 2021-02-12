@@ -20,11 +20,11 @@ void tree::set_particle_set(particle_set *parts) {
 std::atomic<int> tree::cuda_node_count(0);
 std::atomic<int> tree::cpu_node_count(0);
 
-inline auto cuda_depth() {
+auto cuda_depth() {
    return int(log(global().cuda.devices[0].multiProcessorCount * OVERSUBSCRIPTION) / log(2));
 }
 
-inline hpx::future<sort_return> tree::create_child(sort_params &params) {
+hpx::future<sort_return> tree::create_child(sort_params &params) {
    static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
    tree_ptr id;
    id.rank = 0;
@@ -265,8 +265,8 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
          kick_params_type *new_params;
          new_params = (kick_params_type*) kick_params_alloc.allocate();
          new (new_params) kick_params_type;
-         new_params->dstack.copy_to(params_ptr->dstack.get_top_list(), params_ptr->dstack.get_top_count());
-         new_params->estack.copy_to(params_ptr->estack.get_top_list(), params_ptr->estack.get_top_count());
+         new_params->dchecks[params_ptr->depth] = params_ptr->dchecks[params_ptr->depth];
+         new_params->echecks[params_ptr->depth] = params_ptr->echecks[params_ptr->depth];
          new_params->L[params_ptr->depth] = params_ptr->L[params_ptr->depth];
          new_params->Lpos[params_ptr->depth] = params_ptr->Lpos[params_ptr->depth];
          new_params->depth = params_ptr->depth;
@@ -319,23 +319,14 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 
    const auto theta2 = params.theta * params.theta;
    array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
-   array<int*, N_INTERACTION_TYPES> list_counts;
-   all_checks[CC_CP_DIRECT] = params.dstack.get_top_list();
-   all_checks[CC_CP_EWALD] = params.estack.get_top_list();
-   all_checks[PC_PP_DIRECT] = params.dstack.get_top_list();
-   all_checks[PC_PP_EWALD] = params.estack.get_top_list();
-   list_counts[CC_CP_DIRECT] = &params.dstack.get_top_count();
-   list_counts[CC_CP_EWALD] = &params.estack.get_top_count();
-   list_counts[PC_PP_DIRECT] = &params.dstack.get_top_count();
-   list_counts[PC_PP_EWALD] = &params.estack.get_top_count();
    auto &multis = params.multi_interactions;
    auto &parti = params.part_interactions;
    auto &next_checks = params.next_checks;
    auto &opened_checks = params.opened_checks;
    int ninteractions = is_leaf() ? 4 : 2;
    for (int type = 0; type < ninteractions; type++) {
-      auto *checks = (all_checks[type]);
       const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
+      auto &checks = ewald_dist ? params.echecks[params.depth] : params.dchecks[params.depth];
       const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
       params.npart = params.nmulti = params.nnext = 0;
 
@@ -344,7 +335,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 #ifdef TEST_CHECKLIST_TIME
             tm.start();
 #endif
-         for (int ci = 0; ci < *(list_counts[type]); ci++) {
+         for (int ci = 0; ci < checks.size(); ci++) {
             const auto other_radius = checks[ci].get_radius();
             const auto other_pos = checks[ci].get_pos();
             float d2 = 0.f;
@@ -372,13 +363,17 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          tm.stop();
 #endif
          if (type == PC_PP_DIRECT || type == CC_CP_DIRECT) {
-            params.dstack.pop();
-            params.dstack.copy_to(next_checks.data(), params.nnext);
+            params.dchecks[params.depth].resize(0);
+            for (int i = 0; i < params.nnext; i++) {
+               params.dchecks[params.depth].push_back(next_checks[i]);
+            }
          } else {
-            params.estack.pop();
-            params.estack.copy_to(next_checks.data(), params.nnext);
+            params.echecks[params.depth].resize(0);
+            for (int i = 0; i < params.nnext; i++) {
+               params.echecks[params.depth].push_back(next_checks[i]);
+            }
          }
-      } while (direct && *(list_counts[type]));
+      } while (direct && checks.size());
 
       switch (type) {
       case CC_CP_DIRECT:
@@ -405,16 +400,17 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
    if (!is_leaf()) {
       // printf("4\n");
       const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
-      params.dstack.copy_top();
-      params.estack.copy_top();
       params.depth++;
+      params.dchecks[params.depth] = params.dchecks[params.depth - 1];
+      params.echecks[params.depth] = params.echecks[params.depth - 1];
       params.L[params.depth] = L;
       params.Lpos[params.depth] = pos;
       array<hpx::future<kick_return>, NCHILD> futs;
       futs[LEFT] = children[LEFT].kick(params_ptr, try_thread);
+
       //  printf("5\n");
-      params.dstack.pop();
-      params.estack.pop();
+      params.dchecks[params.depth].swap(params.dchecks[params.depth - 1]);
+      params.echecks[params.depth].swap(params.echecks[params.depth - 1]);
       params.L[params.depth] = L;
       futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
       params.depth--;
@@ -502,7 +498,6 @@ void tree::gpu_daemon() {
             }
             for (int i = 0; i < grid_size; i++) {
                promises[i].set_value(exec_ret.second[i]);
-               all_params[i]->kick_params_type::~kick_params_type();
                kick_params_alloc.deallocate(all_params[i]);
             }
             CUDA_FREE(exec_ret.second);
@@ -535,8 +530,10 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    new_params = (kick_params_type*) kick_params_alloc.allocate();
    new (new_params) kick_params_type();
    new_params->tptr = me;
-   new_params->dstack.copy_to(params->dstack.get_top_list(), params->dstack.get_top_count());
-   new_params->estack.copy_to(params->estack.get_top_list(), params->estack.get_top_count());
+   new_params->dchecks[params->depth] = params->dchecks[params->depth];
+   new_params->echecks[params->depth] = params->echecks[params->depth];
+   new_params->dchecks[params->depth].to_device();
+   new_params->echecks[params->depth].to_device();
    new_params->L[params->depth] = params->L[params->depth];
    new_params->Lpos[params->depth] = params->Lpos[params->depth];
    new_params->depth = params->depth;
