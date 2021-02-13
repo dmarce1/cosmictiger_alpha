@@ -10,7 +10,7 @@
 #include <cosmictiger/lockfree_queue.hpp>
 #include <cosmictiger/interactions.hpp>
 #include <cosmictiger/global.hpp>
-#include <cosmictiger/vector.hpp>
+#include <cosmictiger/stack_vector.hpp>
 
 #include <functional>
 
@@ -242,8 +242,8 @@ struct kick_params_type {
    array<tree_ptr, WORKSPACE_SIZE> part_interactions;
    array<tree_ptr, WORKSPACE_SIZE> next_checks;
    array<tree_ptr, WORKSPACE_SIZE> opened_checks;
-   array<vector<tree_ptr>, TREE_MAX_DEPTH> dchecks;
-   array<vector<tree_ptr>, TREE_MAX_DEPTH> echecks;
+   stack_vector<tree_ptr> dchecks;
+   stack_vector<tree_ptr> echecks;
    array<expansion<accum_real>, TREE_MAX_DEPTH> L;
    array<array<fixed32,NDIM>,TREE_MAX_DEPTH> Lpos;
    tree_ptr tptr;

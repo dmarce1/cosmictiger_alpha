@@ -21,10 +21,12 @@ void* cuda_allocator::allocate(size_t sz) {
       total_sz *= 2;
       index++;
    }
+  // printf( "%li\n", sz);
    std::lock_guard < mutex_type > lock(mtx);
    allocated += total_sz;
    freelist.resize(std::max((int) freelist.size(),index + 1));
    void *ptr;
+//   printf( "%li %i\n", freelist[index].size(), index);
    if (freelist[index].empty()) {
       CUDA_CHECK(cudaMalloc(&ptr, chunk_size * total_sz));
       printf( "Allocating %li bytes on device\n", chunk_size * total_sz);

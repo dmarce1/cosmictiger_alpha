@@ -88,7 +88,7 @@ cuda_kick(kick_params_type * params_ptr)
       int ninteractions = ((tree*) tptr)->children[0].rank == -1 ? 4 : 2;
       for (int type = 0; type < ninteractions; type++) {
          const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
-         auto& checks = ewald_dist ? params.echecks[params.depth] : params.dchecks[params.depth];
+         auto& checks = ewald_dist ? params.echecks : params.dchecks;
          const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
          if (tid < NITERS) {
             count[tid] = 0;
@@ -236,8 +236,8 @@ cuda_kick(kick_params_type * params_ptr)
 #endif
    }
    if (!(((tree*) tptr)->children[0].rank == -1)) {
-      params.dchecks[params.depth+1] = params.dchecks[params.depth];
-      params.echecks[params.depth+1] = params.echecks[params.depth];
+      params.dchecks.push_top();
+      params.echecks.push_top();
       if (tid == 0) {
          params.depth++;
          params.L[params.depth] = L;
@@ -246,8 +246,8 @@ cuda_kick(kick_params_type * params_ptr)
       }
       __syncthreads();
       kick_return rc1 = cuda_kick(params_ptr);
-      params.dchecks[params.depth].swap(params.dchecks[params.depth-1]);
-      params.echecks[params.depth].swap(params.echecks[params.depth-1]);
+      params.dchecks.pop_top();
+      params.echecks.pop_top();
       if (tid == 0) {
          params.L[params.depth] = L;
          params.tptr = ((tree*) tptr)->children[RIGHT];

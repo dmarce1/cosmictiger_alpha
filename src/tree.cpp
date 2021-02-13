@@ -13,7 +13,6 @@ particle_set *tree::particles;
 
 static finite_vector_allocator<sizeof(kick_params_type)> kick_params_alloc;
 
-
 void tree::set_particle_set(particle_set *parts) {
    particles = parts;
 }
@@ -263,12 +262,12 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
       if (!thread) {
          return fast_future<kick_return>(((tree*) ptr)->kick(params_ptr));
       } else {
-         finite_vector_allocator<sizeof(kick_params_type)> kick_params_alloc;
+         finite_vector_allocator < sizeof(kick_params_type) > kick_params_alloc;
          kick_params_type *new_params;
          new_params = (kick_params_type*) kick_params_alloc.allocate();
          new (new_params) kick_params_type;
-         new_params->dchecks[params_ptr->depth] = params_ptr->dchecks[params_ptr->depth];
-         new_params->echecks[params_ptr->depth] = params_ptr->echecks[params_ptr->depth];
+         new_params->dchecks = params_ptr->dchecks.copy_top();
+         new_params->echecks = params_ptr->echecks.copy_top();
          new_params->L[params_ptr->depth] = params_ptr->L[params_ptr->depth];
          new_params->Lpos[params_ptr->depth] = params_ptr->Lpos[params_ptr->depth];
          new_params->depth = params_ptr->depth;
@@ -278,7 +277,7 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
          new_params->t0 = params_ptr->t0;
          new_params->rung = params_ptr->rung;
          auto func = [this, new_params]() {
-            finite_vector_allocator<sizeof(kick_params_type)> kick_params_alloc;
+            finite_vector_allocator < sizeof(kick_params_type) > kick_params_alloc;
             auto rc = ((tree*) ptr)->kick(new_params);
             thread_cnt--;
             kick_params_alloc.deallocate(new_params);
@@ -329,7 +328,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
    int ninteractions = is_leaf() ? 4 : 2;
    for (int type = 0; type < ninteractions; type++) {
       const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
-      auto &checks = ewald_dist ? params.echecks[params.depth] : params.dchecks[params.depth];
+      auto &checks = ewald_dist ? params.echecks : params.dchecks;
       const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
       params.npart = params.nmulti = params.nnext = 0;
 
@@ -366,14 +365,14 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          tm.stop();
 #endif
          if (type == PC_PP_DIRECT || type == CC_CP_DIRECT) {
-            params.dchecks[params.depth].resize(0);
+            params.dchecks.resize(0);
             for (int i = 0; i < params.nnext; i++) {
-               params.dchecks[params.depth].push_back(next_checks[i]);
+               params.dchecks.push(next_checks[i]);
             }
          } else {
-            params.echecks[params.depth].resize(0);
+            params.echecks.resize(0);
             for (int i = 0; i < params.nnext; i++) {
-               params.echecks[params.depth].push_back(next_checks[i]);
+               params.echecks.push(next_checks[i]);
             }
          }
       } while (direct && checks.size());
@@ -404,16 +403,16 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
       // printf("4\n");
       const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
       params.depth++;
-      params.dchecks[params.depth] = params.dchecks[params.depth - 1];
-      params.echecks[params.depth] = params.echecks[params.depth - 1];
+      params.dchecks.push_top();
+      params.echecks.push_top();
       params.L[params.depth] = L;
       params.Lpos[params.depth] = pos;
       array<hpx::future<kick_return>, NCHILD> futs;
       futs[LEFT] = children[LEFT].kick(params_ptr, try_thread);
 
       //  printf("5\n");
-      params.dchecks[params.depth].swap(params.dchecks[params.depth - 1]);
-      params.echecks[params.depth].swap(params.echecks[params.depth - 1]);
+      params.dchecks.pop_top();
+      params.echecks.pop_top();
       params.L[params.depth] = L;
       futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
       params.depth--;
@@ -450,12 +449,13 @@ std::pair<std::function<bool()>, kick_return*>;
 cuda_exec_return cuda_execute_kick_kernel(kick_params_type **params, int grid_size);
 void cuda_execute_ewald_cc_kernel(kick_params_type *params_ptr);
 
-
 void tree::gpu_daemon() {
    using namespace std::chrono_literals;
 
    printf("Starting gpu kick daemon\n");
    daemon_running = true;
+   int minq1 = KICK_GRID_SIZE;
+   int minq2 = KICK_GRID_SIZE;
    while (!shutdown_daemon) {
       timer tm;
       do {
@@ -484,20 +484,20 @@ void tree::gpu_daemon() {
             }
             all_params_alloc.deallocate(all_params);
          },std::move(promises));
-         grid_size = std::min(KICK_GRID_SIZE, (int) cpu_node_count);
+         minq1 = KICK_GRID_SIZE;
       }
       while (gpu_queue.size() >=KICK_GRID_SIZE) {
          int grid_size = std::min((int) gpu_queue.size(), KICK_GRID_SIZE);
          std::vector < hpx::lcos::local::promise < kick_return >> promises;
-         std::vector<std::function<void()>> deleters;
+         std::vector < std::function < void() >> deleters;
          static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
          kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate();
          auto stream = get_stream();
          for (int i = 0; i < grid_size; i++) {
             auto tmp = gpu_queue.pop();
             all_params[i] = tmp.params;
-            deleters.push_back(tmp.params->dchecks[tmp.params->depth].to_device(stream.first));
-            deleters.push_back(tmp.params->echecks[tmp.params->depth].to_device(stream.first));
+            deleters.push_back(tmp.params->dchecks.to_device(stream.first));
+            deleters.push_back(tmp.params->echecks.to_device(stream.first));
             promises.push_back(std::move(tmp.promise));
          }
          printf("Executing %i blocks\n", grid_size);
@@ -544,8 +544,8 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    new_params = (kick_params_type*) kick_params_alloc.allocate();
    new (new_params) kick_params_type();
    new_params->tptr = me;
-   new_params->dchecks[params->depth] = params->dchecks[params->depth];
-   new_params->echecks[params->depth] = params->echecks[params->depth];
+   new_params->dchecks = params->dchecks.copy_top();
+   new_params->echecks = params->echecks.copy_top();
    new_params->L[params->depth] = params->L[params->depth];
    new_params->Lpos[params->depth] = params->Lpos[params->depth];
    new_params->depth = params->depth;

@@ -54,8 +54,8 @@ public:
       cuda_allocator allocator;
     //  printf( "allocating\n");
       new_ptr = (T*) allocator.allocate(cap*sizeof(T));
-      static std::atomic<size_t> alloced(0);
-      alloced += cap * sizeof(T);
+//      static std::atomic<size_t> alloced(0);
+  //    alloced += cap * sizeof(T);
     //  printf( " to device %li\n", (size_t) alloced);
       CHECK_POINTER(new_ptr);
     //  printf( "1\n");
@@ -69,14 +69,14 @@ public:
       auto sz_ = sz;
       auto new_ptr_ = new_ptr;
       auto cap_ = cap;
-      auto func = [dptr, sz_, new_ptr_, cap_]() {
+      auto func = [dptr, sz_, new_ptr_]() {
          cuda_allocator allocator;
          if (dptr) {
             for( size_t i = 0; i < sz_; i++) {
                dptr[i].T::~T();
             }
             allocator.deallocate(new_ptr_);
-            alloced -= cap_ * sizeof(T);
+   //         alloced -= cap_ * sizeof(T);
             CUDA_FREE(dptr);
          }
       };
