@@ -16,45 +16,45 @@
 #define BLOCKSIZE constexpr int blocksize = 1
 #define THREADID constexpr int tid = 0
 #endif
-
-#ifndef __CUDACC__
-
-template<size_t SIZE>
-class finite_vector_allocator {
-   static constexpr size_t page_size = ((1024 * 1024) / SIZE + 1);
-   static std::stack<int8_t*> freelist;
-   static mutex_type mtx;
-public:
-   finite_vector_allocator() {
-   }
-   void* allocate() {
-      std::lock_guard<mutex_type> lock(mtx);
-      if (freelist.empty()) {
-         int8_t *ptr;
-         CUDA_MALLOC(ptr, page_size * SIZE);
-         for (int i = 0; i < page_size; i++) {
-            freelist.push(ptr + i * SIZE);
-         }
-      }
-      int8_t *ptr = freelist.top();
-      freelist.pop();
-      return ptr;
-   }
-   ~finite_vector_allocator() {
-   }
-   void deallocate(void *ptr) {
-      std::lock_guard<mutex_type> lock(mtx);
-      freelist.push((int8_t*) ptr);
-   }
-};
-
-template<size_t SIZE>
-mutex_type finite_vector_allocator<SIZE>::mtx;
-
-template<size_t SIZE>
-std::stack<int8_t*> finite_vector_allocator<SIZE>::freelist;
-
-#endif
+//
+//#ifndef __CUDACC__
+//
+//template<size_t SIZE>
+//class finite_vector_allocator {
+//   static constexpr size_t page_size = ((1024 * 1024) / SIZE + 1);
+//   static std::stack<int8_t*> freelist;
+//   static mutex_type mtx;
+//public:
+//   finite_vector_allocator() {
+//   }
+//   void* allocate() {
+//      std::lock_guard<mutex_type> lock(mtx);
+//      if (freelist.empty()) {
+//         int8_t *ptr;
+//         CUDA_MALLOC(ptr, page_size * SIZE);
+//         for (int i = 0; i < page_size; i++) {
+//            freelist.push(ptr + i * SIZE);
+//         }
+//      }
+//      int8_t *ptr = freelist.top();
+//      freelist.pop();
+//      return ptr;
+//   }
+//   ~finite_vector_allocator() {
+//   }
+//   void deallocate(void *ptr) {
+//      std::lock_guard<mutex_type> lock(mtx);
+//      freelist.push((int8_t*) ptr);
+//   }
+//};
+//
+//template<size_t SIZE>
+//mutex_type finite_vector_allocator<SIZE>::mtx;
+//
+//template<size_t SIZE>
+//std::stack<int8_t*> finite_vector_allocator<SIZE>::freelist;
+//
+//#endif
 
 //
 //template<size_t SIZE>

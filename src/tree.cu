@@ -345,12 +345,13 @@ cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
                         CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type **params) {
+CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type *params) {
    const int &bid = blockIdx.x;
-   res[bid] = cuda_kick(params[bid]);
+   res[bid] = cuda_kick(params + bid);
    __syncthreads();
    if( threadIdx.x == 0 ) {
-      params[bid]->kick_params_type::~kick_params_type();
+ //     printf( "Kick done\n");
+      params[bid].kick_params_type::~kick_params_type();
    }
 
 
@@ -419,11 +420,12 @@ cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream
    return ready_func;
 }
 
-std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type **params, int grid_size,std::pair<cudaStream_t,cudaEvent_t> stream) {
+std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type *params, int grid_size,std::pair<cudaStream_t,cudaEvent_t> stream) {
    const size_t shmemsize = sizeof(cuda_kick_shmem);
-   kick_return * returns;
+   unified_allocator alloc;
+   kick_return * returns = (kick_return*) alloc.allocate(grid_size*sizeof(kick_return));
   // printf( "a\n");
-   CUDA_MALLOC(returns, grid_size);
+ //  CUDA_MALLOC(returns, grid_size);
   // printf( "b\n");
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream.first>>>(returns,params);/**/
@@ -443,7 +445,7 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
          if (!ready) {
             if (cudaStreamQuery(stream.first) == cudaSuccess) {
                ready = true;
- //              CUDA_CHECK(cudaStreamSynchronize(stream.first));
+               CUDA_CHECK(cudaStreamSynchronize(stream.first));
                cleanup_stream(stream);
             }
          }

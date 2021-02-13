@@ -8,10 +8,10 @@
 #include <cosmictiger/cuda.hpp>
 #include <cstdlib>
 
-#define STACK_SIZE (16*1024)
+#define STACK_SIZE (32*1024)
 #define HEAP_SIZE 128*1024*1024
 #define RECUR_LIMIT 0
-#define L2FETCH 128
+#define L2FETCH 32
 #define PENDINGLAUNCHES 128
 
 cuda_properties cuda_init() {
@@ -58,16 +58,16 @@ cuda_properties cuda_init() {
       printf("Unable to set L2 fetch granularity to to %li\n", L2FETCH);
       fail = true;
    }
-   value = PENDINGLAUNCHES;
-   CUDA_CHECK(cudaDeviceSetLimit(cudaLimitDevRuntimePendingLaunchCount , value));
-   CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitDevRuntimePendingLaunchCount ));
-   if (value != L2FETCH) {
-      printf("Unable to set pending launch count to %li\n",  PENDINGLAUNCHES);
-      fail = true;
-   }
+//   value = PENDINGLAUNCHES;
+//   CUDA_CHECK(cudaDeviceSetLimit(cudaLimitDevRuntimePendingLaunchCount , value));
+//   CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitDevRuntimePendingLaunchCount ));
+//   if (value != L2FETCH) {
+//      printf("Unable to set pending launch count to %li\n",  PENDINGLAUNCHES);
+//      fail = true;
+//   }
    CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
-   CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
-    CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
+   //CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
+ //   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
    if (fail) {
       abort();
    }

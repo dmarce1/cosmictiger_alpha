@@ -69,6 +69,7 @@ CUDA_EXPORT inline void cuda_malloc(T **ptr, int64_t nele, const char *file, int
    *ptr = (T*) malloc(nele * sizeof(T));
    MEM_CHECK_POINTER(*ptr, file, line);
 #else
+  // printf( "Callc\n");
    const auto ec = cudaMallocManaged(ptr, nele * sizeof(T));
    MEM_CHECK_POINTER(*ptr, file, line);
    MEM_CHECK_ERROR(ec, file, line);
@@ -80,6 +81,35 @@ void cosmic_malloc(T **ptr, int64_t nele, const char *file, int line) {
    *ptr = (T*) malloc(nele * sizeof(T));
    MEM_CHECK_POINTER(*ptr, file, line);
 }
+
+
+class cuda_allocator {
+private:
+   static std::vector<std::stack<void*>> freelist;
+   static size_t allocated;
+   static std::unordered_map<void*, int> delete_indexes;
+#ifndef __CUDACC__
+   static mutex_type mtx;
+#endif
+public:
+   void* allocate(size_t sz);
+   void deallocate(void *ptr);
+};
+
+
+
+class unified_allocator {
+private:
+   static std::vector<std::stack<void*>> freelist;
+   static size_t allocated;
+   static std::unordered_map<void*, int> delete_indexes;
+#ifndef __CUDACC__
+   static mutex_type mtx;
+#endif
+public:
+   void* allocate(size_t sz);
+   void deallocate(void *ptr);
+};
 
 #ifndef __CUDACC__
 
@@ -95,7 +125,8 @@ public:
    static void cleanup() {
       for (int i = 0; i < allocs.size(); i++) {
          allocs[i]->T::~T();
-         CUDA_FREE(allocs[i]);
+         unified_allocator ua;
+          ua.deallocate(allocs[i]);
       }
       allocs = decltype(allocs)();
    }
@@ -108,7 +139,8 @@ public:
   //    printf( "!!!!\n");
       assert(current_index<=page_size);
       if (current_index == page_size) {
-         CUDA_MALLOC(current_alloc, page_size);
+         unified_allocator ua;
+         current_alloc = (T*) ua.allocate(page_size*sizeof(T));
          current_index = 0;
          std::lock_guard<mutex_type> lock(mtx);
          allocs.push_back(current_alloc);
@@ -129,17 +161,6 @@ template<class T>
 std::vector<T*> managed_allocator<T>::allocs;
 
 
-
-class cuda_allocator {
-private:
-   static std::vector<std::stack<void*>> freelist;
-   static size_t allocated;
-   static std::unordered_map<void*, int> delete_indexes;
-   static mutex_type mtx;
-public:
-   void* allocate(size_t sz);
-   void deallocate(void *ptr);
-};
 #endif
 
 #endif /* COSMICTIGER_MEM_HPP_ */

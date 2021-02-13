@@ -77,7 +77,13 @@ public:
             }
             allocator.deallocate(new_ptr_);
    //         alloced -= cap_ * sizeof(T);
-            CUDA_FREE(dptr);
+#ifndef __CUDA_ARCH__
+            unified_allocator alloc;
+    //        printf( "Freeing\n");
+            alloc.deallocate(dptr);
+#else
+           CUDA_FREE(dptr);
+#endif
          }
       };
    //   printf( "3\n");
@@ -132,6 +138,14 @@ public:
    inline vector& operator=(vector &&other) {
       THREAD;
       if (tid == 0) {
+         if (ptr && !dontfree) {
+#ifndef __CUDA_ARCH__
+            unified_allocator alloc;
+            alloc.deallocate(ptr);
+#else
+            CUDA_FREE(ptr);
+#endif
+         }
          ptr = other.ptr;
          sz = other.sz;
          cap = other.cap;
@@ -173,7 +187,12 @@ public:
 #endif
          SYNC;
          if (tid == 0) {
+#ifndef __CUDA_ARCH__
+            unified_allocator alloc;
+            new_ptr = (T*) alloc.allocate(new_cap*sizeof(T));
+#else
             CUDA_MALLOC(new_ptr, new_cap);
+#endif
          }SYNC;
          for (size_t i = tid; i < sz; i += blocksize) {
             new (new_ptr + i) T();
@@ -183,7 +202,12 @@ public:
          if (tid == 0) {
             cap = new_cap;
             if (ptr && !dontfree) {
+#ifndef __CUDA_ARCH__
+               unified_allocator alloc;
+               alloc.deallocate(ptr);
+#else
                CUDA_FREE(ptr);
+#endif
             }
             dontfree = false;
             ptr = new_ptr;
@@ -247,12 +271,18 @@ public:
       return ptr;
    }
    CUDA_EXPORT inline ~vector() {
+  //    printf( "destroying\n");
       THREAD;
       SYNC;
       destruct(0, sz);
       SYNC;
       if (tid == 0 && ptr && !dontfree) {
+#ifndef __CUDA_ARCH__
+         unified_allocator alloc;
+         alloc.deallocate(ptr);
+#else
          CUDA_FREE(ptr);
+#endif
       }SYNC;
 
    }

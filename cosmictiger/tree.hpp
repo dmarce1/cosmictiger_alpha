@@ -373,4 +373,4 @@ void cleanup_stream(std::pair<cudaStream_t, cudaEvent_t> s);
 
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type** params_ptr, int grid_size);
 
-std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type** params_ptr, int grid_size,std::pair<cudaStream_t, cudaEvent_t> stream);
+std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type* params_ptr, int grid_size,std::pair<cudaStream_t, cudaEvent_t> stream);

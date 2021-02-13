@@ -96,6 +96,9 @@ void kick_test() {
       printf( "Drift took %e s\n", tm.read());*/
       tree::cleanup();
       tm_cleanup.start();
+      managed_allocator<sort_params>::cleanup();
+      managed_allocator<multipole>::cleanup();
+      managed_allocator<tree>::cleanup();
       params_ptr->kick_params_type::~kick_params_type();
       CUDA_FREE(params_ptr);
       tm_cleanup.stop();
