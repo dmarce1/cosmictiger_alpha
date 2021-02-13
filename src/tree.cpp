@@ -462,8 +462,8 @@ void tree::gpu_daemon() {
          tm.start();
          hpx::this_thread::yield();
          tm.stop();
-      } while( tm.read() < 1.0e-2);
-      while (gpu_ewald_queue.size() > 0 ) {
+      } while( tm.read() < 1.0e-4);
+      while (gpu_ewald_queue.size() >= KICK_GRID_SIZE ) {
          int grid_size = std::min((int) gpu_ewald_queue.size(), KICK_GRID_SIZE);
          std::vector < hpx::lcos::local::promise < int32_t >> promises;
          static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
@@ -486,7 +486,7 @@ void tree::gpu_daemon() {
          },std::move(promises));
          grid_size = std::min(KICK_GRID_SIZE, (int) cpu_node_count);
       }
-      while (gpu_queue.size() >0) {
+      while (gpu_queue.size() >=KICK_GRID_SIZE) {
          int grid_size = std::min((int) gpu_queue.size(), KICK_GRID_SIZE);
          std::vector < hpx::lcos::local::promise < kick_return >> promises;
          std::vector<std::function<void()>> deleters;
@@ -506,12 +506,12 @@ void tree::gpu_daemon() {
             while (!exec_ret.first()) {
                hpx::this_thread::yield();
             }
+            for( auto& d : deleters) {
+               d();
+            }
             for (int i = 0; i < grid_size; i++) {
                promises[i].set_value(exec_ret.second[i]);
                kick_params_alloc.deallocate(all_params[i]);
-            }
-            for( auto& d : deleters) {
-               d();
             }
             CUDA_FREE(exec_ret.second);
             all_params_alloc.deallocate(all_params);

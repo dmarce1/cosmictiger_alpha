@@ -133,6 +133,7 @@ std::vector<T*> managed_allocator<T>::allocs;
 class cuda_allocator {
 private:
    static std::vector<std::stack<void*>> freelist;
+   static size_t allocated;
    static std::unordered_map<void*, int> delete_indexes;
    static mutex_type mtx;
 public:

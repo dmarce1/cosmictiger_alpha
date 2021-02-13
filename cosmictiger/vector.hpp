@@ -162,14 +162,14 @@ public:
    void reserve(size_t new_cap) {
       THREAD;
       BLOCK;
-      size_t i = 1024;
+      size_t i = 256;
       while (i < new_cap ) {
          i *= 2;
       }
       new_cap = i;
       if (new_cap > cap) {
 #ifdef __CUDA_ARCH__
-//         printf( "INcreasing capacity from %li to %li\n", cap, new_cap);
+//        printf( "INcreasing capacity from %li to %li\n", cap, new_cap);
 #endif
          SYNC;
          if (tid == 0) {
