@@ -68,7 +68,6 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
       for (int i = 0; i < MP; i++) {
          mpole[i] = mpole_float[i];
       }
-      expansion<ewald_real> L;
       array<ewald_real, NDIM> fpos;
       for (int dim = 0; dim < NDIM; dim++) {
 #ifdef EWALD_DOUBLE_PRECISION
@@ -78,11 +77,7 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
 #endif
       }
       flops[tid] += 3;
-      flops[tid] += multipole_interaction_ewald(L, mpole, fpos, false);
-      for (int j = 0; j < LP; j++) {
-         Lreduce[tid][j] += L[j];
-      }
-      flops[tid] += 17;
+      flops[tid] += multipole_interaction_ewald(Lreduce[tid], mpole, fpos, false);
    }
    __syncthreads();
    for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
