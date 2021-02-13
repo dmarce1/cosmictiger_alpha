@@ -43,6 +43,7 @@ cuda_properties cuda_init() {
       printf("Unable to set heap to %i\n", HEAP_SIZE);
       fail = true;
    }
+   return props;
    value = RECUR_LIMIT;
    CUDA_CHECK(cudaDeviceSetLimit(cudaLimitDevRuntimeSyncDepth, value));
    CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitDevRuntimeSyncDepth));
@@ -64,7 +65,7 @@ cuda_properties cuda_init() {
       printf("Unable to set pending launch count to %li\n",  PENDINGLAUNCHES);
       fail = true;
    }
- //  CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
    CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
     CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
    if (fail) {

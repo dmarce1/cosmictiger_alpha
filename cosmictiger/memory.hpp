@@ -87,7 +87,7 @@ void cosmic_malloc(T **ptr, int64_t nele, const char *file, int line) {
 template<class T>
 class managed_allocator {
    static constexpr size_t page_size = ALLOCATION_PAGE_SIZE / sizeof(T);
-   static hpx::lcos::local::mutex mtx;
+   static mutex_type mtx;
    static std::vector<T*> allocs;
    T *current_alloc;
    int current_index;
@@ -100,13 +100,17 @@ public:
       allocs = decltype(allocs)();
    }
    managed_allocator() {
+   //   printf( "manaed %li\n", sizeof(T));
       current_index = page_size;
    }
    T* allocate() {
-      std::lock_guard<hpx::lcos::local::mutex> lock(mtx);
+  //    printf( "----\n");
+  //    printf( "!!!!\n");
+      assert(current_index<=page_size);
       if (current_index == page_size) {
          CUDA_MALLOC(current_alloc, page_size);
          current_index = 0;
+         std::lock_guard<mutex_type> lock(mtx);
          allocs.push_back(current_alloc);
       }
       new (current_alloc + current_index) T();
@@ -119,7 +123,7 @@ public:
 };
 
 template<class T>
-hpx::lcos::local::mutex managed_allocator<T>::mtx;
+mutex_type managed_allocator<T>::mtx;
 
 template<class T>
 std::vector<T*> managed_allocator<T>::allocs;
@@ -130,7 +134,7 @@ class cuda_allocator {
 private:
    static std::vector<std::stack<void*>> freelist;
    static std::unordered_map<void*, int> delete_indexes;
-   static hpx::lcos::local::mutex mtx;
+   static mutex_type mtx;
 public:
    void* allocate(size_t sz);
    void deallocate(void *ptr);

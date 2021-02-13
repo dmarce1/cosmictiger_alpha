@@ -52,26 +52,35 @@ public:
    std::function<void()> to_device(cudaStream_t stream) {
       assert(cap);
       cuda_allocator allocator;
+    //  printf( "allocating\n");
       new_ptr = (T*) allocator.allocate(cap*sizeof(T));
+      static std::atomic<size_t> alloced(0);
+      alloced += cap * sizeof(T);
+    //  printf( " to device %li\n", (size_t) alloced);
       CHECK_POINTER(new_ptr);
+    //  printf( "1\n");
       if (sz) {
          assert(ptr);
          assert(sz <= cap);
          CUDA_CHECK(cudaMemcpyAsync(new_ptr, ptr, sizeof(T) * sz, cudaMemcpyHostToDevice, stream));
       }
+    //  printf( "2\n");
       auto* dptr = ptr;
       auto sz_ = sz;
       auto new_ptr_ = new_ptr;
-      auto func = [dptr, sz_, new_ptr_]() {
+      auto cap_ = cap;
+      auto func = [dptr, sz_, new_ptr_, cap_]() {
          cuda_allocator allocator;
          if (dptr) {
- //           for( size_t i = 0; i < sz_; i++) {
-//               dptr[i].T::~T();
- //           }
+            for( size_t i = 0; i < sz_; i++) {
+               dptr[i].T::~T();
+            }
             allocator.deallocate(new_ptr_);
+            alloced -= cap_ * sizeof(T);
             CUDA_FREE(dptr);
          }
       };
+   //   printf( "3\n");
       dontfree = true;
       ptr = new_ptr;
       return func;
@@ -159,7 +168,9 @@ public:
       }
       new_cap = i;
       if (new_cap > cap) {
-         //  printf( "INcreasing capacity from %li to %li\n", cap, new_cap);
+#ifdef __CUDA_ARCH__
+//         printf( "INcreasing capacity from %li to %li\n", cap, new_cap);
+#endif
          SYNC;
          if (tid == 0) {
             CUDA_MALLOC(new_ptr, new_cap);

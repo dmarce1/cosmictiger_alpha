@@ -21,7 +21,7 @@ void* cuda_allocator::allocate(size_t sz) {
       total_sz *= 2;
       index++;
    }
-   std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
+   std::lock_guard < mutex_type > lock(mtx);
    freelist.resize(index + 1);
    void *ptr;
    if (freelist[index].empty()) {
@@ -37,13 +37,13 @@ void* cuda_allocator::allocate(size_t sz) {
 }
 
 void cuda_allocator::deallocate(void *ptr) {
-   std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
+   std::lock_guard < mutex_type > lock(mtx);
    const auto index = delete_indexes[ptr];
    freelist[index].push(ptr);
 }
 
 std::vector<std::stack<void*>> cuda_allocator::freelist;
-hpx::lcos::local::mutex cuda_allocator::mtx;
+mutex_type cuda_allocator::mtx;
 
 std::unordered_map<void*, int> cuda_allocator::delete_indexes;
 

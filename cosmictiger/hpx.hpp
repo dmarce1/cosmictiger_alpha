@@ -13,6 +13,9 @@
 #include <hpx/hpx.hpp>
 #include <hpx/async.hpp>
 
+
+using mutex_type = hpx::lcos::local::spinlock;
+
 void hpx_init();
 int hpx_rank();
 int hpx_size();
