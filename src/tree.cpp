@@ -11,6 +11,8 @@
 #define KICK_MAX_CHECKS 1024
 particle_set *tree::particles;
 
+static finite_vector_allocator<sizeof(kick_params_type)> kick_params_alloc;
+
 
 void tree::set_particle_set(particle_set *parts) {
    particles = parts;
@@ -448,111 +450,74 @@ std::pair<std::function<bool()>, kick_return*>;
 cuda_exec_return cuda_execute_kick_kernel(kick_params_type **params, int grid_size);
 void cuda_execute_ewald_cc_kernel(kick_params_type *params_ptr);
 
+
 void tree::gpu_daemon() {
    using namespace std::chrono_literals;
 
    printf("Starting gpu kick daemon\n");
    daemon_running = true;
-   std::queue < std::function < bool() >> completions;
    while (!shutdown_daemon) {
       timer tm;
       do {
          tm.start();
          hpx::this_thread::yield();
          tm.stop();
-      } while( tm.read() < 5.0e-2);
-  //   hpx::this_thread::yield();
-    //  printf( "1\n");
-      while (gpu_ewald_queue.size()) {
+      } while( tm.read() < 1.0e-2);
+      while (gpu_ewald_queue.size() > 0 ) {
          int grid_size = std::min((int) gpu_ewald_queue.size(), KICK_GRID_SIZE);
-         auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<int32_t>>>();
+         std::vector < hpx::lcos::local::promise < int32_t >> promises;
          static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
          kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate();
          for (int i = 0; i < grid_size; i++) {
             auto tmp = gpu_ewald_queue.pop();
             all_params[i] = tmp.params;
-            promises->push_back(std::move(tmp.promise));
+            promises.push_back(std::move(tmp.promise));
          }
          printf("Executing %i ewald blocks\n", grid_size);
-          auto exec_ret = cuda_execute_ewald_kernel(all_params, grid_size);
-          completions.push([all_params, exec_ret, grid_size, promises]() {
-            if (exec_ret()) {
-               for (int i = 0; i < grid_size; i++) {
-                  (*promises)[i].set_value(all_params[i]->flops);
-               }
-               all_params_alloc.deallocate(all_params);
-               return true;
-            } else {
-               return false;
+         auto exec_ret = cuda_execute_ewald_kernel(all_params, grid_size);
+         hpx::apply([all_params, exec_ret, grid_size](std::vector<hpx::lcos::local::promise<int32_t>> &&promises) {
+            while (!exec_ret()) {
+               hpx::this_thread::yield();
             }
-         });
+            for (int i = 0; i < grid_size; i++) {
+               promises[i].set_value(all_params[i]->flops);
+            }
+            all_params_alloc.deallocate(all_params);
+         },std::move(promises));
+         grid_size = std::min(KICK_GRID_SIZE, (int) cpu_node_count);
       }
-    //  printf( "2\n");
-  //    hpx::this_thread::yield();
-      while (gpu_queue.size()) {
-         //printf( "2.5\n");
+      while (gpu_queue.size() >0) {
          int grid_size = std::min((int) gpu_queue.size(), KICK_GRID_SIZE);
-         auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<kick_return>>>();
-         auto deleters = std::make_shared<std::vector<std::function<void()>>>();
-         //printf( "2.6\n");
-         finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
-         finite_vector_allocator<sizeof(kick_params_type)> kick_params_alloc;
+         std::vector < hpx::lcos::local::promise < kick_return >> promises;
+         std::vector<std::function<void()>> deleters;
+         static finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
          kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate();
-         //printf( "2.7\n");
          auto stream = get_stream();
-         //printf( "2.8\n");
          for (int i = 0; i < grid_size; i++) {
-            //printf( "2.9\n");
             auto tmp = gpu_queue.pop();
-            //printf( "2.10\n");
             all_params[i] = tmp.params;
-            //printf( "2.11\n");
-            assert(all_params[i]->tptr.ptr);
-            //printf( "2.12\n");
-            deleters->push_back(tmp.params->dchecks[tmp.params->depth].to_device(stream.first));
-            //printf( "2.13\n");
-            deleters->push_back(tmp.params->echecks[tmp.params->depth].to_device(stream.first));
-            //printf( "2.14\n");
-            promises->push_back(std::move(tmp.promise));
+            deleters.push_back(tmp.params->dchecks[tmp.params->depth].to_device(stream.first));
+            deleters.push_back(tmp.params->echecks[tmp.params->depth].to_device(stream.first));
+            promises.push_back(std::move(tmp.promise));
          }
          printf("Executing %i blocks\n", grid_size);
          auto exec_ret = cuda_execute_kick_kernel(all_params, grid_size, stream);
-         //printf("Done\n");
-        // //printf( "%i blocks\n", grid_size);
-         completions.push([all_params, exec_ret, grid_size, promises, deleters]() {
-            if (exec_ret.first()) {
-               finite_vector_allocator<sizeof(kick_params_type)> kick_params_alloc;
-               finite_vector_allocator<sizeof(kick_params_type*) * KICK_GRID_SIZE> all_params_alloc;
-               for (int i = 0; i < grid_size; i++) {
-                  (*promises)[i].set_value(exec_ret.second[i]);
-                  kick_params_alloc.deallocate(all_params[i]);
-               }
-               for (auto &d : *deleters) {
-                  d();
-               }
-               CUDA_FREE(exec_ret.second);
-               all_params_alloc.deallocate(all_params);
-               return true;
-            } else {
-               return false;
+         hpx::apply([all_params, exec_ret, grid_size](std::vector<hpx::lcos::local::promise<kick_return>> &&promises, std::vector<std::function<void()>>&& deleters) {
+            while (!exec_ret.first()) {
+               hpx::this_thread::yield();
             }
-         });
-         //printf( "Pushed %i blocks\n", grid_size);
+            for (int i = 0; i < grid_size; i++) {
+               promises[i].set_value(exec_ret.second[i]);
+               kick_params_alloc.deallocate(all_params[i]);
+            }
+            for( auto& d : deleters) {
+               d();
+            }
+            CUDA_FREE(exec_ret.second);
+            all_params_alloc.deallocate(all_params);
+         },std::move(promises), std::move(deleters));
       }
-      //printf( "3\n");
-      if( !gpu_queue.size() && !gpu_ewald_queue.size()) {
-      std::queue<std::function<bool()>> tmp;
-      while (completions.size()) {
-         if (!completions.front()()) {
-            tmp.push(std::move(completions.front()));
-         }
-         completions.pop();
-      }
-      completions = std::move(tmp);
-      }
-      //printf( "4\n");
-  }
- //  printf( "!!!\n");
+   }
    daemon_running = false;
    shutdown_daemon = false;
    printf("Shutting down GPU kick daemon\n");
@@ -576,7 +541,6 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    me.ptr = (uintptr_t)(this);
    me.rank = hpx_rank();
    kick_params_type *new_params;
-   finite_vector_allocator<sizeof(kick_params_type)> kick_params_alloc;
    new_params = (kick_params_type*) kick_params_alloc.allocate();
    new (new_params) kick_params_type();
    new_params->tptr = me;

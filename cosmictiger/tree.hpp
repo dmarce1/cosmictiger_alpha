@@ -10,7 +10,7 @@
 #include <cosmictiger/lockfree_queue.hpp>
 #include <cosmictiger/interactions.hpp>
 #include <cosmictiger/global.hpp>
-#include <cosmictiger/vector.hpp>
+#include <cosmictiger/stack_vector.hpp>
 
 #include <functional>
 

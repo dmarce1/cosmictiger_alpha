@@ -256,6 +256,10 @@ public:
       }SYNC;
 
    }
+   CUDA_EXPORT inline void pop_back() {
+      assert(size());
+      resize(size()-1);
+   }
    CUDA_EXPORT
    inline T back() const {
       return ptr[size() - 1];
