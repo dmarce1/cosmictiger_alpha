@@ -303,7 +303,8 @@ cuda_kick(kick_params_type * params_ptr)
                fmag += sqr(F[dim][k]);
             }
             fmag = sqrtf(fmag);
-          //  assert(fmag > 0.0);
+         //   printf( "%e\n", fmag);
+            assert(fmag > 0.0);
             dt = fminf(sqrt(params.scale * params.eta / fmag), params.t0);
             int new_rung = fmaxf(fmaxf(ceil(logf(params.t0/dt) * invlog2), this_rung-1),params.rung);
             dt = params.t0 / (1<<new_rung);
@@ -376,6 +377,7 @@ void cleanup_stream(std::pair<cudaStream_t, cudaEvent_t> s) {
 
 CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
    const int &bid = blockIdx.x;
+
    auto rc = cuda_ewald_cc_interactions(parts, params_ptr[bid]);
    __syncthreads();
    if (threadIdx.x == 0) {

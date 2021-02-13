@@ -26,6 +26,7 @@ void* cuda_allocator::allocate(size_t sz) {
    void *ptr;
    if (freelist[index].empty()) {
       CUDA_CHECK(cudaMalloc(&ptr, chunk_size * total_sz));
+      printf( "Allocating %li bytes on device\n", chunk_size * total_sz);
       for( int i = 0; i < chunk_size; i++) {
          freelist[index].push(ptr + i * total_sz);
       }

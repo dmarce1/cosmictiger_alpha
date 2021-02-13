@@ -8,6 +8,7 @@
 #include <cosmictiger/gravity.hpp>
 
 CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, kick_params_type *params_ptr) {
+
    kick_params_type &params = *params_ptr;
    const int &tid = threadIdx.x;
    __shared__
@@ -23,17 +24,12 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, kick_params_type *par
    const auto &pos = ((tree*) params.tptr)->pos;
    for (int i = tid; i < params.nmulti; i += KICK_BLOCK_SIZE) {
       const multipole mpole = *((tree*) multis[i])->multi;
-      expansion<float> L;
       array<float, NDIM> fpos;
       for (int dim = 0; dim < NDIM; dim++) {
          fpos[dim] = (fixed<int32_t>(pos[dim]) - fixed<int32_t>(pos[dim])).to_float();
       }
       flops[tid] += NDIM;
-      flops[tid] += multipole_interaction(L, mpole, fpos, false);
-      for (int j = 0; j < LP; j++) {
-         Lreduce[tid][j] += L[j];
-      }
-      flops[tid] += LP;
+      flops[tid] += multipole_interaction(Lreduce[tid], mpole, fpos, false);
    }
    __syncthreads();
    for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
@@ -300,6 +296,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
 
 CUDA_DEVICE
 void cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
+
    kick_params_type &params = *params_ptr;
    const int &tid = threadIdx.x;
    __shared__

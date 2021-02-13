@@ -255,8 +255,8 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
          } else {
             thread_cnt--;
          }
+         thread = true;
       }
-      thread = true;
 #endif
       if (!thread) {
          return fast_future<kick_return>(((tree*) ptr)->kick(params_ptr));
@@ -381,15 +381,15 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          rc.flops += cpu_cc_direct(params_ptr);
          break;
       case CC_CP_EWALD:
-//         if (params_ptr->nmulti) {
-//            auto tmp = send_ewald_to_gpu(params_ptr).get();
-//            //     printf( "%i\n", tmp);
-//            rc.flops += tmp;
-//         } else {
-//            if (params.depth < cuda_depth()) {
-//               cpu_node_count--;
-//            }
-//         }
+         if (params_ptr->nmulti) {
+            auto tmp = send_ewald_to_gpu(params_ptr).get();
+            //     printf( "%i\n", tmp);
+            rc.flops += tmp;
+         } else {
+            if (params.depth < cuda_depth()) {
+               cpu_node_count--;
+            }
+         }
          break;
       case PC_PP_DIRECT:
          break;
@@ -540,6 +540,7 @@ void tree::gpu_daemon() {
          //printf( "Pushed %i blocks\n", grid_size);
       }
       //printf( "3\n");
+      if( !gpu_queue.size() && !gpu_ewald_queue.size()) {
       std::queue<std::function<bool()>> tmp;
       while (completions.size()) {
          if (!completions.front()()) {
@@ -548,9 +549,10 @@ void tree::gpu_daemon() {
          completions.pop();
       }
       completions = std::move(tmp);
+      }
       //printf( "4\n");
   }
-   printf( "!!!\n");
+ //  printf( "!!!\n");
    daemon_running = false;
    shutdown_daemon = false;
    printf("Shutting down GPU kick daemon\n");

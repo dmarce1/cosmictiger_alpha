@@ -97,7 +97,7 @@ add_hpx_executable(
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                       --use_fast_math --gpu-architecture=compute_75;
+                       --use_fast_math -G --gpu-architecture=compute_75;
                         >)
                         
                         
