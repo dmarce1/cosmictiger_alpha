@@ -176,6 +176,19 @@ cuda_kick(kick_params_type * params_ptr)
                   for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
                      parti[count[PI] + i] = opened_checks[i];
                   }
+                  __syncthreads();
+                  if( tid == 0 ) {
+                     count[PI] += count[OI];
+                  }
+                  __syncthreads();
+//                  if( count[PI] > 8 ) {
+//                     cuda_pp_interactions(parts,params_ptr);
+//                     __syncthreads();
+//                     if( tid == 0 ) {
+//                        count[PI] = 0;
+//                     }
+//                     __syncthreads();
+//                  }
                }
                __syncthreads();
                if (tid == 0) {
