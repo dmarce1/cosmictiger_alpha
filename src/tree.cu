@@ -83,7 +83,7 @@ cuda_kick(kick_params_type * params_ptr)
       lists[PI] = &parti;
       lists[CI] = &next_checks;
       lists[OI] = &opened_checks;
-      const auto &myradius = ((tree*) tptr)->radius;
+      const auto &myradius = 1.5 * ((tree*) tptr)->radius;
       const auto &mypos = ((tree*) tptr)->pos;
       int ninteractions = ((tree*) tptr)->children[0].rank == -1 ? 4 : 2;
       for (int type = 0; type < ninteractions; type++) {
@@ -181,14 +181,15 @@ cuda_kick(kick_params_type * params_ptr)
                      count[PI] += count[OI];
                   }
                   __syncthreads();
-//                  if( count[PI] > 8 ) {
-//                     cuda_pp_interactions(parts,params_ptr);
-//                     __syncthreads();
-//                     if( tid == 0 ) {
-//                        count[PI] = 0;
-//                     }
-//                     __syncthreads();
-//                  }
+                  if( count[PI] > 8 ) {
+                     __syncthreads();
+                     if( tid == 0 ) {
+                        params.npart = count[PI];
+                        count[PI] = 0;
+                     }
+                     __syncthreads();
+                     cuda_pp_interactions(parts,params_ptr);
+                  }
                }
                __syncthreads();
                if (tid == 0) {
@@ -215,18 +216,18 @@ cuda_kick(kick_params_type * params_ptr)
             break;
             case PC_PP_EWALD:
             if(count[PI] > 0 ) {
-             //  printf( "PP Ewald should not exist\n");
-             //  __trap();
+               //  printf( "PP Ewald should not exist\n");
+               //  __trap();
             }
             if(count[MI] > 0 ) {
-            //   printf( "PC Ewald should not exist\n");
-            //   __trap();
+               //   printf( "PC Ewald should not exist\n");
+               //   __trap();
             }
             break;
             case CC_CP_EWALD:
             if(count[PI] > 0 ) {
-          //     printf( "CP Ewald should not exist\n");
-          //     __trap();
+               //     printf( "CP Ewald should not exist\n");
+               //     __trap();
             }
             if( count[MI] > 0 ) {
                float old_flops = flops[tid];
@@ -316,7 +317,7 @@ cuda_kick(kick_params_type * params_ptr)
                fmag += sqr(F[dim][k]);
             }
             fmag = sqrtf(fmag);
-         //   printf( "%e\n", fmag);
+            //   printf( "%e\n", fmag);
             assert(fmag > 0.0);
             dt = fminf(sqrt(params.scale * params.eta / fmag), params.t0);
             int new_rung = fmaxf(fmaxf(ceil(logf(params.t0/dt) * invlog2), this_rung-1),params.rung);
@@ -355,18 +356,17 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                        CUDA_CHECK(cudaDeviceSynchronize());
+                           CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type *params) {
    const int &bid = blockIdx.x;
    res[bid] = cuda_kick(params + bid);
    __syncthreads();
-   if( threadIdx.x == 0 ) {
- //     printf( "Kick done\n");
+   if (threadIdx.x == 0) {
+      //     printf( "Kick done\n");
       params[bid].kick_params_type::~kick_params_type();
    }
-
 
 }
 
@@ -402,7 +402,7 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
 cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream.first>>>(params_ptr);
-                        CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
+                           CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
 
    struct cuda_ewald_future_shared {
       std::pair<cudaStream_t, cudaEvent_t> stream;
@@ -433,18 +433,19 @@ cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream
    return ready_func;
 }
 
-std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type *params, int grid_size,std::pair<cudaStream_t,cudaEvent_t> stream) {
+std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type *params, int grid_size,
+      std::pair<cudaStream_t, cudaEvent_t> stream) {
    const size_t shmemsize = sizeof(cuda_kick_shmem);
    unified_allocator alloc;
-   kick_return * returns = (kick_return*) alloc.allocate(grid_size*sizeof(kick_return));
-  // printf( "a\n");
- //  CUDA_MALLOC(returns, grid_size);
-  // printf( "b\n");
+   kick_return *returns = (kick_return*) alloc.allocate(grid_size * sizeof(kick_return));
+   // printf( "a\n");
+   //  CUDA_MALLOC(returns, grid_size);
+   // printf( "b\n");
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream.first>>>(returns,params);/**/
- //  /**/CUDA_CHECK(cudaEventRecord(stream.second, stream.first));/*******************************************************************************************************/
+   //  /**/CUDA_CHECK(cudaEventRecord(stream.second, stream.first));/*******************************************************************************************************/
    /***************************************************************************************************************************************************/
-  // printf( "c\n");
+   // printf( "c\n");
    struct cuda_kick_future_shared {
       std::pair<cudaStream_t, cudaEvent_t> stream;
       kick_return *returns;
@@ -465,7 +466,7 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
          return ready;
       }
    };
-  // printf( "d\n");
+   // printf( "d\n");
 
    cuda_kick_future_shared fut;
    fut.returns = returns;
@@ -474,7 +475,7 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    std::function < bool() > ready_func = [fut]() {
       return fut();
    };
-  // printf( "e\n");
+   // printf( "e\n");
 
    return std::make_pair(std::move(ready_func), std::move(fut.returns));
 }

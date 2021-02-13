@@ -17,7 +17,7 @@ class stack_vector {
 public:
    CUDA_EXPORT inline stack_vector() {
       THREAD;
-      data.reserve(2048);
+      data.reserve(16384);
       bounds.reserve(64);
       if (tid == 0) {
          bounds.resize(2);

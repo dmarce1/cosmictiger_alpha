@@ -256,8 +256,8 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
          } else {
             thread_cnt--;
          }
+   //      thread = true;
       }
-      thread = true;
 #endif
       if (!thread) {
          return fast_future<kick_return>(((tree*) ptr)->kick(params_ptr));
@@ -340,7 +340,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
             const auto other_radius = checks[ci].get_radius();
             const auto other_pos = checks[ci].get_pos();
             float d2 = 0.f;
-            const float R2 = sqr(other_radius + radius);
+            const float R2 = sqr(other_radius + 1.5 * radius);
             for (int dim = 0; dim < NDIM; dim++) {
                d2 += sqr(fixed<int32_t>(other_pos[dim]) - fixed<int32_t>(pos[dim])).to_float();
             }
@@ -457,11 +457,11 @@ void tree::gpu_daemon() {
    int minq2 = KICK_GRID_SIZE;
    while (!shutdown_daemon) {
       timer tm;
-      do {
-         tm.start();
+//      do {
+//         tm.start();
          hpx::this_thread::yield();
-         tm.stop();
-      } while (tm.read() < 1.0e-4);
+//         tm.stop();
+//      } while (tm.read() < 1.0e-4);
       while (gpu_ewald_queue.size() >= KICK_GRID_SIZE) {
          int grid_size = std::min((int) gpu_ewald_queue.size(), KICK_GRID_SIZE);
          std::vector < hpx::lcos::local::promise < int32_t >> promises;
