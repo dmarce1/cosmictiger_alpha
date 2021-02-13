@@ -256,8 +256,8 @@ fast_future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool try_t
          } else {
             thread_cnt--;
          }
-         thread = true;
       }
+      thread = true;
 #endif
       if (!thread) {
          return fast_future<kick_return>(((tree*) ptr)->kick(params_ptr));
@@ -466,7 +466,7 @@ void tree::gpu_daemon() {
          int grid_size = std::min((int) gpu_ewald_queue.size(), KICK_GRID_SIZE);
          std::vector < hpx::lcos::local::promise < int32_t >> promises;
          unified_allocator all_params_alloc;
-         kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate(sizeof(kick_params_type*));
+         kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate(grid_size*sizeof(kick_params_type*));
          for (int i = 0; i < grid_size; i++) {
             auto tmp = gpu_ewald_queue.pop();
             all_params[i] = tmp.params;

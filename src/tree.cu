@@ -378,8 +378,8 @@ void cleanup_stream(std::pair<cudaStream_t, cudaEvent_t> s) {
 
 CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
    const int &bid = blockIdx.x;
-
-   auto rc = cuda_ewald_cc_interactions(parts, params_ptr[bid]);
+   auto pptr = params_ptr[bid];
+   auto rc = cuda_ewald_cc_interactions(parts, pptr);
    __syncthreads();
    if (threadIdx.x == 0) {
       params_ptr[bid]->flops = rc;
