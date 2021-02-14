@@ -35,6 +35,9 @@ cuda_kick(kick_params_type * params_ptr)
    __shared__
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
+//   if( params_ptr->depth > TREE_MAX_DEPTH || params_ptr->depth < 0 ) {
+//      printf( "%li\n", params_ptr->depth);
+ //  }
    tree_ptr tptr = params.tptr;
    tree& me = *((tree*) tptr);
    const int &tid = threadIdx.x;
@@ -181,15 +184,6 @@ cuda_kick(kick_params_type * params_ptr)
                      count[PI] += count[OI];
                   }
                   __syncthreads();
-                  if( count[PI] > 8 ) {
-                     __syncthreads();
-                     if( tid == 0 ) {
-                        params.npart = count[PI];
-                        count[PI] = 0;
-                     }
-                     __syncthreads();
-                     cuda_pp_interactions(parts,params_ptr);
-                  }
                }
                __syncthreads();
                if (tid == 0) {

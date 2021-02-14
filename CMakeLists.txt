@@ -22,7 +22,7 @@ find_package(Silo REQUIRED)
 find_package(Boost REQUIRED)
 enable_language(CUDA)
 
-set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -ffast-math -march=native")
+#set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -ffast-math -march=native")
 
 set(cosmictiger_source_files
     src/cuda.cpp
