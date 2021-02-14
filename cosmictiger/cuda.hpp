@@ -5,9 +5,12 @@
  *      Author: dmarce1
  */
 
+
 #ifndef COSMICTIGER_CUDA_HPP_
 #define COSMICTIGER_CUDA_HPP_
 
+
+#include <functional>
 
 #define CUDA_CHECK( a ) if( a != cudaSuccess ) printf( "CUDA error on line %i of %s : %s\n", __LINE__, __FILE__, cudaGetErrorString(a))
 
@@ -78,6 +81,7 @@ struct cuda_properties {
 
 cuda_properties cuda_init();
 
+void cuda_enqueue_host_function(cudaStream_t stream, std::function<void()>&& function);
 
 
 template<class T>

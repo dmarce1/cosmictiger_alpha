@@ -52,8 +52,8 @@ cuda_properties cuda_init() {
       fail = true;
    }
    value = L2FETCH;
-   CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMaxL2FetchGranularity , value));
-   CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitMaxL2FetchGranularity ));
+   CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMaxL2FetchGranularity, value));
+   CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitMaxL2FetchGranularity));
    if (value != L2FETCH) {
       printf("Unable to set L2 fetch granularity to to %li\n", L2FETCH);
       fail = true;
@@ -67,11 +67,22 @@ cuda_properties cuda_init() {
 //   }
    CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
    //CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
- //   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
+   //   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
    if (fail) {
       abort();
    }
 
    return props;
+}
+
+void execute_host_function(void *data) {
+   auto* fptr = (std::function<void()>*) data;
+   (*fptr)();
+   delete fptr;
+}
+
+void cuda_enqueue_host_function(cudaStream_t stream, std::function<void()>&& function) {
+   auto* fptr = new std::function<void()>(std::move(function));
+   CUDA_CHECK(cudaLaunchHostFunc(stream, &execute_host_function, fptr));
 }
 
