@@ -6,7 +6,6 @@
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/fast_future.hpp>
 #include <cosmictiger/expansion.hpp>
-#include <cosmictiger/finite_vector.hpp>
 #include <cosmictiger/lockfree_queue.hpp>
 #include <cosmictiger/interactions.hpp>
 #include <cosmictiger/global.hpp>
@@ -199,7 +198,7 @@ struct tree_ptr {
    CUDA_EXPORT
    bool is_leaf() const;
 #ifndef __CUDACC__
-   fast_future<kick_return> kick(kick_params_type*, bool);
+   hpx::future<kick_return> kick(kick_params_type*, bool);
 #endif
 };
 
@@ -260,7 +259,7 @@ struct kick_params_type {
    int rung;
    size_t flops;
    CUDA_EXPORT inline kick_params_type() {
-      THREADID;
+      THREAD;
       if (tid == 0) {
          theta = 0.5;
          eta = 0.2;
@@ -321,7 +320,7 @@ public:
    static void cleanup();
    int cpu_cc_direct(kick_params_type *params);
    sort_return sort(sort_params = sort_params());
-   hpx::future<kick_return> kick(kick_params_type*);
+   kick_return kick(kick_params_type*);
    static std::atomic<bool> daemon_running;
    static std::atomic<bool> shutdown_daemon;
    static lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> gpu_queue;

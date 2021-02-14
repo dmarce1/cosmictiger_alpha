@@ -88,7 +88,7 @@ void kick_test() {
       }
       params_ptr->L[0] = L;
       params_ptr->Lpos[0] = Lpos;
-      auto rc = root.kick(params_ptr).get();
+      auto rc = root.kick(params_ptr);
       tm_kick.stop();
    /*   tm.start();
       drift(parts_ptr, 1.0,1.0,1.0);

@@ -9,7 +9,6 @@
 #define COSMICTIGER_multipole_type_HPP_
 
 #include <cosmictiger/cuda.hpp>
-#include <cosmictiger/finite_vector.hpp>
 #include <cosmictiger/array.hpp>
 #include <cosmictiger/fixed.hpp>
 #include <array>

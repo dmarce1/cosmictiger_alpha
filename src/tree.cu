@@ -441,6 +441,7 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    // printf( "a\n");
    //  CUDA_MALLOC(returns, grid_size);
    // printf( "b\n");
+ //  printf( "Shmem = %li\n", shmemsize);
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream.first>>>(returns,params);/**/
    //  /**/CUDA_CHECK(cudaEventRecord(stream.second, stream.first));/*******************************************************************************************************/
@@ -459,7 +460,7 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
          if (!ready) {
             if (cudaStreamQuery(stream.first) == cudaSuccess) {
                ready = true;
-               CUDA_CHECK(cudaStreamSynchronize(stream.first));
+           //    CUDA_CHECK(cudaStreamSynchronize(stream.first));
                cleanup_stream(stream);
             }
          }

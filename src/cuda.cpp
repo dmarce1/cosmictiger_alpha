@@ -9,7 +9,7 @@
 #include <cstdlib>
 
 #define STACK_SIZE (32*1024)
-#define HEAP_SIZE 512*1024*1024
+#define HEAP_SIZE 256*1024*1024
 #define RECUR_LIMIT 0
 #define L2FETCH 32
 #define PENDINGLAUNCHES 128

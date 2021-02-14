@@ -53,29 +53,29 @@ public:
       assert(cap);
       cuda_allocator allocator;
     //  printf( "allocating\n");
-      new_ptr = (T*) allocator.allocate(cap*sizeof(T));
+ //     new_ptr = (T*) allocator.allocate(cap*sizeof(T));
 //      static std::atomic<size_t> alloced(0);
   //    alloced += cap * sizeof(T);
     //  printf( " to device %li\n", (size_t) alloced);
-      CHECK_POINTER(new_ptr);
+   //   CHECK_POINTER(new_ptr);
     //  printf( "1\n");
-      if (sz) {
-         assert(ptr);
-         assert(sz <= cap);
-         CUDA_CHECK(cudaMemcpyAsync(new_ptr, ptr, sizeof(T) * sz, cudaMemcpyHostToDevice, stream));
-      }
+    //  if (sz) {
+     //    assert(ptr);
+      //   assert(sz <= cap);
+         CUDA_CHECK(cudaMemPrefetchAsync(ptr, sizeof(T) * sz, 0, stream));
+    //  }
     //  printf( "2\n");
       auto* dptr = ptr;
       auto sz_ = sz;
-      auto new_ptr_ = new_ptr;
+    //  auto new_ptr_ = new_ptr;
       auto cap_ = cap;
-      auto func = [dptr, sz_, new_ptr_]() {
+      auto func = [dptr, sz_]() {
          cuda_allocator allocator;
          if (dptr) {
             for( size_t i = 0; i < sz_; i++) {
                dptr[i].T::~T();
             }
-            allocator.deallocate(new_ptr_);
+      //      allocator.deallocate(new_ptr_);
    //         alloced -= cap_ * sizeof(T);
 #ifndef __CUDA_ARCH__
             unified_allocator alloc;
@@ -88,7 +88,7 @@ public:
       };
    //   printf( "3\n");
       dontfree = true;
-      ptr = new_ptr;
+ //     ptr = new_ptr;
       return func;
    }
 #endif
