@@ -216,10 +216,6 @@ struct pair {
 };
 
 
-struct cuda_ewald_shmem {
-   array<expansion<accum_real>, KICK_BLOCK_SIZE> Lreduce;
-   array<int32_t, KICK_BLOCK_SIZE> flops;
-};
 
 #define NITERS 4
 struct cuda_kick_shmem {

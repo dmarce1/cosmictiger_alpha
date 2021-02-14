@@ -52,7 +52,7 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
    const int &tid = threadIdx.x;
    __shared__
    extern int shmem_ptr[];
-   cuda_ewald_shmem &shmem = *(cuda_ewald_shmem*) shmem_ptr;
+   cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    auto &flops = shmem.flops;
    auto &Lreduce = shmem.Lreduce;
    auto &multis = params.multi_interactions;
