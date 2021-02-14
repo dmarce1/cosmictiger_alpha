@@ -11,6 +11,10 @@
 
 #define CUDA_CHECK( a ) if( a != cudaSuccess ) printf( "CUDA error on line %i of %s : %s\n", __LINE__, __FILE__, cudaGetErrorString(a))
 
+//#define CUDA_CHECK( a ) printf( "calling %s from %s line %i\n", #a, __FILE__, __LINE__ ); \
+//		                  if( a != cudaSuccess ) printf( "CUDA error on line %i of %s : %s\n", __LINE__, __FILE__, cudaGetErrorString(a)); \
+//		                  printf( "done calling %s from %s line %i\n", #a, __FILE__, __LINE__)
+
 #ifdef __CUDACC__
 #define CUDA_EXPORT __device__ __host__
 #else

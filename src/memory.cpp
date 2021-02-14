@@ -28,8 +28,9 @@ void* cuda_allocator::allocate(size_t sz) {
    void *ptr;
 //   printf( "%li %i\n", freelist[index].size(), index);
    if (freelist[index].empty()) {
+//      printf( "Allocating %li bytes on device\n", chunk_size * total_sz);
       CUDA_CHECK(cudaMalloc(&ptr, chunk_size * total_sz));
- //     printf( "Allocating %li bytes on device\n", chunk_size * total_sz);
+//      printf( "Done Allocating %li bytes on device\n", chunk_size * total_sz);
       for( int i = 0; i < chunk_size; i++) {
          freelist[index].push(ptr + i * total_sz);
       }
@@ -78,9 +79,10 @@ void* unified_allocator::allocate(size_t sz) {
    char* cptr;
 //   printf( "%li %i\n", freelist[index].size(), index);
    if (freelist[index].empty()) {
+//      printf( "Allocating %li unified bytes\n", chunk_size * total_sz);
       CUDA_MALLOC(cptr, chunk_size * total_sz);
+//      printf( "Done %li unified bytes\n", chunk_size * total_sz);
       ptr = cptr;
-  //    printf( "Allocating %li unified bytes on device\n", chunk_size * total_sz);
       for( int i = 0; i < chunk_size; i++) {
          freelist[index].push(ptr + i * total_sz);
       }

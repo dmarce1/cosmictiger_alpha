@@ -436,6 +436,13 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    //  CUDA_MALLOC(returns, grid_size);
    // printf( "b\n");
  //  printf( "Shmem = %li\n", shmemsize);
+   cudaFuncAttributes attribs;
+   size_t size = 65536;
+  CUDA_CHECK( cudaFuncSetAttribute(&cuda_kick_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, size ));
+  CUDA_CHECK( cudaFuncGetAttributes(&attribs,&cuda_kick_kernel));
+  if( size != attribs.maxDynamicSharedSizeBytes) {
+     printf( "Unable to set shared memory to %li bytes\n", size);
+  }
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream.first>>>(returns,params);/**/
    //  /**/CUDA_CHECK(cudaEventRecord(stream.second, stream.first));/*******************************************************************************************************/
@@ -454,7 +461,7 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
          if (!ready) {
             if (cudaStreamQuery(stream.first) == cudaSuccess) {
                ready = true;
-           //    CUDA_CHECK(cudaStreamSynchronize(stream.first));
+               CUDA_CHECK(cudaStreamSynchronize(stream.first));
                cleanup_stream(stream);
             }
          }

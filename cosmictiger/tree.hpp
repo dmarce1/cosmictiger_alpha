@@ -223,16 +223,16 @@ struct cuda_ewald_shmem {
 
 #define NITERS 4
 struct cuda_kick_shmem {
-   array<array<int8_t, KICK_BLOCK_SIZE + 1>, NITERS> indices;
-   array<int16_t, NITERS> count;
-   array<array<accum_real, KICK_BLOCK_SIZE>, NDIM> f;
-   array<array<accum_real, MAX_BUCKET_SIZE>, NDIM> F;
-   array<array<fixed32, KICK_PP_MAX>, NDIM> src;
-   array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;
-   array<expansion<accum_real>, KICK_BLOCK_SIZE> Lreduce;
-   array<int8_t, KICK_BLOCK_SIZE> rungs;
+   array<array<int8_t, KICK_BLOCK_SIZE + 1>, NITERS> indices; //33
+   array<int16_t, NITERS> count; // 8
+   array<array<accum_real, KICK_BLOCK_SIZE>, NDIM> f; // 384
+   array<array<accum_real, MAX_BUCKET_SIZE>, NDIM> F; // 768
+   array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
+   array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 768
+   array<expansion<accum_real>, KICK_BLOCK_SIZE> Lreduce;  // 4480
+   array<int8_t, KICK_BLOCK_SIZE> rungs; // 256
 #ifdef COUNT_FLOPS
-   array<int32_t, KICK_BLOCK_SIZE> flops;
+   array<int32_t, KICK_BLOCK_SIZE> flops; // 128
 #endif
 };
 
@@ -279,7 +279,6 @@ struct kick_params_type;
 struct gpu_kick {
    kick_params_type *params;
    hpx::lcos::local::promise<kick_return> promise;
-   std::pair<cudaStream_t, cudaEvent_t> stream;
 };
 
 struct gpu_ewald {
