@@ -73,6 +73,7 @@ cuda_kick(kick_params_type * params_ptr)
       }
       __syncthreads();
    }
+   const auto& myparts = ((tree*)params.tptr)->parts;
    {
       auto &indices = shmem.indices;
       auto &count = shmem.count;
@@ -209,6 +210,32 @@ cuda_kick(kick_params_type * params_ptr)
          switch (type) {
             case PC_PP_DIRECT:
             //          printf( "%li %li\n", multis.size(), parti.size());
+               for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
+                  const auto this_rung = parts->rung(k+myparts.first);
+         #ifndef TEST_FORCE
+                  if( this_rung >= params.rung ) {
+         #endif
+                     array<accum_real,NDIM> g;
+                     accum_real phi;
+                     array<accum_real,NDIM> dx;
+                     for (int dim = 0; dim < NDIM; dim++) {
+         #ifdef ACCUMULATE_DOUBLE_PRECISION
+                        const auto x2 = me.pos[dim].to_double();
+                        const auto x1 = parts->pos(dim,k+myparts.first).to_double();
+         #else
+                        const auto x2 = me.pos[dim].to_float();
+                        const auto x1 = parts->pos(dim,k+myparts.first).to_float();
+         #endif
+                        dx[dim] = x1 - x2;
+                     }
+                     shift_expansion(L, g, phi, dx);
+                     for (int dim = 0; dim < NDIM; dim++) {
+                        F[dim][k] += g[dim];
+                     }
+         #ifndef TEST_FORCE
+                  }
+         #endif
+               }
             cuda_pc_interactions(parts,params_ptr);
             cuda_pp_interactions(parts,params_ptr);
             break;
@@ -278,33 +305,14 @@ cuda_kick(kick_params_type * params_ptr)
       rc.flops += rc1.flops + rc2.flops;
       //   printf( "%li\n", rc.flops);
    } else {
-      auto& rungs = shmem.rungs;
+      auto& rungs = shmem.p.rungs;
       rungs[tid] = 0;
-      const auto& myparts = ((tree*)params.tptr)->parts;
       const auto invlog2 = 1.0f / logf(2);
       for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
          const auto this_rung = parts->rung(k+myparts.first);
 #ifndef TEST_FORCE
          if( this_rung >= params.rung ) {
 #endif
-
-            array<accum_real,NDIM> g;
-            accum_real phi;
-            array<accum_real,NDIM> dx;
-            for (int dim = 0; dim < NDIM; dim++) {
-#ifdef ACCUMULATE_DOUBLE_PRECISION
-               const auto x2 = me.pos[dim].to_double();
-               const auto x1 = parts->pos(dim,k+myparts.first).to_double();
-#else
-               const auto x2 = me.pos[dim].to_float();
-               const auto x1 = parts->pos(dim,k+myparts.first).to_float();
-#endif
-               dx[dim] = x1 - x2;
-            }
-            shift_expansion(L, g, phi, dx);
-            for (int dim = 0; dim < NDIM; dim++) {
-               F[dim][k] += g[dim];
-            }
 #ifdef TEST_FORCE
             for( int dim = 0; dim < NDIM; dim++) {
                parts->force(dim,k+myparts.first) = F[dim][k];

@@ -113,7 +113,7 @@ CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, kick_params_type *par
    auto &Lreduce = shmem.Lreduce;
    auto &inters = params.part_interactions;
    const auto &sinks = ((tree*) params.tptr)->pos;
-   auto &sources = shmem.src;
+   auto &sources = shmem.p.src;
    const auto &myparts = ((tree*) params.tptr)->parts;
    size_t part_index;
    int i = 0;
@@ -184,13 +184,13 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
    __shared__
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-   auto &f = shmem.f;
+   auto &f = shmem.p.f;
    auto &F = shmem.F;
 #ifdef COUNT_FLOPS
    auto &flops = shmem.flops;
 #endif
-   auto &sources = shmem.src;
-   auto &sinks = shmem.sink;
+   auto &sources = shmem.p.sink;
+   auto &sinks = shmem.p.sink;
    auto &inters = params.part_interactions;
    const auto h2 = sqr(params.hsoft);
    size_t part_index;
@@ -298,9 +298,9 @@ void cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    auto &flops = shmem.flops;
-   auto &f = shmem.f;
+   auto &f = shmem.p.f;
    auto &F = shmem.F;
-   auto &sinks = shmem.sink;
+   auto &sinks = shmem.p.sink;
    auto &inters = params.multi_interactions;
    const auto &myparts = ((tree*) params.tptr)->parts;
    const auto offset = myparts.first;
