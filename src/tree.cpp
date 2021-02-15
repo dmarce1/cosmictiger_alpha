@@ -18,7 +18,7 @@ std::atomic<int> tree::cuda_node_count(0);
 std::atomic<int> tree::cpu_node_count(0);
 
 auto cuda_depth() {
-   return 8;
+   return 9;
 }
 
 hpx::future<sort_return> tree::create_child(sort_params &params) {
@@ -428,26 +428,22 @@ cuda_exec_return cuda_execute_kick_kernel(kick_params_type **params, int grid_si
 void cuda_execute_ewald_cc_kernel(kick_params_type *params_ptr);
 
 void tree::gpu_daemon() {
-   using namespace std::chrono_literals;
+   constexpr auto gpu_dec_time = 1.0e-3;
+   static bool first_call = true;
+   static std::vector<std::function<bool()>> completions;
+   static timer timer;
+   if (first_call) {
+      printf("Starting gpu daemon\n");
+      first_call = false;
+      timer.reset();
+      timer.start();
+   }
 
-   printf("Starting gpu kick daemon\n");
-   daemon_running = true;
-   int minq1 = KICK_GRID_SIZE;
-   int minq2 = KICK_GRID_SIZE;
-   std::vector < std::function < bool() >> completions;
-   while (!shutdown_daemon) {
-      timer tm;
-      //    printf("Yielding\n");
-      int ewald_min= KICK_GRID_SIZE;
-      do {
-         tm.start();
-         hpx::this_thread::yield();
-         tm.stop();
-      } while (tm.read() < 1.0e-3);
-      //    printf("Starting\n");
-      ewald_min = std::max(ewald_min/2,1);
-      while (gpu_ewald_queue.size() >= ewald_min) {
-         int grid_size = std::min((int) gpu_ewald_queue.size(), ewald_min);
+   timer.stop();
+   if (timer.read() > 1.0e-3) {
+      timer.start();
+      if (gpu_ewald_queue.size() > 0) {
+         int grid_size = std::min((int) gpu_ewald_queue.size(), KICK_GRID_SIZE);
          auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<int32_t>>>();
          unified_allocator all_params_alloc;
          kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate(
@@ -472,10 +468,8 @@ void tree::gpu_daemon() {
                return false;
             }
          }));
-         ewald_min = KICK_GRID_SIZE;
       }
-  //    printf( "%li %li \n", gpu_queue.size(), (int) cuda_node_count);
-      while (gpu_queue.size() >= KICK_GRID_SIZE) {
+      if (gpu_queue.size() > 0) {
          int grid_size = std::min((int) gpu_queue.size(), KICK_GRID_SIZE);
          auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<kick_return>>>();
          auto deleters = std::make_shared<std::vector<std::function<void()>> >();
@@ -505,11 +499,11 @@ void tree::gpu_daemon() {
                for (auto &d : *deleters) {
                   d();
                }
-               unified_allocator alloc;
-               alloc.deallocate(exec_ret.second);
                for (int i = 0; i < grid_size; i++) {
                   (*promises)[i].set_value(exec_ret.second[i]);
                }
+               unified_allocator alloc;
+               alloc.deallocate(exec_ret.second);
                printf("Done executing %i blocks\n", promises->size());
                return true;
             } else {
@@ -526,10 +520,15 @@ void tree::gpu_daemon() {
             i++;
          }
       }
+   } else {
+      timer.start();
    }
-   daemon_running = false;
-   shutdown_daemon = false;
-   printf("Shutting down GPU kick daemon\n");
+   if (!shutdown_daemon) {
+      hpx::apply(gpu_daemon);
+   } else {
+      first_call = true;
+      daemon_running = false;
+   }
 }
 
 hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
