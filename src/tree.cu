@@ -65,7 +65,7 @@ cuda_kick(kick_params_type * params_ptr)
    auto& flops = shmem.flops;
    flops[tid] = 0;
 #endif
-   if (((tree*) tptr)->children[0].rank == -1) {
+   if (((tree*) tptr)->children[0].ptr == 0) {
       for (int k = tid; k < MAX_BUCKET_SIZE; k += KICK_BLOCK_SIZE) {
          for (int dim = 0; dim < NDIM; dim++) {
             F[dim][k] = 0.f;
@@ -92,7 +92,7 @@ cuda_kick(kick_params_type * params_ptr)
       }
       const auto &myradius = 1.5 * ((tree*) tptr)->radius;
       const auto &mypos = ((tree*) tptr)->pos;
-      int ninteractions = ((tree*) tptr)->children[0].rank == -1 ? 4 : 2;
+      int ninteractions = ((tree*) tptr)->children[0].ptr == 0 ? 4 : 2;
       for (int type = 0; type < ninteractions; type++) {
          const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
          auto& checks = ewald_dist ? params.echecks : params.dchecks;
@@ -131,7 +131,7 @@ cuda_kick(kick_params_type * params_ptr)
                      }
                      const bool far = R2 < theta2 * d2;                             // 2
                      flops[tid] += 6;
-                     const bool isleaf = ((const tree*) check)->children[0].rank == -1;
+                     const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
                      list_index = int(!far) * (1 + int(isleaf) + int(isleaf && bool(check.opened++)));
                      indices[list_index][tid + 1] = 1;
                   }
@@ -251,7 +251,7 @@ cuda_kick(kick_params_type * params_ptr)
       rc.flops = flops[0];
 #endif
    }
-   if (!(((tree*) tptr)->children[0].rank == -1)) {
+   if (!(((tree*) tptr)->children[0].ptr == 0)) {
       params.dchecks.push_top();
       params.echecks.push_top();
       if (tid == 0) {

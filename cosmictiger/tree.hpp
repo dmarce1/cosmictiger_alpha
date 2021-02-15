@@ -117,13 +117,13 @@ class kick_params_type;
 
 struct tree_ptr {
    uintptr_t ptr;
-   int rank;
+//   int rank;
    int8_t opened;
 #ifndef NDEBUG
    int constructed;
 #endif
    CUDA_EXPORT inline tree_ptr() {
-      rank = -1;
+   //   rank = -1;
       ptr = 0;
       opened = false;
 #ifndef NDEBUG
@@ -131,7 +131,7 @@ struct tree_ptr {
 #endif
    }
    CUDA_EXPORT inline tree_ptr(tree_ptr &&other) {
-      rank = other.rank;
+    //  rank = other.rank;
       ptr = other.ptr;
       opened = other.opened;
 #ifndef NDEBUG
@@ -139,7 +139,7 @@ struct tree_ptr {
 #endif
    }
    CUDA_EXPORT inline tree_ptr(const tree_ptr &other) {
-      rank = other.rank;
+    //  rank = other.rank;
       ptr = other.ptr;
       opened = other.opened;
 #ifndef NDEBUG
@@ -149,7 +149,7 @@ struct tree_ptr {
    CUDA_EXPORT inline tree_ptr& operator=(const tree_ptr &other) {
       assert(constructed == 1234);
       ptr = other.ptr;
-      rank = other.rank;
+     // rank = other.rank;
       opened = other.opened;
       return *this;
    }
@@ -157,19 +157,19 @@ struct tree_ptr {
    inline tree_ptr& operator=(tree_ptr &&other) {
       assert(constructed == 1234);
       ptr = other.ptr;
-      rank = other.rank;
+     // rank = other.rank;
       opened = other.opened;
       return *this;
    }
    CUDA_EXPORT
    inline bool operator==(const tree_ptr &other) const {
       assert(constructed == 1234);
-      return rank == other.rank && ptr == other.ptr && opened == other.opened;
+      return /*rank == other.rank && */ptr == other.ptr && opened == other.opened;
    }
    template<class A>
    void serialization(A &&arc, unsigned) {
       arc & ptr;
-      arc & rank;
+   //   arc & rank;
       arc & opened;
    }
    CUDA_EXPORT

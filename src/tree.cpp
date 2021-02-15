@@ -24,7 +24,7 @@ auto cuda_depth() {
 hpx::future<sort_return> tree::create_child(sort_params &params) {
    static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
    tree_ptr id;
-   id.rank = 0;
+ //  id.rank = 0;
    id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
    CHECK_POINTER(id.ptr);
    const auto nparts = (*params.bounds)[params.key_end] - (*params.bounds)[params.key_begin];
@@ -505,7 +505,7 @@ void tree::gpu_daemon() {
                }
                unified_allocator alloc;
                alloc.deallocate(exec_ret.second);
-               printf("Done executing %i blocks\n", promises->size());
+               printf("Done executing %li blocks\n", promises->size());
                return true;
             } else {
                return false;
@@ -547,7 +547,7 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    gpu_kick gpu;
    tree_ptr me;
    me.ptr = (uintptr_t)(this);
-   me.rank = hpx_rank();
+//   me.rank = hpx_rank();
    kick_params_type *new_params;
    new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
    new (new_params) kick_params_type();
@@ -584,7 +584,7 @@ hpx::future<int32_t> tree::send_ewald_to_gpu(kick_params_type *params) {
    gpu_ewald gpu;
    tree_ptr me;
    me.ptr = (uintptr_t)(this);
-   me.rank = hpx_rank();
+ //  me.rank = hpx_rank();
    params->tptr = me;
    gpu.params = params;
    auto fut = gpu.promise.get_future();

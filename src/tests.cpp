@@ -69,7 +69,7 @@ void kick_test() {
       tm_kick.start();
       tree_ptr root_ptr;
       root_ptr.ptr = (uintptr_t) & root;
-      root_ptr.rank = hpx_rank();
+    //  root_ptr.rank = hpx_rank();
       // printf( "%li", size_t(WORKSPACE_SIZE));
       kick_params_type* params_ptr;
       CUDA_MALLOC(params_ptr,1);
