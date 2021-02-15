@@ -35,9 +35,10 @@ cuda_kick(kick_params_type * params_ptr)
    __shared__
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-//   if( params_ptr->depth > TREE_MAX_DEPTH || params_ptr->depth < 0 ) {
+ //  printf( "%i\n", params_ptr->depth);
+   //   if( params_ptr->depth > TREE_MAX_DEPTH || params_ptr->depth < 0 ) {
 //      printf( "%li\n", params_ptr->depth);
- //  }
+   //  }
    tree_ptr tptr = params.tptr;
    tree& me = *((tree*) tptr);
    const int &tid = threadIdx.x;
@@ -77,7 +78,7 @@ cuda_kick(kick_params_type * params_ptr)
       auto &count = shmem.count;
 
       const auto theta2 = params.theta * params.theta;
-      array<array<tree_ptr, WORKSPACE_SIZE>*, NITERS> lists;
+      array<vector<tree_ptr>*, NITERS> lists;
       auto &multis = params.multi_interactions;
       auto &parti = params.part_interactions;
       auto &next_checks = params.next_checks;
@@ -86,6 +87,9 @@ cuda_kick(kick_params_type * params_ptr)
       lists[PI] = &parti;
       lists[CI] = &next_checks;
       lists[OI] = &opened_checks;
+      for( int i = 0; i < NITERS; i++) {
+         lists[i]->resize(0);
+      }
       const auto &myradius = 1.5 * ((tree*) tptr)->radius;
       const auto &mypos = ((tree*) tptr)->pos;
       int ninteractions = ((tree*) tptr)->children[0].rank == -1 ? 4 : 2;
@@ -133,14 +137,14 @@ cuda_kick(kick_params_type * params_ptr)
                   }
                   __syncthreads();
                   for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
-                     array<int, NITERS> tmp;
-                     if (tid + 1 > P) {
+                     array<int16_t, NITERS> tmp;
+                     if (tid - P + 1 >= 0) {
                         for (int i = 0; i < NITERS; i++) {
                            tmp[i] = indices[i][tid - P + 1];
                         }
                      }
                      __syncthreads();
-                     if (tid + 1 > P) {
+                     if (tid - P + 1 >= 0) {
                         for (int i = 0; i < NITERS; i++) {
                            indices[i][tid + 1] += tmp[i];
                         }
@@ -148,9 +152,14 @@ cuda_kick(kick_params_type * params_ptr)
                      __syncthreads();
                   }
                   __syncthreads();
-                  if (ci < check_count) {
+                  for( int i = 0; i < NITERS; i++) {
+                     assert(indices[i][tid] <= indices[i][tid+1] );
+                     lists[i]->resize(count[i]+indices[i][KICK_BLOCK_SIZE]);
+                  }
+                  if( ci < check_count ) {
                      const auto &check = checks[ci];
                      assert(count[list_index] + indices[list_index][tid] >= 0);
+           //          printf( "%i %i\n",(*lists[list_index]).size(), count[list_index] + indices[list_index][tid] );
                      (*lists[list_index])[count[list_index] + indices[list_index][tid]] = check;
                   }
                   __syncthreads();
@@ -176,6 +185,7 @@ cuda_kick(kick_params_type * params_ptr)
                      checks[2 * count[CI] + i] = opened_checks[i];
                   }
                } else {
+                  parti.resize(count[PI] + count[OI]);
                   for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
                      parti[count[PI] + i] = opened_checks[i];
                   }
@@ -191,12 +201,10 @@ cuda_kick(kick_params_type * params_ptr)
                   count[OI] = 0;
                }
                __syncthreads();
+               next_checks.resize(0);
+               opened_checks.resize(0);
             }
          }while (direct && check_count);
-         if (tid == 0) {
-            params.nmulti = count[MI];
-            params.npart = count[PI];
-         }
          __syncthreads();
          switch (type) {
             case PC_PP_DIRECT:
@@ -210,17 +218,17 @@ cuda_kick(kick_params_type * params_ptr)
             break;
             case PC_PP_EWALD:
             if(count[PI] > 0 ) {
-               //  printf( "PP Ewald should not exist\n");
+               printf( "PP Ewald should not exist\n");
                //  __trap();
             }
             if(count[MI] > 0 ) {
-               //   printf( "PC Ewald should not exist\n");
+               printf( "PC Ewald should not exist\n");
                //   __trap();
             }
             break;
             case CC_CP_EWALD:
             if(count[PI] > 0 ) {
-               //     printf( "CP Ewald should not exist\n");
+               printf( "CP Ewald should not exist\n");
                //     __trap();
             }
             if( count[MI] > 0 ) {
@@ -350,7 +358,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                           CUDA_CHECK(cudaDeviceSynchronize());
+                                       CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type *params) {
@@ -396,7 +404,7 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
 cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_kick_shmem),stream.first>>>(params_ptr);
-                           CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
+                                       CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
 
    struct cuda_ewald_future_shared {
       std::pair<cudaStream_t, cudaEvent_t> stream;
@@ -435,14 +443,14 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    // printf( "a\n");
    //  CUDA_MALLOC(returns, grid_size);
    // printf( "b\n");
- //  printf( "Shmem = %li\n", shmemsize);
+   //  printf( "Shmem = %li\n", shmemsize);
    cudaFuncAttributes attribs;
    size_t size = 65536;
-  CUDA_CHECK( cudaFuncSetAttribute(&cuda_kick_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, size ));
-  CUDA_CHECK( cudaFuncGetAttributes(&attribs,&cuda_kick_kernel));
-  if( size != attribs.maxDynamicSharedSizeBytes) {
-     printf( "Unable to set shared memory to %li bytes\n", size);
-  }
+   CUDA_CHECK(cudaFuncSetAttribute(&cuda_kick_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, size));
+   CUDA_CHECK(cudaFuncGetAttributes(&attribs, &cuda_kick_kernel));
+   if (size != attribs.maxDynamicSharedSizeBytes) {
+      printf("Unable to set shared memory to %li bytes\n", size);
+   }
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream.first>>>(returns,params);/**/
    //  /**/CUDA_CHECK(cudaEventRecord(stream.second, stream.first));/*******************************************************************************************************/

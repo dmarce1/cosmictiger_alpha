@@ -233,19 +233,15 @@ struct cuda_kick_shmem {
 };
 
 struct kick_params_type {
-   array<tree_ptr, WORKSPACE_SIZE> multi_interactions;
-   array<tree_ptr, WORKSPACE_SIZE> part_interactions;
-   array<tree_ptr, WORKSPACE_SIZE> next_checks;
-   array<tree_ptr, WORKSPACE_SIZE> opened_checks;
+   vector<tree_ptr> multi_interactions;
+   vector<tree_ptr> part_interactions;
+   vector<tree_ptr> next_checks;
+   vector<tree_ptr> opened_checks;
    stack_vector<tree_ptr> dchecks;
    stack_vector<tree_ptr> echecks;
    array<expansion<accum_real>, TREE_MAX_DEPTH> L;
    array<array<fixed32,NDIM>,TREE_MAX_DEPTH> Lpos;
    tree_ptr tptr;
-   int nmulti;
-   int npart;
-   int nnext;
-   int nopen;
    int depth;
    float theta;
    float eta;
@@ -257,13 +253,13 @@ struct kick_params_type {
    CUDA_EXPORT inline kick_params_type() {
       THREAD;
       if (tid == 0) {
+         depth = 0;
          theta = 0.5;
          eta = 0.2;
          scale = 1.0;
          t0 = 1.0;
          rung = 0;
          hsoft = 1.0 / pow(global().opts.nparts,1.0/3.0) / 50.0;
-         nmulti = npart = nnext = nopen = depth = 0;
       }CUDA_SYNC();
    }
    friend class tree_ptr;

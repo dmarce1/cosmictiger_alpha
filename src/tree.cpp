@@ -242,7 +242,6 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
    if (params_ptr->depth == cuda_depth()) {
       return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
    } else {
-      thread = true;
       if (thread) {
          kick_params_type *new_params;
          new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
@@ -286,6 +285,8 @@ kick_return tree::kick(kick_params_type *params_ptr) {
 #endif
    kick_return rc;
    rc.flops = 0;
+ //  printf( "%li\n", params.depth);
+   assert( params.depth < TREE_MAX_DEPTH);
    auto &L = params.L[params.depth];
    const auto &Lpos = params.Lpos[params.depth];
    array<accum_real, NDIM> dx;
@@ -306,16 +307,15 @@ kick_return tree::kick(kick_params_type *params_ptr) {
    auto &multis = params.multi_interactions;
    auto &parti = params.part_interactions;
    auto &next_checks = params.next_checks;
-   auto &opened_checks = params.opened_checks;
    int ninteractions = is_leaf() ? 4 : 2;
    for (int type = 0; type < ninteractions; type++) {
       const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
       auto &checks = ewald_dist ? params.echecks : params.dchecks;
       const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
-      params.npart = params.nmulti = params.nnext = 0;
-
+      parti.resize(0);
+      multis.resize(0);
       do {
-         params.nnext = params.nopen = 0;
+         next_checks.resize(0);
 #ifdef TEST_CHECKLIST_TIME
             tm.start();
 #endif
@@ -332,15 +332,15 @@ kick_return tree::kick(kick_params_type *params_ptr) {
             }
             const bool far = R2 < theta2 * d2;
             if (far) {
-               multis[params.nmulti++] = checks[ci];
+               multis.push_back(checks[ci]);
             } else if (!checks[ci].is_leaf()) {
                const auto child_checks = checks[ci].get_children().get();
-               next_checks[params.nnext++] = child_checks[LEFT];
-               next_checks[params.nnext++] = child_checks[RIGHT];
+               next_checks.push_back(child_checks[LEFT]);
+               next_checks.push_back(child_checks[RIGHT]);
             } else if (!checks[ci].opened++) {
-               next_checks[params.nnext++] = checks[ci];
+               next_checks.push_back(checks[ci]);
             } else {
-               parti[params.npart++] = checks[ci];
+               parti.push_back(checks[ci]);
             }
          }
 #ifdef TEST_CHECKLIST_TIME
@@ -348,12 +348,12 @@ kick_return tree::kick(kick_params_type *params_ptr) {
 #endif
          if (type == PC_PP_DIRECT || type == CC_CP_DIRECT) {
             params.dchecks.resize(0);
-            for (int i = 0; i < params.nnext; i++) {
+            for (int i = 0; i < next_checks.size(); i++) {
                params.dchecks.push(next_checks[i]);
             }
          } else {
             params.echecks.resize(0);
-            for (int i = 0; i < params.nnext; i++) {
+            for (int i = 0; i < next_checks.size(); i++) {
                params.echecks.push(next_checks[i]);
             }
          }
@@ -364,7 +364,7 @@ kick_return tree::kick(kick_params_type *params_ptr) {
          rc.flops += cpu_cc_direct(params_ptr);
          break;
       case CC_CP_EWALD:
-         if (params_ptr->nmulti) {
+         if (multis.size()) {
             auto tmp = send_ewald_to_gpu(params_ptr).get();
             //     printf( "%i\n", tmp);
             rc.flops += tmp;
@@ -381,6 +381,7 @@ kick_return tree::kick(kick_params_type *params_ptr) {
       }
 
    }
+ //  printf( "%li\n", params.depth);
    if (!is_leaf()) {
       // printf("4\n");
       const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
@@ -596,19 +597,18 @@ hpx::future<int32_t> tree::send_ewald_to_gpu(kick_params_type *params) {
 int tree::cpu_cc_direct(kick_params_type *params_ptr) {
    kick_params_type &params = *params_ptr;
    auto &L = params.L[params.depth];
-   const auto &multis = params.multi_interactions;
-   int nmulti = params.nmulti;
+   auto &multis = params.multi_interactions;
    int flops = 0;
-   if (nmulti != 0) {
+   if (multis.size()) {
       static const auto one = simd_float(1.0);
       static const auto half = simd_float(0.5);
       array<simd_fixed32, NDIM> X, Y;
       multipole_type<simd_float> M;
       expansion<simd_float> Lacc;
       Lacc = simd_float(0);
-      const auto cnt1 = nmulti;
+      const auto cnt1 = multis.size();
       const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
-      nmulti = cnt2;
+      multis.resize(cnt2);
       for (int dim = 0; dim < NDIM; dim++) {
          X[dim] = simd_fixed32(pos[dim]);
       }
