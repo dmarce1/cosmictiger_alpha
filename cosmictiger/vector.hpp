@@ -176,7 +176,7 @@ public:
    void reserve(size_t new_cap) {
       THREAD;
       BLOCK;
-      size_t i = 256;
+      size_t i = 1;
       while (i < new_cap ) {
          i *= 2;
       }
@@ -185,7 +185,6 @@ public:
 #ifdef __CUDA_ARCH__
 //        printf( "INcreasing capacity from %li to %li\n", cap, new_cap);
 #endif
-         SYNC;
          if (tid == 0) {
 #ifndef __CUDA_ARCH__
             unified_allocator alloc;
@@ -220,11 +219,10 @@ public:
       THREAD;
       reserve(new_size);
       auto oldsz = sz;
-      SYNC;
       destruct(new_size, oldsz);
       if (tid == 0) {
          sz = new_size;
-      }SYNC;
+      }
       construct(oldsz, new_size);
       SYNC;
    }
