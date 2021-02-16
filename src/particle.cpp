@@ -20,15 +20,16 @@ particle_set::particle_set(size_t size, size_t offset) {
    int8_t *data = (int8_t*) pptr_;
    for (size_t dim = 0; dim < NDIM; dim++) {
       xptr_[dim] = (fixed32*) (data + dim * size * sizeof(fixed32));
-      CUDA_CHECK(cudaMemAdvise(xptr_[dim], size*sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
-      CUDA_CHECK(cudaMemAdvise(xptr_[dim], size*sizeof(fixed32), cudaMemAdviseSetAccessedBy, 0));
+      CUDA_CHECK(cudaMemAdvise(xptr_[dim], size * sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
+      CUDA_CHECK(cudaMemAdvise(xptr_[dim], size * sizeof(fixed32), cudaMemAdviseSetAccessedBy, 0));
    }
    for (size_t dim = 0; dim < NDIM; dim++) {
       vptr_[dim] = (float*) (data + size_t(NDIM) * size * sizeof(fixed32) + dim * size * sizeof(float));
-      CUDA_CHECK(cudaMemAdvise(vptr_[dim], size*sizeof(float), cudaMemAdviseSetAccessedBy, 0));
+      CUDA_CHECK(cudaMemAdvise(vptr_[dim], size * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
    }
-   rptr_ = (particle::flags_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size);
-   CUDA_CHECK(cudaMemAdvise(rptr_, size*sizeof(particle::flags_t), cudaMemAdviseSetAccessedBy, 0));
+   rptr_ = (int8_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size);
+   mptr_ = (uint64_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(int8_t) * size);
+ //  CUDA_CHECK(cudaMemAdvise(rptr_, size * sizeof(particle::flags_t), cudaMemAdviseSetAccessedBy, 0));
 #ifdef TEST_FORCE
    for (size_t dim = 0; dim < NDIM; dim++) {
       fptr_[dim] = (float*) ((data  + size_t(NDIM) * sizeof(fixed32) * size + dim * size * sizeof(float) * size
@@ -122,7 +123,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
                   for (int dim = 0; dim < NDIM; dim++) {
                      vel(dim, i) = tmp.v[dim];
                   }
-                  set_rung(tmp.flags.rung, i);
+                  set_rung(tmp.rung, i);
                   set_mid(this_key, i);
                } else {
                   first_index = i;
@@ -139,7 +140,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
             for (int dim = 0; dim < NDIM; dim++) {
                vel(dim, first_index) = p.v[dim];
             }
-            set_rung(p.flags.rung, first_index);
+            set_rung(p.rung, first_index);
             set_mid(this_key, first_index);
          }
       }

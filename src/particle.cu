@@ -10,24 +10,24 @@
 #define KEY_BLOCK_SIZE 256
 #define COUNT_BLOCK_SIZE 256
 
-CUDA_KERNEL morton_keygen(particle::flags_t *flags, fixed32 *xptr, fixed32 *yptr, fixed32 *zptr, size_t nele,
+CUDA_KERNEL morton_keygen(uint64_t *keys, fixed32 *xptr, fixed32 *yptr, fixed32 *zptr, size_t nele,
       size_t depth) {
    const int &tid = threadIdx.x;
    const int &bid = blockIdx.x;
    const size_t start = bid * nele / gridDim.x;
    const size_t stop = (bid + 1) * nele / gridDim.x;
    for (size_t i = start + tid; i < stop; i += KEY_BLOCK_SIZE) {
-      flags[i].morton_id = morton_key(xptr[i], yptr[i], zptr[i], depth);
+      keys[i] = morton_key(xptr[i], yptr[i], zptr[i], depth);
    }
 }
 
-CUDA_KERNEL count_keys(int *counts, particle::flags_t *keys, morton_t key_min, morton_t key_max, size_t nele) {
+CUDA_KERNEL count_keys(int *counts, uint64_t *keys, morton_t key_min, morton_t key_max, size_t nele) {
    const int &tid = threadIdx.x;
    const int &bid = blockIdx.x;
    const size_t start = bid * nele / gridDim.x;
    const size_t stop = (bid + 1) * nele / gridDim.x;
    for (size_t i = start + tid; i < stop; i += COUNT_BLOCK_SIZE) {
-      const size_t index = keys[i].morton_id - key_min;
+      const size_t index = keys[i] - key_min;
 //      if(keys[i].morton_id < key_min ) {
 //         printf( "min out %lx %lx\n", keys[i].morton_id, key_min);
 //         __trap();
@@ -36,8 +36,8 @@ CUDA_KERNEL count_keys(int *counts, particle::flags_t *keys, morton_t key_min, m
 //         printf( "max out %lx %lx\n", keys[i].morton_id, key_max);
 //         __trap();
 //      }
-      assert(keys[i].morton_id >= key_min);
-      assert(keys[i].morton_id < key_max);
+      assert(keys[i] >= key_min);
+      assert(keys[i] < key_max);
       atomicAdd(counts + index, 1);
    }
 }
@@ -53,9 +53,9 @@ std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, in
    fixed32 *x = set.xptr_[0] + start;
    fixed32 *y = set.xptr_[1] + start;
    fixed32 *z = set.xptr_[2] + start;
-   particle::flags_t *flags = set.rptr_ + start;
+   uint64_t *keys = set.mptr_ + start;
    /***********************************************************************************/
-   /**/morton_keygen<<<nkeyblocks, KEY_BLOCK_SIZE>>>(flags,x,y,z,stop-start, depth);/**/
+   /**/morton_keygen<<<nkeyblocks, KEY_BLOCK_SIZE>>>(keys,x,y,z,stop-start, depth);/**/
    /**/CUDA_CHECK(cudaDeviceSynchronize()); /**/
    /***********************************************************************************/
 
@@ -67,7 +67,7 @@ std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, in
    }
    assert(key_stop - key_start + 1 >= key_stop - key_start);
    /*******************************************************************************************************/
-   /**/count_keys<<<ncountblocks,COUNT_BLOCK_SIZE>>>(counts,  flags, key_start, key_stop, stop - start);/**/
+   /**/count_keys<<<ncountblocks,COUNT_BLOCK_SIZE>>>(counts,  keys, key_start, key_stop, stop - start);/**/
    /**/CUDA_CHECK(cudaDeviceSynchronize()); /**/
    /*******************************************************************************************************/
    std::vector < size_t > bounds(key_stop - key_start + 1);

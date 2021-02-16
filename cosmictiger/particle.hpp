@@ -27,25 +27,8 @@ using rung_t = int8_t;
 struct particle {
    std::array<fixed32, NDIM> x;
    std::array<float, NDIM> v;
-#ifdef TEST_FORCE
-   std::array<float, NDIM> g;
-#endif
-   struct flags_t {
-      uint64_t morton_id :56;
-      uint64_t rung :8;
-   };
-   flags_t flags;
-   template<class A>
-   void serialize(A &&arc, unsigned) {
-      arc & x;
-      arc & v;
-      uint64_t tmp1 = flags.rung;
-      uint64_t tmp2 = flags.morton_id;
-      arc & tmp1;
-      arc & tmp2;
-      flags.rung = tmp1;
-      flags.morton_id = tmp2;
-   }
+   uint64_t morton_id;
+   int8_t rung;
 };
 
 struct particle_set {
@@ -74,19 +57,13 @@ struct particle_set {
    size_t size() const {
       return size_;
    }
-#ifdef TEST_FORCE
-   CUDA_EXPORT inline float force(int dim, size_t index) const;
-   CUDA_EXPORT inline float& force(int dim, size_t index);
-#endif
 #ifndef __CUDACC__
 private:
 #endif
    array<fixed32*, NDIM> xptr_;
    array<float*, NDIM> vptr_;
-#ifdef TEST_FORCE
-   array<float*, NDIM> fptr_;
-#endif
-   particle::flags_t *rptr_;
+   int8_t *rptr_;
+   uint64_t *mptr_;
    particle *pptr_;
    size_t size_;
    size_t offset_;
@@ -141,13 +118,13 @@ CUDA_EXPORT
 inline rung_t particle_set::rung(size_t index) const {
    assert(index >= 0);
    assert(index < size_);
-   return rptr_[index - offset_].rung;
+   return rptr_[index - offset_];
 }
 
 inline morton_t particle_set::mid(size_t index) const {
    assert(index >= 0);
    assert(index < size_);
-   return rptr_[index - offset_].morton_id;
+   return mptr_[index - offset_];
 }
 CUDA_EXPORT
 inline fixed32& particle_set::pos(int dim, size_t index) {
@@ -166,14 +143,14 @@ inline float& particle_set::vel(int dim, size_t index) {
 inline void particle_set::set_mid(morton_t t, size_t index) {
    assert(index >= 0);
    assert(index < size_);
-   rptr_[index - offset_].morton_id = t;
+   mptr_[index - offset_] = t;
 }
 
 CUDA_EXPORT
 inline void particle_set::set_rung(rung_t t, size_t index) {
    assert(index >= 0);
    assert(index < size_);
-   rptr_[index - offset_].rung = t;
+   rptr_[index - offset_] = t;
 }
 
 inline particle particle_set::part(size_t index) const {
@@ -186,8 +163,8 @@ inline particle particle_set::part(size_t index) const {
    for (int dim = 0; dim < NDIM; dim++) {
       p.v[dim] = vel(dim, index);
    }
-   p.flags.rung = rung(index);
-   p.flags.morton_id = mid(index);
+   p.rung = rung(index);
+   p.morton_id = mid(index);
    return p;
 }
 
