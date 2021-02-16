@@ -12,6 +12,8 @@
 
 //#define TEST_CHECKLIST_TIME
 
+//#define TIMINGS
+
 #ifndef NDEBUG
 #define TEST_TREE
 #define TEST_RADIX

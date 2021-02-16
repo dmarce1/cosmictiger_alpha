@@ -23,6 +23,12 @@ CUDA_DEVICE periodic_parts *periodic_parts_ptr;
 
 CUDA_DEVICE particle_set *parts;
 
+__managed__ double pp_interaction_time;
+__managed__ double pc_interaction_time;
+__managed__ double cp_interaction_time;
+__managed__ double cc_interaction_time;
+__managed__ double total_time;
+
 #define MI 0
 #define CI 1
 #define OI 2
@@ -35,7 +41,7 @@ cuda_kick(kick_params_type * params_ptr)
    __shared__
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
- //  printf( "%i\n", params_ptr->depth);
+   //  printf( "%i\n", params_ptr->depth);
    //   if( params_ptr->depth > TREE_MAX_DEPTH || params_ptr->depth < 0 ) {
 //      printf( "%li\n", params_ptr->depth);
    //  }
@@ -159,7 +165,7 @@ cuda_kick(kick_params_type * params_ptr)
                   if( ci < check_count ) {
                      const auto &check = checks[ci];
                      assert(count[list_index] + indices[list_index][tid] >= 0);
-           //          printf( "%i %i\n",(*lists[list_index]).size(), count[list_index] + indices[list_index][tid] );
+                     //          printf( "%i %i\n",(*lists[list_index]).size(), count[list_index] + indices[list_index][tid] );
                      (*lists[list_index])[count[list_index] + indices[list_index][tid]] = check;
                   }
                   __syncthreads();
@@ -206,16 +212,53 @@ cuda_kick(kick_params_type * params_ptr)
             }
          }while (direct && check_count);
          __syncthreads();
+#ifdef TIMINGS
+         uint64_t tm;
+#endif
          switch (type) {
             case PC_PP_DIRECT:
             //          printf( "%li %li\n", multis.size(), parti.size());
+#ifdef TIMINGS
+            tm = clock64();
+#endif
             cuda_pc_interactions(parts,params_ptr);
+#ifdef TIMINGS
+            tm = clock64() - tm;
+            if(tid==0) {
+               atomicAdd(&pc_interaction_time, (double) tm);
+            }
+
+            tm = clock64();
+#endif
             cuda_pp_interactions(parts,params_ptr);
+#ifdef TIMINGS
+            tm = clock64() - tm;
+            if(tid==0) {
+               atomicAdd(&pp_interaction_time, (double) tm);
+            }
+#endif
             break;
             case CC_CP_DIRECT:
+#ifdef TIMINGS
+            tm = clock64();
+#endif
             cuda_cc_interactions(parts,params_ptr);
+#ifdef TIMINGS
+            tm = clock64() - tm;
+            if(tid==0) {
+               atomicAdd(&cc_interaction_time, (double) tm);
+            }
+            tm = clock64();
+#endif
             cuda_cp_interactions(parts,params_ptr);
+#ifdef TIMINGS
+            tm = clock64() - tm;
+            if(tid==0) {
+               atomicAdd(&cp_interaction_time, (double) tm);
+            }
+#endif
             break;
+
             case PC_PP_EWALD:
             if(count[PI] > 0 ) {
                printf( "PP Ewald should not exist\n");
@@ -353,21 +396,40 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
       real_indices_ptr = real_indices;
       periodic_parts_ptr = periodic_parts;
       expansion_init();
+      pp_interaction_time = pc_interaction_time = cp_interaction_time = cc_interaction_time = 0.0;
+
    }
 }
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                       CUDA_CHECK(cudaDeviceSynchronize());
+                                                   CUDA_CHECK(cudaDeviceSynchronize());
 }
+
+#ifdef TIMINGS
+extern __managed__ double pp_crit1_time;
+extern __managed__ double pp_crit2_time;
+#endif
+
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type *params) {
    const int &bid = blockIdx.x;
+#ifdef TIMINGS
+   auto tm = clock64();
+#endif
    res[bid] = cuda_kick(params + bid);
    __syncthreads();
    if (threadIdx.x == 0) {
+#ifdef TIMINGS
+      atomicAdd(&total_time, (double) (clock64() - tm));
+#endif
       //     printf( "Kick done\n");
       params[bid].kick_params_type::~kick_params_type();
+#ifdef TIMINGS
+      double walk_time = total_time - pp_interaction_time -pc_interaction_time - cp_interaction_time - cc_interaction_time;
+      printf( "%e %e\n", pp_crit1_time/pp_interaction_time, pp_crit2_time/pp_interaction_time);
+#endif
+      //   printf("%e %e %e %e %e\n", walk_time/total_time, pp_interaction_time/total_time, pc_interaction_time/total_time, cp_interaction_time/total_time, cc_interaction_time/total_time);
    }
 
 }
@@ -404,7 +466,7 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
 cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_kick_shmem),stream.first>>>(params_ptr);
-                                       CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
+                                                   CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
 
    struct cuda_ewald_future_shared {
       std::pair<cudaStream_t, cudaEvent_t> stream;

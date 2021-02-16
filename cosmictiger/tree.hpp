@@ -110,6 +110,7 @@ struct sort_params {
 struct kick_return {
    int8_t rung;
    size_t flops;
+
 };
 
 class tree_ptr;
@@ -226,7 +227,7 @@ struct cuda_kick_shmem {
    array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
    array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 768
    array<expansion<accum_real>, KICK_BLOCK_SIZE> Lreduce;  // 4480
-   array<int8_t, KICK_BLOCK_SIZE> rungs; // 256
+   array<int8_t, MAX_BUCKET_SIZE> rungs; // 256
 #ifdef COUNT_FLOPS
    array<int32_t, KICK_BLOCK_SIZE> flops; // 128
 #endif

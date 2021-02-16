@@ -7,6 +7,9 @@
 
 #include <cosmictiger/gravity.hpp>
 
+__managed__ double pp_crit1_time;
+__managed__ double pp_crit2_time;
+
 CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, kick_params_type *params_ptr) {
 
    kick_params_type &params = *params_ptr;
@@ -186,6 +189,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    auto &f = shmem.f;
    auto &F = shmem.F;
+   auto &rungs = shmem.rungs;
 #ifdef COUNT_FLOPS
    auto &flops = shmem.flops;
 #endif
@@ -198,8 +202,8 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
       const auto &myparts = ((tree*) params.tptr)->parts;
       const size_t nsinks = myparts.second - myparts.first;
       for (int i = tid; i < nsinks; i += KICK_BLOCK_SIZE) {
-         const auto this_rung = parts->rung(i + myparts.first);
-         if (this_rung >= params.rung || this_rung == -1) {
+         rungs[i] = parts->rung(i + myparts.first);
+         if (rungs[i] >= params.rung || rungs[i] == -1) {
             for (int dim = 0; dim < NDIM; dim++) {
                sinks[dim][i] = parts->pos(dim, i + myparts.first);
             }
@@ -209,6 +213,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
       __syncthreads();
       auto these_parts = ((tree*) inters[0])->parts;
       while (i < inters.size()) {
+         uint64_t tm = clock64();
          part_index = 0;
          while (part_index < KICK_PP_MAX && i < inters.size()) {
             while (i + 1 < inters.size()) {
@@ -235,18 +240,19 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
                }
             }
          }
+         if( tid == 0 ) {
+            atomicAdd(&pp_crit1_time, (double)(clock64()-tm));
+         }
          __syncthreads();
+         tm = clock64();
          const auto offset = ((tree*) params.tptr)->parts.first;
          for (int k = 0; k < nsinks; k++) {
-            const auto this_rung = parts->rung(k + offset);
-#ifndef TEST_FORCE
-            if (this_rung >= params.rung || this_rung == -1) {
-#endif
+            if (rungs[k] >= params.rung || rungs[k] == -1) {
                for (int dim = 0; dim < NDIM; dim++) {
                   f[dim][tid] = 0.f;
                }
                for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
-                  array<float, NDIM> dx;
+                  register array<float, NDIM> dx;
                   for (int dim = 0; dim < NDIM; dim++) { // 3
                      dx[dim] = (fixed<int32_t>(sources[dim][j]) - fixed<int32_t>(sinks[dim][k])).to_float();
                   }
@@ -256,20 +262,14 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
                   for (int dim = 0; dim < NDIM; dim++) { // 6
                      f[dim][tid] -= dx[dim] * rinv3;
                   }
-#ifdef COUNT_FLOPS
-                  flops[tid] += 42;
-#endif
-#ifndef TEST_FORCE
+                  flops[tid] += 46;
                }
-#endif
                __syncthreads();
                for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
                   if (tid < P) {
                      for (int dim = 0; dim < NDIM; dim++) {
                         f[dim][tid] += f[dim][tid + P];
-#ifdef COUNT_FLOPS
                         flops[tid]++;
-#endif
                      }
                   }
                   __syncthreads();
@@ -284,6 +284,9 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
                }
                __syncthreads();
             }
+         }
+         if( tid == 0 ) {
+            atomicAdd(&pp_crit2_time, (double)(clock64()-tm));
          }
       }
    }
