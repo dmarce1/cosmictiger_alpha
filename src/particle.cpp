@@ -20,11 +20,15 @@ particle_set::particle_set(size_t size, size_t offset) {
    int8_t *data = (int8_t*) pptr_;
    for (size_t dim = 0; dim < NDIM; dim++) {
       xptr_[dim] = (fixed32*) (data + dim * size * sizeof(fixed32));
+      CUDA_CHECK(cudaMemAdvise(xptr_[dim], size*sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
+      CUDA_CHECK(cudaMemAdvise(xptr_[dim], size*sizeof(fixed32), cudaMemAdviseSetAccessedBy, 0));
    }
    for (size_t dim = 0; dim < NDIM; dim++) {
       vptr_[dim] = (float*) (data + size_t(NDIM) * size * sizeof(fixed32) + dim * size * sizeof(float));
+      CUDA_CHECK(cudaMemAdvise(vptr_[dim], size*sizeof(float), cudaMemAdviseSetAccessedBy, 0));
    }
    rptr_ = (particle::flags_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size);
+   CUDA_CHECK(cudaMemAdvise(rptr_, size*sizeof(particle::flags_t), cudaMemAdviseSetAccessedBy, 0));
 #ifdef TEST_FORCE
    for (size_t dim = 0; dim < NDIM; dim++) {
       fptr_[dim] = (float*) ((data  + size_t(NDIM) * sizeof(fixed32) * size + dim * size * sizeof(float) * size
