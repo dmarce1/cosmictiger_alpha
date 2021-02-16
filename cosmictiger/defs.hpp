@@ -32,7 +32,7 @@
 #define WORKSPACE_SIZE 1024
 #define KICK_GRID_SIZE (1024)
 #define KICK_BLOCK_SIZE 32
-#define KICK_PP_MAX size_t(256)
+#define KICK_PP_MAX size_t(320)
 #define GPU_QUEUE_SIZE (1024*1024)
 #define MAX_BUCKET_SIZE 64
 
