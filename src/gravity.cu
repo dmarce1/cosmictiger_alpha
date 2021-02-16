@@ -26,7 +26,7 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, kick_params_type *par
    __syncwarp();
    const auto &pos = ((tree*) params.tptr)->pos;
    for (int i = tid; i < multis.size(); i += KICK_BLOCK_SIZE) {
-      const multipole mpole = *((tree*) multis[i])->multi;
+      const multipole mpole = ((tree*) multis[i])->multi;
       array<float, NDIM> fpos;
       for (int dim = 0; dim < NDIM; dim++) {
          fpos[dim] = (fixed<int32_t>(pos[dim]) - fixed<int32_t>(pos[dim])).to_float();
@@ -66,7 +66,7 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
    __syncwarp();
    const auto &pos = ((tree*) params.tptr)->pos;
    for (int i = tid; i < multis.size(); i += KICK_BLOCK_SIZE) {
-      const multipole mpole_float = *((tree*) multis[i])->multi;
+      const multipole mpole_float = ((tree*) multis[i])->multi;
       multipole_type<ewald_real> mpole;
       for (int i = 0; i < MP; i++) {
          mpole[i] = mpole_float[i];
@@ -341,7 +341,7 @@ void cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
                   dx[dim] = (fixed<int32_t>(sources[dim]) - fixed<int32_t>(sinks[dim][k])).to_float();
                }
                flops[tid] += NDIM;
-               flops[tid] += multipole_interaction(Lforce, *((tree*) inters[i])->multi, dx, false);
+               flops[tid] += multipole_interaction(Lforce, ((tree*) inters[i])->multi, dx, false);
                for (int dim = 0; dim < NDIM; dim++) {
                   f[dim][tid] -= Lforce[dim + 1];
                }

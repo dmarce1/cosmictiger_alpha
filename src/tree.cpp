@@ -69,7 +69,7 @@ sort_return tree::sort(sort_params params) {
       abort();
    }
 
-   multi = params.allocs->multi_alloc.allocate();
+ //  multi = params.allocs->multi_alloc.allocate();
    if (params.depth == cuda_depth()) {
       cuda_node_count++;
    } else if (params.depth < cuda_depth()) {
@@ -138,10 +138,10 @@ sort_return tree::sort(sort_params params) {
             futs[ci] = create_child(child_params[ci]);
          }
       }
-      std::array<multipole*, NCHILD> Mc;
+      std::array<multipole, NCHILD> Mc;
       std::array<fixed32*, NCHILD> Xc;
       std::array<float, NCHILD> Rc;
-      auto &M = *(multi);
+      auto &M = (multi);
       for (int ci = 0; ci < NCHILD; ci++) {
          sort_return rc = futs[ci].get();
          children[ci] = rc.check;
@@ -150,8 +150,8 @@ sort_return tree::sort(sort_params params) {
          children[ci] = rc.check;
       }
       std::array<double, NDIM> com = { 0, 0, 0 };
-      const auto &MR = *Mc[RIGHT];
-      const auto &ML = *Mc[LEFT];
+      const auto &MR = Mc[RIGHT];
+      const auto &ML = Mc[LEFT];
       M() = ML() + MR();
       double rleft = 0.0;
       double rright = 0.0;
@@ -196,7 +196,7 @@ sort_return tree::sort(sort_params params) {
          pos[dim] = com[dim];
 
       }
-      auto &M = *(multi);
+      auto &M = (multi);
       M = 0.0;
       radius = 0.0;
       for (auto i = parts.first; i < parts.second; i++) {
@@ -620,7 +620,7 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
                   Y[dim][k] = ((const tree*) multis[j + k])->pos[dim];
                }
                for (int i = 0; i < MP; i++) {
-                  M[i][k] = (*((const tree*) multis[j + k])->multi)[i];
+                  M[i][k] = (((const tree*) multis[j + k])->multi)[i];
                }
             } else {
                for (int dim = 0; dim < NDIM; dim++) {

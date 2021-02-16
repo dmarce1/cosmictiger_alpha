@@ -289,7 +289,7 @@ private:
    float radius;
    array<tree_ptr, NCHILD> children;
    pair<size_t, size_t> parts;
-   multipole *multi;
+   multipole multi;
 public:
    static particle_set *particles;
    static std::atomic<int> cuda_node_count;
