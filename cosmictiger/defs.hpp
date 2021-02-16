@@ -9,6 +9,7 @@
 #define COSMICTIGER_DEFS_HPP_
 
 #define NDIM 3
+#define FULL_MASK 0xFFFFFFFF
 
 //#define TEST_CHECKLIST_TIME
 

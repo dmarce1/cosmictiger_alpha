@@ -23,7 +23,7 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, kick_params_type *par
    for (int i = 0; i < LP; i++) {
       Lreduce[tid][i] = 0.0;
    }
-   __syncthreads();
+   __syncwarp();
    const auto &pos = ((tree*) params.tptr)->pos;
    for (int i = tid; i < multis.size(); i += KICK_BLOCK_SIZE) {
       const multipole mpole = *((tree*) multis[i])->multi;
@@ -34,7 +34,7 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, kick_params_type *par
       flops[tid] += NDIM;
       flops[tid] += multipole_interaction(Lreduce[tid], mpole, fpos, false);
    }
-   __syncthreads();
+   __syncwarp();
    for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
       if (tid < P) {
          for (int i = 0; i < LP; i++) {
@@ -42,7 +42,7 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, kick_params_type *par
          }
          flops[tid] += LP;
       }
-      __syncthreads();
+      __syncwarp();
    }
    for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
       params.L[params.depth][i] += Lreduce[0][i];
@@ -63,7 +63,7 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
       Lreduce[tid][i] = 0.0;
    }
    flops[tid] = 0;
-   __syncthreads();
+   __syncwarp();
    const auto &pos = ((tree*) params.tptr)->pos;
    for (int i = tid; i < multis.size(); i += KICK_BLOCK_SIZE) {
       const multipole mpole_float = *((tree*) multis[i])->multi;
@@ -82,7 +82,7 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
       flops[tid] += 3;
       flops[tid] += multipole_interaction_ewald(Lreduce[tid], mpole, fpos, false);
    }
-   __syncthreads();
+   __syncwarp();
    for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
       if (tid < P) {
          for (int i = 0; i < LP; i++) {
@@ -90,19 +90,19 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
             flops[tid]++;
          }
       }
-      __syncthreads();
+      __syncwarp();
    }
    for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
       params.L[params.depth][i] += Lreduce[0][i];
       flops[tid]++;
    }
    for( int P = KICK_BLOCK_SIZE / 2; P >=1; P/=2) {
-      __syncthreads();
+      __syncwarp();
       if( tid < P) {
          flops[tid] += flops[tid+P];
       }
    }
-   __syncthreads();
+   __syncwarp();
    return flops[0];
 }
 
@@ -120,7 +120,7 @@ CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, kick_params_type *par
    const auto &myparts = ((tree*) params.tptr)->parts;
    size_t part_index;
    int i = 0;
-   __syncthreads();
+   __syncwarp();
    if (inters.size() > 0) {
       auto these_parts = ((tree*) inters[0])->parts;
       while (i < inters.size()) {
@@ -163,7 +163,7 @@ CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, kick_params_type *par
             }
             flops[tid] += LP;
          }
-         __syncthreads();
+         __syncwarp();
          for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
             if (tid < P) {
                for (int i = 0; i < LP; i++) {
@@ -171,7 +171,7 @@ CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, kick_params_type *par
                }
                flops[tid] += LP;
             }
-            __syncthreads();
+            __syncwarp();
          }
          for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
             params.L[params.depth][i] += Lreduce[0][i];
@@ -210,10 +210,12 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
          }
       }
       int i = 0;
-      __syncthreads();
+      __syncwarp();
       auto these_parts = ((tree*) inters[0])->parts;
       while (i < inters.size()) {
+#ifdef TIMINGS
          uint64_t tm = clock64();
+#endif
          part_index = 0;
          while (part_index < KICK_PP_MAX && i < inters.size()) {
             while (i + 1 < inters.size()) {
@@ -240,11 +242,13 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
                }
             }
          }
+#ifdef TIMINGS
          if( tid == 0 ) {
             atomicAdd(&pp_crit1_time, (double)(clock64()-tm));
          }
-         __syncthreads();
          tm = clock64();
+#endif
+         __syncwarp();
          const auto offset = ((tree*) params.tptr)->parts.first;
          for (int k = 0; k < nsinks; k++) {
             if (rungs[k] >= params.rung || rungs[k] == -1) {
@@ -264,7 +268,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
                   }
                   flops[tid] += 46;
                }
-               __syncthreads();
+               __syncwarp();
                for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
                   if (tid < P) {
                      for (int dim = 0; dim < NDIM; dim++) {
@@ -272,7 +276,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
                         flops[tid]++;
                      }
                   }
-                  __syncthreads();
+                  __syncwarp();
                }
                if (tid == 0) {
                   for (int dim = 0; dim < NDIM; dim++) {
@@ -282,12 +286,13 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
 #endif
                   }
                }
-               __syncthreads();
             }
          }
+#ifdef TIMINGS
          if( tid == 0 ) {
             atomicAdd(&pp_crit2_time, (double)(clock64()-tm));
          }
+#endif
       }
    }
 }
@@ -303,6 +308,7 @@ void cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
    auto &flops = shmem.flops;
    auto &f = shmem.f;
    auto &F = shmem.F;
+   auto& rungs = shmem.rungs;
    auto &sinks = shmem.sink;
    auto &inters = params.multi_interactions;
    const auto &myparts = ((tree*) params.tptr)->parts;
@@ -310,8 +316,8 @@ void cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
    const int mmax = ((inters.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
    const int nparts = myparts.second - myparts.first;
    for (int i = tid; i < nparts; i += KICK_BLOCK_SIZE) {
-      const auto this_rung = parts->rung(i + myparts.first);
-      if (this_rung >= params.rung || this_rung == -1) {
+      rungs[i] = parts->rung(i + myparts.first);
+      if (rungs[i] >= params.rung || rungs[i] == -1) {
          for (int dim = 0; dim < NDIM; dim++) {
             sinks[dim][i] = parts->pos(dim, myparts.first + i);
          }
@@ -321,14 +327,10 @@ void cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
       const auto &sources = ((tree*) inters[min(i,(int)inters.size()-1)])->pos;
       const int nparts = myparts.second - myparts.first;
       for (int k = 0; k < nparts; k++) {
-         const auto this_rung = parts->rung(k + offset);
-#ifndef TEST_FORCE
-         if (this_rung >= params.rung || this_rung == -1) {
-#endif
+         if (rungs[k] >= params.rung || rungs[k] == -1) {
             for (int dim = 0; dim < NDIM; dim++) {
                f[dim][tid] = 0.f;
             }
-            __syncthreads();
             if (i < inters.size()) {
                array<float, NDIM> dx;
                array<float, NDIM + 1> Lforce;
@@ -345,7 +347,7 @@ void cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
                }
                flops[tid] += NDIM;
             }
-            __syncthreads();
+            __syncwarp();
             for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
                if (tid < P) {
                   for (int dim = 0; dim < NDIM; dim++) {
@@ -353,7 +355,7 @@ void cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
                   }
                   flops[tid] += NDIM;
                }
-               __syncthreads();
+               __syncwarp();
             }
             if (tid == 0) {
                for (int dim = 0; dim < NDIM; dim++) {
@@ -361,10 +363,7 @@ void cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
                }
                flops[tid] += NDIM;
             }
-            __syncthreads();
-#ifndef TEST_FORCE
          }
-#endif
       }
    }
 }
@@ -434,14 +433,14 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
          }
       }
    }
-   __syncthreads();
+   __syncwarp();
    for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
       if (tid < P) {
          for (int dim = 0; dim < NDIM; dim++) {
             f[dim][tid] += f[dim][tid + P];
          }
       }
-      __syncthreads();
+      __syncwarp();
    }
    for (int dim = 0; dim < NDIM; dim++) {
       res[index][dim] = f[dim][0];

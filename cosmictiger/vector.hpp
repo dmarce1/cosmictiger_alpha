@@ -11,7 +11,7 @@
 #ifdef __CUDA_ARCH__
 #define BLOCK const int& blocksize = blockDim.x
 #define THREAD const int& tid = threadIdx.x
-#define SYNC __syncthreads()
+#define SYNC __syncwarp()
 #else
 #define BLOCK constexpr int blocksize = 1
 #define THREAD constexpr int tid = 0

@@ -77,7 +77,7 @@ cuda_kick(kick_params_type * params_ptr)
             F[dim][k] = 0.f;
          }
       }
-      __syncthreads();
+      __syncwarp();
    }
    {
       auto &indices = shmem.indices;
@@ -106,7 +106,7 @@ cuda_kick(kick_params_type * params_ptr)
          if (tid < NITERS) {
             count[tid] = 0;
          }
-         __syncthreads();
+         __syncwarp();
          int check_count;
          do {
             check_count = checks.size();
@@ -116,11 +116,11 @@ cuda_kick(kick_params_type * params_ptr)
                   for (int i = 0; i < NITERS; i++) {
                      indices[i][tid + 1] = 0;
                   }
-                  __syncthreads();
+                  __syncwarp();
                   if (tid < NITERS) {
                      indices[tid][0] = 0;
                   }
-                  __syncthreads();
+                  __syncwarp();
                   int list_index = -1;
                   if (ci < check_count) {
                      auto &check = checks[ci];
@@ -141,7 +141,7 @@ cuda_kick(kick_params_type * params_ptr)
                      list_index = int(!far) * (1 + int(isleaf) + int(isleaf && bool(check.opened++)));
                      indices[list_index][tid + 1] = 1;
                   }
-                  __syncthreads();
+                  __syncwarp();
                   for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
                      array<int16_t, NITERS> tmp;
                      if (tid - P + 1 >= 0) {
@@ -149,15 +149,15 @@ cuda_kick(kick_params_type * params_ptr)
                            tmp[i] = indices[i][tid - P + 1];
                         }
                      }
-                     __syncthreads();
+                     __syncwarp();
                      if (tid - P + 1 >= 0) {
                         for (int i = 0; i < NITERS; i++) {
                            indices[i][tid + 1] += tmp[i];
                         }
                      }
-                     __syncthreads();
+                     __syncwarp();
                   }
-                  __syncthreads();
+                  __syncwarp();
                   for( int i = 0; i < NITERS; i++) {
                      assert(indices[i][tid] <= indices[i][tid+1] );
                      lists[i]->resize(count[i]+indices[i][KICK_BLOCK_SIZE]);
@@ -168,13 +168,13 @@ cuda_kick(kick_params_type * params_ptr)
                      //          printf( "%i %i\n",(*lists[list_index]).size(), count[list_index] + indices[list_index][tid] );
                      (*lists[list_index])[count[list_index] + indices[list_index][tid]] = check;
                   }
-                  __syncthreads();
+                  __syncwarp();
                   if (tid < NITERS) {
                      count[tid] += indices[tid][KICK_BLOCK_SIZE];
                   }
-                  __syncthreads();
+                  __syncwarp();
                }
-               __syncthreads();
+               __syncwarp();
                check_count = 2 * count[CI];
                checks.resize(check_count);
                for (int i = tid; i < count[CI]; i += KICK_BLOCK_SIZE) {
@@ -183,7 +183,7 @@ cuda_kick(kick_params_type * params_ptr)
                      checks[2 * i + j] = children[j];
                   }
                }
-               __syncthreads();
+               __syncwarp();
                if (type == CC_CP_DIRECT || type == CC_CP_EWALD) {
                   check_count += count[OI];
                   checks.resize(check_count);
@@ -195,23 +195,23 @@ cuda_kick(kick_params_type * params_ptr)
                   for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
                      parti[count[PI] + i] = opened_checks[i];
                   }
-                  __syncthreads();
+                  __syncwarp();
                   if( tid == 0 ) {
                      count[PI] += count[OI];
                   }
-                  __syncthreads();
+                  __syncwarp();
                }
-               __syncthreads();
+               __syncwarp();
                if (tid == 0) {
                   count[CI] = 0;
                   count[OI] = 0;
                }
-               __syncthreads();
+               __syncwarp();
                next_checks.resize(0);
                opened_checks.resize(0);
             }
          }while (direct && check_count);
-         __syncthreads();
+         __syncwarp();
 #ifdef TIMINGS
          uint64_t tm;
 #endif
@@ -284,12 +284,12 @@ cuda_kick(kick_params_type * params_ptr)
          }
       }
 #ifdef COUNT_FLOPS
-      __syncthreads();
+      __syncwarp();
       for( int P = KICK_BLOCK_SIZE/2; P >= 1; P/=2) {
          if( tid < P ) {
             flops[tid] += flops[tid+P];
          }
-         __syncthreads();
+         __syncwarp();
       }
       rc.flops = flops[0];
 #endif
@@ -303,7 +303,7 @@ cuda_kick(kick_params_type * params_ptr)
          params.Lpos[params.depth] = me.pos;
          params.tptr = ((tree*) tptr)->children[LEFT];
       }
-      __syncthreads();
+      __syncwarp();
       kick_return rc1 = cuda_kick(params_ptr);
       params.dchecks.pop_top();
       params.echecks.pop_top();
@@ -311,12 +311,12 @@ cuda_kick(kick_params_type * params_ptr)
          params.L[params.depth] = L;
          params.tptr = ((tree*) tptr)->children[RIGHT];
       }
-      __syncthreads();
+      __syncwarp();
       kick_return rc2 = cuda_kick(params_ptr);
       if (tid == 0) {
          params.depth--;
       }
-      __syncthreads();
+      __syncwarp();
       rc.rung = max(rc1.rung, rc2.rung);
       rc.flops += rc1.flops + rc2.flops;
       //   printf( "%li\n", rc.flops);
@@ -376,12 +376,12 @@ cuda_kick(kick_params_type * params_ptr)
          }
 #endif
       }
-      __syncthreads();
+      __syncwarp();
       for( int P = KICK_BLOCK_SIZE/2; P>=1; P/=2) {
          if( tid < P) {
             rungs[tid] = fmaxf(rungs[tid], rungs[tid+P]);
          }
-         __syncthreads();
+         __syncwarp();
       }
       rc.rung = rungs[0];
    }
@@ -418,7 +418,7 @@ CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type *params) {
    auto tm = clock64();
 #endif
    res[bid] = cuda_kick(params + bid);
-   __syncthreads();
+   __syncwarp();
    if (threadIdx.x == 0) {
 #ifdef TIMINGS
       atomicAdd(&total_time, (double) (clock64() - tm));
@@ -457,7 +457,7 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
    const int &bid = blockIdx.x;
    auto pptr = params_ptr[bid];
    auto rc = cuda_ewald_cc_interactions(parts, pptr);
-   __syncthreads();
+   __syncwarp();
    if (threadIdx.x == 0) {
       params_ptr[bid]->flops = rc;
    }
