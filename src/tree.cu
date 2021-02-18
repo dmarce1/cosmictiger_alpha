@@ -403,14 +403,13 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                                   CUDA_CHECK(cudaDeviceSynchronize());
+                                                      CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #ifdef TIMINGS
 extern __managed__ double pp_crit1_time;
 extern __managed__ double pp_crit2_time;
 #endif
-
 
 CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type *params) {
    const int &bid = blockIdx.x;
@@ -434,22 +433,20 @@ CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type *params) {
 
 }
 
-thread_local static std::stack<std::pair<cudaStream_t, cudaEvent_t>> streams;
+thread_local static std::stack<cudaStream_t> streams;
 
-std::pair<cudaStream_t, cudaEvent_t> get_stream() {
+cudaStream_t get_stream() {
    if (streams.empty()) {
       cudaStream_t stream;
-      cudaEvent_t event;
       CUDA_CHECK(cudaStreamCreate(&stream));
-      CUDA_CHECK(cudaEventCreate(&event));
-      streams.push(std::make_pair(stream, event));
+      streams.push(stream);
    }
    auto stream = streams.top();
    streams.pop();
    return stream;
 }
 
-void cleanup_stream(std::pair<cudaStream_t, cudaEvent_t> s) {
+void cleanup_stream(cudaStream_t s) {
    streams.push(s);
 }
 
@@ -465,11 +462,10 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
-cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_kick_shmem),stream.first>>>(params_ptr);
-                                                   CUDA_CHECK(cudaEventRecord(stream.second, stream.first));
+   /***/cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_kick_shmem),stream>>>(params_ptr);
 
    struct cuda_ewald_future_shared {
-      std::pair<cudaStream_t, cudaEvent_t> stream;
+      cudaStream_t stream;
       int grid_size;
       mutable bool ready;
    public:
@@ -478,9 +474,9 @@ cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_kick_shmem),stream.
       }
       bool operator()() const {
          if (!ready) {
-            if (cudaEventQuery(stream.second) == cudaSuccess) {
+            if (cudaStreamQuery(stream) == cudaSuccess) {
                ready = true;
-               CUDA_CHECK(cudaStreamSynchronize(stream.first));
+               CUDA_CHECK(cudaStreamSynchronize(stream));
                cleanup_stream(stream);
             }
          }
@@ -498,7 +494,7 @@ cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_kick_shmem),stream.
 }
 
 std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type *params, int grid_size,
-      std::pair<cudaStream_t, cudaEvent_t> stream) {
+     cudaStream_t stream) {
    const size_t shmemsize = sizeof(cuda_kick_shmem);
    unified_allocator alloc;
    kick_return *returns = (kick_return*) alloc.allocate(grid_size * sizeof(kick_return));
@@ -514,12 +510,11 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
       printf("Unable to set shared memory to %li bytes\n", size);
    }
    /***************************************************************************************************************************************************/
-   /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream.first>>>(returns,params);/**/
-   //  /**/CUDA_CHECK(cudaEventRecord(stream.second, stream.first));/*******************************************************************************************************/
+   /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(returns,params);/**/
    /***************************************************************************************************************************************************/
    // printf( "c\n");
    struct cuda_kick_future_shared {
-      std::pair<cudaStream_t, cudaEvent_t> stream;
+      cudaStream_t stream;
       kick_return *returns;
       int grid_size;
       mutable bool ready;
@@ -529,9 +524,9 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
       }
       bool operator()() const {
          if (!ready) {
-            if (cudaStreamQuery(stream.first) == cudaSuccess) {
+            if (cudaStreamQuery(stream) == cudaSuccess) {
                ready = true;
-               CUDA_CHECK(cudaStreamSynchronize(stream.first));
+               CUDA_CHECK(cudaStreamSynchronize(stream));
                cleanup_stream(stream);
             }
          }

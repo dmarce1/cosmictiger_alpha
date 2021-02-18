@@ -57,6 +57,7 @@ struct particle_set {
    size_t size() const {
       return size_;
    }
+   void prefetch(size_t b, size_t e, cudaStream_t);
 #ifndef __CUDACC__
 private:
 #endif

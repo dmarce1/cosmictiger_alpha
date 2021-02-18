@@ -255,7 +255,7 @@ struct kick_params_type {
       THREAD;
       if (tid == 0) {
          depth = 0;
-         theta = 0.5;
+         theta = 0.4;
          eta = 0.2;
          scale = 1.0;
          t0 = 1.0;
@@ -272,6 +272,7 @@ struct kick_params_type;
 struct gpu_kick {
    kick_params_type *params;
    hpx::lcos::local::promise<kick_return> promise;
+   pair<size_t,size_t> parts;
 };
 
 struct gpu_ewald {
@@ -312,7 +313,7 @@ public:
    static void cleanup();
    int cpu_cc_direct(kick_params_type *params);
    sort_return sort(sort_params = sort_params());
-   kick_return kick(kick_params_type*);
+   hpx::future<kick_return> kick(kick_params_type*);
    static std::atomic<bool> daemon_running;
    static std::atomic<bool> shutdown_daemon;
    static lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> gpu_queue;
@@ -358,10 +359,9 @@ inline bool tree_ptr::is_leaf() const {
    return ((tree*) ptr)->children[0] == tree_ptr();
 }
 
-
-std::pair<cudaStream_t, cudaEvent_t> get_stream();
-void cleanup_stream(std::pair<cudaStream_t, cudaEvent_t> s);
+cudaStream_t get_stream();
+void cleanup_stream(cudaStream_t s);
 
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type** params_ptr, int grid_size);
 
-std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type* params_ptr, int grid_size,std::pair<cudaStream_t, cudaEvent_t> stream);
+std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type* params_ptr, int grid_size,cudaStream_t stream);
