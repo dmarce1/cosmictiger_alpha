@@ -465,13 +465,6 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
-   cudaFuncAttributes attribs;
-   size_t size = CACHE_SIZE;
-   CUDA_CHECK(cudaFuncSetAttribute(&cuda_ewald_cc_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, size));
-   CUDA_CHECK(cudaFuncGetAttributes(&attribs, &cuda_ewald_cc_kernel));
-   if (size != attribs.maxDynamicSharedSizeBytes) {
-      printf("Unable to set shared memory to %li bytes\n", size);
-   }
    /***/cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_kick_shmem),stream>>>(params_ptr);
 
    struct cuda_ewald_future_shared {
@@ -512,13 +505,6 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    //  CUDA_MALLOC(returns, grid_size);
    // printf( "b\n");
    //  printf( "Shmem = %li\n", shmemsize);
-   cudaFuncAttributes attribs;
-   size_t size = 65536;
-   CUDA_CHECK(cudaFuncSetAttribute(&cuda_kick_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, size));
-   CUDA_CHECK(cudaFuncGetAttributes(&attribs, &cuda_kick_kernel));
-   if (size != attribs.maxDynamicSharedSizeBytes) {
-      printf("Unable to set shared memory to %li bytes\n", size);
-   }
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(returns,params);/**/
    /***************************************************************************************************************************************************/

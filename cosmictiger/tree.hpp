@@ -78,7 +78,7 @@ struct sort_params {
    }
 
    std::pair<size_t, size_t> get_bounds() const {
-      std::pair<size_t, size_t> rc;
+      std::pair < size_t, size_t > rc;
       rc.first = (*bounds)[key_begin];
       rc.second = (*bounds)[key_end];
       return rc;
@@ -124,7 +124,7 @@ struct tree_ptr {
    int constructed;
 #endif
    CUDA_EXPORT inline tree_ptr() {
-   //   rank = -1;
+      //   rank = -1;
       ptr = 0;
       opened = false;
 #ifndef NDEBUG
@@ -132,7 +132,7 @@ struct tree_ptr {
 #endif
    }
    CUDA_EXPORT inline tree_ptr(tree_ptr &&other) {
-    //  rank = other.rank;
+      //  rank = other.rank;
       ptr = other.ptr;
       opened = other.opened;
 #ifndef NDEBUG
@@ -140,7 +140,7 @@ struct tree_ptr {
 #endif
    }
    CUDA_EXPORT inline tree_ptr(const tree_ptr &other) {
-    //  rank = other.rank;
+      //  rank = other.rank;
       ptr = other.ptr;
       opened = other.opened;
 #ifndef NDEBUG
@@ -150,7 +150,7 @@ struct tree_ptr {
    CUDA_EXPORT inline tree_ptr& operator=(const tree_ptr &other) {
       assert(constructed == 1234);
       ptr = other.ptr;
-     // rank = other.rank;
+      // rank = other.rank;
       opened = other.opened;
       return *this;
    }
@@ -158,7 +158,7 @@ struct tree_ptr {
    inline tree_ptr& operator=(tree_ptr &&other) {
       assert(constructed == 1234);
       ptr = other.ptr;
-     // rank = other.rank;
+      // rank = other.rank;
       opened = other.opened;
       return *this;
    }
@@ -170,7 +170,7 @@ struct tree_ptr {
    template<class A>
    void serialization(A &&arc, unsigned) {
       arc & ptr;
-   //   arc & rank;
+      //   arc & rank;
       arc & opened;
    }
    CUDA_EXPORT
@@ -216,8 +216,6 @@ struct pair {
    B second;
 };
 
-
-
 #define NITERS 4
 struct cuda_ewald_shmem {
    array<accum_real, KICK_BLOCK_SIZE> Lreduce;  // 4480
@@ -228,11 +226,13 @@ struct cuda_ewald_shmem {
 struct cuda_kick_shmem {
    array<array<int8_t, KICK_BLOCK_SIZE + 1>, NITERS> indices; //33
    array<int16_t, NITERS> count; // 8
-   array<array<accum_real, KICK_BLOCK_SIZE>, NDIM> f; // 384
+   union {
+      array<array<accum_real, KICK_BLOCK_SIZE>, NDIM> f; // 384
+      array<accum_real, KICK_BLOCK_SIZE> Lreduce;  // 4480
+   };
    array<array<accum_real, MAX_BUCKET_SIZE>, NDIM> F; // 768
    array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
    array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 768
-   array<accum_real, KICK_BLOCK_SIZE> Lreduce;  // 4480
    array<int8_t, MAX_BUCKET_SIZE> rungs; // 256
 #ifdef COUNT_FLOPS
    array<int32_t, KICK_BLOCK_SIZE> flops; // 128
@@ -247,7 +247,7 @@ struct kick_params_type {
    stack_vector<tree_ptr> dchecks;
    stack_vector<tree_ptr> echecks;
    array<expansion<accum_real>, TREE_MAX_DEPTH> L;
-   array<array<fixed32,NDIM>,TREE_MAX_DEPTH> Lpos;
+   array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
    tree_ptr tptr;
    int depth;
    float theta;
@@ -266,7 +266,7 @@ struct kick_params_type {
          scale = 1.0;
          t0 = 1.0;
          rung = 0;
-         hsoft = 1.0 / pow(global().opts.nparts,1.0/3.0) / 50.0;
+         hsoft = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 50.0;
       }CUDA_SYNC();
    }
    friend class tree_ptr;
@@ -278,7 +278,7 @@ struct kick_params_type;
 struct gpu_kick {
    kick_params_type *params;
    hpx::lcos::local::promise<kick_return> promise;
-   pair<size_t,size_t> parts;
+   pair<size_t, size_t> parts;
 };
 
 struct gpu_ewald {
@@ -302,8 +302,8 @@ public:
    static std::atomic<int> cuda_node_count;
    static std::atomic<int> cpu_node_count;
    static void set_cuda_particle_set(particle_set*);
-   static void cuda_set_kick_params(particle_set *p,  ewald_indices *four_indices,
-         ewald_indices *real_indices, periodic_parts *periodic_parts);
+   static void cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
+         periodic_parts *periodic_parts);
 #ifndef __CUDACC__
    static void set_particle_set(particle_set*);
    inline static hpx::future<sort_return> create_child(sort_params&);
@@ -368,6 +368,7 @@ inline bool tree_ptr::is_leaf() const {
 cudaStream_t get_stream();
 void cleanup_stream(cudaStream_t s);
 
-std::function<bool()> cuda_execute_ewald_kernel(kick_params_type** params_ptr, int grid_size);
+std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size);
 
-std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type* params_ptr, int grid_size,cudaStream_t stream);
+std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size,
+      cudaStream_t stream);
