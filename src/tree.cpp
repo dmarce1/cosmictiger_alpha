@@ -18,7 +18,7 @@ std::atomic<int> tree::cuda_node_count(0);
 std::atomic<int> tree::cpu_node_count(0);
 
 auto cuda_depth() {
-   return 9;
+   return 10;
 }
 
 hpx::future<sort_return> tree::create_child(sort_params &params) {
@@ -239,6 +239,7 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
    kick_params_type &params = *params_ptr;
    const auto part_begin = ((tree*) (*this))->parts.first;
    const auto part_end = ((tree*) (*this))->parts.second;
+//   if (part_end - part_begin <= 48000) {
    if (params_ptr->depth == cuda_depth()) {
       return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
    } else {
@@ -437,26 +438,33 @@ void tree::gpu_daemon() {
    static bool first_call = true;
    static std::vector<std::function<bool()>> completions;
    static timer timer;
+   static int grid_count;
+   static int grid_ewald_count;
+   static int SMcount = global().cuda.devices[0].multiProcessorCount;
    if (first_call) {
       printf("Starting gpu daemon\n");
-      first_call = false;
       timer.reset();
       timer.start();
+      grid_count = 0;
+      grid_ewald_count = 0;
+      first_call = false;
    }
-
-   const auto two_pow = [](int i) {
-      int j = KICK_GRID_SIZE;
-      while (j > i) {
-         j /= 2;
+   int i = 0;
+   while (i < completions.size()) {
+      if (completions[i]()) {
+         completions[i] = completions.back();
+         completions.pop_back();
+      } else {
+         i++;
       }
-      return j;
-   };
+   }
    timer.stop();
    if (timer.read() > 1.0e-2) {
       timer.reset();
       timer.start();
       while (gpu_ewald_queue.size() > 0) {
-         int grid_size = std::min((int) two_pow(gpu_ewald_queue.size()), KICK_GRID_SIZE);
+         int grid_size = std::min(SMcount - (grid_ewald_count % SMcount), (int) gpu_ewald_queue.size());
+         grid_ewald_count += grid_size;
          auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<int32_t>>>();
          unified_allocator all_params_alloc;
          kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate(
@@ -483,11 +491,12 @@ void tree::gpu_daemon() {
          }));
       }
       while (gpu_queue.size() > 0) {
-         int grid_size = std::min((int) two_pow(gpu_queue.size()), KICK_GRID_SIZE);
+         int grid_size = std::min(SMcount - (grid_count % SMcount), (int) gpu_queue.size());
+         grid_count += grid_size;
          auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<kick_return>>>();
          auto deleters = std::make_shared<std::vector<std::function<void()>> >();
          unified_allocator calloc;
-         kick_params_type *all_params = (kick_params_type*) calloc.allocate(grid_size * sizeof(kick_params_type));
+            kick_params_type *all_params = (kick_params_type*) calloc.allocate(grid_size * sizeof(kick_params_type));
          auto stream = get_stream();
          for (int i = 0; i < grid_size; i++) {
             auto tmp = gpu_queue.pop();
@@ -505,6 +514,7 @@ void tree::gpu_daemon() {
             unified_allocator calloc;
             calloc.deallocate(all_params);
          });
+         void *test;
          CUDA_CHECK(cudaMemPrefetchAsync(all_params, grid_size * sizeof(kick_params_type), 0, stream));
          printf("Executing %i blocks\n", grid_size);
          auto exec_ret = cuda_execute_kick_kernel(all_params, grid_size, stream);
@@ -524,15 +534,6 @@ void tree::gpu_daemon() {
                return false;
             }
          }));
-      }
-      int i = 0;
-      while (i < completions.size()) {
-         if (completions[i]()) {
-            completions[i] = completions.back();
-            completions.pop_back();
-         } else {
-            i++;
-         }
       }
    } else {
       timer.start();

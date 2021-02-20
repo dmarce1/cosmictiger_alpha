@@ -846,7 +846,7 @@ CUDA_EXPORT inline int multipole_interaction(expansion<float> &L, const float &M
    expansion<float> D;
    green_direct(D, dX);
    for (int i = 0; i < LP; i++) {
-      L[i] = M * D[i];
+      L[i] += M * D[i];
    }
    return LP;
 }

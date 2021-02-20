@@ -11,6 +11,7 @@ int hpx_main(int argc, char *argv[]) {
  //  printf( "%li\n", sizeof(std::shared_ptr<int>));
  //  printf( "%li\n", sizeof(sort_params));
    printf( "Size of cuda_kick_shmem is %li\n", sizeof(cuda_kick_shmem));
+   printf( "Size of cuda_ewald_shmem is %li\n", sizeof(cuda_ewald_shmem));
    if (process_options(argc, argv, opts)) {
       hpx_init();
       const auto cuda = cuda_init();

@@ -276,7 +276,7 @@ cuda_kick(kick_params_type * params_ptr)
             }
             if( count[MI] > 0 ) {
                float old_flops = flops[tid];
-               int cuda_flops = cuda_ewald_cc_interactions(parts,params_ptr);
+               int cuda_flops = cuda_ewald_cc_interactions(parts,params_ptr, &shmem.Lreduce, &shmem.flops);
                flops[tid] = old_flops;
                flops[0] += cuda_flops;
             }
@@ -451,9 +451,12 @@ void cleanup_stream(cudaStream_t s) {
 }
 
 CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
+   __shared__
+   extern int shmem_ptr[];
+   cuda_ewald_shmem& shmem = *((cuda_ewald_shmem*)(shmem_ptr));
    const int &bid = blockIdx.x;
    auto pptr = params_ptr[bid];
-   auto rc = cuda_ewald_cc_interactions(parts, pptr);
+   auto rc = cuda_ewald_cc_interactions(parts, pptr, &shmem.Lreduce, &shmem.flops);
    __syncwarp();
    if (threadIdx.x == 0) {
       params_ptr[bid]->flops = rc;
@@ -462,6 +465,13 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
+   cudaFuncAttributes attribs;
+   size_t size = CACHE_SIZE;
+   CUDA_CHECK(cudaFuncSetAttribute(&cuda_ewald_cc_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, size));
+   CUDA_CHECK(cudaFuncGetAttributes(&attribs, &cuda_ewald_cc_kernel));
+   if (size != attribs.maxDynamicSharedSizeBytes) {
+      printf("Unable to set shared memory to %li bytes\n", size);
+   }
    /***/cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_kick_shmem),stream>>>(params_ptr);
 
    struct cuda_ewald_future_shared {

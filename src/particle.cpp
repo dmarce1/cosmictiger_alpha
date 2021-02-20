@@ -35,10 +35,10 @@ particle_set::particle_set(size_t size, size_t offset) {
 
 void particle_set::prefetch(size_t b, size_t e, cudaStream_t stream) {
    for (int dim = 0; dim < NDIM; dim++) {
-//      CUDA_CHECK(cudaMemPrefetchAsync((void*) (xptr_[dim] + b), sizeof(fixed32) * (e - b), 0, stream));
- //     CUDA_CHECK(cudaMemPrefetchAsync((void*) (vptr_[dim] + b), sizeof(float) * (e - b), 0, stream));
+      CUDA_CHECK(cudaMemPrefetchAsync((void* ) (xptr_[dim] + b), sizeof(fixed32) * (e - b), 0, stream));
+      CUDA_CHECK(cudaMemPrefetchAsync((void* ) (vptr_[dim] + b), sizeof(float) * (e - b), 0, stream));
    }
- //  CUDA_CHECK(cudaMemPrefetchAsync((void*) (rptr_ + b), sizeof(int8_t) * (e - b), 0, stream));
+   CUDA_CHECK(cudaMemPrefetchAsync((void* ) (rptr_ + b), sizeof(int8_t) * (e - b), 0, stream));
 }
 
 particle_set::~particle_set() {
