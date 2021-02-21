@@ -53,16 +53,16 @@ public:
       assert(cap);
       cuda_allocator allocator;
     //  printf( "allocating\n");
- //     new_ptr = (T*) allocator.allocate(cap*sizeof(T));
+      new_ptr = (T*) allocator.allocate(cap*sizeof(T));
 //      static std::atomic<size_t> alloced(0);
   //    alloced += cap * sizeof(T);
     //  printf( " to device %li\n", (size_t) alloced);
-   //   CHECK_POINTER(new_ptr);
+      CHECK_POINTER(new_ptr);
     //  printf( "1\n");
     //  if (sz) {
      //    assert(ptr);
       //   assert(sz <= cap);
-         CUDA_CHECK(cudaMemPrefetchAsync(ptr, sizeof(T) * sz, 0, stream));
+ //        CUDA_CHECK(cudaMemPrefetchAsync(ptr, sizeof(T) * sz, 0, stream));
     //  }
     //  printf( "2\n");
       auto* dptr = ptr;

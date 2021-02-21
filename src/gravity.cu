@@ -246,7 +246,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
                   f[dim][tid] = 0.f;
                }
                for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
-                  register array<float, NDIM> dx;
+                  array<float, NDIM> dx;
                   for (int dim = 0; dim < NDIM; dim++) { // 3
                      dx[dim] = (fixed<int32_t>(sources[dim][j]) - fixed<int32_t>(sinks[dim][k])).to_float();
                   }

@@ -199,7 +199,7 @@ struct tree_ptr {
    CUDA_EXPORT
    bool is_leaf() const;
 #ifndef __CUDACC__
-   hpx::future<kick_return> kick(kick_params_type*, bool);
+   hpx::future<kick_return> kick(kick_params_type*, bool, bool);
 #endif
 };
 
