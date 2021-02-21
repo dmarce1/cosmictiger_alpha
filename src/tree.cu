@@ -49,7 +49,7 @@ cuda_kick(kick_params_type * params_ptr)
    tree& me = *((tree*) tptr);
    const int &tid = threadIdx.x;
    kick_return rc;
-   auto &F = shmem.F;
+   auto &F = params.F;
    auto &L = params.L[params.depth];
    if( tid == 0 ) {
       const auto &Lpos = params.Lpos[params.depth];

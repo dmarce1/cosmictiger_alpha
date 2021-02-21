@@ -178,7 +178,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, kick_params_type *par
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    auto &f = shmem.f;
-   auto &F = shmem.F;
+   auto &F = params.F;
    auto &rungs = shmem.rungs;
 #ifdef COUNT_FLOPS
    auto &flops = shmem.flops;
@@ -297,12 +297,11 @@ void cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    auto &flops = shmem.flops;
    auto &f = shmem.f;
-   auto &F = shmem.F;
+   auto &F = params.F;
    auto &rungs = shmem.rungs;
    auto &sinks = shmem.sink;
    auto &inters = params.multi_interactions;
    const auto &myparts = ((tree*) params.tptr)->parts;
-   const auto offset = myparts.first;
    const int mmax = ((inters.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
    const int nparts = myparts.second - myparts.first;
    for (int i = tid; i < nparts; i += KICK_BLOCK_SIZE) {
