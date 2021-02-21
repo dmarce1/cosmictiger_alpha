@@ -36,26 +36,22 @@
 #define KICK_GRID_SIZE 32
 #define KICK_EWALD_GRID_SIZE 32
 
+#define FLOPS_CC 510
+#define FLOPS_CP 213
+#define FLOPS_PC 215
+#define FLOPS_PP 53
+#define FLOPS_EWALD 510
+#define FLOPS_OPEN 97
 
 
-#ifdef ACCUMULATE_DOUBLE_PRECISION
-using accum_real = double;
+#define HIPRECISION
+
+#ifdef HIPRECISION
+using hifloat = double;
 #else
-using accum_real = float;
+using hifloat = float;
 #endif
 
-
-#ifdef EWALD_DOUBLE_PRECISION
-using ewald_real = double;
-#define EWALD_NREAL 17
-#define EWALD_REAL_CUTOFF 3.6
-#define EWALD_NFOUR 10
-#else
-#define EWALD_NREAL 13
-#define EWALD_REAL_CUTOFF 2.6
-#define EWALD_NFOUR 8
-using ewald_real = float;
-#endif
 
 #define NCHILD 2
 //#define PARALLEL_RADIX
@@ -90,6 +86,9 @@ using ewald_real = float;
 #define ABORT() abort()
 #endif
 
+#define EWALD_NREAL 17
+#define EWALD_REAL_CUTOFF 2.6
+#define EWALD_NFOUR 8
 
 
 #endif /* COSMICTIGER_DEFS_HPP_ */

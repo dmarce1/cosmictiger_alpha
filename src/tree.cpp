@@ -297,15 +297,10 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
    assert(params.depth < TREE_MAX_DEPTH);
    auto &L = params.L[params.depth];
    const auto &Lpos = params.Lpos[params.depth];
-   array<accum_real, NDIM> dx;
+   array<hifloat, NDIM> dx;
    for (int dim = 0; dim < NDIM; dim++) {
-#ifdef ACCUMULATE_DOUBLE_PRECISION
       const auto x1 = pos[dim].to_double();
       const auto x2 = Lpos[dim].to_double();
-#else
-      const auto x1 = pos[dim].to_float();
-      const auto x2 = Lpos[dim].to_float();
-#endif
       dx[dim] = x1 - x2;
    }
    L <<= dx;

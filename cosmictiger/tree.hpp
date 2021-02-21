@@ -218,15 +218,12 @@ struct pair {
 
 #define NITERS 4
 struct cuda_ewald_shmem {
-   array<accum_real, KICK_BLOCK_SIZE> Lreduce;  // 4480
-#ifdef COUNT_FLOPS
-   array<int32_t, KICK_BLOCK_SIZE> flops; // 128
-#endif
+   array<hifloat, KICK_BLOCK_SIZE> Lreduce;  // 4480
 };
 struct cuda_kick_shmem {
    union {
-      array<array<accum_real, KICK_BLOCK_SIZE>, NDIM> f; // 384
-      array<accum_real, KICK_BLOCK_SIZE> Lreduce;  // 4480
+      array<array<float, KICK_BLOCK_SIZE>, NDIM> f; // 384
+      array<hifloat, KICK_BLOCK_SIZE> Lreduce;  // 4480
       struct {
          array<array<int8_t, KICK_BLOCK_SIZE + 1>, NITERS> indices; //33
          array<int16_t, NITERS> count; // 8
@@ -235,9 +232,6 @@ struct cuda_kick_shmem {
    array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
    array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 768
    array<int8_t, MAX_BUCKET_SIZE> rungs; // 256
-#ifdef COUNT_FLOPS
-   array<int32_t, KICK_BLOCK_SIZE> flops; // 128
-#endif
 };
 
 struct kick_params_type {
@@ -247,8 +241,8 @@ struct kick_params_type {
    vector<tree_ptr> opened_checks;
    stack_vector<tree_ptr> dchecks;
    stack_vector<tree_ptr> echecks;
-   array<array<accum_real, MAX_BUCKET_SIZE>, NDIM> F;
-   array<expansion<accum_real>, TREE_MAX_DEPTH> L;
+   array<array<hifloat, MAX_BUCKET_SIZE>, NDIM> F;
+   array<expansion<hifloat>, TREE_MAX_DEPTH> L;
    array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
    tree_ptr tptr;
    int depth;
@@ -268,7 +262,7 @@ struct kick_params_type {
          scale = 1.0;
          t0 = 1.0;
          rung = 0;
-         hsoft = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 50.0;
+         hsoft = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 25.0;
       }CUDA_SYNC();
    }
    friend class tree_ptr;

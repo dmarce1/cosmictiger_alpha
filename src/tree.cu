@@ -53,7 +53,7 @@ cuda_kick(kick_params_type * params_ptr)
    auto &L = params.L[params.depth];
    if( tid == 0 ) {
       const auto &Lpos = params.Lpos[params.depth];
-      array<accum_real, NDIM> dx;
+      array<hifloat, NDIM> dx;
       for (int dim = 0; dim < NDIM; dim++) {
 #ifdef ACCUMULATE_DOUBLE_PRECISION
          const auto x1 = me.pos[dim].to_double();
@@ -68,8 +68,7 @@ cuda_kick(kick_params_type * params_ptr)
    }
 
 #ifdef COUNT_FLOPS
-   auto& flops = shmem.flops;
-   flops[tid] = 0;
+   int flops = 0;
 #endif
    if (((tree*) tptr)->children[0].ptr == 0) {
       for (int k = tid; k < MAX_BUCKET_SIZE; k += KICK_BLOCK_SIZE) {
@@ -110,6 +109,7 @@ cuda_kick(kick_params_type * params_ptr)
          int check_count;
          do {
             check_count = checks.size();
+            flops += check_count * FLOPS_OPEN;
             if (check_count) {
                const int cimax = ((check_count - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
                for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
@@ -133,10 +133,8 @@ cuda_kick(kick_params_type * params_ptr)
                      }
                      if (ewald_dist) {
                         d2 = fmaxf(d2, EWALD_MIN_DIST2);                            // 1
-                        flops[tid]++;
                      }
                      const bool far = R2 < theta2 * d2;                             // 2
-                     flops[tid] += 6;
                      const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
                      list_index = int(!far) * (1 + int(isleaf) + int(isleaf && bool(check.opened++)));
                      indices[list_index][tid + 1] = 1;
@@ -221,7 +219,7 @@ cuda_kick(kick_params_type * params_ptr)
 #ifdef TIMINGS
             tm = clock64();
 #endif
-            cuda_pc_interactions(parts,params_ptr);
+            flops += cuda_pc_interactions(parts,params_ptr);
 #ifdef TIMINGS
             tm = clock64() - tm;
             if(tid==0) {
@@ -230,7 +228,7 @@ cuda_kick(kick_params_type * params_ptr)
 
             tm = clock64();
 #endif
-            cuda_pp_interactions(parts,params_ptr);
+            flops += cuda_pp_interactions(parts,params_ptr);
 #ifdef TIMINGS
             tm = clock64() - tm;
             if(tid==0) {
@@ -242,7 +240,7 @@ cuda_kick(kick_params_type * params_ptr)
 #ifdef TIMINGS
             tm = clock64();
 #endif
-            cuda_cc_interactions(parts,params_ptr);
+            flops += cuda_cc_interactions(parts,params_ptr);
 #ifdef TIMINGS
             tm = clock64() - tm;
             if(tid==0) {
@@ -250,7 +248,7 @@ cuda_kick(kick_params_type * params_ptr)
             }
             tm = clock64();
 #endif
-            cuda_cp_interactions(parts,params_ptr);
+            flops += cuda_cp_interactions(parts,params_ptr);
 #ifdef TIMINGS
             tm = clock64() - tm;
             if(tid==0) {
@@ -275,24 +273,12 @@ cuda_kick(kick_params_type * params_ptr)
                //     __trap();
             }
             if( count[MI] > 0 ) {
-               float old_flops = flops[tid];
-               int cuda_flops = cuda_ewald_cc_interactions(parts,params_ptr, &shmem.Lreduce, &shmem.flops);
-               flops[tid] = old_flops;
-               flops[0] += cuda_flops;
+               flops += cuda_ewald_cc_interactions(parts,params_ptr, &shmem.Lreduce);
             }
             break;
          }
       }
-#ifdef COUNT_FLOPS
-      __syncwarp();
-      for( int P = KICK_BLOCK_SIZE/2; P >= 1; P/=2) {
-         if( tid < P ) {
-            flops[tid] += flops[tid+P];
-         }
-         __syncwarp();
-      }
-      rc.flops = flops[0];
-#endif
+      rc.flops = flops;
    }
    if (!(((tree*) tptr)->children[0].ptr == 0)) {
       params.dchecks.push_top();
@@ -331,9 +317,9 @@ cuda_kick(kick_params_type * params_ptr)
          if( this_rung >= params.rung ) {
 #endif
 
-            array<accum_real,NDIM> g;
-            accum_real phi;
-            array<accum_real,NDIM> dx;
+            array<hifloat,NDIM> g;
+            hifloat phi;
+            array<hifloat,NDIM> dx;
             for (int dim = 0; dim < NDIM; dim++) {
 #ifdef ACCUMULATE_DOUBLE_PRECISION
                const auto x2 = me.pos[dim].to_double();
@@ -456,7 +442,7 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
    cuda_ewald_shmem& shmem = *((cuda_ewald_shmem*)(shmem_ptr));
    const int &bid = blockIdx.x;
    auto pptr = params_ptr[bid];
-   auto rc = cuda_ewald_cc_interactions(parts, pptr, &shmem.Lreduce, &shmem.flops);
+   auto rc = cuda_ewald_cc_interactions(parts, pptr, &shmem.Lreduce);
    __syncwarp();
    if (threadIdx.x == 0) {
       params_ptr[bid]->flops = rc;
