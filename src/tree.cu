@@ -38,7 +38,7 @@ CUDA_DEVICE kick_return
 cuda_kick(kick_params_type * params_ptr)
 {
    kick_params_type &params = *params_ptr;
-   __shared__
+   __shared__ volatile
    extern int shmem_ptr[];
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    //  printf( "%i\n", params_ptr->depth);
@@ -437,7 +437,7 @@ void cleanup_stream(cudaStream_t s) {
 }
 
 CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
-   __shared__
+   __shared__ volatile
    extern int shmem_ptr[];
    cuda_ewald_shmem& shmem = *((cuda_ewald_shmem*)(shmem_ptr));
    const int &bid = blockIdx.x;
