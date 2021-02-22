@@ -6,7 +6,11 @@
  */
 
 #include <cosmictiger/cuda.hpp>
+
+#include <cosmictiger/tree.hpp>
 #include <cstdlib>
+CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr);
+
 
 #define STACK_SIZE (32*1024)
 #define HEAP_SIZE 1024*1024*1024
@@ -65,7 +69,7 @@ cuda_properties cuda_init() {
 //      printf("Unable to set pending launch count to %li\n",  PENDINGLAUNCHES);
 //      fail = true;
 //   }
-   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+   CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&cuda_ewald_cc_kernel, cudaFuncCachePreferL1));
    //CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
    //   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
    if (fail) {

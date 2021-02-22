@@ -255,6 +255,10 @@ CUDA_DEVICE inline int green_deriv_ewald(expansion<hifloat> &D, const hifloat &d
    return 135;
 }
 
+#include <cuda_runtime.h>
+#ifdef __CUDA_ARCH__
+
+
 CUDA_DEVICE inline int green_ewald(expansion<hifloat> &D, const array<hifloat, NDIM> &X) {
    const auto &hparts = *periodic_parts_ptr;
    const auto &four_indices = *four_indices_ptr;
@@ -363,7 +367,7 @@ CUDA_DEVICE inline int green_ewald(expansion<hifloat> &D, const array<hifloat, N
    }
    return flops;
 }
-
+#endif
 
 template<class T>
 CUDA_EXPORT int inline green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
@@ -607,6 +611,7 @@ CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const multipole_ty
    return flops + 269;
 }
 
+#ifdef __CUDA_ARCH__
 // 986 // 251936
 CUDA_DEVICE inline int multipole_interaction_ewald(expansion<hifloat> &L, const multipole_type<hifloat> &M,
       array<hifloat, NDIM> dX, bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
@@ -740,6 +745,9 @@ CUDA_DEVICE inline int multipole_interaction_ewald(expansion<hifloat> &L, const 
    return flops;
  //  return flops + 269;
 }
+
+#endif
+
 // 516 / 251466
 CUDA_EXPORT inline int multipole_interaction(array<float, NDIM + 1> L, const multipole &M, array<float, NDIM> dX,
       bool do_phi) { // 517 / 47428
