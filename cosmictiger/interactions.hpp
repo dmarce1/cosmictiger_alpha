@@ -749,7 +749,7 @@ CUDA_DEVICE inline int multipole_interaction_ewald(expansion<hifloat> &L, const 
 #endif
 
 // 516 / 251466
-CUDA_EXPORT inline int multipole_interaction(array<float, NDIM + 1> L, const multipole &M, array<float, NDIM> dX,
+CUDA_EXPORT inline int multipole_interaction(array<float, NDIM + 1>& L, const multipole &M, array<float, NDIM> dX,
       bool do_phi) { // 517 / 47428
    expansion<float> D;
    int flops = green_direct(D, dX);

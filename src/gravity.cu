@@ -309,9 +309,9 @@ int cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
    auto &F = params.F;
    auto &rungs = shmem.rungs;
    auto &sinks = shmem.sink;
-   auto &inters = params.multi_interactions;
+   auto &multis = params.multi_interactions;
    const auto &myparts = ((tree*) params.tptr)->parts;
-   const int mmax = ((inters.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
+   const int mmax = ((multis.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
    const int nparts = myparts.second - myparts.first;
    for (int i = tid; i < nparts; i += KICK_BLOCK_SIZE) {
       rungs[i] = parts->rung(i + myparts.first);
@@ -322,28 +322,25 @@ int cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
       }
    }
    for (int i = tid; i < mmax; i += KICK_BLOCK_SIZE) {
-      const auto &sources = ((tree*) inters[min(i, (int) inters.size() - 1)])->pos;
+      const auto &sources = ((tree*) multis[min(i, (int) multis.size() - 1)])->pos;
       const int nparts = myparts.second - myparts.first;
       for (int k = 0; k < nparts; k++) {
          if (rungs[k] >= params.rung || rungs[k] == -1) {
             for (int dim = 0; dim < NDIM; dim++) {
                f[dim][tid] = 0.f;
             }
-            if (i < inters.size()) {
+            if (i < multis.size()) {
                array<float, NDIM> dx;
                array<float, NDIM + 1> Lforce;
-               for (int l = 0; l < NDIM + 1; l++) {
-                  Lforce[l] = 0.f;
-               }
                for (int dim = 0; dim < NDIM; dim++) {
                   dx[dim] = (fixed<int32_t>(sinks[dim][k]) - fixed<int32_t>(sources[dim])).to_float();
                }
-               multipole_interaction(Lforce, ((tree*) inters[i])->multi, dx, false);
+               multipole_interaction(Lforce, ((tree*) multis[i])->multi, dx, false);
                for (int dim = 0; dim < NDIM; dim++) {
                   f[dim][tid] -= Lforce[dim + 1];
                }
             }
-            flops += inters.size() * FLOPS_PC;
+            flops += multis.size() * FLOPS_PC;
             __syncwarp();
             for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
                if (tid < P) {
@@ -389,14 +386,14 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
    for (int dim = 0; dim < NDIM; dim++) {
       f[dim][tid] = 0.0;
    }
-   for (size_t sink = tid; sink < parts->size(); sink += KICK_BLOCK_SIZE) {
-      if (sink == index) {
+   for (size_t source = tid; source < parts->size(); source += KICK_BLOCK_SIZE) {
+      if (source == index) {
          continue;
       }
       array<float, NDIM> X;
-      X[0] = sink_x - parts->pos(0, sink).to_float();
-      X[1] = sink_y - parts->pos(1, sink).to_float();
-      X[2] = sink_z - parts->pos(2, sink).to_float();
+      X[0] = sink_x - parts->pos(0, source).to_float();
+      X[1] = sink_y - parts->pos(1, source).to_float();
+      X[2] = sink_z - parts->pos(2, source).to_float();
       for (int i = 0; i < real_indices.size(); i++) {
          const auto n = real_indices.get(i);
          array<hifloat, NDIM> dx;
@@ -413,9 +410,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
             const float exp0 = expf(-4.f * r2);  // 26
             const float erfc0 = erfcf(2.f * r);                                    // 10
             const float expfactor = 4.0 / sqrtf(M_PI) * r * exp0;  // 2
-            const float e1 = expfactor * r3inv;  // 1
-            const float d0 = -erfc0 * rinv;  // 2
-            const float d1 = fma(-d0, r2inv, e1);  // 3
+            const float d1 = (expfactor + erfc0) * r3inv;           // 2
             for (int dim = 0; dim < NDIM; dim++) {
                f[dim][tid] -= dx[dim] * d1;
             }
@@ -464,7 +459,7 @@ void cuda_compare_with_direct(particle_set *parts) {
       test_parts[i] = rand() % nparts;
    }
 cuda_pp_ewald_interactions<<<N_TEST_PARTS,KICK_BLOCK_SIZE>>>(parts, test_parts, errs, norms);
-                  CUDA_CHECK(cudaDeviceSynchronize());
+               CUDA_CHECK(cudaDeviceSynchronize());
    float avg_err = 0.0;
    float norm = 0.0;
    for (int i = 0; i < N_TEST_PARTS; i++) {

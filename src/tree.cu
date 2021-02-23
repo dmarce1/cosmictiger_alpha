@@ -352,7 +352,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                                               CUDA_CHECK(cudaDeviceSynchronize());
+                                                            CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #ifdef TIMINGS
