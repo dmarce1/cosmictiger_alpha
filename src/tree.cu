@@ -121,7 +121,7 @@ cuda_kick(kick_params_type * params_ptr)
                      indices[tid][0] = 0;
                   }
                   __syncwarp();
-                  int list_index = -1;
+                  int list_index;
                   if (ci < check_count) {
                      auto &check = checks[ci];
                      const auto &other_radius = ((const tree*) check)->radius;
@@ -209,6 +209,9 @@ cuda_kick(kick_params_type * params_ptr)
                opened_checks.resize(0);
             }
          }while (direct && check_count);
+//         if( tid == 0 ) {
+//            printf( "%i %i %i\n", params.depth, count[MI], count[PI]);
+//         }
          __syncwarp();
          switch (type) {
             case PC_PP_DIRECT:
@@ -295,9 +298,6 @@ cuda_kick(kick_params_type * params_ptr)
             shift_expansion(L, g, phi, dx);
             for (int dim = 0; dim < NDIM; dim++) {
                F[dim][k] += g[dim];
-            }
-            for( int dim = 0; dim < NDIM; dim++) {
-               parts->force(dim,k+myparts.first) = F[dim][k];
             }
             float dt = params.t0 / (1<<this_rung);
             for( int dim = 0; dim < NDIM; dim++) {

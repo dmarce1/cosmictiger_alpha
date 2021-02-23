@@ -376,7 +376,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
    const auto index = test_parts[bid];
    array<fixed32, NDIM> sink;
    for( int dim = 0; dim < NDIM; dim++) {
-      sink[dim] = parts->pos(dim, index).to_float();
+      sink[dim] = parts->pos(dim, index);
    }
    const auto f_x = parts->force(0, index);
    const auto f_y = parts->force(1, index);
@@ -418,7 +418,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
       for (int i = 0; i < four_indices.size(); i++) {
          const auto &h = four_indices.get(i);
          const auto &hpart = hparts.get(i);
-         const float h2 = sqrt(h[0]) + sqr(h[1]) + sqr(h[2]);
+         const float h2 = sqr(h[0]) + sqr(h[1]) + sqr(h[2]);
          const float hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];
          float so = sinf(2.0 * M_PI * hdotx);
          for (int dim = 0; dim < NDIM; dim++) {
