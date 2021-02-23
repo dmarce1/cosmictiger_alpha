@@ -368,15 +368,8 @@ CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type *params) {
    res[bid] = cuda_kick(params + bid);
    __syncwarp();
    if (threadIdx.x == 0) {
-#ifdef TIMINGS
-      atomicAdd(&total_time, (double) (clock64() - tm));
-#endif
       //     printf( "Kick done\n");
       params[bid].kick_params_type::~kick_params_type();
-#ifdef TIMINGS
-      double walk_time = total_time - pp_interaction_time -pc_interaction_time - cp_interaction_time - cc_interaction_time;
-      printf( "%e %e\n", pp_crit1_time/pp_interaction_time, pp_crit2_time/pp_interaction_time);
-#endif
       //   printf("%e %e %e %e %e\n", walk_time/total_time, pp_interaction_time/total_time, pc_interaction_time/total_time, cp_interaction_time/total_time, cc_interaction_time/total_time);
    }
 

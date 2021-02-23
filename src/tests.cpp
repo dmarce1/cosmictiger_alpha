@@ -164,6 +164,7 @@ void force_test() {
    params_ptr->kick_params_type::~kick_params_type();
    timer tm;
    tm.start();
+   printf( "Doing comparison\n");
    cuda_compare_with_direct(parts_ptr);
    tm.stop();
    printf( "Comparison took %e s\n", tm.read());

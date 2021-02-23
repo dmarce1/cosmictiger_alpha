@@ -240,8 +240,8 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
    const auto part_begin = ((tree*) (*this))->parts.first;
    const auto part_end = ((tree*) (*this))->parts.second;
 //   if (part_end - part_begin <= 48000) {
-//   if (params_ptr->depth == cuda_depth()) {
-   if (gpu) {
+   if (params_ptr->depth == cuda_depth()) {
+//   if (gpu) {
       return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
    } else {
       if (thread) {
@@ -366,6 +366,10 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
       switch (type) {
       case CC_CP_DIRECT:
          rc.flops += cpu_cc_direct(params_ptr);
+         if( parti.size() ){
+            printf( "CP_DIRECT found on CPU\n");
+            abort();
+         }
          break;
       case CC_CP_EWALD:
          if (multis.size()) {
@@ -380,8 +384,12 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          }
          break;
       case PC_PP_DIRECT:
+         printf( "PC_PP_DIRECT on CPU\n");
+         abort();
          break;
       case PC_PP_EWALD:
+         printf( "PC_PP_EWALD on CPU\n");
+         abort();
          break;
       }
 
@@ -648,12 +656,11 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
       Lacc = simd_float(0);
       const auto cnt1 = multis.size();
       const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
-      multis.resize(cnt2);
       for (int dim = 0; dim < NDIM; dim++) {
          X[dim] = simd_fixed32(pos[dim]);
       }
       array<simd_float, NDIM> dX;
-      for (int j = 0; j < cnt1; j += simd_float::size()) {
+      for (int j = 0; j < cnt2; j += simd_float::size()) {
          for (int k = 0; k < simd_float::size(); k++) {
             if (j + k < cnt1) {
                for (int dim = 0; dim < NDIM; dim++) {
