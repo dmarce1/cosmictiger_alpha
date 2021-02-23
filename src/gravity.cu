@@ -105,7 +105,6 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, kick_params_type *para
    cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
    auto &Lreduce = shmem.Lreduce;
    auto &inters = params.part_interactions;
-   const auto &sinks = ((tree*) params.tptr)->pos;
    auto &sources = shmem.src;
    const auto &myparts = ((tree*) params.tptr)->parts;
    size_t part_index;
@@ -145,10 +144,10 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, kick_params_type *para
                }
             }
          }
-         for (int j = these_parts.first + tid; j < these_parts.second; j += KICK_BLOCK_SIZE) {
+         for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
             array<float, NDIM> dx;
             for (int dim = 0; dim < NDIM; dim++) {
-               dx[dim] = (fixed<int32_t>(pos[dim]) - fixed<int32_t>(sinks[dim])).to_float();
+               dx[dim] = (fixed<int32_t>(pos[dim]) - fixed<int32_t>(sources[dim][j])).to_float();
             }
             multipole_interaction(L, 1.0f, dx, false);
          }
