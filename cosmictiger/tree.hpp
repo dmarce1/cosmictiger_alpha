@@ -218,8 +218,10 @@ struct pair {
 
 #define NITERS 4
 struct cuda_ewald_shmem {
-   array<hifloat, KICK_BLOCK_SIZE> Lreduce;  // 4480
+   array<hifloat, KICK_BLOCK_SIZE> Lreduce;  // 256
 };
+
+
 struct cuda_kick_shmem {
    union {
       array<array<float, KICK_BLOCK_SIZE>, NDIM> f; // 384

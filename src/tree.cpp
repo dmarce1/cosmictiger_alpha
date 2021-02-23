@@ -539,7 +539,7 @@ void tree::gpu_daemon() {
                calloc.deallocate(all_params);
             });
             void *test;
-            CUDA_CHECK(cudaMemPrefetchAsync(all_params, grid_size * sizeof(kick_params_type), 0, stream));
+    //        CUDA_CHECK(cudaMemPrefetchAsync(all_params, grid_size * sizeof(kick_params_type), 0, stream));
             printf("Executing %i blocks\n", grid_size);
             auto exec_ret = cuda_execute_kick_kernel(all_params, grid_size, stream);
             completions.push_back(std::function < bool() > ([=]() {

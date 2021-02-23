@@ -32,14 +32,14 @@ particle_set::particle_set(size_t size, size_t offset) {
    mptr_ = (uint64_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(int8_t) * size);
    CUDA_CHECK(cudaMemAdvise(mptr_, size * sizeof(uint64_t), cudaMemAdviseSetAccessedBy, 0));
 }
-
-void particle_set::prefetch(size_t b, size_t e, cudaStream_t stream) {
-   for (int dim = 0; dim < NDIM; dim++) {
-      CUDA_CHECK(cudaMemPrefetchAsync((void* ) (xptr_[dim] + b), sizeof(fixed32) * (e - b), 0, stream));
-      CUDA_CHECK(cudaMemPrefetchAsync((void* ) (vptr_[dim] + b), sizeof(float) * (e - b), 0, stream));
-   }
-   CUDA_CHECK(cudaMemPrefetchAsync((void* ) (rptr_ + b), sizeof(int8_t) * (e - b), 0, stream));
-}
+//
+//void particle_set::prefetch(size_t b, size_t e, cudaStream_t stream) {
+//   for (int dim = 0; dim < NDIM; dim++) {
+//      CUDA_CHECK(cudaMemPrefetchAsync((void* ) (xptr_[dim] + b), sizeof(fixed32) * (e - b), 0, stream));
+//      CUDA_CHECK(cudaMemPrefetchAsync((void* ) (vptr_[dim] + b), sizeof(float) * (e - b), 0, stream));
+//   }
+//   CUDA_CHECK(cudaMemPrefetchAsync((void* ) (rptr_ + b), sizeof(int8_t) * (e - b), 0, stream));
+//}
 
 particle_set::~particle_set() {
    if (!virtual_) {
