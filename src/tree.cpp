@@ -365,9 +365,10 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 
       switch (type) {
       case CC_CP_DIRECT:
+         //   printf( "%li %li\n", multis.size(), params_ptr->depth);
          rc.flops += cpu_cc_direct(params_ptr);
-         if( parti.size() ){
-            printf( "CP_DIRECT found on CPU\n");
+         if (parti.size()) {
+            printf("CP_DIRECT found on CPU\n");
             abort();
          }
          break;
@@ -384,11 +385,11 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          }
          break;
       case PC_PP_DIRECT:
-         printf( "PC_PP_DIRECT on CPU\n");
+         printf("PC_PP_DIRECT on CPU\n");
          abort();
          break;
       case PC_PP_EWALD:
-         printf( "PC_PP_EWALD on CPU\n");
+         printf("PC_PP_EWALD on CPU\n");
          abort();
          break;
       }
@@ -547,7 +548,7 @@ void tree::gpu_daemon() {
                calloc.deallocate(all_params);
             });
             void *test;
-    //        CUDA_CHECK(cudaMemPrefetchAsync(all_params, grid_size * sizeof(kick_params_type), 0, stream));
+            //        CUDA_CHECK(cudaMemPrefetchAsync(all_params, grid_size * sizeof(kick_params_type), 0, stream));
             printf("Executing %i blocks\n", grid_size);
             auto exec_ret = cuda_execute_kick_kernel(all_params, grid_size, stream);
             completions.push_back(std::function < bool() > ([=]() {
@@ -655,7 +656,7 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
       expansion<simd_float> Lacc;
       Lacc = simd_float(0);
       const auto cnt1 = multis.size();
-      const auto cnt2 = ((cnt1 - 1 + simd_float::size()) / simd_float::size()) * simd_float::size();
+      const auto cnt2 = ((cnt1 - 1) / simd_float::size() + 1) * simd_float::size();
       for (int dim = 0; dim < NDIM; dim++) {
          X[dim] = simd_fixed32(pos[dim]);
       }

@@ -39,7 +39,6 @@ CUDA_DEVICE int cuda_cc_interactions(particle_set *parts, kick_params_type *para
       multipole_interaction(L, mpole, fpos, false);
    }
    flops += multis.size() * FLOPS_CC;
-   __syncwarp();
    for (int i = 0; i < LP; i++) {
       Lreduce[tid] = L[i];
       __syncwarp();
@@ -375,9 +374,10 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
    const auto &real_indices = *real_indices_ptr;
 
    const auto index = test_parts[bid];
-   const auto sink_x = parts->pos(0, index).to_float();
-   const auto sink_y = parts->pos(1, index).to_float();
-   const auto sink_z = parts->pos(2, index).to_float();
+   array<fixed32, NDIM> sink;
+   for( int dim = 0; dim < NDIM; dim++) {
+      sink[dim] = parts->pos(dim, index).to_float();
+   }
    const auto f_x = parts->force(0, index);
    const auto f_y = parts->force(1, index);
    const auto f_z = parts->force(2, index);
@@ -391,9 +391,9 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
          continue;
       }
       array<float, NDIM> X;
-      X[0] = sink_x - parts->pos(0, source).to_float();
-      X[1] = sink_y - parts->pos(1, source).to_float();
-      X[2] = sink_z - parts->pos(2, source).to_float();
+      for( int dim = 0; dim < NDIM; dim++) {
+         X[dim] = (fixed<int32_t>(sink[dim]) - fixed<int32_t>(parts->pos(dim, source))).to_float();
+      }
       for (int i = 0; i < real_indices.size(); i++) {
          const auto n = real_indices.get(i);
          array<hifloat, NDIM> dx;
@@ -403,7 +403,6 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
          const float r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);
          if (r2 < (EWALD_REAL_CUTOFF * EWALD_REAL_CUTOFF)) {  // 1
             const float r = sqrt(r2);  // 1
-            const float cmask = 1.f - ((sqr(n[0]) + sqr(n[1]) + sqr(n[2])) > 0.0);  // 7
             const float rinv = 1.f / r;  // 2
             const float r2inv = rinv * rinv;  // 1
             const float r3inv = r2inv * rinv;  // 1
