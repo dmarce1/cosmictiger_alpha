@@ -131,11 +131,11 @@ extern CUDA_DEVICE periodic_parts *periodic_parts_ptr;
 
 template<class T>
 CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX) {
-   static const T r0 = 1.0e-9;
-// static const T H = options::get().soft_len;
-   static const T nthree(-3.0);
-   static const T nfive(-5.0);
-   static const T nseven(-7.0);
+   const T r0 = 1.0e-9;
+// const T H = options::get().soft_len;
+   const T nthree(-3.0);
+   const T nfive(-5.0);
+   const T nseven(-7.0);
    const T r2 = sqr(dX[0]) + sqr(dX[1]) + sqr(dX[2]);            // 5
    const T r = sqrt(r2);               // 7
    const T rinv = (r > r0) / fmax(r, r0);  // 3
@@ -264,13 +264,13 @@ CUDA_DEVICE inline int green_ewald(expansion<hifloat> &D, const array<hifloat, N
    const auto &four_indices = *four_indices_ptr;
    const auto &real_indices = *real_indices_ptr;
    const hifloat fouroversqrtpi(4.0 / sqrt(M_PI));
-   static const hifloat one(1.0);
-   static const hifloat nthree(-3.0);
-   static const hifloat nfour(-4.0);
-   static const hifloat nfive(-5.0);
-   static const hifloat nseven(-7.0);
-   static const hifloat neight(-8.0);
-   static const hifloat rcut(1.0e-6);
+   const hifloat one(1.0);
+   const hifloat nthree(-3.0);
+   const hifloat nfour(-4.0);
+   const hifloat nfive(-5.0);
+   const hifloat nseven(-7.0);
+   const hifloat neight(-8.0);
+   const hifloat rcut(1.0e-6);
    const hifloat r = sqrt(sqr(X[0]) + sqrt(X[1]) + sqr(X[2]));                   // 5
    const hifloat zmask = r > rcut;    // 1
    expansion<hifloat> &Dreal = D;
@@ -309,7 +309,7 @@ CUDA_DEVICE inline int green_ewald(expansion<hifloat> &D, const array<hifloat, N
       }
 
    }
-   static const hifloat twopi = 2.0 * M_PI;
+   const hifloat twopi = 2.0 * M_PI;
 
    for (int i = 0; i < four_indices.size(); i++) {
       const auto &h = four_indices.get(i);
@@ -757,8 +757,8 @@ CUDA_EXPORT inline int multipole_interaction(array<float, NDIM + 1> L, const mul
       L[i] = M[0] * D[i];
    }
    flops += 1 + NDIM;
-   static const auto half = float(0.5);
-   static const auto sixth = float(1.0 / 6.0);
+   const auto half = float(0.5);
+   const auto sixth = float(1.0 / 6.0);
    const auto halfD11 = half * D[11];             // 1
    const auto halfD12 = half * D[12];             // 1
    const auto halfD13 = half * D[13];             // 1
