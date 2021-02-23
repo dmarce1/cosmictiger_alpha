@@ -55,7 +55,7 @@ cuda_kick(kick_params_type * params_ptr)
       const auto &Lpos = params.Lpos[params.depth];
       array<hifloat, NDIM> dx;
       for (int dim = 0; dim < NDIM; dim++) {
-#ifdef ACCUMULATE_DOUBLE_PRECISION
+#ifdef HIPRECISION
          const auto x1 = me.pos[dim].to_double();
          const auto x2 = Lpos[dim].to_double();
 #else
@@ -210,51 +210,15 @@ cuda_kick(kick_params_type * params_ptr)
             }
          }while (direct && check_count);
          __syncwarp();
-#ifdef TIMINGS
-         uint64_t tm;
-#endif
          switch (type) {
             case PC_PP_DIRECT:
             //          printf( "%li %li\n", multis.size(), parti.size());
-#ifdef TIMINGS
-            tm = clock64();
-#endif
             flops += cuda_pc_interactions(parts,params_ptr);
-#ifdef TIMINGS
-            tm = clock64() - tm;
-            if(tid==0) {
-               atomicAdd(&pc_interaction_time, (double) tm);
-            }
-
-            tm = clock64();
-#endif
             flops += cuda_pp_interactions(parts,params_ptr);
-#ifdef TIMINGS
-            tm = clock64() - tm;
-            if(tid==0) {
-               atomicAdd(&pp_interaction_time, (double) tm);
-            }
-#endif
             break;
             case CC_CP_DIRECT:
-#ifdef TIMINGS
-            tm = clock64();
-#endif
             flops += cuda_cc_interactions(parts,params_ptr);
-#ifdef TIMINGS
-            tm = clock64() - tm;
-            if(tid==0) {
-               atomicAdd(&cc_interaction_time, (double) tm);
-            }
-            tm = clock64();
-#endif
             flops += cuda_cp_interactions(parts,params_ptr);
-#ifdef TIMINGS
-            tm = clock64() - tm;
-            if(tid==0) {
-               atomicAdd(&cp_interaction_time, (double) tm);
-            }
-#endif
             break;
 
             case PC_PP_EWALD:
@@ -313,9 +277,7 @@ cuda_kick(kick_params_type * params_ptr)
       const auto invlog2 = 1.0f / logf(2);
       for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
          const auto this_rung = parts->rung(k+myparts.first);
-#ifndef TEST_FORCE
          if( this_rung >= params.rung ) {
-#endif
 
             array<hifloat,NDIM> g;
             hifloat phi;
@@ -334,15 +296,18 @@ cuda_kick(kick_params_type * params_ptr)
             for (int dim = 0; dim < NDIM; dim++) {
                F[dim][k] += g[dim];
             }
+            for( int dim = 0; dim < NDIM; dim++) {
+               parts->force(dim,k+myparts.first) = F[dim][k];
+            }
+            float dt = params.t0 / (1<<this_rung);
+            for( int dim = 0; dim < NDIM; dim++) {
+               parts->vel(dim,k+myparts.first) += 0.5 * dt * F[dim][k];
+            }
 #ifdef TEST_FORCE
             for( int dim = 0; dim < NDIM; dim++) {
                parts->force(dim,k+myparts.first) = F[dim][k];
             }
 #endif
-            float dt = params.t0 / (1<<this_rung);
-            for( int dim = 0; dim < NDIM; dim++) {
-               parts->vel(dim,k+myparts.first) += 0.5 * dt * F[dim][k];
-            }
             float fmag = 0.0;
             for( int dim = 0; dim < NDIM; dim++) {
                fmag += sqr(F[dim][k]);
@@ -358,9 +323,7 @@ cuda_kick(kick_params_type * params_ptr)
             }
             rungs[tid] = fmaxf(rungs[tid],new_rung);
             parts->set_rung(new_rung, k+myparts.first);
-#ifndef TEST_FORCE
          }
-#endif
       }
       __syncwarp();
       for( int P = KICK_BLOCK_SIZE/2; P>=1; P/=2) {
@@ -389,7 +352,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                                      CUDA_CHECK(cudaDeviceSynchronize());
+                                                               CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #ifdef TIMINGS
@@ -437,9 +400,10 @@ void cleanup_stream(cudaStream_t s) {
 }
 
 CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
-   __shared__ volatile
+   __shared__
+   volatile
    extern int shmem_ptr[];
-   cuda_ewald_shmem& shmem = *((cuda_ewald_shmem*)(shmem_ptr));
+   cuda_ewald_shmem &shmem = *((cuda_ewald_shmem*) (shmem_ptr));
    const int &bid = blockIdx.x;
    auto pptr = params_ptr[bid];
    auto rc = cuda_ewald_cc_interactions(parts, pptr, &shmem.Lreduce);
@@ -483,7 +447,7 @@ std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, i
 }
 
 std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type *params, int grid_size,
-     cudaStream_t stream) {
+      cudaStream_t stream) {
    const size_t shmemsize = sizeof(cuda_kick_shmem);
    unified_allocator alloc;
    kick_return *returns = (kick_return*) alloc.allocate(grid_size * sizeof(kick_return));

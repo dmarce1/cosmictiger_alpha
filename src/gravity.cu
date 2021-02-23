@@ -378,9 +378,9 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
    const auto &real_indices = *real_indices_ptr;
 
    const auto index = test_parts[bid];
-   const auto src_x = parts->pos(0, index).to_float();
-   const auto src_y = parts->pos(1, index).to_float();
-   const auto src_z = parts->pos(2, index).to_float();
+   const auto sink_x = parts->pos(0, index).to_float();
+   const auto sink_y = parts->pos(1, index).to_float();
+   const auto sink_z = parts->pos(2, index).to_float();
    const auto f_x = parts->force(0, index);
    const auto f_y = parts->force(1, index);
    const auto f_z = parts->force(2, index);
@@ -394,9 +394,9 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
          continue;
       }
       array<float, NDIM> X;
-      X[0] = src_x;
-      X[1] = src_y;
-      X[2] = src_z;
+      X[0] = sink_x - parts->pos(0, sink).to_float();
+      X[1] = sink_y - parts->pos(1, sink).to_float();
+      X[2] = sink_z - parts->pos(2, sink).to_float();
       for (int i = 0; i < real_indices.size(); i++) {
          const auto n = real_indices.get(i);
          array<hifloat, NDIM> dx;
@@ -417,7 +417,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
             const float d0 = -erfc0 * rinv;  // 2
             const float d1 = fma(-d0, r2inv, e1);  // 3
             for (int dim = 0; dim < NDIM; dim++) {
-               f[dim][tid] = dx[dim] * d1;
+               f[dim][tid] -= dx[dim] * d1;
             }
          }
       }
@@ -442,9 +442,14 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
       __syncwarp();
    }
    const auto f_ffm = sqrtf(f_x * f_x + f_y * f_y + f_z * f_z);
-   norm[bid] = f_ffm;
+   if (tid == 0) {
+      norm[bid] = f_ffm;
+   }
    const auto f_dir = sqrtf(sqr(f[0][0]) + sqr(f[1][0]) + sqr(f[2][0]));
-   err[bid] = abs(f_ffm - f_dir);
+   if (tid == 0) {
+      printf("%e\n", f_x / f[0][0]);
+      err[bid] = abs(f_ffm - f_dir);
+   }
 }
 
 void cuda_compare_with_direct(particle_set *parts) {
@@ -459,7 +464,7 @@ void cuda_compare_with_direct(particle_set *parts) {
       test_parts[i] = rand() % nparts;
    }
 cuda_pp_ewald_interactions<<<N_TEST_PARTS,KICK_BLOCK_SIZE>>>(parts, test_parts, errs, norms);
-      CUDA_CHECK(cudaDeviceSynchronize());
+                  CUDA_CHECK(cudaDeviceSynchronize());
    float avg_err = 0.0;
    float norm = 0.0;
    for (int i = 0; i < N_TEST_PARTS; i++) {
@@ -468,7 +473,8 @@ cuda_pp_ewald_interactions<<<N_TEST_PARTS,KICK_BLOCK_SIZE>>>(parts, test_parts, 
    }
    norm /= N_TEST_PARTS;
    avg_err /= norm;
-   printf( "Error is %e\n", avg_err);
+   printf("Norm is %e\n", avg_err);
+   printf("Error is %e\n", avg_err);
    CUDA_FREE(norms);
    CUDA_FREE(errs);
    CUDA_FREE(test_parts);
