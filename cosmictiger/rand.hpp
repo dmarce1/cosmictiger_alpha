@@ -11,6 +11,7 @@
 #include <cosmictiger/fixed.hpp>
 
 fixed32 rand_fixed32();
+size_t rand_size_t();
 float rand_float();
 
 

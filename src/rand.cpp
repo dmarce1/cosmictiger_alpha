@@ -23,6 +23,12 @@ fixed32 rand_fixed32() {
    return result;
 }
 
+size_t rand_size_t() {
+   std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
+   number = (a * number + c) % mod;
+   return number;
+}
+
 float rand_float() {
    std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
    number = (a * number + c) % mod;

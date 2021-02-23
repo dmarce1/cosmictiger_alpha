@@ -370,7 +370,7 @@ CUDA_DEVICE extern ewald_indices *four_indices_ptr;
 CUDA_DEVICE extern ewald_indices *real_indices_ptr;
 CUDA_DEVICE extern periodic_parts *periodic_parts_ptr;
 
-CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, array<float, NDIM> *res) {
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *err, float *norm) {
    const int &tid = threadIdx.x;
    const int &bid = blockIdx.x;
    const auto &hparts = *periodic_parts_ptr;
@@ -381,7 +381,11 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
    const auto src_x = parts->pos(0, index).to_float();
    const auto src_y = parts->pos(1, index).to_float();
    const auto src_z = parts->pos(2, index).to_float();
-   __shared__   array<array<float, KICK_BLOCK_SIZE>, NDIM> f;
+   const auto f_x = parts->force(0, index);
+   const auto f_y = parts->force(1, index);
+   const auto f_z = parts->force(2, index);
+   __shared__ array<array<float, KICK_BLOCK_SIZE>, NDIM>
+   f;
    for (int dim = 0; dim < NDIM; dim++) {
       f[dim][tid] = 0.0;
    }
@@ -396,13 +400,13 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
       for (int i = 0; i < real_indices.size(); i++) {
          const auto n = real_indices.get(i);
          array<hifloat, NDIM> dx;
-         for( int dim = 0; dim < NDIM; dim++) {
+         for (int dim = 0; dim < NDIM; dim++) {
             dx[dim] = X[dim] - n[dim];
          }
          const float r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);
          if (r2 < (EWALD_REAL_CUTOFF * EWALD_REAL_CUTOFF)) {  // 1
             const float r = sqrt(r2);  // 1
-            const float cmask = 1.f - ((sqr(n[0])+sqr(n[1])+sqr(n[2])) > 0.0);  // 7
+            const float cmask = 1.f - ((sqr(n[0]) + sqr(n[1]) + sqr(n[2])) > 0.0);  // 7
             const float rinv = 1.f / r;  // 2
             const float r2inv = rinv * rinv;  // 1
             const float r3inv = r2inv * rinv;  // 1
@@ -437,9 +441,37 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
       }
       __syncwarp();
    }
-   for (int dim = 0; dim < NDIM; dim++) {
-      res[index][dim] = f[dim][0];
+   const auto f_ffm = sqrtf(f_x * f_x + f_y * f_y + f_z * f_z);
+   norm[bid] = f_ffm;
+   const auto f_dir = sqrtf(sqr(f[0][0]) + sqr(f[1][0]) + sqr(f[2][0]));
+   err[bid] = abs(f_ffm - f_dir);
+}
+
+void cuda_compare_with_direct(particle_set *parts) {
+   size_t *test_parts;
+   float *errs;
+   float *norms;
+   CUDA_MALLOC(test_parts, N_TEST_PARTS);
+   CUDA_MALLOC(errs, N_TEST_PARTS);
+   CUDA_MALLOC(norms, N_TEST_PARTS);
+   const size_t nparts = parts->size();
+   for (int i = 0; i < N_TEST_PARTS; i++) {
+      test_parts[i] = rand() % nparts;
    }
+cuda_pp_ewald_interactions<<<N_TEST_PARTS,KICK_BLOCK_SIZE>>>(parts, test_parts, errs, norms);
+      CUDA_CHECK(cudaDeviceSynchronize());
+   float avg_err = 0.0;
+   float norm = 0.0;
+   for (int i = 0; i < N_TEST_PARTS; i++) {
+      avg_err += errs[i];
+      norm += norms[i];
+   }
+   norm /= N_TEST_PARTS;
+   avg_err /= norm;
+   printf( "Error is %e\n", avg_err);
+   CUDA_FREE(norms);
+   CUDA_FREE(errs);
+   CUDA_FREE(test_parts);
 }
 
 #endif

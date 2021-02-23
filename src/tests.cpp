@@ -6,6 +6,7 @@
  */
 
 #include <cosmictiger/global.hpp>
+#include <cosmictiger/gravity.hpp>
 #include <cosmictiger/tests.hpp>
 #include <cosmictiger/timer.hpp>
 #include <cosmictiger/tree.hpp>
@@ -47,17 +48,17 @@ void kick_test() {
    particle_set parts(global().opts.nparts);
    parts.generate_random();
    tree::set_particle_set(&parts);
-   particle_set* parts_ptr;
-   CUDA_MALLOC(parts_ptr,sizeof(particle_set));
+   particle_set *parts_ptr;
+   CUDA_MALLOC(parts_ptr, sizeof(particle_set));
    new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-   ewald_indices* real_indices;
-   ewald_indices* four_indices;
-   periodic_parts* pparts;
-   CUDA_MALLOC(real_indices,1);
-   CUDA_MALLOC(four_indices,1);
-   CUDA_MALLOC(pparts,1);
-   new (real_indices) ewald_indices(EWALD_NREAL,false);
-   new (four_indices) ewald_indices(EWALD_NFOUR,true);
+   ewald_indices *real_indices;
+   ewald_indices *four_indices;
+   periodic_parts *pparts;
+   CUDA_MALLOC(real_indices, 1);
+   CUDA_MALLOC(four_indices, 1);
+   CUDA_MALLOC(pparts, 1);
+   new (real_indices) ewald_indices(EWALD_NREAL, false);
+   new (four_indices) ewald_indices(EWALD_NFOUR, true);
    new (pparts) periodic_parts();
    tree::cuda_set_kick_params(parts_ptr, real_indices, four_indices, pparts);
    for (int i = 0; i < 2; i++) {
@@ -69,31 +70,31 @@ void kick_test() {
       tm_kick.start();
       tree_ptr root_ptr;
       root_ptr.ptr = (uintptr_t) & root;
-    //  root_ptr.rank = hpx_rank();
+      //  root_ptr.rank = hpx_rank();
       // printf( "%li", size_t(WORKSPACE_SIZE));
-      kick_params_type* params_ptr;
-      CUDA_MALLOC(params_ptr,1);
+      kick_params_type *params_ptr;
+      CUDA_MALLOC(params_ptr, 1);
       new (params_ptr) kick_params_type();
       params_ptr->dchecks.push(root_ptr);
       params_ptr->echecks.push(root_ptr);
 
       // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
-      array<fixed32,NDIM> Lpos;
+      array<fixed32, NDIM> Lpos;
       expansion<hifloat> L;
       for (int i = 0; i < LP; i++) {
          L[i] = 0.f;
       }
-      for( int dim = 0; dim < NDIM; dim++) {
+      for (int dim = 0; dim < NDIM; dim++) {
          Lpos[dim] = 0.5;
       }
       params_ptr->L[0] = L;
       params_ptr->Lpos[0] = Lpos;
       auto rc = root.kick(params_ptr).get();
       tm_kick.stop();
-   /*   tm.start();
-      drift(parts_ptr, 1.0,1.0,1.0);
-      tm.stop();
-      printf( "Drift took %e s\n", tm.read());*/
+      /*   tm.start();
+       drift(parts_ptr, 1.0,1.0,1.0);
+       tm.stop();
+       printf( "Drift took %e s\n", tm.read());*/
       tree::cleanup();
       tm_cleanup.start();
       managed_allocator<sort_params>::cleanup();
@@ -107,12 +108,69 @@ void kick_test() {
       printf("Kick    = %e s\n", tm_kick.read());
       printf("Cleanup = %e s\n", tm_cleanup.read());
       printf("Total   = %e s\n", total);
-      printf("GFLOP   = %e s\n", rc.flops/1024./1024./1024.);
-      printf( "GFLOP/s = %e\n", rc.flops/1024./1024./1024./total);
+      printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
+      printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
    }
    parts_ptr->particle_set::~particle_set();
    CUDA_FREE(parts_ptr);
 }
+
+#ifdef TEST_FORCE
+void force_test() {
+   printf("Doing force test\n");
+   printf("Generating particles\n");
+   particle_set parts(global().opts.nparts);
+   parts.generate_random();
+   tree::set_particle_set(&parts);
+   particle_set *parts_ptr;
+   CUDA_MALLOC(parts_ptr, sizeof(particle_set));
+   new (parts_ptr) particle_set(parts.get_virtual_particle_set());
+   ewald_indices *real_indices;
+   ewald_indices *four_indices;
+   periodic_parts *pparts;
+   CUDA_MALLOC(real_indices, 1);
+   CUDA_MALLOC(four_indices, 1);
+   CUDA_MALLOC(pparts, 1);
+   new (real_indices) ewald_indices(EWALD_NREAL, false);
+   new (four_indices) ewald_indices(EWALD_NFOUR, true);
+   new (pparts) periodic_parts();
+   tree::cuda_set_kick_params(parts_ptr, real_indices, four_indices, pparts);
+   tree root;
+   root.sort();
+   tree_ptr root_ptr;
+   root_ptr.ptr = (uintptr_t) & root;
+   //  root_ptr.rank = hpx_rank();
+   // printf( "%li", size_t(WORKSPACE_SIZE));
+   kick_params_type *params_ptr;
+   CUDA_MALLOC(params_ptr, 1);
+   new (params_ptr) kick_params_type();
+   params_ptr->dchecks.push(root_ptr);
+   params_ptr->echecks.push(root_ptr);
+
+   // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
+   array<fixed32, NDIM> Lpos;
+   expansion<hifloat> L;
+   for (int i = 0; i < LP; i++) {
+      L[i] = 0.f;
+   }
+   for (int dim = 0; dim < NDIM; dim++) {
+      Lpos[dim] = 0.5;
+   }
+   params_ptr->L[0] = L;
+   params_ptr->Lpos[0] = Lpos;
+   auto rc = root.kick(params_ptr).get();
+   tree::cleanup();
+   managed_allocator<tree>::cleanup();
+   params_ptr->kick_params_type::~kick_params_type();
+   timer tm;
+   tm.start();
+   cuda_compare_with_direct(parts_ptr);
+   tm.stop();
+   printf( "Comparison took %e s\n", tm.read());
+   CUDA_FREE(params_ptr);
+   CUDA_FREE(parts_ptr);
+}
+#endif
 
 static void sort() {
    timer tm;
@@ -148,7 +206,7 @@ void test_run(const std::string test) {
       kick_test();
 #ifdef TEST_FORCE
    } else if (test == "force") {
-      kick_test();
+      force_test();
 #endif
    } else {
       printf("%s is an unknown test.\n", test.c_str());
