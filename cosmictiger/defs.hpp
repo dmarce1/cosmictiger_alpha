@@ -19,8 +19,8 @@
 #define TEST_TREE
 #define TEST_RADIX
 #define TEST_BOUNDS
-//#define TEST_FORCE
 #endif
+#define TEST_FORCE
 //#define TEST_STACK
 
 #define TREE_MAX_DEPTH 54

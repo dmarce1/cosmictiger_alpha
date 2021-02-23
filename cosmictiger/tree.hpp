@@ -227,8 +227,8 @@ struct cuda_kick_shmem {
       array<array<float, KICK_BLOCK_SIZE>, NDIM> f; // 384
       array<hifloat, KICK_BLOCK_SIZE> Lreduce;  // 4480
       struct {
-         array<array<int8_t, KICK_BLOCK_SIZE + 1>, NITERS> indices; //33
-         array<int16_t, NITERS> count; // 8
+         array<array<int, KICK_BLOCK_SIZE + 1>, NITERS> indices; //33
+         array<int, NITERS> count; // 8
       };
    };
    array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072

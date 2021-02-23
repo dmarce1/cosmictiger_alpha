@@ -52,20 +52,27 @@ struct particle_set {
    particle part(size_t index) const;
    std::vector<size_t> local_sort(size_t, size_t, int64_t, morton_t key_begin, morton_t key_end);
    void generate_random();
-   void set_read_mostly(bool);
    CUDA_EXPORT
    size_t size() const {
       return size_;
    }
-   void prefetch(size_t b, size_t e, cudaStream_t);
+#ifdef TEST_FORCE
+   CUDA_EXPORT
+   float force(int dim, size_t index) const;
+   CUDA_EXPORT
+   float& force(int dim, size_t index);
+#endif
 #ifndef __CUDACC__
 private:
 #endif
    array<fixed32*, NDIM> xptr_;
    array<float*, NDIM> vptr_;
+#ifdef TEST_FORCE
+   array<float*, NDIM> gptr_;
+#endif
    int8_t *rptr_;
    uint64_t *mptr_;
-   particle *pptr_;
+   void *pptr_;
    size_t size_;
    size_t offset_;
    bool virtual_;
@@ -81,14 +88,15 @@ public:
       v.rptr_ = rptr_;
       v.pptr_ = pptr_;
 #ifdef TEST_FORCE
-      v.fptr_ = fptr_;
+      v.gptr_ = gptr_;
 #endif
       v.size_ = size_;
       v.offset_ = offset_;
       v.virtual_ = true;
       return v;
    }
-};
+}
+;
 
 std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, int depth, morton_t, morton_t);
 
@@ -174,12 +182,12 @@ void drift(particle_set *parts, double a1, double a2, double dtau);
 #ifdef TEST_FORCE
 CUDA_EXPORT inline float particle_set::force(int dim, size_t index) const {
    assert(index < size_);
-   return fptr_[dim][index - offset_];
+   return gptr_[dim][index - offset_];
 
 }
 CUDA_EXPORT inline float& particle_set::force(int dim, size_t index) {
    assert(index < size_);
-   return fptr_[dim][index - offset_];
+   return gptr_[dim][index - offset_];
 
 }
 #endif

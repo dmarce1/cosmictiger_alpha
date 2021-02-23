@@ -6,18 +6,18 @@
 #include <unordered_map>
 #include <algorithm>
 
-void particle_set::set_read_mostly(bool flag) {
-   auto advice = flag ? cudaMemAdviseSetReadMostly : cudaMemAdviseUnsetReadMostly;
-   CUDA_CHECK(cudaMemAdvise((void* )pptr_, size_ * sizeof(particle), advice, 0));
-}
-
 particle_set::particle_set(size_t size, size_t offset) {
    offset_ = offset;
    size_ = size;
    virtual_ = false;
-   CUDA_MALLOC(pptr_, size);
-   CHECK_POINTER(pptr_);
-   int8_t *data = (int8_t*) pptr_;
+   size_t chunk_size = NDIM * (sizeof(fixed32) + sizeof(float)) + sizeof(uint8_t) + sizeof(uint64_t);
+#ifdef TEST_FORCE
+   chunk_size += NDIM * sizeof(float);
+#endif
+   uint8_t *data;
+   CUDA_MALLOC(data, chunk_size * size);
+   CHECK_POINTER(data);
+   pptr_ = (particle*) data;
    for (size_t dim = 0; dim < NDIM; dim++) {
       xptr_[dim] = (fixed32*) (data + dim * size * sizeof(fixed32));
       CUDA_CHECK(cudaMemAdvise(xptr_[dim], size * sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
@@ -31,6 +31,14 @@ particle_set::particle_set(size_t size, size_t offset) {
    CUDA_CHECK(cudaMemAdvise(rptr_, size * sizeof(int8_t), cudaMemAdviseSetAccessedBy, 0));
    mptr_ = (uint64_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(int8_t) * size);
    CUDA_CHECK(cudaMemAdvise(mptr_, size * sizeof(uint64_t), cudaMemAdviseSetAccessedBy, 0));
+#ifdef TEST_FORCE
+   for (size_t dim = 0; dim < NDIM; dim++) {
+      const auto offset = size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(int8_t) * size
+            + size * sizeof(uint64_t);
+      gptr_[dim] = (float*) (data + offset + dim * size * sizeof(float));
+      CUDA_CHECK(cudaMemAdvise(gptr_[dim], size * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
+#endif
+   }
 }
 //
 //void particle_set::prefetch(size_t b, size_t e, cudaStream_t stream) {

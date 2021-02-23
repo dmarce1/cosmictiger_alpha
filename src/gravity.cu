@@ -381,8 +381,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
    const auto src_x = parts->pos(0, index).to_float();
    const auto src_y = parts->pos(1, index).to_float();
    const auto src_z = parts->pos(2, index).to_float();
-   __shared__ volatile  array<array<float, NDIM>, KICK_BLOCK_SIZE>
-   f;
+   __shared__   array<array<float, KICK_BLOCK_SIZE>, NDIM> f;
    for (int dim = 0; dim < NDIM; dim++) {
       f[dim][tid] = 0.0;
    }

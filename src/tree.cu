@@ -141,7 +141,7 @@ cuda_kick(kick_params_type * params_ptr)
                   }
                   __syncwarp();
                   for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
-                     array<int16_t, NITERS> tmp;
+                     array<int, NITERS> tmp;
                      if (tid - P + 1 >= 0) {
                         for (int i = 0; i < NITERS; i++) {
                            tmp[i] = indices[i][tid - P + 1];
