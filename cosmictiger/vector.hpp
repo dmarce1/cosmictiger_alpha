@@ -24,27 +24,27 @@
 template<class T>
 class vector {
    T *ptr;
-   size_t cap;
-   size_t sz;
+   int cap;
+   int sz;
    bool dontfree;
    T *new_ptr;
    CUDA_EXPORT
    inline
-   void destruct(size_t b, size_t e) {
+   void destruct(int b, int e) {
       THREAD;
       BLOCK;
       SYNC;
-      for (size_t i = b + tid; i < e; i += blocksize) {
+      for (int i = b + tid; i < e; i += blocksize) {
          (*this)[i].T::~T();
       }SYNC;
    }
    CUDA_EXPORT
    inline
-   void construct(size_t b, size_t e) {
+   void construct(int b, int e) {
       THREAD;
       BLOCK;
       SYNC;
-      for (size_t i = b + tid; i < e; i += blocksize) {
+      for (int i = b + tid; i < e; i += blocksize) {
          new (ptr + i) T();
       }SYNC;
    }
@@ -60,7 +60,7 @@ public:
          auto func = [dptr, sz_]() {
             unified_allocator alloc;
             if (dptr) {
-               for (size_t i = 0; i < sz_; i++) {
+               for (int i = 0; i < sz_; i++) {
                   dptr[i].T::~T();
                }
                alloc.deallocate(dptr);
@@ -102,7 +102,7 @@ public:
       }SYNC;
       construct(0, other.sz);
       SYNC;
-      for (size_t i = tid; i < other.sz; i += blocksize) {
+      for (int i = tid; i < other.sz; i += blocksize) {
          (*this)[i] = other[i];
       }SYNC;
    }
@@ -156,10 +156,10 @@ public:
    }
    CUDA_EXPORT
    inline
-   void reserve(size_t new_cap) {
+   void reserve(int new_cap) {
       THREAD;
       BLOCK;
-      size_t i = 1;
+      int i = 1;
       while (i < new_cap) {
          i *= 2;
       }
@@ -176,7 +176,7 @@ public:
             CUDA_MALLOC(new_ptr, new_cap);
 #endif
          }SYNC;
-         for (size_t i = tid; i < sz; i += blocksize) {
+         for (int i = tid; i < sz; i += blocksize) {
             new (new_ptr + i) T();
             new_ptr[i] = std::move((*this)[i]);
          }
@@ -198,7 +198,7 @@ public:
    }
    CUDA_EXPORT
    inline
-   void resize(size_t new_size) {
+   void resize(int new_size) {
       THREAD;
       reserve(new_size);
       auto oldsz = sz;
@@ -210,17 +210,17 @@ public:
       SYNC;
    }
    CUDA_EXPORT
-   inline T operator[](size_t i) const {
+   inline T operator[](int i) const {
       assert(i < sz);
       return ptr[i];
    }
    CUDA_EXPORT
-   inline T& operator[](size_t i) {
+   inline T& operator[](int i) {
       assert(i < sz);
       return ptr[i];
    }
    CUDA_EXPORT
-   inline size_t size() const {
+   inline int size() const {
       return sz;
    }
    CUDA_EXPORT

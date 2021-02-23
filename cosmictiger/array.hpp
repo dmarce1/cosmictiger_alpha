@@ -13,15 +13,15 @@
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/cuda.hpp>
 
-template<class T, size_t N>
+template<class T, int N>
 class array {
    T ptr[N];
 public:
-   CUDA_EXPORT const T& operator[](size_t i) const {
+   CUDA_EXPORT const T& operator[](int i) const {
       BOUNDS_CHECK1(i,0,N);
       return ptr[i];
    }
-   CUDA_EXPORT T& operator[](size_t i) {
+   CUDA_EXPORT T& operator[](int i) {
       BOUNDS_CHECK1(i,0,N);
       return ptr[i];
    }
