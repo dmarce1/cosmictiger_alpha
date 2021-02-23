@@ -44,7 +44,7 @@
 #define FLOPS_OPEN 97
 
 
-#define HIPRECISION
+//#define HIPRECISION
 
 #ifdef HIPRECISION
 using hifloat = double;

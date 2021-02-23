@@ -262,7 +262,7 @@ struct kick_params_type {
          scale = 1.0;
          t0 = 1.0;
          rung = 0;
-         hsoft = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 25.0;
+         hsoft = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 50.0;
       }CUDA_SYNC();
    }
    friend class tree_ptr;

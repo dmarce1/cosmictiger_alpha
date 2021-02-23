@@ -186,9 +186,7 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, kick_params_type *para
    auto &inters = params.part_interactions;
    const auto h = params.hsoft;
    const auto h2 = h * h;
-   const auto h2over4 = h2 / 4.0;
-   const auto hinv = 1.0 / h;
-   const auto h3inv = 1.0 / (h * h * h);
+   const auto h2inv = 1.0 / h / h;
    int flops = 0;
    size_t part_index;
    if (inters.size()) {
@@ -249,39 +247,26 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, kick_params_type *para
                   f[dim][tid] = 0.f;
                }
                for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
-//                  const auto tm = clock64();
+//                 const auto tm = clock64();
                   array<float, NDIM> dx;
-                  for (int dim = 0; dim < NDIM; dim++) { // 3
-                     dx[dim] = (fixed<int32_t>(sources[dim][j]) - fixed<int32_t>(sinks[dim][k])).to_float();
-                  }
+//                  for (int dim = 0; dim < NDIM; dim++) { // 3
+                  dx[0] = (fixed<int32_t>(sinks[0][k]) - fixed<int32_t>(sources[0][j])).to_float();
+                  dx[1] = (fixed<int32_t>(sinks[1][k]) - fixed<int32_t>(sources[1][j])).to_float();
+                  dx[2] = (fixed<int32_t>(sinks[2][k]) - fixed<int32_t>(sources[2][j])).to_float();
+//                  }
                   const auto r2 = fmaf(dx[0], dx[0], fmaf(dx[1], dx[1], sqr(dx[2]))); // 3
-                  float force;
-                  const float rinv = rsqrtf(fmaxf(r2, h2over4)); // 8
+                  float r3inv;
                   if (r2 >= h2) {
-                     force = rinv * rinv * rinv; // 2
+                     const float rinv = rsqrtf(r2); // 8
+                     r3inv = rinv * rinv * rinv; // 2
                   } else {
-                     const float r = 1.0f / rinv;
-                     const float roh = r * hinv;                         // 2
-                     const float roh2 = roh * roh;                           // 1
-                     if (r2 > h2over4) {
-                        const float roh3 = roh2 * roh;                         // 1
-                        force = float(-32.0 / 3.0);
-                        force = fmaf(force, roh, float(+192.0 / 5.0));                         // 2
-                        force = fmaf(force, roh, float(-48.0));                         // 2
-                        force = fmaf(force, roh, float(+64.0 / 3.0));                         // 2
-                        force = fmaf(force, roh3, float(-1.0 / 15.0));                         // 2
-                        force *= rinv * rinv * rinv;                         // 1
-                     } else {
-                        force = float(+32.0);
-                        force = fmaf(force, roh, float(-192.0 / 5.0));                           // 2
-                        force = fmaf(force, roh2, float(+32.0 / 3.0));                           // 2
-                        force *= h3inv;                           // 1
-                     }
+                     const float r2overh2 = r2 * h2inv;
+                     r3inv = fmaf(r2overh2, (5.25f - 1.875f * r2overh2), -4.375f);
                   }
-                  for (int dim = 0; dim < NDIM; dim++) { // 3
-                     f[dim][tid] = fmaf(dx[dim], force, f[dim][tid]);
-                  }
-//                  printf("%li \n", (clock64() - tm) / 2);
+                  f[0][tid] = fmaf(dx[0], r3inv, f[0][tid]);
+                  f[1][tid] = fmaf(dx[1], r3inv, f[1][tid]);
+                  f[2][tid] = fmaf(dx[2], r3inv, f[2][tid]);
+                  //                 printf("%li \n", (clock64() - tm) / 2);
                }
                flops += part_index * FLOPS_PP;
                __syncwarp();

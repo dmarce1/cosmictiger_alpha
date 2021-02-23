@@ -27,7 +27,8 @@ class vector {
    size_t cap;
    size_t sz;
    bool dontfree;
-   T *new_ptr;CUDA_EXPORT
+   T *new_ptr;
+   CUDA_EXPORT
    inline
    void destruct(size_t b, size_t e) {
       THREAD;
@@ -51,45 +52,27 @@ public:
 #ifndef __CUDACC__
    std::function<void()> to_device(cudaStream_t stream) {
       assert(cap);
-      cuda_allocator allocator;
-    //  printf( "allocating\n");
-      new_ptr = (T*) allocator.allocate(cap*sizeof(T));
-//      static std::atomic<size_t> alloced(0);
-  //    alloced += cap * sizeof(T);
-    //  printf( " to device %li\n", (size_t) alloced);
-      CHECK_POINTER(new_ptr);
-    //  printf( "1\n");
-    //  if (sz) {
-     //    assert(ptr);
-      //   assert(sz <= cap);
- //        CUDA_CHECK(cudaMemPrefetchAsync(ptr, sizeof(T) * sz, 0, stream));
-    //  }
-    //  printf( "2\n");
-      auto* dptr = ptr;
-      auto sz_ = sz;
-    //  auto new_ptr_ = new_ptr;
-      auto cap_ = cap;
-      auto func = [dptr, sz_]() {
-         cuda_allocator allocator;
-         if (dptr) {
-            for( size_t i = 0; i < sz_; i++) {
-               dptr[i].T::~T();
-            }
-      //      allocator.deallocate(new_ptr_);
-   //         alloced -= cap_ * sizeof(T);
-#ifndef __CUDA_ARCH__
-            unified_allocator alloc;
-    //        printf( "Freeing\n");
-            alloc.deallocate(dptr);
-#else
-           CUDA_FREE(dptr);
-#endif
-         }
-      };
-   //   printf( "3\n");
       dontfree = true;
- //     ptr = new_ptr;
-      return func;
+      if (ptr) {
+         CUDA_CHECK(cudaMemPrefetchAsync(ptr, sizeof(T) * sz, 0, stream));
+         auto *dptr = ptr;
+         auto sz_ = sz;
+         auto func = [dptr, sz_]() {
+            unified_allocator alloc;
+            if (dptr) {
+               for (size_t i = 0; i < sz_; i++) {
+                  dptr[i].T::~T();
+               }
+               alloc.deallocate(dptr);
+            }
+         };
+         //   printf( "3\n");
+         //     ptr = new_ptr;
+         return func;
+      } else {
+         return []() {
+         };
+      }
    }
 #endif
    CUDA_EXPORT inline vector() {
@@ -177,7 +160,7 @@ public:
       THREAD;
       BLOCK;
       size_t i = 1;
-      while (i < new_cap ) {
+      while (i < new_cap) {
          i *= 2;
       }
       new_cap = i;
@@ -188,7 +171,7 @@ public:
          if (tid == 0) {
 #ifndef __CUDA_ARCH__
             unified_allocator alloc;
-            new_ptr = (T*) alloc.allocate(new_cap*sizeof(T));
+            new_ptr = (T*) alloc.allocate(new_cap * sizeof(T));
 #else
             CUDA_MALLOC(new_ptr, new_cap);
 #endif
@@ -269,7 +252,7 @@ public:
       return ptr;
    }
    CUDA_EXPORT inline ~vector() {
-  //    printf( "destroying\n");
+      //    printf( "destroying\n");
       THREAD;
       SYNC;
       destruct(0, sz);
@@ -286,7 +269,7 @@ public:
    }
    CUDA_EXPORT inline void pop_back() {
       assert(size());
-      resize(size()-1);
+      resize(size() - 1);
    }
    CUDA_EXPORT
    inline T back() const {
