@@ -105,6 +105,9 @@ cuda_kick(kick_params_type * params_ptr)
          if (tid < NITERS) {
             count[tid] = 0;
          }
+         for( int i = 0; i < NITERS; i++) {
+            lists[i]->resize(0);
+         }
          __syncwarp();
          int check_count;
          do {
@@ -128,15 +131,22 @@ cuda_kick(kick_params_type * params_ptr)
                      const auto &other_pos = ((const tree*) check)->pos;
                      float d2 = 0.f;
                      const float R2 = sqr(other_radius + myradius);                 // 2
+#ifdef PERIODIC_OFF
+                     for (int dim = 0; dim < NDIM; dim++) {                         // 3
+                        d2 += sqr(other_pos[dim].to_float() - mypos[dim].to_float());
+                     }
+#else
                      for (int dim = 0; dim < NDIM; dim++) {                         // 3
                         d2 += sqr(fixed<int32_t>(other_pos[dim]) - fixed<int32_t>(mypos[dim])).to_float();
                      }
+#endif
                      if (ewald_dist) {
                         d2 = fmaxf(d2, EWALD_MIN_DIST2);                            // 1
                      }
                      const bool far = R2 < theta2 * d2;                             // 2
                      const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
-                     list_index = int(!far) * (1 + int(isleaf) + int(isleaf && bool(check.opened++)));
+                     const bool opened = check.opened++;
+                     list_index = int(!far) * (1 + int(isleaf) + int(isleaf && opened));
                      indices[list_index][tid + 1] = 1;
                   }
                   __syncwarp();
@@ -226,15 +236,16 @@ cuda_kick(kick_params_type * params_ptr)
 
             case PC_PP_EWALD:
             if(count[PI] > 0 ) {
-               printf( "PP Ewald should not exist\n");
+       //        printf( "PP Ewald should not exist\n");
                //  __trap();
             }
             if(count[MI] > 0 ) {
-               printf( "PC Ewald should not exist\n");
+         //      printf( "PC Ewald should not exist\n");
                //   __trap();
             }
             break;
             case CC_CP_EWALD:
+#ifndef PERIODIC_OFF
             if(count[PI] > 0 ) {
                printf( "CP Ewald should not exist\n");
                //     __trap();
@@ -242,6 +253,7 @@ cuda_kick(kick_params_type * params_ptr)
             if( count[MI] > 0 ) {
                flops += cuda_ewald_cc_interactions(parts,params_ptr, &shmem.Lreduce);
             }
+#endif
             break;
          }
       }
@@ -254,22 +266,26 @@ cuda_kick(kick_params_type * params_ptr)
          params.depth++;
          params.L[params.depth] = L;
          params.Lpos[params.depth] = me.pos;
-         params.tptr = ((tree*) tptr)->children[LEFT];
-      }
-      __syncwarp();
-      kick_return rc1 = cuda_kick(params_ptr);
-      params.dchecks.pop_top();
-      params.echecks.pop_top();
-      if (tid == 0) {
-         params.L[params.depth] = L;
          params.tptr = ((tree*) tptr)->children[RIGHT];
       }
       __syncwarp();
+      kick_return rc1 = cuda_kick(params_ptr);
+      if (tid == 0) {
+         params.L[params.depth] = L;
+         params.tptr = ((tree*) tptr)->children[LEFT];
+      }
+      __syncwarp();
+      params.dchecks.pop_top();
+      params.echecks.pop_top();
+      params.dchecks.push_top();
+      params.echecks.push_top();
       kick_return rc2 = cuda_kick(params_ptr);
       if (tid == 0) {
          params.depth--;
       }
       __syncwarp();
+      params.dchecks.pop_top();
+      params.echecks.pop_top();
       rc.rung = max(rc1.rung, rc2.rung);
       rc.flops += rc1.flops + rc2.flops;
       //   printf( "%li\n", rc.flops);
@@ -286,7 +302,7 @@ cuda_kick(kick_params_type * params_ptr)
             hifloat phi;
             array<hifloat,NDIM> dx;
             for (int dim = 0; dim < NDIM; dim++) {
-#ifdef ACCUMULATE_DOUBLE_PRECISION
+#ifdef HIPRECISION
                const auto x2 = me.pos[dim].to_double();
                const auto x1 = parts->pos(dim,k+myparts.first).to_double();
 #else
@@ -299,15 +315,15 @@ cuda_kick(kick_params_type * params_ptr)
             for (int dim = 0; dim < NDIM; dim++) {
                F[dim][k] += g[dim];
             }
-            float dt = params.t0 / (1<<this_rung);
-            for( int dim = 0; dim < NDIM; dim++) {
-               parts->vel(dim,k+myparts.first) += 0.5 * dt * F[dim][k];
-            }
 #ifdef TEST_FORCE
             for( int dim = 0; dim < NDIM; dim++) {
                parts->force(dim,k+myparts.first) = F[dim][k];
             }
 #endif
+            float dt = params.t0 / (1<<this_rung);
+            for( int dim = 0; dim < NDIM; dim++) {
+               parts->vel(dim,k+myparts.first) += 0.5 * dt * F[dim][k];
+            }
             float fmag = 0.0;
             for( int dim = 0; dim < NDIM; dim++) {
                fmag += sqr(F[dim][k]);
@@ -352,7 +368,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                                            CUDA_CHECK(cudaDeviceSynchronize());
+                                                               CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #ifdef TIMINGS

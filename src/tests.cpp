@@ -168,6 +168,7 @@ void force_test() {
    cuda_compare_with_direct(parts_ptr);
    tm.stop();
    printf( "Comparison took %e s\n", tm.read());
+   printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
    CUDA_FREE(params_ptr);
    CUDA_FREE(parts_ptr);
 }

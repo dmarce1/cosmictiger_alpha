@@ -7,9 +7,11 @@
 
 #include <cosmictiger/options.hpp>
 #include <cosmictiger/hpx.hpp>
+#include <fstream>
+#include <boost/program_options.hpp>
 
 bool process_options(int argc, char *argv[], options &opts) {
-   namespace po = hpx::program_options;
+   namespace po = boost::program_options;
    bool rc;
    po::options_description command_opts("options");
 
@@ -22,7 +24,7 @@ bool process_options(int argc, char *argv[], options &opts) {
    ("test", po::value < std::string > (&(opts.test))->default_value(""), "test problem") //
          ;
 
-   hpx::program_options::variables_map vm;
+   boost::program_options::variables_map vm;
    po::store(po::parse_command_line(argc, argv, command_opts), vm);
    po::notify(vm);
    if (vm.count("help")) {

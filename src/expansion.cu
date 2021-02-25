@@ -10,11 +10,10 @@
 
 
 
-CUDA_DEVICE void expansion_init();
 
 __managed__ expansion<hifloat> Lfactor;
 
-CUDA_DEVICE void expansion_init() {
+__device__ void expansion_init() {
    for (int i = 0; i < LP; i++) {
       Lfactor[i] = hifloat(0.0);
    }

@@ -6,15 +6,18 @@ template<class T>
 class stack_vector {
    vector<T> data;
    vector<int> bounds;
-   CUDA_EXPORT inline size_t begin() const {
+   CUDA_EXPORT inline int begin() const {
       assert(bounds.size() >= 2);
       return bounds[bounds.size() - 2];
    }
-   CUDA_EXPORT inline size_t end() const {
+   CUDA_EXPORT inline int end() const {
       assert(bounds.size() >= 2);
       return bounds.back();
    }
 public:
+   CUDA_EXPORT inline int depth() const {
+      return bounds.size() - 2;
+   }
    CUDA_EXPORT inline stack_vector() {
       THREAD;
       bounds.reserve(TREE_MAX_DEPTH + 1);
@@ -32,11 +35,11 @@ public:
          bounds.back()++;}
       SYNC;
    }
-   CUDA_EXPORT inline size_t size() const {
+   CUDA_EXPORT inline int size() const {
       assert(bounds.size() >= 2);
       return end() - begin();
    }
-   CUDA_EXPORT inline void resize(size_t sz) {
+   CUDA_EXPORT inline void resize(int sz) {
       THREAD;
       assert(bounds.size() >= 2);
       data.resize(begin() + sz);
@@ -44,11 +47,11 @@ public:
          bounds.back() = data.size();
       }SYNC;
    }
-   CUDA_EXPORT inline T operator[](size_t i) const {
+   CUDA_EXPORT inline T operator[](int i) const {
       assert(i < size());
       return data[begin() + i];
    }
-   CUDA_EXPORT inline T& operator[](size_t i) {
+   CUDA_EXPORT inline T& operator[](int i) {
       assert(i < size());
       return data[begin() + i];
    }
@@ -57,7 +60,7 @@ public:
       BLOCK;
       stack_vector res;
       res.resize(size());
-      for (size_t i = tid; i < size(); i += blocksize) {
+      for (int i = tid; i < size(); i += blocksize) {
          res[i] = (*this)[i];
       }SYNC;
       return res;
@@ -68,7 +71,7 @@ public:
       const auto sz = size();
       bounds.push_back(end() + sz);
       data.resize(data.size() + sz);
-      for (size_t i = begin() + tid; i < end(); i += blocksize) {
+      for (int i = begin() + tid; i < end(); i += blocksize) {
          data[i] = data[i - sz];
       }SYNC;
    }

@@ -41,31 +41,18 @@ set(cosmictiger_source_files
     src/tree.cu
 )
 set(cosmictiger_header_files
-	tiegrgrav/cosmo.hpp
 	cosmictiger/defs.hpp
-	cosmictiger/gravity_cuda.hpp
 	cosmictiger/gravity.hpp
-	cosmictiger/gravity_work.hpp
 	cosmictiger/gravity.hpp
-	cosmictiger/green.hpp
-	cosmictiger/groups.hpp
-	cosmictiger/initialize.hpp
-	tigergrac/load.hpp
-	cosmictiger/map.hpp
 	cosmictiger/managed_vector.hpp
 	cosmictiger/multipole.hpp
-	cosmictiger/output.hpp
 	cosmictiger/options.hpp
-	cosmictiger/part_vect.hpp
 	cosmictiger/particle.hpp
-	cosmictiger/position.hpp
 	cosmictiger/rand.hpp
 	cosmictiger/range.hpp
 	cosmictiger/stack_vector.hpp
-	cosmictiger/taylor.hpp
-	cosmictiger/time.hpp
+	cosmictiger/timer.hpp
 	cosmictiger/tree.hpp
-	cosmictiger/vect.hpp
 	cosmictiger/cuda.hpp
 	cosmictiger/fixed.hpp
 	cosmictiger/fast_future.hpp
@@ -93,11 +80,34 @@ add_hpx_executable(
     ${cosmictiger_header_files}
  )
  
-   set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
- target_link_libraries(cosmictiger PUBLIC cuda cudart tcmalloc)
-target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
+ 
+add_library(hpx_lite 
+	hpx_lite/src/hpx.cpp
+	hpx_lite/src/id_type.cpp
+	hpx_lite/src/thread.cpp
+	hpx_lite/src/future.cpp
+	hpx_lite/src/mutex.cpp
+	hpx_lite/src/serialize.cpp
+)
+
+
+add_executable( cosmictiger_lite
+    ${cosmictiger_source_files} ${cosmictiger_header_files}
+)
+
+ 
+set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+target_link_libraries(cosmictiger PUBLIC cuda cudart tcmalloc)
+target_link_libraries(cosmictiger_lite PUBLIC boost_program_options hpx_lite cuda cudart tcmalloc  hwloc)
+target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
+target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} /home/dmarce1/workspace/cosmictiger/hpx_lite)
+target_include_directories(hpx_lite PUBLIC  /home/dmarce1/workspace/cosmictiger/hpx_lite)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                       --maxrregcount 168 --use_fast_math --gpu-architecture=compute_75;
+                        >)
+target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                        --maxrregcount 168 --use_fast_math --gpu-architecture=compute_75;
                         >)
                         

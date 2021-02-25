@@ -17,7 +17,7 @@ void tree::set_particle_set(particle_set *parts) {
 std::atomic<int> tree::cuda_node_count(0);
 std::atomic<int> tree::cpu_node_count(0);
 
-auto cuda_depth() {
+int cuda_depth() {
    return 10;
 }
 
@@ -244,12 +244,14 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
 //   if (gpu) {
       return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
    } else {
+      static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
+      //   thread = false;
       if (thread) {
-         static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
          if (++threads_used > hpx::thread::hardware_concurrency()) {
-            thread = false;
             threads_used--;
          }
+      }
+      if (thread) {
          kick_params_type *new_params;
          new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
          new (new_params) kick_params_type;
@@ -328,20 +330,27 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
             const auto other_pos = checks[ci].get_pos();
             float d2 = 0.f;
             const float R2 = sqr(other_radius + 1.5 * radius);
+#ifdef PERIODIC_OFF
+            for (int dim = 0; dim < NDIM; dim++) {
+               d2 += sqr(other_pos[dim].to_float() - pos[dim].to_float());
+            }
+#else
             for (int dim = 0; dim < NDIM; dim++) {
                d2 += sqr(fixed<int32_t>(other_pos[dim]) - fixed<int32_t>(pos[dim])).to_float();
             }
+#endif
             if (ewald_dist) {
                d2 = std::max(d2, EWALD_MIN_DIST2);
             }
             const bool far = R2 < theta2 * d2;
+            const bool opened = checks[ci].opened++;
             if (far) {
                multis.push_back(checks[ci]);
             } else if (!checks[ci].is_leaf()) {
                const auto child_checks = checks[ci].get_children().get();
                next_checks.push_back(child_checks[LEFT]);
                next_checks.push_back(child_checks[RIGHT]);
-            } else if (!checks[ci].opened++) {
+            } else if (!opened) {
                next_checks.push_back(checks[ci]);
             } else {
                parti.push_back(checks[ci]);
@@ -350,16 +359,9 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 #ifdef TEST_CHECKLIST_TIME
          tm.stop();
 #endif
-         if (type == PC_PP_DIRECT || type == CC_CP_DIRECT) {
-            params.dchecks.resize(0);
-            for (int i = 0; i < next_checks.size(); i++) {
-               params.dchecks.push(next_checks[i]);
-            }
-         } else {
-            params.echecks.resize(0);
-            for (int i = 0; i < next_checks.size(); i++) {
-               params.echecks.push(next_checks[i]);
-            }
+         checks.resize(0);
+         for (int i = 0; i < next_checks.size(); i++) {
+            checks.push(next_checks[i]);
          }
       } while (direct && checks.size());
 
@@ -373,6 +375,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          }
          break;
       case CC_CP_EWALD:
+#ifndef PERIODIC_OFF
          if (multis.size()) {
             found_ewald = true;
             auto tmp = send_ewald_to_gpu(params_ptr).get();
@@ -383,6 +386,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
                cpu_node_count--;
             }
          }
+#endif
          break;
       case PC_PP_DIRECT:
          printf("PC_PP_DIRECT on CPU\n");
@@ -399,6 +403,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
    if (!is_leaf()) {
       // printf("4\n");
       const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
+      int depth0 = params.depth;
       params.depth++;
       params.dchecks.push_top();
       params.echecks.push_top();
@@ -410,10 +415,30 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
       //  printf("5\n");
       params.dchecks.pop_top();
       params.echecks.pop_top();
+      params.dchecks.push_top();
+      params.echecks.push_top();
       params.L[params.depth] = L;
       futs[RIGHT] = children[RIGHT].kick(params_ptr, false, found_ewald);
       params.depth--;
+      if (params.depth != depth0) {
+         printf("error\n");
+         abort();
+      }
       //  printf("6\n");
+      params.dchecks.pop_top();
+      params.echecks.pop_top();
+      //  if( params.depth != params.dchecks.depth()) {
+//      printf("%li %li\n", params.depth, params.dchecks.depth());
+      //   }
+      //   if( params.depth != params.echecks.depth()) {
+      //     printf( "%li %li\n", params.depth, params.echecks.depth());
+      // }
+//      auto rc1 = futs[LEFT].get();
+//      auto rc2 = futs[RIGHT].get();
+//      kick_return rc3 = rc;
+//      rc3.rung = std::max(rc1.rung, rc2.rung);
+//      rc3.flops += rc1.flops + rc2.flops;
+//      return hpx::make_ready_future(rc3);
       return hpx::when_all(futs.begin(), futs.end()).then(
             [rc](hpx::future<std::vector<hpx::future<kick_return>>> futfut) {
                auto futs = futfut.get();
@@ -573,7 +598,7 @@ void tree::gpu_daemon() {
       timer.start();
    }
    if (!shutdown_daemon) {
-      hpx::apply(gpu_daemon);
+      hpx::async(gpu_daemon);
    } else {
       first_call = true;
       daemon_running = false;
@@ -582,11 +607,11 @@ void tree::gpu_daemon() {
 
 hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
    if (!daemon_running) {
-      std::lock_guard < hpx::lcos::local::mutex > lock(gpu_mtx);
+      std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
       if (!daemon_running) {
          shutdown_daemon = false;
          daemon_running = true;
-         hpx::apply([]() {
+         hpx::async([]() {
             gpu_daemon();
          });
       }
@@ -621,11 +646,11 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
 
 hpx::future<int32_t> tree::send_ewald_to_gpu(kick_params_type *params) {
    if (!daemon_running) {
-      std::lock_guard < hpx::lcos::local::mutex > lock(gpu_mtx);
+      std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
       if (!daemon_running) {
          shutdown_daemon = false;
          daemon_running = true;
-         hpx::apply([]() {
+         hpx::async([]() {
             gpu_daemon();
          });
       }
@@ -649,39 +674,30 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
    auto &multis = params.multi_interactions;
    int flops = 0;
    if (multis.size()) {
-      static const auto one = simd_float(1.0);
-      static const auto half = simd_float(0.5);
-      array<simd_fixed32, NDIM> X, Y;
-      multipole_type<simd_float> M;
-      expansion<simd_float> Lacc;
-      Lacc = simd_float(0);
+      array<fixed32, NDIM> X, Y;
+      multipole_type<float> M;
+      expansion<float> Lacc;
+      Lacc = 0;
       const auto cnt1 = multis.size();
-      const auto cnt2 = ((cnt1 - 1) / simd_float::size() + 1) * simd_float::size();
       for (int dim = 0; dim < NDIM; dim++) {
-         X[dim] = simd_fixed32(pos[dim]);
+         X[dim] = pos[dim];
       }
-      array<simd_float, NDIM> dX;
-      for (int j = 0; j < cnt2; j += simd_float::size()) {
-         for (int k = 0; k < simd_float::size(); k++) {
-            if (j + k < cnt1) {
-               for (int dim = 0; dim < NDIM; dim++) {
-                  Y[dim][k] = ((const tree*) multis[j + k])->pos[dim];
-               }
-               for (int i = 0; i < MP; i++) {
-                  M[i][k] = (((const tree*) multis[j + k])->multi)[i];
-               }
-            } else {
-               for (int dim = 0; dim < NDIM; dim++) {
-                  Y[dim][k] = ((const tree*) multis[cnt1 - 1])->pos[dim];
-               }
-               for (int i = 0; i < MP; i++) {
-                  M[i][k] = 0.0;
-               }
-            }
+      array<float, NDIM> dX;
+      for (int j = 0; j < cnt1; j++) {
+         for (int dim = 0; dim < NDIM; dim++) {
+            Y[dim] = ((const tree*) multis[j])->pos[dim];
          }
+         M = (((const tree*) multis[j])->multi);
+#ifdef PERIODIC_OFF
+         for (int dim = 0; dim < NDIM; dim++) {
+            dX[dim] = X[dim].to_float() - Y[dim].to_float();
+         }
+#else
+         /** fixed this***/
          for (int dim = 0; dim < NDIM; dim++) {
             dX[dim] = (simd_fixed32(X[dim]) - simd_fixed32(Y[dim])).to_float();
          }
+#endif
          auto tmp = multipole_interaction(Lacc, M, dX, false);
          if (j == 0) {
             flops = 3 + tmp;
@@ -689,7 +705,7 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
       }
       flops *= cnt1;
       for (int i = 0; i < LP; i++) {
-         L[i] += Lacc[i].sum();
+         L[i] += Lacc[i];
          flops++;
       }
    }

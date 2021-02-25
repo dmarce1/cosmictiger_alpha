@@ -223,10 +223,10 @@ struct cuda_ewald_shmem {
 
 
 struct cuda_kick_shmem {
-   union {
+ //  union {
       array<array<float, KICK_BLOCK_SIZE>, NDIM> f; // 384
       array<hifloat, KICK_BLOCK_SIZE> Lreduce;  // 4480
-   };
+ //  };
    array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
    array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 768
    array<int8_t, MAX_BUCKET_SIZE> rungs; // 256

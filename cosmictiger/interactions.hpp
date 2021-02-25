@@ -113,6 +113,7 @@ public:
    }
 };
 
+
 #ifndef TREECU
 extern CUDA_DEVICE ewald_indices *four_indices_ptr;
 extern CUDA_DEVICE ewald_indices *real_indices_ptr;

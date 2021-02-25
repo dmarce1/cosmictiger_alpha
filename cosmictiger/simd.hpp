@@ -228,13 +228,13 @@ public:
    inline fixed32 operator[](int j) const {
       assert(j >= 0);
       assert(j < size());
-      return reinterpret_cast<const fixed32*>(&i)[j];
+      return fixed32(i[j]);
    }
 
    inline fixed32& operator[](int j) {
       assert(j >= 0);
       assert(j < size());
-      return reinterpret_cast<fixed32*>(&i)[j];
+      return reinterpret_cast<fixed32&>(i[j]);
    }
 
    inline simd_fixed32() = default;

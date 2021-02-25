@@ -9,10 +9,13 @@
 #define COSMICTIGER_HPX_HPP_
 
 #ifndef __CUDACC__
+#ifdef USE_HPX
 #include <cosmictiger/hpx.hpp>
 #include <hpx/hpx.hpp>
 #include <hpx/async.hpp>
-
+#else
+#include <hpx/hpx_lite.hpp>
+#endif
 
 using mutex_type = hpx::lcos::local::mutex;
 
