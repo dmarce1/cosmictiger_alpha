@@ -23,7 +23,7 @@
 #endif
 #define TEST_FORCE
 //#define TEST_STACK
-#define N_TEST_PARTS (6*46)
+#define N_TEST_PARTS (100*6*46)
 
 #define TREE_MAX_DEPTH 54
 #define TREE_RADIX_CUSHION -2

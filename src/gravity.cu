@@ -372,7 +372,7 @@ int cuda_pc_interactions(particle_set *parts, kick_params_type *params_ptr) {
             }
             if (tid == 0) {
                for (int dim = 0; dim < NDIM; dim++) {
-                  F[dim][k] += f[dim][0];
+                  F[dim][k] -= f[dim][0];
                }
             }
          }
