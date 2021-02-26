@@ -353,7 +353,6 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
                   }
                } else {
                   if (checks[ci].is_leaf()) {
-                     checks[ci].opened++;
                      next_checks.push_back(checks[ci]);
                   } else {
                      const auto child_checks = checks[ci].get_children().get();
@@ -373,7 +372,6 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
                      parti.push_back(checks[ci]);
                   } else {
                      if (checks[ci].is_leaf()) {
-                        checks[ci].opened++;
                         next_checks.push_back(checks[ci]);
                      } else {
                         const auto child_checks = checks[ci].get_children().get();
@@ -382,6 +380,9 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
                      }
                   }
                }
+            }
+            if( checks[ci].is_leaf()) {
+               checks[ci].opened++;
             }
          }
 #ifdef TEST_CHECKLIST_TIME
