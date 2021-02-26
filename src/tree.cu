@@ -226,21 +226,21 @@ cuda_kick(kick_params_type * params_ptr)
          switch (type) {
             case PC_PP_DIRECT:
             //          printf( "%li %li\n", multis.size(), parti.size());
-            flops += cuda_pc_interactions(parts,params_ptr);
-            flops += cuda_pp_interactions(parts,params_ptr);
+            flops += cuda_pc_interactions(parts,multis, params_ptr);
+            flops += cuda_pp_interactions(parts,parti, params_ptr);
             break;
             case CC_CP_DIRECT:
-            flops += cuda_cc_interactions(parts,params_ptr);
-            flops += cuda_cp_interactions(parts,params_ptr);
+            flops += cuda_cc_interactions(parts,multis, params_ptr);
+            flops += cuda_cp_interactions(parts,parti,params_ptr);
             break;
 
             case PC_PP_EWALD:
             if(count[PI] > 0 ) {
-       //        printf( "PP Ewald should not exist\n");
+               //        printf( "PP Ewald should not exist\n");
                //  __trap();
             }
             if(count[MI] > 0 ) {
-         //      printf( "PC Ewald should not exist\n");
+               //      printf( "PC Ewald should not exist\n");
                //   __trap();
             }
             break;
@@ -368,7 +368,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                                               CUDA_CHECK(cudaDeviceSynchronize());
+                                                                  CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #ifdef TIMINGS

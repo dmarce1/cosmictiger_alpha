@@ -272,7 +272,7 @@ CUDA_DEVICE inline int green_ewald(expansion<hifloat> &D, const array<hifloat, N
    const hifloat nseven(-7.0);
    const hifloat neight(-8.0);
    const hifloat rcut(1.0e-6);
-   const hifloat r = sqrt(sqr(X[0]) + sqrt(X[1]) + sqr(X[2]));                   // 5
+   const hifloat r = sqrt(sqr(X[0]) + sqr(X[1]) + sqr(X[2]));                   // 5
    const hifloat zmask = r > rcut;    // 1
    expansion<hifloat> &Dreal = D;
    expansion<hifloat> Dfour;
@@ -316,7 +316,7 @@ CUDA_DEVICE inline int green_ewald(expansion<hifloat> &D, const array<hifloat, N
       const auto &h = four_indices.get(i);
       const auto &hpart = hparts.get(i);
 //    printf( "H = %e %e %e\n", h[0], h[1], h[2]);
-      const hifloat h2 = sqrt(h[0]) + sqr(h[1]) + sqr(h[2]); // 5
+      const hifloat h2 = sqr(h[0]) + sqr(h[1]) + sqr(h[2]); // 5
       const hifloat hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2]; // 5
       hifloat co;
       hifloat so;
