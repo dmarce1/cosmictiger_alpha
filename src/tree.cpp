@@ -323,7 +323,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
       do {
          next_checks.resize(0);
 #ifdef TEST_CHECKLIST_TIME
-            tm.start();
+         tm.start();
 #endif
          for (int ci = 0; ci < checks.size(); ci++) {
             const auto other_radius = checks[ci].get_radius();
@@ -343,21 +343,49 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
                d2 = std::max(d2, EWALD_MIN_DIST2);
             }
             const bool far = R2 < theta2 * d2;
-            const bool opened = checks[ci].opened++;
-            if (far) {
-               multis.push_back(checks[ci]);
-            } else if (!checks[ci].is_leaf()) {
-               const auto child_checks = checks[ci].get_children().get();
-               next_checks.push_back(child_checks[LEFT]);
-               next_checks.push_back(child_checks[RIGHT]);
-            } else if (!opened) {
-               next_checks.push_back(checks[ci]);
+            //         const bool opened = checks[ci].opened++;
+            if (!direct) {
+               if (far) {
+                  if (checks[ci].opened) {
+                     parti.push_back(checks[ci]);
+                  } else {
+                     multis.push_back(checks[ci]);
+                  }
+               } else {
+                  if (checks[ci].is_leaf()) {
+                     checks[ci].opened++;
+                     next_checks.push_back(checks[ci]);
+                  } else {
+                     const auto child_checks = checks[ci].get_children().get();
+                     next_checks.push_back(child_checks[LEFT]);
+                     next_checks.push_back(child_checks[RIGHT]);
+                  }
+               }
             } else {
-               parti.push_back(checks[ci]);
+               if( far ) {
+                  if( checks[ci].opened) {
+                     parti.push_back(checks[ci]);
+                  } else {
+                     multis.push_back(checks[ci]);
+                  }
+               } else {
+                  if( checks[ci].opened) {
+                     parti.push_back(checks[ci]);
+                  } else {
+                     if (checks[ci].is_leaf()) {
+                        checks[ci].opened++;
+                        next_checks.push_back(checks[ci]);
+                     } else {
+                        const auto child_checks = checks[ci].get_children().get();
+                        next_checks.push_back(child_checks[LEFT]);
+                        next_checks.push_back(child_checks[RIGHT]);
+                     }
+                  }
+               }
             }
          }
 #ifdef TEST_CHECKLIST_TIME
-         tm.stop();
+      tm.stop();
 #endif
          checks.resize(0);
          for (int i = 0; i < next_checks.size(); i++) {
@@ -367,11 +395,10 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 
       switch (type) {
       case CC_CP_DIRECT:
-         //   printf( "%li %li\n", multis.size(), params_ptr->depth);
          rc.flops += cpu_cc_direct(params_ptr);
          if (parti.size()) {
-            printf("CP_DIRECT found on CPU\n");
-            abort();
+ //           printf("CP_DIRECT found on CPU\n");
+  //          abort();
          }
          break;
       case CC_CP_EWALD:
@@ -389,19 +416,18 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 #endif
          break;
       case PC_PP_DIRECT:
-         printf("PC_PP_DIRECT on CPU\n");
-         abort();
-         break;
+  //       printf("PC_PP_DIRECT on CPU\n");
+         printf( "%i %i %i\n", multis.size(), parti.size(), params_ptr->depth);
+          break;
       case PC_PP_EWALD:
-         printf("PC_PP_EWALD on CPU\n");
-         abort();
+ //        printf("PC_PP_EWALD on CPU\n");
          break;
       }
 
    }
-   //  printf( "%li\n", params.depth);
+//  printf( "%li\n", params.depth);
    if (!is_leaf()) {
-      // printf("4\n");
+// printf("4\n");
       const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
       int depth0 = params.depth;
       params.depth++;
@@ -412,7 +438,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
       array<hpx::future<kick_return>, NCHILD> futs;
       futs[LEFT] = children[LEFT].kick(params_ptr, try_thread, found_ewald);
 
-      //  printf("5\n");
+//  printf("5\n");
       params.dchecks.pop_top();
       params.echecks.pop_top();
       params.L[params.depth] = L;
@@ -422,13 +448,13 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          printf("error\n");
          abort();
       }
-      //  printf("6\n");
-      //  if( params.depth != params.dchecks.depth()) {
+//  printf("6\n");
+//  if( params.depth != params.dchecks.depth()) {
 //      printf("%li %li\n", params.depth, params.dchecks.depth());
-      //   }
-      //   if( params.depth != params.echecks.depth()) {
-      //     printf( "%li %li\n", params.depth, params.echecks.depth());
-      // }
+//   }
+//   if( params.depth != params.echecks.depth()) {
+//     printf( "%li %li\n", params.depth, params.echecks.depth());
+// }
 //      auto rc1 = futs[LEFT].get();
 //      auto rc2 = futs[RIGHT].get();
 //      kick_return rc3 = rc;

@@ -145,8 +145,43 @@ cuda_kick(kick_params_type * params_ptr)
                      }
                      const bool far = R2 < theta2 * d2;                             // 2
                      const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
-                     const bool opened = check.opened++;
-                     list_index = int(!far) * (1 + int(isleaf) + int(isleaf && opened));
+                     const bool opened = check.opened;
+                     if (!direct) {
+                        if (far) {
+                           if (opened) {
+                              list_index = PI;
+                           } else {
+                              list_index = MI;
+                           }
+                        } else {
+                           if (isleaf) {
+                              list_index = OI;
+                           } else {
+                              list_index = CI;
+                           }
+                        }
+                     } else {
+                        if( far ) {
+                           if( checks[ci].opened) {
+                              list_index = PI;
+                           } else {
+                              list_index = MI;
+                           }
+                        } else {
+                           if( checks[ci].opened) {
+                              list_index = PI;
+                           } else {
+                              if (checks[ci].is_leaf()) {
+                                 list_index = OI;
+                              } else {
+                                 list_index = CI;
+                              }
+                           }
+                        }
+                     }
+                     if( isleaf ) {
+                        check.opened++;
+                     }
                      indices[list_index][tid + 1] = 1;
                   }
                   __syncwarp();
@@ -192,11 +227,11 @@ cuda_kick(kick_params_type * params_ptr)
                   }
                }
                __syncwarp();
-                  check_count += count[OI];
-                  checks.resize(check_count);
-                  for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
-                     checks[2 * count[CI] + i] = opened_checks[i];
-                  }
+               check_count += count[OI];
+               checks.resize(check_count);
+               for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
+                  checks[2 * count[CI] + i] = opened_checks[i];
+               }
                __syncwarp();
                if (tid == 0) {
                   count[CI] = 0;
@@ -216,10 +251,16 @@ cuda_kick(kick_params_type * params_ptr)
             //          printf( "%li %li\n", multis.size(), parti.size());
             flops += cuda_pc_interactions(parts,multis, params_ptr);
             flops += cuda_pp_interactions(parts,parti, params_ptr);
+  //          if( tid == 0 ) {
+ //                          printf( "%i %i %i\n", params_ptr->depth, parti.size(), multis.size());
+//            }
             break;
             case CC_CP_DIRECT:
             flops += cuda_cc_interactions(parts,multis, params_ptr);
             flops += cuda_cp_interactions(parts,parti,params_ptr);
+  //          if( tid == 0 ) {
+   //                        printf( "%i %i %i\n", params_ptr->depth, parti.size(), multis.size());
+   //         }
             break;
 
             case PC_PP_EWALD:
@@ -352,7 +393,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *four_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                                                  CUDA_CHECK(cudaDeviceSynchronize());
+                                                                     CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #ifdef TIMINGS

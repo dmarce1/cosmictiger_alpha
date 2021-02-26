@@ -91,25 +91,25 @@ add_library(hpx_lite
 )
 
 
-add_executable( cosmictiger_lite
-    ${cosmictiger_source_files} ${cosmictiger_header_files}
-)
+#add_executable( cosmictiger_lite
+#    ${cosmictiger_source_files} ${cosmictiger_header_files}
+#)
 
  
 set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+#set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 target_link_libraries(cosmictiger PUBLIC cuda cudart tcmalloc)
-target_link_libraries(cosmictiger_lite PUBLIC boost_program_options hpx_lite cuda cudart tcmalloc  hwloc)
+#target_link_libraries(cosmictiger_lite PUBLIC boost_program_options hpx_lite cuda cudart tcmalloc  hwloc)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
-target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} /home/dmarce1/workspace/cosmictiger/hpx_lite)
+#target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} /home/dmarce1/workspace/cosmictiger/hpx_lite)
 target_include_directories(hpx_lite PUBLIC  /home/dmarce1/workspace/cosmictiger/hpx_lite)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                        --maxrregcount 168 --use_fast_math --gpu-architecture=compute_75;
                         >)
-target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                       --maxrregcount 168 --use_fast_math --gpu-architecture=compute_75;
-                        >)
+#target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+#                       --maxrregcount 168 --use_fast_math --gpu-architecture=compute_75;
+#                        >)
                         
                         
                         
