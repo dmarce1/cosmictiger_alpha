@@ -37,6 +37,7 @@ CUDA_DEVICE int cuda_cc_interactions(particle_set *parts,const vector<tree_ptr>&
          fpos[dim] = pos[dim].to_float() - ((tree*) multis[i])->pos[dim].to_float();
       }
 #else
+      /*** FIX THIS***/
       for (int dim = 0; dim < NDIM; dim++) {
          fpos[dim] = (fixed<int32_t>(pos[dim]) - fixed<int32_t>(((tree*) multis[i])->pos[dim])).to_float();
       }
@@ -164,6 +165,7 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
                dx[dim] = pos[dim].to_float() - sources[dim][j].to_float();
             }
 #else
+            /*** FIX THIS***/
             for (int dim = 0; dim < NDIM; dim++) {
                dx[dim] = (fixed<int32_t>(pos[dim]) - fixed<int32_t>(sources[dim][j])).to_float();
             }
@@ -265,6 +267,7 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
                   dx[dim] = sinks[dim][k].to_float() - sources[dim][j].to_float();
                }
 #else
+               /*** FIX THIS***/
                for (int dim = 0; dim < NDIM; dim++) { // 3
                   dx[dim] = (fixed<int32_t>(sinks[dim][k]) - fixed<int32_t>(sources[dim][j])).to_float();
                }
@@ -347,6 +350,7 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr>& multis, ki
                   dx[dim] = sinks[dim][k].to_float() - sources[dim].to_float();
                }
 #else
+               /*** FIX THIS***/
                for (int dim = 0; dim < NDIM; dim++) {
                   dx[dim] = (fixed<int32_t>(sinks[dim][k]) - fixed<int32_t>(sources[dim])).to_float();
                }

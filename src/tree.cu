@@ -192,23 +192,11 @@ cuda_kick(kick_params_type * params_ptr)
                   }
                }
                __syncwarp();
-               if (type == CC_CP_DIRECT || type == CC_CP_EWALD) {
                   check_count += count[OI];
                   checks.resize(check_count);
                   for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
                      checks[2 * count[CI] + i] = opened_checks[i];
                   }
-               } else {
-                  parti.resize(count[PI] + count[OI]);
-                  for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
-                     parti[count[PI] + i] = opened_checks[i];
-                  }
-                  __syncwarp();
-                  if( tid == 0 ) {
-                     count[PI] += count[OI];
-                  }
-                  __syncwarp();
-               }
                __syncwarp();
                if (tid == 0) {
                   count[CI] = 0;
@@ -277,15 +265,11 @@ cuda_kick(kick_params_type * params_ptr)
       __syncwarp();
       params.dchecks.pop_top();
       params.echecks.pop_top();
-      params.dchecks.push_top();
-      params.echecks.push_top();
       kick_return rc2 = cuda_kick(params_ptr);
       if (tid == 0) {
          params.depth--;
       }
       __syncwarp();
-      params.dchecks.pop_top();
-      params.echecks.pop_top();
       rc.rung = max(rc1.rung, rc2.rung);
       rc.flops += rc1.flops + rc2.flops;
       //   printf( "%li\n", rc.flops);

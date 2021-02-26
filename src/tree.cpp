@@ -415,8 +415,6 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
       //  printf("5\n");
       params.dchecks.pop_top();
       params.echecks.pop_top();
-      params.dchecks.push_top();
-      params.echecks.push_top();
       params.L[params.depth] = L;
       futs[RIGHT] = children[RIGHT].kick(params_ptr, false, found_ewald);
       params.depth--;
@@ -425,8 +423,6 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
          abort();
       }
       //  printf("6\n");
-      params.dchecks.pop_top();
-      params.echecks.pop_top();
       //  if( params.depth != params.dchecks.depth()) {
 //      printf("%li %li\n", params.depth, params.dchecks.depth());
       //   }
