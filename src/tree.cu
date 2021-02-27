@@ -137,7 +137,7 @@ cuda_kick(kick_params_type * params_ptr)
                      }
 #else
                      for (int dim = 0; dim < NDIM; dim++) {                         // 3
-                        d2 += sqr(fixed<int32_t>(other_pos[dim]) - fixed<int32_t>(mypos[dim])).to_float();
+                        d2 += sqr(distance(other_pos[dim], mypos[dim]));
                      }
 #endif
                      if (ewald_dist) {

@@ -27,3 +27,12 @@ void cuda_compare_with_direct(particle_set *parts);
 
 CUDA_DEVICE
 int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
+
+CUDA_EXPORT inline float distance(fixed32 a, fixed32 b) {
+   const float dif = (a.to_float() - b.to_float());
+   const float absdif = fabsf(dif);
+   return copysignf(fminf(absdif, 1.f - absdif), dif * (.5f - absdif));
+}
+
+
+

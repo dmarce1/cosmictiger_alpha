@@ -14,7 +14,7 @@
 //#define TEST_CHECKLIST_TIME
 
 //#define TIMINGS
-#define PERIODIC_OFF
+//#define PERIODIC_OFF
 
 #ifndef NDEBUG
 #define TEST_TREE

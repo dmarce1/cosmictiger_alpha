@@ -3,6 +3,7 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/timer.hpp>
 #include <cosmictiger/simd.hpp>
+#include <cosmictiger/gravity.hpp>
 
 #include <cmath>
 
@@ -336,7 +337,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
             }
 #else
             for (int dim = 0; dim < NDIM; dim++) {
-               d2 += sqr(fixed<int32_t>(other_pos[dim]) - fixed<int32_t>(pos[dim])).to_float();
+               d2 += sqr(distance(other_pos[dim], pos[dim]));
             }
 #endif
             if (ewald_dist) {
@@ -718,7 +719,7 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 #else
          /** fixed this***/
          for (int dim = 0; dim < NDIM; dim++) {
-            dX[dim] = (simd_fixed32(X[dim]) - simd_fixed32(Y[dim])).to_float();
+            dX[dim] = distance(X[dim],Y[dim]);
          }
 #endif
          auto tmp = multipole_interaction(Lacc, M, dX, false);
