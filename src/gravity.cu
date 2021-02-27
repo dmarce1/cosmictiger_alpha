@@ -408,7 +408,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
    const auto f_x = parts->force(0, index);
    const auto f_y = parts->force(1, index);
    const auto f_z = parts->force(2, index);
-   __shared__ array<array<float, KICK_BLOCK_SIZE>, NDIM>
+   __shared__ array<array<double, KICK_BLOCK_SIZE>, NDIM>
    f;
    for (int dim = 0; dim < NDIM; dim++) {
       f[dim][tid] = 0.0;

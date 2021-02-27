@@ -257,7 +257,7 @@ struct kick_params_type {
       THREAD;
       if (tid == 0) {
          depth = 0;
-         theta = 0.9;
+         theta = 0.4;
          eta = 0.2;
          scale = 1.0;
          t0 = 1.0;

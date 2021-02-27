@@ -88,7 +88,7 @@ using hifloat = float;
 #define ABORT() abort()
 #endif
 
-#define EWALD_NREAL 17
+#define EWALD_NREAL 10
 #define EWALD_REAL_CUTOFF 2.6
 #define EWALD_NFOUR 8
 
