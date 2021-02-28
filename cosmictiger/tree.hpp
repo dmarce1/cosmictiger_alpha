@@ -218,14 +218,14 @@ struct pair {
 
 #define NITERS 4
 struct cuda_ewald_shmem {
-   array<hifloat, KICK_BLOCK_SIZE> Lreduce;  // 256
+   array<float, KICK_BLOCK_SIZE> Lreduce;  // 256
 };
 
 
 struct cuda_kick_shmem {
  //  union {
       array<array<float, KICK_BLOCK_SIZE>, NDIM> f; // 384
-      array<hifloat, KICK_BLOCK_SIZE> Lreduce;  // 4480
+      array<float, KICK_BLOCK_SIZE> Lreduce;  // 4480
  //  };
    array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
    array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 768
@@ -241,8 +241,8 @@ struct kick_params_type {
    vector<tree_ptr> opened_checks;
    stack_vector<tree_ptr> dchecks;
    stack_vector<tree_ptr> echecks;
-   array<array<hifloat, MAX_BUCKET_SIZE>, NDIM> F;
-   array<expansion<hifloat>, TREE_MAX_DEPTH> L;
+   array<array<float, MAX_BUCKET_SIZE>, NDIM> F;
+   array<expansion<float>, TREE_MAX_DEPTH> L;
    array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
    tree_ptr tptr;
    int depth;

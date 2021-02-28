@@ -66,7 +66,7 @@ CUDA_DEVICE int cuda_cc_interactions(particle_set *parts, const vector<tree_ptr>
 #ifdef __CUDA_ARCH__
 
 CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type *params_ptr,
-      array<hifloat, KICK_BLOCK_SIZE> *lptr) {
+      array<float, KICK_BLOCK_SIZE> *lptr) {
 
 
    kick_params_type &params = *params_ptr;
@@ -76,7 +76,7 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
    if( multis.size() == 0 ) {
       return 0;
    }
-   expansion<hifloat> L;
+   expansion<float> L;
    for (int i = 0; i < LP; i++) {
       L[i] = 0.0;
    }
@@ -84,11 +84,11 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
    const auto &pos = ((tree*) params.tptr)->pos;
    for (int i = tid; i < multis.size(); i += KICK_BLOCK_SIZE) {
       const multipole mpole_float = ((tree*) multis[i])->multi;
-      multipole_type<hifloat> mpole;
+      multipole_type<float> mpole;
       for (int j = 0; j < MP; j++) {
          mpole[j] = mpole_float[j];
       }
-      array<hifloat, NDIM> fpos;
+      array<float, NDIM> fpos;
       for (int dim = 0; dim < NDIM; dim++) {
          fpos[dim] = distance(pos[dim],((tree*) multis[i])->pos[dim]);
       }

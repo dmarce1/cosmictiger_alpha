@@ -53,7 +53,7 @@ cuda_kick(kick_params_type * params_ptr)
    auto &L = params.L[params.depth];
    if( tid == 0 ) {
       const auto &Lpos = params.Lpos[params.depth];
-      array<hifloat, NDIM> dx;
+      array<float, NDIM> dx;
       for (int dim = 0; dim < NDIM; dim++) {
 #ifdef HIPRECISION
          const auto x1 = me.pos[dim].to_double();
@@ -323,9 +323,9 @@ cuda_kick(kick_params_type * params_ptr)
          const auto this_rung = parts->rung(k+myparts.first);
          if( this_rung >= params.rung ) {
 
-            array<hifloat,NDIM> g;
-            hifloat phi;
-            array<hifloat,NDIM> dx;
+            array<float,NDIM> g;
+            float phi;
+            array<float,NDIM> dx;
             for (int dim = 0; dim < NDIM; dim++) {
 #ifdef HIPRECISION
                const auto x2 = me.pos[dim].to_double();

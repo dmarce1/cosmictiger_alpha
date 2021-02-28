@@ -29,10 +29,7 @@ CUDA_DEVICE
 int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
 
 CUDA_EXPORT inline float distance(fixed32 a, fixed32 b) {
-   const float dif = a.to_float() - b.to_float();
-   const float absdif = fabsf(dif);
-   auto tmp1 =   (fixed<int32_t>(a)- fixed<int32_t>(b)).to_float();
-   return tmp1;
+   return  (fixed<int32_t>(a)- fixed<int32_t>(b)).to_float();
 }
 
 
