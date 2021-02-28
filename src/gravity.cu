@@ -428,11 +428,13 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
          }
 #else
       for (int dim = 0; dim < NDIM; dim++) {
-         X[dim] = distance(sink[dim], parts->pos(dim, source));
+         const auto a = sink[dim];
+         const auto b = parts->pos(dim, source);
+         X[dim] = distance(a,b);
       }
       for (int i = 0; i < real_indices.size(); i++) {
          const auto n = real_indices.get(i);
-         array<hifloat, NDIM> dx;
+         array<float, NDIM> dx;
          for (int dim = 0; dim < NDIM; dim++) {
             dx[dim] = X[dim] - n[dim];
          }
@@ -477,7 +479,6 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
    if (tid == 0) {
       norm[bid] = f_dir;
       err[bid] = fabsf(f_ffm - f_dir);
-      printf( "%e %e \n", f_ffm, f_dir);
    }
 }
 
@@ -496,13 +497,22 @@ cuda_pp_ewald_interactions<<<N_TEST_PARTS,KICK_BLOCK_SIZE>>>(parts, test_parts, 
                                     CUDA_CHECK(cudaDeviceSynchronize());
    float avg_err = 0.0;
    float norm = 0.0;
+   float err_max = 0.0;
+   float err_rms = 0.0;
    for (int i = 0; i < N_TEST_PARTS; i++) {
       avg_err += errs[i];
+      err_max = fmaxf(err_max, errs[i]);
+      err_rms += errs[i] * errs[i];
       norm += norms[i];
    }
+   err_rms = sqrtf(err_rms);
+   err_rms /= norm;
    avg_err /= norm;
+   err_max /= (norm/N_TEST_PARTS);
 //   avg_err /= norm;
-   printf("Error is %e\n", avg_err);
+   printf("Avg Error is %e\n", avg_err);
+   printf("RMS Error is %e\n", err_rms);
+   printf("Max Error is %e\n", err_max);
    CUDA_FREE(norms);
    CUDA_FREE(errs);
    CUDA_FREE(test_parts);

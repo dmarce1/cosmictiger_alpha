@@ -185,6 +185,14 @@ public:
       return a;
    }
 
+
+   CUDA_EXPORT
+   inline fixed<T> operator-() const {
+      fixed<T> a;
+      a.i = -i;
+      return a;
+   }
+
    CUDA_EXPORT
    inline fixed<T>& operator+=(const fixed<T> &other) {
       i += other.i;
