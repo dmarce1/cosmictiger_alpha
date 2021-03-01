@@ -18,6 +18,28 @@ void tree::set_particle_set(particle_set *parts) {
 std::atomic<int> tree::cuda_node_count(0);
 std::atomic<int> tree::cpu_node_count(0);
 
+CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
+   int lev = 12;
+   while (1) {
+      int N = 1 << (lev / NDIM);
+      double dx = 0.25 * N;
+      double a;
+      if (lev % NDIM == 0) {
+         a = std::sqrt(3);
+      } else if (lev % NDIM == 1) {
+         a = 1.5;
+      } else {
+         a = std::sqrt(1.5);
+      }
+      double r = (1.0 + SINK_BIAS) * a / theta + h * N;
+      if (dx > r) {
+         break;
+      }
+      lev++;
+   }
+   return lev;
+}
+
 int cuda_depth() {
    return 10;
 }
@@ -59,6 +81,8 @@ sort_return tree::sort(sort_params params) {
    const auto &opts = global().opts;
    if (params.iamroot()) {
       params.set_root();
+      params.min_depth = ewald_min_level(global().opts.theta, global().opts.hsoft);
+      printf( "min ewald = %i\n", params.min_depth);
    }
    {
       const auto bnds = params.get_bounds();
@@ -107,7 +131,7 @@ sort_return tree::sort(sort_params params) {
       printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
    }
 #endif
-   if (parts.second - parts.first > opts.bucket_size) {
+   if (parts.second - parts.first > opts.bucket_size /*|| params.depth < params.min_depth*/) {
       std::array<fast_future<sort_return>, NCHILD> futs;
       {
          const auto size = parts.second - parts.first;
@@ -116,7 +140,7 @@ sort_return tree::sort(sort_params params) {
 #ifndef TEST_TREE
             const auto &box = params.box;
 #endif
-            int radix_depth = (int(log(double(size) / opts.bucket_size) / log(2) + TREE_RADIX_CUSHION));
+            int radix_depth = (int(log(double(size+1) / opts.bucket_size) / log(2) + TREE_RADIX_CUSHION));
             radix_depth = std::min(std::max(radix_depth, TREE_RADIX_MIN), TREE_RADIX_MAX) + params.depth;
             const auto radix_begin = morton_key(box.begin, radix_depth);
             std::array<fixed64, NDIM> tmp;
@@ -300,7 +324,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
    assert(params.depth < TREE_MAX_DEPTH);
    auto &L = params.L[params.depth];
    const auto &Lpos = params.Lpos[params.depth];
-   array<hifloat, NDIM> dx;
+   array<float, NDIM> dx;
    for (int dim = 0; dim < NDIM; dim++) {
       const auto x1 = pos[dim].to_double();
       const auto x2 = Lpos[dim].to_double();
@@ -330,7 +354,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
             const auto other_radius = checks[ci].get_radius();
             const auto other_pos = checks[ci].get_pos();
             float d2 = 0.f;
-            const float R2 = sqr(other_radius + 1.5 * radius);
+            const float R2 = sqr(other_radius + SINK_BIAS * radius);
 #ifdef PERIODIC_OFF
             for (int dim = 0; dim < NDIM; dim++) {
                d2 += sqr(other_pos[dim].to_float() - pos[dim].to_float());
@@ -362,14 +386,14 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
                   }
                }
             } else {
-               if( far ) {
-                  if( checks[ci].opened) {
+               if (far) {
+                  if (checks[ci].opened) {
                      parti.push_back(checks[ci]);
                   } else {
                      multis.push_back(checks[ci]);
                   }
                } else {
-                  if( checks[ci].opened) {
+                  if (checks[ci].opened) {
                      parti.push_back(checks[ci]);
                   } else {
                      if (checks[ci].is_leaf()) {
@@ -382,7 +406,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
                   }
                }
             }
-            if( checks[ci].is_leaf()) {
+            if (checks[ci].is_leaf()) {
                checks[ci].opened++;
             }
          }
@@ -399,8 +423,8 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
       case CC_CP_DIRECT:
          rc.flops += cpu_cc_direct(params_ptr);
          if (parti.size()) {
- //           printf("CP_DIRECT found on CPU\n");
-  //          abort();
+            //           printf("CP_DIRECT found on CPU\n");
+            //          abort();
          }
          break;
       case CC_CP_EWALD:
@@ -418,11 +442,11 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 #endif
          break;
       case PC_PP_DIRECT:
-  //       printf("PC_PP_DIRECT on CPU\n");
-         printf( "%i %i %i\n", multis.size(), parti.size(), params_ptr->depth);
-          break;
+         //       printf("PC_PP_DIRECT on CPU\n");
+         printf("%i %i %i\n", multis.size(), parti.size(), params_ptr->depth);
+         break;
       case PC_PP_EWALD:
- //        printf("PC_PP_EWALD on CPU\n");
+         //        printf("PC_PP_EWALD on CPU\n");
          break;
       }
 
@@ -719,7 +743,7 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 #else
          /** fixed this***/
          for (int dim = 0; dim < NDIM; dim++) {
-            dX[dim] = distance(X[dim],Y[dim]);
+            dX[dim] = distance(X[dim], Y[dim]);
          }
 #endif
          auto tmp = multipole_interaction(Lacc, M, dX, false);

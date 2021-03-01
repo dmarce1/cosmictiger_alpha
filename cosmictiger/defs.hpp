@@ -54,6 +54,8 @@ using hifloat = double;
 using hifloat = float;
 #endif
 
+#define SINK_BIAS 1.5
+
 
 #define NCHILD 2
 //#define PARALLEL_RADIX

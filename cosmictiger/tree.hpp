@@ -45,6 +45,7 @@ struct sort_params {
    uint32_t key_begin;
    uint32_t key_end;
    int8_t depth;
+   int8_t min_depth;
 
    template<class A>
    void serialization(A &&arc, unsigned) {
@@ -262,7 +263,8 @@ struct kick_params_type {
          scale = 1.0;
          t0 = 1.0;
          rung = 0;
-         hsoft = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 50.0;
+         hsoft = global().opts.hsoft;
+         theta = global().opts.theta;
       }CUDA_SYNC();
    }
    friend class tree_ptr;

@@ -90,7 +90,7 @@ cuda_kick(kick_params_type * params_ptr)
       for( int i = 0; i < NITERS; i++) {
          lists[i]->resize(0);
       }
-      const auto myradius = 1.5 * ((tree*) tptr)->radius;
+      const auto myradius = SINK_BIAS * ((tree*) tptr)->radius;
       const auto &mypos = ((tree*) tptr)->pos;
       int ninteractions = ((tree*) tptr)->children[0].ptr == 0 ? 4 : 2;
       for (int type = 0; type < ninteractions; type++) {

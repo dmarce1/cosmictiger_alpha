@@ -15,6 +15,8 @@ struct options {
    std::string test;
    size_t bucket_size;
    size_t nparts;
+   float hsoft;
+   float theta;
    template<class A>
    void serialize(A&& arc, unsigned) {
       arc & config;
