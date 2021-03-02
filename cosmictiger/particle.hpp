@@ -52,6 +52,7 @@ struct particle_set {
    particle part(size_t index) const;
    std::vector<size_t> local_sort(size_t, size_t, int64_t, morton_t key_begin, morton_t key_end);
    void generate_random();
+   void generate_grid();
    CUDA_EXPORT
    size_t size() const {
       return size_;

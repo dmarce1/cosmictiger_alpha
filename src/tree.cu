@@ -139,7 +139,8 @@ cuda_kick(kick_params_type * params_ptr)
                         d2 = fmaxf(d2, EWALD_MIN_DIST2);                            // 1
                      }
                      const bool far = R2 < theta2 * d2;                             // 2
-                     const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
+                    const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
+                //     const bool isleaf = ((const tree*) check)->parts.second -  ((const tree*) check)->parts.first <= 256;
                      const bool opened = check.opened;
                      if (!direct) {
                         if (far) {
@@ -439,7 +440,7 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
    auto stream = get_stream();
-   /***/cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_kick_shmem),stream>>>(params_ptr);
+   /***/cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream>>>(params_ptr);
 
    struct cuda_ewald_future_shared {
       cudaStream_t stream;

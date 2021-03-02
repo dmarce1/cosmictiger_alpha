@@ -34,3 +34,7 @@ CUDA_EXPORT inline float distance(fixed32 a, fixed32 b) {
 
 
 
+double get_pp_inters();
+double get_pc_inters();
+
+

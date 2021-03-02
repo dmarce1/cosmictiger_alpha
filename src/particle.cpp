@@ -2,6 +2,7 @@
 #include <cosmictiger/memory.hpp>
 #include <cosmictiger/rand.hpp>
 #include <cosmictiger/timer.hpp>
+#include <cosmictiger/global.hpp>
 
 #include <unordered_map>
 #include <algorithm>
@@ -37,8 +38,8 @@ particle_set::particle_set(size_t size, size_t offset) {
             + size * sizeof(uint64_t);
       gptr_[dim] = (float*) (data + offset + dim * size * sizeof(float));
       CUDA_CHECK(cudaMemAdvise(gptr_[dim], size * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
-#endif
    }
+#endif
 }
 //
 //void particle_set::prefetch(size_t b, size_t e, cudaStream_t stream) {
@@ -63,6 +64,25 @@ void particle_set::generate_random() {
       }
       set_rung(0, i);
       set_mid(0, i);
+   }
+}
+
+void particle_set::generate_grid() {
+   const auto dim = global().opts.parts_dim;
+   for (size_t i = 0; i < dim; i++) {
+      for (size_t j = 0; j < dim; j++) {
+         for (size_t k = 0; k < dim; k++) {
+            const size_t iii = i * dim * dim + j * dim + k;
+            pos(2, iii) = (i + 0.5) / dim;
+            pos(1, iii) = (j + 0.5) / dim;
+            pos(0, iii) = (k + 0.5) / dim;
+            for (int dim = 0; dim < NDIM; dim++) {
+               vel(dim, iii) = 0.f;
+            }
+            set_rung(0, i);
+            set_mid(0, i);
+         }
+      }
    }
 }
 

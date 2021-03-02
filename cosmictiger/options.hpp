@@ -14,6 +14,7 @@ struct options {
    std::string config;
    std::string test;
    size_t bucket_size;
+   size_t parts_dim;
    size_t nparts;
    float hsoft;
    float theta;

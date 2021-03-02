@@ -11,9 +11,24 @@
 __managed__ double pp_crit1_time;
 __managed__ double pp_crit2_time;
 
+__managed__ double pp_inters = 0.0;
+__managed__ double pc_inters = 0.0;
+
+double get_pp_inters() {
+   const auto rc = pp_inters / global().opts.nparts;
+   pp_inters = 0;
+   return rc;
+}
+
+
+double get_pc_inters() {
+   const auto rc = pc_inters / global().opts.nparts;
+   pc_inters = 0;
+   return rc;
+}
+
 CUDA_DEVICE int cuda_cc_interactions(particle_set *parts, const vector<tree_ptr> &multis,
       kick_params_type *params_ptr) {
-
 
    kick_params_type &params = *params_ptr;
    const int &tid = threadIdx.x;
@@ -171,12 +186,12 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
 #else
             /*** FIX THIS***/
             for (int dim = 0; dim < NDIM; dim++) {
-               dx[dim] = distance(pos[dim],sources[dim][j]);
+               dx[dim] = distance(pos[dim], sources[dim][j]);
             }
 #endif
             multipole_interaction(L, 1.0f, dx, false);
          }
-         flops += (these_parts.second - these_parts.first) * FLOPS_CP;
+         flops += part_index * FLOPS_CP;
       }
       for (int i = 0; i < LP; i++) {
          Lreduce[tid] = L[i];
@@ -256,6 +271,7 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
             }
          }
       }
+      int interacts = 0;
       __syncwarp();
       const auto offset = ((tree*) params.tptr)->parts.first;
       for (int k = 0; k < nsinks; k++) {
@@ -273,7 +289,7 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 #else
                /*** FIX THIS***/
                for (int dim = 0; dim < NDIM; dim++) { // 3
-                  dx[dim] = distance(sinks[dim][k],sources[dim][j]);
+                  dx[dim] = distance(sinks[dim][k], sources[dim][j]);
                }
 #endif
                const auto r2 = fmaf(dx[0], dx[0], fmaf(dx[1], dx[1], sqr(dx[2]))); // 3
@@ -290,6 +306,7 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
                f[2][tid] = fmaf(dx[2], r3inv, f[2][tid]);
                //                 printf("%li \n", (clock64() - tm) / 2);
             }
+            interacts += part_index;
             flops += part_index * FLOPS_PP;
             __syncwarp();
             for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
@@ -306,6 +323,9 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
                }
             }
          }
+      }
+      if( tid == 0 ) {
+         atomicAdd(&pp_inters,double(interacts));
       }
    }
    return flops;
@@ -339,6 +359,7 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
       }
    }
    __syncwarp();
+   int interacts = 0;
    for (int k = 0; k < nparts; k++) {
       if (rungs[k] >= params.rung || rungs[k] == -1) {
          for (int dim = 0; dim < NDIM; dim++) {
@@ -356,7 +377,7 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 #else
                /*** FIX THIS***/
                for (int dim = 0; dim < NDIM; dim++) {
-                  dx[dim] = distance(sinks[dim][k],sources[dim] );
+                  dx[dim] = distance(sinks[dim][k], sources[dim]);
                }
 #endif
                multipole_interaction(Lforce, ((tree*) multis[i])->multi, dx, false);
@@ -364,8 +385,9 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
                   f[dim][tid] += Lforce[dim + 1];
                }
             }
-            flops += multis.size() * FLOPS_PC;
          }
+         interacts += multis.size();
+         flops += multis.size() * FLOPS_PC;
          __syncwarp();
          for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
             if (tid < P) {
@@ -381,6 +403,9 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
             }
          }
       }
+   }
+   if( tid == 0 ) {
+      atomicAdd(&pc_inters,double(interacts));
    }
    return flops;
 }
