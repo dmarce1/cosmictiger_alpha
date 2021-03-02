@@ -92,7 +92,8 @@ cuda_kick(kick_params_type * params_ptr)
       }
       const auto myradius = SINK_BIAS * ((tree*) tptr)->radius;
       const auto &mypos = ((tree*) tptr)->pos;
-      int ninteractions = ((tree*) tptr)->children[0].ptr == 0 ? 4 : 2;
+      const bool iamleaf = ((tree*) tptr)->children[0].ptr;
+      int ninteractions = iamleaf == 0 ? 4 : 2;
       for (int type = 0; type < ninteractions; type++) {
          const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
          auto& checks = ewald_dist ? params.echecks : params.dchecks;
@@ -138,10 +139,13 @@ cuda_kick(kick_params_type * params_ptr)
                      if (ewald_dist) {
                         d2 = fmaxf(d2, EWALD_MIN_DIST2);                            // 1
                      }
-                     const bool far = R2 < theta2 * d2;                             // 2
-                    const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
-                //     const bool isleaf = ((const tree*) check)->parts.second -  ((const tree*) check)->parts.first <= 256;
+                    const bool far = R2 < theta2 * d2;                             // 2
+                    const bool far2 = sqr(other_radius*params.theta + myradius) < theta2 * d2;
+                    const bool far3 = sqr(other_radius + myradius*params.theta) < theta2 * d2;
+               //     const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
+                    const bool isleaf = ((const tree*) check)->parts.second -  ((const tree*) check)->parts.first <= GROUP_SIZE;
                      const bool opened = check.opened;
+
                      if (!direct) {
                         if (far) {
                            if (opened) {
@@ -151,32 +155,31 @@ cuda_kick(kick_params_type * params_ptr)
                            }
                         } else {
                            if (isleaf) {
-                              list_index = OI;
+                              check.opened++;
+                              if( far2 ) {
+                                 list_index = MI;
+                              } else {
+                                 list_index = OI;
+                              }
                            } else {
                               list_index = CI;
                            }
                         }
                      } else {
-                        if( far ) {
-                           if( checks[ci].opened) {
-                              list_index = PI;
-                           } else {
-                              list_index = MI;
-                           }
+                        if( far3 ) {
+                           list_index = MI;
                         } else {
-                           if( checks[ci].opened) {
+                           if( opened) {
                               list_index = PI;
                            } else {
-                              if (checks[ci].is_leaf()) {
-                                 list_index = OI;
+                              if (isleaf) {
+                                 check.opened++;
+                                  list_index = OI;
                               } else {
                                  list_index = CI;
                               }
                            }
                         }
-                     }
-                     if( isleaf ) {
-                        check.opened++;
                      }
                      indices[list_index][tid + 1] = 1;
                   }
