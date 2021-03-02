@@ -46,7 +46,7 @@ void kick_test() {
    printf("Doing kick test\n");
    printf("Generating particles\n");
    particle_set parts(global().opts.nparts);
-   parts.generate_grid();
+   parts.generate_random();
    tree::set_particle_set(&parts);
    particle_set *parts_ptr;
    CUDA_MALLOC(parts_ptr, sizeof(particle_set));
@@ -106,6 +106,8 @@ void kick_test() {
       const auto total = tm_sort.read() + tm_kick.read() + tm_cleanup.read();
       printf("PP/part = %f\n", get_pp_inters());
       printf("PC/part = %f\n", get_pc_inters());
+      printf("CP/part = %f\n", get_cp_inters());
+      printf("CC/part = %f\n", get_cc_inters());
       printf("Sort    = %e s\n", tm_sort.read());
       printf("Kick    = %e s\n", tm_kick.read());
       printf("Cleanup = %e s\n", tm_cleanup.read());

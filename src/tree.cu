@@ -139,47 +139,26 @@ cuda_kick(kick_params_type * params_ptr)
                      if (ewald_dist) {
                         d2 = fmaxf(d2, EWALD_MIN_DIST2);                            // 1
                      }
-                    const bool far = R2 < theta2 * d2;                             // 2
-                    const bool far2 = sqr(other_radius*params.theta + myradius) < theta2 * d2;
-                    const bool far3 = sqr(other_radius + myradius*params.theta) < theta2 * d2;
-               //     const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
-                    const bool isleaf = ((const tree*) check)->parts.second -  ((const tree*) check)->parts.first <= GROUP_SIZE;
-                     const bool opened = check.opened;
-
-                     if (!direct) {
-                        if (far) {
-                           if (opened) {
-                              list_index = PI;
-                           } else {
-                              list_index = MI;
-                           }
-                        } else {
-                           if (isleaf) {
-                              check.opened++;
-                              if( far2 ) {
-                                 list_index = MI;
-                              } else {
-                                 list_index = OI;
-                              }
-                           } else {
-                              list_index = CI;
-                           }
-                        }
+                     const bool far = R2 < theta2 * d2;                             // 2
+                     const bool far2 = sqr(other_radius*params.theta + myradius) < theta2 * d2;
+                     const bool far3 = sqr(other_radius + myradius*params.theta) < theta2 * d2;
+                     //     const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
+                     const bool isleaf = ((const tree*) check)->parts.second - ((const tree*) check)->parts.first <= GROUP_SIZE;
+                     auto& other_opened = check.opened;
+                     const auto& me_opened = direct;
+                     if( !me_opened && far && !other_opened ) {
+                        list_index = MI;
+                     } else if ( me_opened && far && !other_opened ) {
+                        list_index = MI;
+                     } else if(  !me_opened && far && other_opened ) {
+                        list_index = PI;
+                     } else  if(  me_opened && other_opened ){
+                        list_index = PI;
+                     } else if( isleaf ) {
+                        other_opened++;
+                        list_index = OI;
                      } else {
-                        if( far3 ) {
-                           list_index = MI;
-                        } else {
-                           if( opened) {
-                              list_index = PI;
-                           } else {
-                              if (isleaf) {
-                                 check.opened++;
-                                  list_index = OI;
-                              } else {
-                                 list_index = CI;
-                              }
-                           }
-                        }
+                        list_index = CI;
                      }
                      indices[list_index][tid + 1] = 1;
                   }
@@ -250,16 +229,16 @@ cuda_kick(kick_params_type * params_ptr)
             //          printf( "%li %li\n", multis.size(), parti.size());
             flops += cuda_pc_interactions(parts,multis, params_ptr);
             flops += cuda_pp_interactions(parts,parti, params_ptr);
-  //          if( tid == 0 ) {
- //                          printf( "%i %i %i\n", params_ptr->depth, parti.size(), multis.size());
+            //          if( tid == 0 ) {
+            //                          printf( "%i %i %i\n", params_ptr->depth, parti.size(), multis.size());
 //            }
             break;
             case CC_CP_DIRECT:
             flops += cuda_cc_interactions(parts,multis, params_ptr);
             flops += cuda_cp_interactions(parts,parti,params_ptr);
-  //          if( tid == 0 ) {
-   //                        printf( "%i %i %i\n", params_ptr->depth, parti.size(), multis.size());
-   //         }
+            //          if( tid == 0 ) {
+            //                        printf( "%i %i %i\n", params_ptr->depth, parti.size(), multis.size());
+            //         }
             break;
 
             case PC_PP_EWALD:
@@ -387,7 +366,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *real_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *real_indices, ewald_indices *four_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                                                     CUDA_CHECK(cudaDeviceSynchronize());
+                                                                                          CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #ifdef TIMINGS
@@ -479,14 +458,14 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    const size_t shmemsize = sizeof(cuda_kick_shmem);
    unified_allocator alloc;
    kick_return *returns = (kick_return*) alloc.allocate(grid_size * sizeof(kick_return));
-   // printf( "a\n");
-   //  CUDA_MALLOC(returns, grid_size);
-   // printf( "b\n");
-   //  printf( "Shmem = %li\n", shmemsize);
+// printf( "a\n");
+//  CUDA_MALLOC(returns, grid_size);
+// printf( "b\n");
+//  printf( "Shmem = %li\n", shmemsize);
    /***************************************************************************************************************************************************/
    /**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(returns,params);/**/
    /***************************************************************************************************************************************************/
-   // printf( "c\n");
+// printf( "c\n");
    struct cuda_kick_future_shared {
       cudaStream_t stream;
       kick_return *returns;
@@ -507,7 +486,7 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
          return ready;
       }
    };
-   // printf( "d\n");
+// printf( "d\n");
 
    cuda_kick_future_shared fut;
    fut.returns = returns;
@@ -516,7 +495,7 @@ std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_par
    std::function < bool() > ready_func = [fut]() {
       return fut();
    };
-   // printf( "e\n");
+// printf( "e\n");
 
    return std::make_pair(std::move(ready_func), std::move(fut.returns));
 }

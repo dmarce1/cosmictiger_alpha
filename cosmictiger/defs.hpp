@@ -49,7 +49,7 @@
 
 //#define HIPRECISION
 
-#define SINK_BIAS 1.5
+#define SINK_BIAS 1.0
 
 
 #define NCHILD 2

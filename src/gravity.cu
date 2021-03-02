@@ -13,6 +13,8 @@ __managed__ double pp_crit2_time;
 
 __managed__ double pp_inters = 0.0;
 __managed__ double pc_inters = 0.0;
+__managed__ double cp_inters = 0.0;
+__managed__ double cc_inters = 0.0;
 
 double get_pp_inters() {
    const auto rc = pp_inters / global().opts.nparts;
@@ -24,6 +26,19 @@ double get_pp_inters() {
 double get_pc_inters() {
    const auto rc = pc_inters / global().opts.nparts;
    pc_inters = 0;
+   return rc;
+}
+
+double get_cp_inters() {
+   const auto rc = cp_inters / global().opts.nparts;
+   cp_inters = 0;
+   return rc;
+}
+
+
+double get_cc_inters() {
+   const auto rc = cc_inters / global().opts.nparts ;
+   cc_inters = 0;
    return rc;
 }
 
@@ -45,6 +60,7 @@ CUDA_DEVICE int cuda_cc_interactions(particle_set *parts, const vector<tree_ptr>
    for (int i = 0; i < LP; i++) {
       L[i] = 0.0;
    }
+   int interacts = 0;
    const auto &pos = ((tree*) params.tptr)->pos;
    for (int i = tid; i < multis.size(); i += KICK_BLOCK_SIZE) {
       const multipole mpole = ((tree*) multis[i])->multi;
@@ -60,6 +76,10 @@ CUDA_DEVICE int cuda_cc_interactions(particle_set *parts, const vector<tree_ptr>
       }
 #endif
       multipole_interaction(L, mpole, fpos, false);
+   }
+   interacts += multis.size();
+   if( tid == 0 ) {
+      atomicAdd(&cc_inters, (double) interacts);
    }
    flops += multis.size() * FLOPS_CC;
    for (int i = 0; i < LP; i++) {
@@ -144,6 +164,7 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
    int flops = 0;
    expansion<float> L;
    if (parti.size() > 0) {
+      int interacts = 0;
       for (int j = 0; j < LP; j++) {
          L[j] = 0.0;
       }
@@ -192,6 +213,7 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
             multipole_interaction(L, 1.0f, dx, false);
          }
          flops += part_index * FLOPS_CP;
+         interacts += part_index;
       }
       for (int i = 0; i < LP; i++) {
          Lreduce[tid] = L[i];
@@ -205,6 +227,9 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
          if (tid == 0) {
             params.L[params.depth][i] += Lreduce[0];
          }
+      }
+      if( tid == 0 ) {
+         atomicAdd(&cp_inters, (double) interacts);
       }
    }
    return flops;

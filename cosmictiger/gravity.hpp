@@ -38,3 +38,7 @@ double get_pp_inters();
 double get_pc_inters();
 
 
+double get_cp_inters();
+double get_cc_inters();
+
+
