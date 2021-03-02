@@ -21,8 +21,7 @@
 #define TEST_RADIX
 #define TEST_BOUNDS
 #endif
-#define TEST_FORCE
-
+//#define TEST_FORCE
 //#define TEST_STACK
 #define N_TEST_PARTS (6*46)
 
@@ -34,8 +33,8 @@
 #define TREE_MIN_PARTS2THREAD (64*1024)
 #define KICK_BLOCK_SIZE 32
 #define KICK_PP_MAX size_t(11*32)
-#define GPU_QUEUE_SIZE (1024*1024)
 #define MAX_BUCKET_SIZE 32
+#define GPU_QUEUE_SIZE (1024*1024)
 #define KICK_GRID_SIZE 32
 #define KICK_EWALD_GRID_SIZE 32
 

@@ -131,7 +131,7 @@ sort_return tree::sort(sort_params params) {
       printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
    }
 #endif
-   if (parts.second - parts.first > opts.bucket_size /*|| params.depth < params.min_depth*/) {
+   if (parts.second - parts.first > MAX_BUCKET_SIZE /*|| params.depth < params.min_depth*/) {
       std::array<fast_future<sort_return>, NCHILD> futs;
       {
          const auto size = parts.second - parts.first;
@@ -140,7 +140,7 @@ sort_return tree::sort(sort_params params) {
 #ifndef TEST_TREE
             const auto &box = params.box;
 #endif
-            int radix_depth = (int(log(double(size+1) / opts.bucket_size) / log(2) + TREE_RADIX_CUSHION));
+            int radix_depth = (int(log(double(size+1) / MAX_BUCKET_SIZE) / log(2) + TREE_RADIX_CUSHION));
             radix_depth = std::min(std::max(radix_depth, TREE_RADIX_MIN), TREE_RADIX_MAX) + params.depth;
             const auto radix_begin = morton_key(box.begin, radix_depth);
             std::array<fixed64, NDIM> tmp;
