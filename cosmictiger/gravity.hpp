@@ -17,7 +17,7 @@
 CUDA_DEVICE int cuda_cc_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
 #ifdef __CUDACC__
 CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type *params_ptr,
-       array<hifloat, KICK_BLOCK_SIZE>  *  lptr);
+       array<float, KICK_BLOCK_SIZE>  *  lptr);
 #endif
 CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
 CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);

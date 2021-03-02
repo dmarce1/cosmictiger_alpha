@@ -55,9 +55,9 @@ cuda_kick(kick_params_type * params_ptr)
       const auto &Lpos = params.Lpos[params.depth];
       array<float, NDIM> dx;
       for (int dim = 0; dim < NDIM; dim++) {
-         const auto x1 = me.pos[dim].to_double();
-         const auto x2 = Lpos[dim].to_double();
-         dx[dim] = x1 - x2;
+         const auto x1 = me.pos[dim];
+         const auto x2 = Lpos[dim];
+         dx[dim] = distance(x1, x2);
       }
       shift_expansion(L,dx);
    }
@@ -326,9 +326,9 @@ cuda_kick(kick_params_type * params_ptr)
             float phi;
             array<float,NDIM> dx;
             for (int dim = 0; dim < NDIM; dim++) {
-               const auto x2 = me.pos[dim].to_double();
-               const auto x1 = parts->pos(dim,k+myparts.first).to_double();
-               dx[dim] = x1 - x2;
+               const auto x2 = me.pos[dim];
+               const auto x1 = parts->pos(dim,k+myparts.first);
+               dx[dim] = distance(x1, x2);
             }
             shift_expansion(L, g, phi, dx);
             for (int dim = 0; dim < NDIM; dim++) {

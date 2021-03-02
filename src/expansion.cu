@@ -11,29 +11,29 @@
 
 
 
-__managed__ expansion<hifloat> Lfactor;
+__managed__ expansion<float> Lfactor;
 
 __device__ void expansion_init() {
    for (int i = 0; i < LP; i++) {
-      Lfactor[i] = hifloat(0.0);
+      Lfactor[i] = float(0.0);
    }
-   Lfactor() += hifloat(1);
+   Lfactor() += float(1);
    for (int a = 0; a < NDIM; ++a) {
-      Lfactor(a) += hifloat(1.0);
+      Lfactor(a) += float(1.0);
       for (int b = 0; b < NDIM; ++b) {
-         Lfactor(a, b) += hifloat(0.5);
+         Lfactor(a, b) += float(0.5);
          for (int c = 0; c < NDIM; ++c) {
-            Lfactor(a, b, c) += hifloat(1.0 / 6.0);
+            Lfactor(a, b, c) += float(1.0 / 6.0);
             for (int d = 0; d < NDIM; ++d) {
-               Lfactor(a, b, c, d) += hifloat(1.0 / 24.0);
+               Lfactor(a, b, c, d) += float(1.0 / 24.0);
             }
          }
       }
    }
 }
 
-CUDA_DEVICE expansion<hifloat>& shift_expansion(expansion<hifloat> &me,
-      const array<hifloat, NDIM> &dX) {
+CUDA_DEVICE expansion<float>& shift_expansion(expansion<float> &me,
+      const array<float, NDIM> &dX) {
    for (int a = 0; a < 3; a++) {
       me() += me(a) * dX[a];
       for (int b = 0; b <= a; b++) {
@@ -81,8 +81,8 @@ CUDA_DEVICE expansion<hifloat>& shift_expansion(expansion<hifloat> &me,
    return me;
 }
 
-CUDA_DEVICE void shift_expansion(expansion<hifloat> &me, array<hifloat, NDIM> &g, hifloat &phi,
-      const array<hifloat, NDIM> &dX) {
+CUDA_DEVICE void shift_expansion(expansion<float> &me, array<float, NDIM> &g, float &phi,
+      const array<float, NDIM> &dX) {
    phi = me();
    for (int a = 0; a < 3; a++) {
       phi += me(a) * dX[a];

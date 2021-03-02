@@ -326,9 +326,9 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
    const auto &Lpos = params.Lpos[params.depth];
    array<float, NDIM> dx;
    for (int dim = 0; dim < NDIM; dim++) {
-      const auto x1 = pos[dim].to_double();
-      const auto x2 = Lpos[dim].to_double();
-      dx[dim] = x1 - x2;
+      const auto x1 = pos[dim];
+      const auto x2 = Lpos[dim];
+      dx[dim] = distance(x1,  x2);
    }
    L <<= dx;
 

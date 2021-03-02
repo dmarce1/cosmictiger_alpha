@@ -49,12 +49,6 @@
 
 //#define HIPRECISION
 
-#ifdef HIPRECISION
-using hifloat = double;
-#else
-using hifloat = float;
-#endif
-
 #define SINK_BIAS 1.5
 
 

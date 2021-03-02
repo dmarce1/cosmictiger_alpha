@@ -80,7 +80,7 @@ void kick_test() {
 
       // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
       array<fixed32, NDIM> Lpos;
-      expansion<hifloat> L;
+      expansion<float> L;
       for (int i = 0; i < LP; i++) {
          L[i] = 0.f;
       }
@@ -151,7 +151,7 @@ void force_test() {
 
    // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
    array<fixed32, NDIM> Lpos;
-   expansion<hifloat> L;
+   expansion<float> L;
    for (int i = 0; i < LP; i++) {
       L[i] = 0.f;
    }
