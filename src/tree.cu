@@ -151,7 +151,7 @@ cuda_kick(kick_params_type * params_ptr)
                         list_index = MI;                                               //CC
                      } else if ( me_opened && far3 && !other_opened ) {
                         list_index = MI;                                               //PC
-                     } else if( !me_opened && far2 && isleaf) {
+                     } else if( !me_opened && far2 && isleaf && !iamleaf) {
                         list_index = PI;                                               //CP
                      } else  if(  me_opened && other_opened ) {
                         if( far3 ) {

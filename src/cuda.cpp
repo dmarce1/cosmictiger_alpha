@@ -31,7 +31,9 @@ cuda_properties cuda_init() {
    for (int i = 0; i < props.num_devices; i++) {
       printf("\t %s: %i\n", props.devices[i].name, props.devices[i].multiProcessorCount);
    }
+   printf( "Resetting Device\n");
    CUDA_CHECK(cudaDeviceReset());
+   printf( " Done resetting\n");
    size_t value = STACK_SIZE;
    CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, value));
    CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitStackSize));
