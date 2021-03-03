@@ -147,12 +147,12 @@ cuda_kick(kick_params_type * params_ptr)
                      auto& other_opened = check.opened;
                      const auto& me_opened = direct;
                      if( !me_opened && far && !other_opened ) {
-                        list_index = MI;
-                     } else if ( me_opened && far && !other_opened ) {
-                        list_index = MI;
-                     } else if(  !me_opened && far && other_opened ) {
-                        list_index = PI;
-                     } else  if(  me_opened && other_opened ){
+                        list_index = MI;                                               //CC
+                     } else if ( me_opened && far3 ) {
+                        list_index = MI;                                               //PC
+                     } else if( !me_opened && far2 && isleaf ) {
+                        list_index = PI;                                               //CP
+                     } else if( me_opened && other_opened ) {
                         list_index = PI;
                      } else if( isleaf ) {
                         other_opened++;
@@ -366,7 +366,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *real_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *real_indices, ewald_indices *four_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                                                                          CUDA_CHECK(cudaDeviceSynchronize());
+                                                                                             CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #ifdef TIMINGS
