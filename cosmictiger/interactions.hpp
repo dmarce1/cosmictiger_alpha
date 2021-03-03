@@ -14,12 +14,11 @@
 #ifndef __CUDA_ARCH__
 template<class T>
 CUDA_EXPORT inline T fma(T a, T b, T c) {
-   return a * b + c;
+   return fmaf(a, b, c);
 }
 #endif
 
 //#define EWALD_DOUBLE_PRECISION
-
 
 template<class T>
 CUDA_EXPORT int inline green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
@@ -113,7 +112,6 @@ public:
    }
 };
 
-
 #ifndef TREECU
 extern CUDA_DEVICE ewald_indices *four_indices_ptr;
 extern CUDA_DEVICE ewald_indices *real_indices_ptr;
@@ -134,10 +132,10 @@ template<class T>
 CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX) {
    const T r0 = 1.0e-9;
 // const T H = options::get().soft_len;
-   const T nthree(-3.0);
-   const T nfive(-5.0);
-   const T nseven(-7.0);
-   const T r2 = sqr(dX[0]) + sqr(dX[1]) + sqr(dX[2]);            // 5
+   const T nthree(-3.0f);
+   const T nfive(-5.0f);
+   const T nseven(-7.0f);
+   const T r2 = fma(dX[0], dX[0], fma(dX[1], dX[1], sqr(dX[2])));            // 5
    const T r = sqrt(r2);               // 7
    const T rinv = (r > r0) / fmax(r, r0);  // 3
    const T r2inv = rinv * rinv;        // 1
@@ -149,8 +147,8 @@ CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX) {
    return 25 + green_deriv_direct(D, d0, d1, d2, d3, d4, dX);
 }
 
-CUDA_DEVICE inline int green_deriv_ewald(expansion<float> &D, const float &d0, const float &d1,
-      const float &d2, const float &d3, const float &d4, const array<float, NDIM> &dx) {
+CUDA_DEVICE inline int green_deriv_ewald(expansion<float> &D, const float &d0, const float &d1, const float &d2,
+      const float &d3, const float &d4, const array<float, NDIM> &dx) {
    float threedxadxb;
    float dxadxbdxc;
    const auto dx0dx0 = dx[0] * dx[0];
@@ -481,7 +479,7 @@ CUDA_EXPORT int inline green_deriv_direct(expansion<T> &D, const T &d0, const T 
 // 986 // 251936
 template<class T>
 CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const multipole_type<T> &M, array<T, NDIM> dX,
-     bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
+      bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
    expansion<T> D;
    int flops = green_direct(D, dX);
    for (int i = 1 - do_phi; i < LP; i++) {
@@ -750,7 +748,7 @@ CUDA_DEVICE inline int multipole_interaction_ewald(expansion<float> &L, const mu
 #endif
 
 // 516 / 251466
-CUDA_EXPORT inline int multipole_interaction(array<float, NDIM + 1>& L, const multipole &M, array<float, NDIM> dX,
+CUDA_EXPORT inline int multipole_interaction(array<float, NDIM + 1> &L, const multipole &M, array<float, NDIM> dX,
       bool do_phi) { // 517 / 47428
    expansion<float> D;
    int flops = green_direct(D, dX);

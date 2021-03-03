@@ -79,7 +79,7 @@ struct sort_params {
    }
 
    std::pair<size_t, size_t> get_bounds() const {
-      std::pair < size_t, size_t > rc;
+      std::pair<size_t, size_t> rc;
       rc.first = (*bounds)[key_begin];
       rc.second = (*bounds)[key_end];
       return rc;
@@ -222,16 +222,13 @@ struct cuda_ewald_shmem {
    array<float, KICK_BLOCK_SIZE> Lreduce;  // 256
 };
 
-
 struct cuda_kick_shmem {
    union {
       array<array<float, KICK_BLOCK_SIZE>, NDIM> f; // 384
       array<float, KICK_BLOCK_SIZE> Lreduce;  // 4480
-      struct {
-         array<array<int8_t, KICK_BLOCK_SIZE + 1>, NITERS> indices; //33
-         array<int16_t, NITERS> count; // 8
-      };
+      array<int16_t, NITERS> count; // 8
    };
+   array<array<int16_t, KICK_BLOCK_SIZE + 1>, NITERS> indices; //33
    array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
    array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 768
    array<int8_t, MAX_BUCKET_SIZE> rungs; // 256
