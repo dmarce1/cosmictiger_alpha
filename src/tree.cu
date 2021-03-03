@@ -121,12 +121,13 @@ cuda_kick(kick_params_type * params_ptr)
                   }
                   __syncwarp();
                   int list_index;
+                  const auto h = params.hsoft;
                   if (ci < check_count) {
                      auto &check = checks[ci];
                      const auto &other_radius = ((const tree*) check)->radius;
                      const auto &other_pos = ((const tree*) check)->pos;
                      float d2 = 0.f;
-                     const float R2 = sqr(other_radius + myradius);                 // 2
+                     const float R2 = sqr(other_radius + myradius + h);                 // 2
 #ifdef PERIODIC_OFF
                      for (int dim = 0; dim < NDIM; dim++) {                         // 3
                         d2 += sqr(other_pos[dim].to_float() - mypos[dim].to_float());
@@ -140,20 +141,24 @@ cuda_kick(kick_params_type * params_ptr)
                         d2 = fmaxf(d2, EWALD_MIN_DIST2);                            // 1
                      }
                      const bool far = R2 < theta2 * d2;                             // 2
-                     const bool far2 = sqr(other_radius*params.theta + myradius) < theta2 * d2;
-                     const bool far3 = sqr(other_radius + myradius*params.theta) < theta2 * d2;
+                     const bool far2 = sqr(other_radius*params.theta + myradius + h) < theta2 * d2;
+                     const bool far3 = sqr(other_radius + myradius*params.theta/SINK_BIAS + h) < theta2 * d2;
                      //     const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
                      const bool isleaf = ((const tree*) check)->parts.second - ((const tree*) check)->parts.first <= GROUP_SIZE;
                      auto& other_opened = check.opened;
                      const auto& me_opened = direct;
                      if( !me_opened && far && !other_opened ) {
                         list_index = MI;                                               //CC
-                     } else if ( me_opened && far3 ) {
+                     } else if ( me_opened && far3 && !other_opened ) {
                         list_index = MI;                                               //PC
-                     } else if( !me_opened && far2 && isleaf ) {
+                     } else if( !me_opened && far2 && (isleaf && !other_opened)) {
                         list_index = PI;                                               //CP
-                     } else if( me_opened && other_opened ) {
-                        list_index = PI;
+                     } else  if(  me_opened && other_opened ) {
+                        if( far3 ) {
+                           list_index = MI;
+                        } else {
+                           list_index = PI;
+                        }
                      } else if( isleaf ) {
                         other_opened++;
                         list_index = OI;
@@ -366,7 +371,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *real_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *real_indices, ewald_indices *four_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                                                                             CUDA_CHECK(cudaDeviceSynchronize());
+                                                                                          CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #ifdef TIMINGS
