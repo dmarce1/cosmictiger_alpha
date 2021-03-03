@@ -21,7 +21,7 @@
 #define TEST_RADIX
 #define TEST_BOUNDS
 #endif
-//#define TEST_FORCE
+#define TEST_FORCE
 //#define TEST_STACK
 #define N_TEST_PARTS (6*46)
 
@@ -36,7 +36,7 @@
 #define MAX_BUCKET_SIZE 64
 #define GROUP_SIZE 64
 #define GPU_QUEUE_SIZE (1024*1024)
-#define KICK_GRID_SIZE 64
+#define KICK_GRID_SIZE 32
 #define KICK_EWALD_GRID_SIZE 32
 
 #define FLOPS_CC 510
