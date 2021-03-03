@@ -377,10 +377,13 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
    }
    int interacts = nactive[0] * multis.size();
    int flops = nactive[0] * multis.size() * FLOPS_PC;
-   for (int i = 0; i < mmax; i += KICK_BLOCK_SIZE) {
+   for (int i = tid; i < mmax; i += KICK_BLOCK_SIZE) {
       const auto &sources = ((tree*) multis[min(i, (int) multis.size() - 1)])->pos;
       for (int k = 0; k < nparts; k++) {
          if (rungs[k] >= params.rung || rungs[k] == -1) {
+            for (int dim = 0; dim < NDIM; dim++) {
+               f[dim][tid] = 0.f;
+            }
             if (i < multis.size()) {
                array<float, NDIM> dx;
                array<float, NDIM + 1> Lforce;
@@ -510,7 +513,7 @@ void cuda_compare_with_direct(particle_set *parts) {
       test_parts[i] = rand() % nparts;
    }
 cuda_pp_ewald_interactions<<<N_TEST_PARTS,KICK_BLOCK_SIZE>>>(parts, test_parts, errs, norms);
-                                                CUDA_CHECK(cudaDeviceSynchronize());
+                                             CUDA_CHECK(cudaDeviceSynchronize());
    float avg_err = 0.0;
    float norm = 0.0;
    float err_max = 0.0;
