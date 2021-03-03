@@ -384,7 +384,7 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
                f[dim][tid] = 0.f;
             }
             if (i < multis.size()) {
-               const auto& source = ((tree*) multis[i])->pos;
+               const auto &source = ((tree*) multis[i])->pos;
                array<float, NDIM> dx;
                array<float, NDIM + 1> Lforce;
                for (int dim = 0; dim < NDIM; dim++) {
@@ -513,24 +513,19 @@ void cuda_compare_with_direct(particle_set *parts) {
       test_parts[i] = rand() % nparts;
    }
 cuda_pp_ewald_interactions<<<N_TEST_PARTS,KICK_BLOCK_SIZE>>>(parts, test_parts, errs, norms);
-                                             CUDA_CHECK(cudaDeviceSynchronize());
+                                                CUDA_CHECK(cudaDeviceSynchronize());
    float avg_err = 0.0;
    float norm = 0.0;
    float err_max = 0.0;
-   float err_rms = 0.0;
    for (int i = 0; i < N_TEST_PARTS; i++) {
       avg_err += errs[i];
       err_max = fmaxf(err_max, errs[i]);
-      err_rms += errs[i] * errs[i];
       norm += norms[i];
    }
-   err_rms = sqrtf(err_rms);
-   err_rms /= norm;
    avg_err /= norm;
    err_max /= (norm / N_TEST_PARTS);
 //   avg_err /= norm;
    printf("Avg Error is %e\n", avg_err);
-   printf("RMS Error is %e\n", err_rms);
    printf("Max Error is %e\n", err_max);
    CUDA_FREE(norms);
    CUDA_FREE(errs);

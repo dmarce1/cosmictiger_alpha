@@ -46,7 +46,7 @@ void kick_test() {
    printf("Doing kick test\n");
    printf("Generating particles\n");
    particle_set parts(global().opts.nparts);
-   parts.generate_random();
+   parts.generate_grid();
    tree::set_particle_set(&parts);
    particle_set *parts_ptr;
    CUDA_MALLOC(parts_ptr, sizeof(particle_set));

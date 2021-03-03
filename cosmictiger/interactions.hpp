@@ -758,12 +758,24 @@ CUDA_EXPORT inline int multipole_interaction(array<float, NDIM + 1> &L, const mu
    flops += 1 + NDIM;
    const auto half = float(0.5);
    const auto sixth = float(1.0 / 6.0);
-   const auto halfD11 = half * D[11];             // 1
-   const auto halfD12 = half * D[12];             // 1
-   const auto halfD13 = half * D[13];             // 1
-   const auto halfD15 = half * D[15];             // 1
-   const auto halfD17 = half * D[17];             // 1
-   const auto halfD18 = half * D[18];             // 1
+   #define halfD11  half * D[11]             // 1
+   #define halfD12  half * D[12]             // 1
+   #define halfD13  half * D[13]             // 1
+   #define halfD15  half * D[15]             // 1
+   #define halfD17  half * D[17]             // 1
+   #define halfD18  half * D[18]             // 1
+   #define halfD21  half * D[21]             // 1
+   #define halfD22  half * D[22]             // 1
+   #define halfD23  half * D[23]             // 1
+   #define halfD24  half * D[24]             // 1
+   #define halfD25  half * D[25]             // 1
+   #define halfD26  half * D[26]             // 1
+   #define halfD27  half * D[27]             // 1
+   #define halfD28  half * D[28]             // 1
+   #define halfD29  half * D[29]             // 1
+   #define halfD31  half * D[31]             // 1
+   #define halfD32  half * D[32]             // 1
+   #define halfD33  half * D[33]             // 1
    if (do_phi) {
       L[0] = fma(M[1], D[4] * half, L[0]);        // 3
       L[0] = fma(M[7], D[10] * sixth, L[0]);      // 3
@@ -782,18 +794,6 @@ CUDA_EXPORT inline int multipole_interaction(array<float, NDIM + 1> &L, const mu
       L[0] = fma(M[6], D[9] * half, L[0]);        // 3
       L[0] = fma(M[16], D[19] * sixth, L[0]);     // 3
    }
-   const auto halfD21 = half * D[21];             // 1
-   const auto halfD22 = half * D[22];             // 1
-   const auto halfD23 = half * D[23];             // 1
-   const auto halfD24 = half * D[24];             // 1
-   const auto halfD25 = half * D[25];             // 1
-   const auto halfD26 = half * D[26];             // 1
-   const auto halfD27 = half * D[27];             // 1
-   const auto halfD28 = half * D[28];             // 1
-   const auto halfD29 = half * D[29];             // 1
-   const auto halfD31 = half * D[31];             // 1
-   const auto halfD32 = half * D[32];             // 1
-   const auto halfD33 = half * D[33];             // 1
 
    L[1] = fma(M[1], D[10] * half, L[1]);          // 3
    L[2] = fma(M[1], halfD11, L[2]);               // 2
