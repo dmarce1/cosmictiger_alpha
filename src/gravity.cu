@@ -378,17 +378,17 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
    int interacts = nactive[0] * multis.size();
    int flops = nactive[0] * multis.size() * FLOPS_PC;
    for (int i = tid; i < mmax; i += KICK_BLOCK_SIZE) {
-      const auto &sources = ((tree*) multis[min(i, (int) multis.size() - 1)])->pos;
       for (int k = 0; k < nparts; k++) {
          if (rungs[k] >= params.rung || rungs[k] == -1) {
             for (int dim = 0; dim < NDIM; dim++) {
                f[dim][tid] = 0.f;
             }
             if (i < multis.size()) {
+               const auto& source = ((tree*) multis[i])->pos;
                array<float, NDIM> dx;
                array<float, NDIM + 1> Lforce;
                for (int dim = 0; dim < NDIM; dim++) {
-                  dx[dim] = distance(sinks[dim][k], sources[dim]);
+                  dx[dim] = distance(sinks[dim][k], source[dim]);
                }
                multipole_interaction(Lforce, ((tree*) multis[i])->multi, dx, false);
                for (int dim = 0; dim < NDIM; dim++) {

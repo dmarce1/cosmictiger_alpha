@@ -141,29 +141,37 @@ cuda_kick(kick_params_type * params_ptr)
                         d2 = fmaxf(d2, EWALD_MIN_DIST2);                            // 1
                      }
                      const bool far = R2 < theta2 * d2;                             // 2
-                     const bool far2 = sqr(other_radius*params.theta + myradius + h) < theta2 * d2;
-                     const bool far3 = sqr(other_radius + myradius*params.theta/SINK_BIAS + h) < theta2 * d2;
+                     const auto D2 =  sqr(other_radius*params.theta + myradius + h);
+                     const auto D3 =  sqr(other_radius + myradius*params.theta/SINK_BIAS + h);
+                     bool far2 = D2  < theta2 * d2;
+                     bool far3 = D3 < theta2 * d2;
                      //     const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
                      const bool isleaf = ((const tree*) check)->parts.second - ((const tree*) check)->parts.first <= GROUP_SIZE;
                      auto& other_opened = check.opened;
                      const auto& me_opened = direct;
-                     if( !me_opened && far && !other_opened ) {
-                        list_index = MI;                                               //CC
-                     } else if ( me_opened && far3 && !other_opened ) {
-                        list_index = MI;                                               //PC
-                     } else if( !me_opened && far2 && isleaf && !iamleaf) {
-                        list_index = PI;                                               //CP
-                     } else  if(  me_opened && other_opened ) {
-                        if( far3 ) {
-                           list_index = MI;
+                     int far_bias = 0;
+                     if( !me_opened) {
+                        if( far && !other_opened ) {
+                           list_index = MI;                                               //CC
+                        } else if( far2 && isleaf && (D2 <= D3 || other_opened)) {
+                           list_index = PI;                                               //CP
+                        } else if( isleaf ) {
+                           other_opened++;
+                           list_index = OI;
                         } else {
-                           list_index = PI;
+                           list_index = CI;
                         }
-                     } else if( isleaf ) {
-                        other_opened++;
-                        list_index = OI;
                      } else {
-                        list_index = CI;
+                        if ( far3 ) {
+                           list_index = MI;                                               //PC
+                        } else if( other_opened ) {
+                           list_index = PI;
+                        } else if( isleaf ) {
+                           other_opened++;
+                           list_index = OI;
+                        } else {
+                           list_index = CI;
+                        }
                      }
                      indices[list_index][tid + 1] = 1;
                   }
@@ -371,7 +379,7 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *real_ind
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *real_indices, ewald_indices *four_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                                                                          CUDA_CHECK(cudaDeviceSynchronize());
+                                                                                             CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #ifdef TIMINGS

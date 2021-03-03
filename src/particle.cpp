@@ -73,9 +73,9 @@ void particle_set::generate_grid() {
       for (size_t j = 0; j < dim; j++) {
          for (size_t k = 0; k < dim; k++) {
             const size_t iii = i * dim * dim + j * dim + k;
-            pos(2, iii) = (i + 0.5) / dim;
-            pos(1, iii) = (j + 0.5) / dim;
-            pos(0, iii) = (k + 0.5) / dim;
+            pos(2, iii) = (i + 0.5) / dim + rand_float() / (20.0*dim);
+            pos(1, iii) = (j + 0.5) / dim + rand_float() / (20.0*dim);
+            pos(0, iii) = (k + 0.5) / dim + rand_float() / (20.0*dim);
             for (int dim = 0; dim < NDIM; dim++) {
                vel(dim, iii) = 0.f;
             }
