@@ -330,8 +330,8 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 				pcnt /= 2;
 			}
 		} while (count < target);
-		params.cuda_cutoff = pcnt;
-		cuda_block_count = count;
+		params.cuda_cutoff = pcnt * 2;
+		cuda_block_count = compute_block_count(params.cuda_cutoff);
 	}
 
 #ifdef TEST_CHECKLIST_TIME
