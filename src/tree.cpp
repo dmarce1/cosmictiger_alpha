@@ -264,18 +264,18 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
    kick_params_type &params = *params_ptr;
    const auto part_begin = ((tree*) (*this))->parts.first;
    const auto part_end = ((tree*) (*this))->parts.second;
-   if (part_end - part_begin <= 100000) {
+   if (part_end - part_begin <= 1024*96) {
 //   if (params_ptr->depth == cuda_depth()) {
 //   if (gpu) {
       return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
    } else {
-      static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
-      //   thread = false;
-      if (thread) {
-         if (++threads_used > hpx::thread::hardware_concurrency()) {
-            threads_used--;
-         }
-      }
+//      static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
+//      //   thread = false;
+//      if (thread) {
+//         if (++threads_used > hpx::thread::hardware_concurrency()) {
+//            threads_used--;
+//         }
+//      }
       if (thread) {
          kick_params_type *new_params;
          new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
@@ -294,7 +294,7 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
             auto rc = ((tree*) ptr)->kick(new_params);
             new_params->kick_params_type::~kick_params_type();
             kick_params_alloc.deallocate(new_params);
-            threads_used--;
+         //   threads_used--;
             return rc;
          };
          auto fut = hpx::async(std::move(func));
