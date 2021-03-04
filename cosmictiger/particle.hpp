@@ -57,6 +57,7 @@ struct particle_set {
    size_t size() const {
       return size_;
    }
+   void load_particles(std::string filename);
 #ifdef TEST_FORCE
    CUDA_EXPORT
    float force(int dim, size_t index) const;

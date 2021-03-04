@@ -41,7 +41,7 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 }
 
 int cuda_depth() {
-   return 10;
+   return 12;
 }
 
 hpx::future<sort_return> tree::create_child(sort_params &params) {
@@ -264,8 +264,8 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
    kick_params_type &params = *params_ptr;
    const auto part_begin = ((tree*) (*this))->parts.first;
    const auto part_end = ((tree*) (*this))->parts.second;
-//   if (part_end - part_begin <= 48000) {
-   if (params_ptr->depth == cuda_depth()) {
+   if (part_end - part_begin <= 100000) {
+//   if (params_ptr->depth == cuda_depth()) {
 //   if (gpu) {
       return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
    } else {
@@ -332,7 +332,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
    }
    L <<= dx;
 
-   const auto theta2 = params.theta * params.theta;
+   const auto theta2 = sqr(std::min((float)params.theta,(float)0.4));
    array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
    auto &multis = params.multi_interactions;
    auto &parti = params.part_interactions;

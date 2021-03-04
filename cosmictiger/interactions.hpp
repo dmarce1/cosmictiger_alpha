@@ -758,24 +758,24 @@ CUDA_EXPORT inline int multipole_interaction(array<float, NDIM + 1> &L, const mu
    flops += 1 + NDIM;
    const auto half = float(0.5);
    const auto sixth = float(1.0 / 6.0);
-   #define halfD11  half * D[11]             // 1
-   #define halfD12  half * D[12]             // 1
-   #define halfD13  half * D[13]             // 1
-   #define halfD15  half * D[15]             // 1
-   #define halfD17  half * D[17]             // 1
-   #define halfD18  half * D[18]             // 1
-   #define halfD21  half * D[21]             // 1
-   #define halfD22  half * D[22]             // 1
-   #define halfD23  half * D[23]             // 1
-   #define halfD24  half * D[24]             // 1
-   #define halfD25  half * D[25]             // 1
-   #define halfD26  half * D[26]             // 1
-   #define halfD27  half * D[27]             // 1
-   #define halfD28  half * D[28]             // 1
-   #define halfD29  half * D[29]             // 1
-   #define halfD31  half * D[31]             // 1
-   #define halfD32  half * D[32]             // 1
-   #define halfD33  half * D[33]             // 1
+#define halfD11  half * D[11]             // 1
+#define halfD12  half * D[12]             // 1
+#define halfD13  half * D[13]             // 1
+#define halfD15  half * D[15]             // 1
+#define halfD17  half * D[17]             // 1
+#define halfD18  half * D[18]             // 1
+#define halfD21  half * D[21]             // 1
+#define halfD22  half * D[22]             // 1
+#define halfD23  half * D[23]             // 1
+#define halfD24  half * D[24]             // 1
+#define halfD25  half * D[25]             // 1
+#define halfD26  half * D[26]             // 1
+#define halfD27  half * D[27]             // 1
+#define halfD28  half * D[28]             // 1
+#define halfD29  half * D[29]             // 1
+#define halfD31  half * D[31]             // 1
+#define halfD32  half * D[32]             // 1
+#define halfD33  half * D[33]             // 1
    if (do_phi) {
       L[0] = fma(M[1], D[4] * half, L[0]);        // 3
       L[0] = fma(M[7], D[10] * sixth, L[0]);      // 3
@@ -851,7 +851,7 @@ CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const T &M, array<
    expansion<T> D;
    green_direct(D, dX);
    for (int i = 0; i < LP; i++) {
-      L[i] += M * D[i];
+      L[i] = fma(M, D[i], L[i]);
    }
    return LP;
 }

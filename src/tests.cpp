@@ -13,6 +13,8 @@
 #include <cosmictiger/particle.hpp>
 #include <cmath>
 
+void show_timings();
+
 static void tree_test() {
    printf("Doing tree test\n");
    printf("Generating particles\n");
@@ -46,7 +48,8 @@ void kick_test() {
    printf("Doing kick test\n");
    printf("Generating particles\n");
    particle_set parts(global().opts.nparts);
-   parts.generate_grid();
+   parts.load_particles("ics");
+   // parts.generate_grid();
    tree::set_particle_set(&parts);
    particle_set *parts_ptr;
    CUDA_MALLOC(parts_ptr, sizeof(particle_set));
@@ -114,6 +117,7 @@ void kick_test() {
       printf("Total   = %e s\n", total);
       printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
       printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
+      show_timings();
    }
    parts_ptr->particle_set::~particle_set();
    CUDA_FREE(parts_ptr);
@@ -124,7 +128,7 @@ void force_test() {
    printf("Doing force test\n");
    printf("Generating particles\n");
    particle_set parts(global().opts.nparts);
-   parts.generate_random();
+   parts.load_particles("ics");
    tree::set_particle_set(&parts);
    particle_set *parts_ptr;
    CUDA_MALLOC(parts_ptr, sizeof(particle_set));

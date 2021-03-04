@@ -23,16 +23,28 @@ CUDA_DEVICE periodic_parts *periodic_parts_ptr;
 
 CUDA_DEVICE particle_set *parts;
 
-__managed__ double pp_interaction_time;
-__managed__ double pc_interaction_time;
-__managed__ double cp_interaction_time;
-__managed__ double cc_interaction_time;
-__managed__ double total_time;
+__managed__ double pp_interaction_time = 0;
+__managed__ double pc_interaction_time = 0;
+__managed__ double cp_interaction_time = 0;
+__managed__ double cc_interaction_time = 0;
+__managed__ double ewald_interaction_time = 0;
+__managed__ double total_time = 0;
 
 #define MI 0
 #define CI 1
 #define OI 2
 #define PI 3
+
+void show_timings() {
+   const auto walk_time = total_time - pp_interaction_time - pc_interaction_time - cp_interaction_time
+         - cc_interaction_time - ewald_interaction_time;
+   printf("%e %e %e %e %e %e\n", walk_time / total_time, pp_interaction_time / total_time,
+         pc_interaction_time / total_time, cp_interaction_time / total_time, cc_interaction_time / total_time,
+         ewald_interaction_time / total_time);
+   total_time = ewald_interaction_time = pp_interaction_time = pc_interaction_time = cp_interaction_time =
+         cc_interaction_time = 0.0;
+
+}
 
 CUDA_DEVICE kick_return
 cuda_kick(kick_params_type * params_ptr)
@@ -46,7 +58,7 @@ cuda_kick(kick_params_type * params_ptr)
 //      printf( "%li\n", params_ptr->depth);
    //  }
    tree_ptr tptr = params.tptr;
-   tree& me = *((tree*) tptr);
+   tree& me = *((tree*) params.tptr);
    const int &tid = threadIdx.x;
    kick_return rc;
    auto &F = params.F;
@@ -77,7 +89,9 @@ cuda_kick(kick_params_type * params_ptr)
       auto &indices = shmem.indices;
       auto &count = shmem.count;
 
+      const auto theta = params.theta;
       const auto theta2 = params.theta * params.theta;
+      const auto theta_o_sink_bias = params.theta/SINK_BIAS;
       array<vector<tree_ptr>*, NITERS> lists;
       auto &multis = params.multi_interactions;
       auto &parti = params.part_interactions;
@@ -126,53 +140,26 @@ cuda_kick(kick_params_type * params_ptr)
                      auto &check = checks[ci];
                      const auto &other_radius = ((const tree*) check)->radius;
                      const auto &other_pos = ((const tree*) check)->pos;
-                     float d2 = 0.f;
-                     const float R2 = sqr(other_radius + myradius + h);                 // 2
-#ifdef PERIODIC_OFF
+                     array<float,NDIM> dist;
                      for (int dim = 0; dim < NDIM; dim++) {                         // 3
-                        d2 += sqr(other_pos[dim].to_float() - mypos[dim].to_float());
+                        dist[dim] = distance(other_pos[dim], mypos[dim]);
                      }
-#else
-                     for (int dim = 0; dim < NDIM; dim++) {                         // 3
-                        d2 += sqr(distance(other_pos[dim], mypos[dim]));
-                     }
-#endif
-                     if (ewald_dist) {
-                        d2 = fmaxf(d2, EWALD_MIN_DIST2);                            // 1
-                     }
-                     const bool far = R2 < theta2 * d2;                             // 2
-                     const auto D2 =  sqr(other_radius*params.theta + myradius + h);
-                     const auto D3 =  sqr(other_radius + myradius*params.theta/SINK_BIAS + h);
-                     bool far2 = D2  < theta2 * d2;
-                     bool far3 = D3 < theta2 * d2;
-                     //     const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
-                     const bool isleaf = ((const tree*) check)->parts.second - ((const tree*) check)->parts.first <= GROUP_SIZE;
+                     float d2 = fmaf(dist[0],dist[0],fmaf(dist[1],dist[1],sqr(dist[2])));
+                     d2 = (1-int(ewald_dist))*d2 + int(ewald_dist)*fmaxf(d2, EWALD_MIN_DIST2);
+                     const auto R1 = sqr(other_radius + myradius + h);                 // 2
+                     const auto R2 = sqr(other_radius*theta + myradius + h);
+                     const auto R3 = sqr(other_radius + myradius*theta_o_sink_bias + h);
+                     const auto theta2d2 = theta2 * d2;
+                     const bool far1 = R1 < theta2d2;// 2
+                     const bool far2 = R2 < theta2d2;
+                     const bool far3 = R3 < theta2d2;
+                     const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
                      auto& other_opened = check.opened;
                      const auto& me_opened = direct;
-                     int far_bias = 0;
-                     if( !me_opened) {
-                        if( far && !other_opened ) {
-                           list_index = MI;                                               //CC
-                        } else if( far2 && isleaf && (D2 <= D3 || other_opened)) {
-                           list_index = PI;                                               //CP
-                        } else if( isleaf ) {
-                           other_opened++;
-                           list_index = OI;
-                        } else {
-                           list_index = CI;
-                        }
-                     } else {
-                        if ( far3 ) {
-                           list_index = MI;                                               //PC
-                        } else if( other_opened ) {
-                           list_index = PI;
-                        } else if( isleaf ) {
-                           other_opened++;
-                           list_index = OI;
-                        } else {
-                           list_index = CI;
-                        }
-                     }
+                     const bool mi = (!me_opened && far1 && !other_opened) || (me_opened && far3);
+                     const bool pi = (( far2 && isleaf && (R2 <= R3 || other_opened)) || (me_opened && other_opened));
+                     list_index = int(mi)*MI + (1-int(mi))*(int(pi)*PI + (1-int(pi))*(int(isleaf)*OI+(1-int(isleaf))*CI));
+                     other_opened += int(isleaf);
                      indices[list_index][tid + 1] = 1;
                   }
                   __syncwarp();
@@ -237,21 +224,31 @@ cuda_kick(kick_params_type * params_ptr)
 //            printf( "%i %i %i\n", params.depth, count[MI], count[PI]);
 //         }
          __syncwarp();
+         auto tm = clock64();
          switch (type) {
             case PC_PP_DIRECT:
-            //          printf( "%li %li\n", multis.size(), parti.size());
+            tm = clock64();
             flops += cuda_pc_interactions(parts,multis, params_ptr);
+            if( tid == 0 ) {
+               atomicAdd(&pc_interaction_time, (double)(clock64() - tm));
+            }
+            tm = clock64();
             flops += cuda_pp_interactions(parts,parti, params_ptr);
-            //          if( tid == 0 ) {
-            //                          printf( "%i %i %i\n", params_ptr->depth, parti.size(), multis.size());
-//            }
+            if( tid == 0 ) {
+               atomicAdd(&pp_interaction_time, (double)(clock64() - tm));
+            }
             break;
             case CC_CP_DIRECT:
+            tm = clock64();
             flops += cuda_cc_interactions(parts,multis, params_ptr);
-            flops += cuda_cp_interactions(parts,parti,params_ptr);
-            //          if( tid == 0 ) {
-            //                        printf( "%i %i %i\n", params_ptr->depth, parti.size(), multis.size());
-            //         }
+            if( tid == 0 ) {
+               atomicAdd(&cc_interaction_time, (double)(clock64() - tm));
+            }
+            tm = clock64();
+            flops += cuda_cp_interactions(parts,parti, params_ptr);
+            if( tid == 0 ) {
+               atomicAdd(&cp_interaction_time, (double)(clock64() - tm));
+            }
             break;
 
             case PC_PP_EWALD:
@@ -271,7 +268,12 @@ cuda_kick(kick_params_type * params_ptr)
                //     __trap();
             }
             if( count[MI] > 0 ) {
+               tm = clock64();
                flops += cuda_ewald_cc_interactions(parts,params_ptr, &shmem.Lreduce);
+               if( tid == 0 ) {
+                  atomicAdd(&ewald_interaction_time, (double)(clock64() - tm));
+               }
+               tm = clock64();
             }
 #endif
             break;
@@ -372,14 +374,13 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *real_ind
       real_indices_ptr = real_indices;
       periodic_parts_ptr = periodic_parts;
       expansion_init();
-      pp_interaction_time = pc_interaction_time = cp_interaction_time = cc_interaction_time = 0.0;
 
    }
 }
 void tree::cuda_set_kick_params(particle_set *p, ewald_indices *real_indices, ewald_indices *four_indices,
       periodic_parts *parts) {
 cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
-                                                                                             CUDA_CHECK(cudaDeviceSynchronize());
+                                                                                                                  CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #ifdef TIMINGS
@@ -392,12 +393,13 @@ CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type *params) {
 #ifdef TIMINGS
    auto tm = clock64();
 #endif
+   auto tm = clock64();
    res[bid] = cuda_kick(params + bid);
    __syncwarp();
    if (threadIdx.x == 0) {
       //     printf( "Kick done\n");
       params[bid].kick_params_type::~kick_params_type();
-      //   printf("%e %e %e %e %e\n", walk_time/total_time, pp_interaction_time/total_time, pc_interaction_time/total_time, cp_interaction_time/total_time, cc_interaction_time/total_time);
+      atomicAdd(&total_time, (double) clock64() - tm);
    }
 
 }
