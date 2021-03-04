@@ -81,14 +81,14 @@ add_hpx_executable(
  )
  
  
-add_library(hpx_lite 
-	hpx_lite/src/hpx.cpp
-	hpx_lite/src/id_type.cpp
-	hpx_lite/src/thread.cpp
-	hpx_lite/src/future.cpp
-	hpx_lite/src/mutex.cpp
-	hpx_lite/src/serialize.cpp
-)
+#add_library(hpx_lite 
+#	hpx_lite/src/hpx.cpp
+#	hpx_lite/src/id_type.cpp
+#	hpx_lite/src/thread.cpp
+#	hpx_lite/src/future.cpp
+#	hpx_lite/src/mutex.cpp
+#	hpx_lite/src/serialize.cpp
+#)
 
 
 #add_executable( cosmictiger_lite
@@ -102,7 +102,7 @@ target_link_libraries(cosmictiger PUBLIC cuda cudart tcmalloc)
 #target_link_libraries(cosmictiger_lite PUBLIC boost_program_options hpx_lite cuda cudart tcmalloc  hwloc)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 #target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} /home/dmarce1/workspace/cosmictiger/hpx_lite)
-target_include_directories(hpx_lite PUBLIC  /home/dmarce1/workspace/cosmictiger/hpx_lite)
+#target_include_directories(hpx_lite PUBLIC  /home/dmarce1/workspace/cosmictiger/hpx_lite)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                        --maxrregcount 168 --use_fast_math --gpu-architecture=compute_75;

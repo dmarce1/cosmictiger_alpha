@@ -12,263 +12,266 @@ particle_set *tree::particles;
 static unified_allocator kick_params_alloc;
 
 void tree::set_particle_set(particle_set *parts) {
-   particles = parts;
+	particles = parts;
 }
 
+static int cuda_block_count;
 std::atomic<int> tree::cuda_node_count(0);
 std::atomic<int> tree::cpu_node_count(0);
 
 CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
-   int lev = 12;
-   while (1) {
-      int N = 1 << (lev / NDIM);
-      double dx = 0.25 * N;
-      double a;
-      if (lev % NDIM == 0) {
-         a = std::sqrt(3);
-      } else if (lev % NDIM == 1) {
-         a = 1.5;
-      } else {
-         a = std::sqrt(1.5);
-      }
-      double r = (1.0 + SINK_BIAS) * a / theta + h * N;
-      if (dx > r) {
-         break;
-      }
-      lev++;
-   }
-   return lev;
+	int lev = 12;
+	while (1) {
+		int N = 1 << (lev / NDIM);
+		double dx = 0.25 * N;
+		double a;
+		if (lev % NDIM == 0) {
+			a = std::sqrt(3);
+		} else if (lev % NDIM == 1) {
+			a = 1.5;
+		} else {
+			a = std::sqrt(1.5);
+		}
+		double r = (1.0 + SINK_BIAS) * a / theta + h * N;
+		if (dx > r) {
+			break;
+		}
+		lev++;
+	}
+	return lev;
 }
 
 int cuda_depth() {
-   return 12;
+	return 12;
 }
 
 hpx::future<sort_return> tree::create_child(sort_params &params) {
-   static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
-   tree_ptr id;
-   //  id.rank = 0;
-   id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
-   CHECK_POINTER(id.ptr);
-   const auto nparts = (*params.bounds)[params.key_end] - (*params.bounds)[params.key_begin];
-   bool thread = false;
-   if (nparts > TREE_MIN_PARTS2THREAD) {
-      if (++threads_used <= hpx::thread::hardware_concurrency()) {
-         thread = true;
-      } else {
-         threads_used--;
-      }
-   }
+	static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
+	tree_ptr id;
+	//  id.rank = 0;
+	id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
+	CHECK_POINTER(id.ptr);
+	const auto nparts = (*params.bounds)[params.key_end] - (*params.bounds)[params.key_begin];
+	bool thread = false;
+	if (nparts > TREE_MIN_PARTS2THREAD) {
+		if (++threads_used <= hpx::thread::hardware_concurrency()) {
+			thread = true;
+		} else {
+			threads_used--;
+		}
+	}
 #ifdef TEST_STACK
-   thread = false;
+	thread = false;
 #endif
-   if (!thread) {
-      sort_return rc = ((tree*) (id.ptr))->sort(params);
-      rc.check = id;
-      return hpx::make_ready_future(std::move(rc));
-   } else {
-      params.allocs = std::make_shared<tree_alloc>();
-      return hpx::async([id, params]() {
-         auto rc = ((tree*) (id.ptr))->sort(params);
-         rc.check = id;
-         threads_used--;
-         return rc;
-      });
-   }
+	if (!thread) {
+		sort_return rc = ((tree*) (id.ptr))->sort(params);
+		rc.check = id;
+		return hpx::make_ready_future(std::move(rc));
+	} else {
+		params.allocs = std::make_shared<tree_alloc>();
+		return hpx::async([id, params]() {
+			auto rc = ((tree*) (id.ptr))->sort(params);
+			rc.check = id;
+			threads_used--;
+			return rc;
+		});
+	}
 }
 
 sort_return tree::sort(sort_params params) {
-   const auto &opts = global().opts;
-   if (params.iamroot()) {
-      params.set_root();
-      params.min_depth = ewald_min_level(global().opts.theta, global().opts.hsoft);
-      printf( "min ewald = %i\n", params.min_depth);
-   }
-   {
-      const auto bnds = params.get_bounds();
-      parts.first = bnds.first;
-      parts.second = bnds.second;
-   }
-   if (params.depth == TREE_MAX_DEPTH) {
-      printf("Exceeded maximum tree depth\n");
-      abort();
-   }
+	const auto &opts = global().opts;
+	if (params.iamroot()) {
+		params.set_root();
+		params.min_depth = ewald_min_level(global().opts.theta, global().opts.hsoft);
+		printf("min ewald = %i\n", params.min_depth);
+	}
+	{
+		const auto bnds = params.get_bounds();
+		parts.first = bnds.first;
+		parts.second = bnds.second;
+	}
+	if (params.depth == TREE_MAX_DEPTH) {
+		printf("Exceeded maximum tree depth\n");
+		abort();
+	}
 
-   //  multi = params.allocs->multi_alloc.allocate();
-   if (params.depth == cuda_depth()) {
-      cuda_node_count++;
-   } else if (params.depth < cuda_depth()) {
-      cpu_node_count++;
-   }
+	//  multi = params.allocs->multi_alloc.allocate();
+	if (params.depth == cuda_depth()) {
+		cuda_node_count++;
+	} else if (params.depth < cuda_depth()) {
+		cpu_node_count++;
+	}
 #ifdef TEST_TREE
-   const auto &box = params.box;
-   bool failed = false;
-   for (size_t i = parts.first; i < parts.second; i++) {
-      particle p = particles->part(i);
-      if (!box.contains(p.x)) {
-         printf("Particle out of range !\n");
-         printf("Box\n");
-         for (int dim = 0; dim < NDIM; dim++) {
-            printf("%e %e |", box.begin[dim].to_float(), box.end[dim].to_float());
-         }
-         printf("\n");
-         printf("Particle\n");
-         for (int dim = 0; dim < NDIM; dim++) {
-            printf("%e ", p.x[dim].to_float());
-         }
-         printf("\n");
-         //       abort();
-         failed = true;
-      }
-   }
-   if (failed) {
-      // abort();
-   }
+	const auto &box = params.box;
+	bool failed = false;
+	for (size_t i = parts.first; i < parts.second; i++) {
+		particle p = particles->part(i);
+		if (!box.contains(p.x)) {
+			printf("Particle out of range !\n");
+			printf("Box\n");
+			for (int dim = 0; dim < NDIM; dim++) {
+				printf("%e %e |", box.begin[dim].to_float(), box.end[dim].to_float());
+			}
+			printf("\n");
+			printf("Particle\n");
+			for (int dim = 0; dim < NDIM; dim++) {
+				printf("%e ", p.x[dim].to_float());
+			}
+			printf("\n");
+			//       abort();
+			failed = true;
+		}
+	}
+	if (failed) {
+		// abort();
+	}
 #endif
 #ifdef TEST_STACK
-   {
-      uint8_t dummy;
-      printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
-   }
+	{
+		uint8_t dummy;
+		printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
+	}
 #endif
-   if (parts.second - parts.first > MAX_BUCKET_SIZE /*|| params.depth < params.min_depth*/) {
-      std::array<fast_future<sort_return>, NCHILD> futs;
-      {
-         const auto size = parts.second - parts.first;
-         auto child_params = params.get_children();
-         if (params.key_end - params.key_begin == 1) {
+	if (parts.second - parts.first > MAX_BUCKET_SIZE /*|| params.depth < params.min_depth*/) {
+		std::array<fast_future<sort_return>, NCHILD> futs;
+		{
+			const auto size = parts.second - parts.first;
+			auto child_params = params.get_children();
+			if (params.key_end - params.key_begin == 1) {
 #ifndef TEST_TREE
-            const auto &box = params.box;
+				const auto &box = params.box;
 #endif
-            int radix_depth = (int(log(double(size+1) / MAX_BUCKET_SIZE) / log(2) + TREE_RADIX_CUSHION));
-            radix_depth = std::min(std::max(radix_depth, TREE_RADIX_MIN), TREE_RADIX_MAX) + params.depth;
-            const auto radix_begin = morton_key(box.begin, radix_depth);
-            std::array<fixed64, NDIM> tmp;
-            for (int dim = 0; dim < NDIM; dim++) {
-               tmp[dim] = box.end[dim] - fixed32::min();
-            }
-            const auto radix_end = morton_key(tmp, radix_depth) + 1;
-            auto bounds = particles->local_sort(parts.first, parts.second, radix_depth, radix_begin, radix_end);
-            assert(bounds[0] >= parts.first);
-            assert(bounds[bounds.size() - 1] <= parts.second);
-            auto bndptr = std::make_shared<decltype(bounds)>(std::move(bounds));
-            for (int ci = 0; ci < NCHILD; ci++) {
-               child_params[ci].bounds = bndptr;
-            }
-            child_params[LEFT].key_begin = 0;
-            child_params[LEFT].key_end = child_params[RIGHT].key_begin = (radix_end - radix_begin) / 2;
-            child_params[RIGHT].key_end = (radix_end - radix_begin);
-         }
-         for (int ci = 0; ci < NCHILD; ci++) {
-            futs[ci] = create_child(child_params[ci]);
-         }
-      }
-      std::array<multipole, NCHILD> Mc;
-      std::array<fixed32*, NCHILD> Xc;
-      std::array<float, NCHILD> Rc;
-      auto &M = (multi);
-      for (int ci = 0; ci < NCHILD; ci++) {
-         sort_return rc = futs[ci].get();
-         children[ci] = rc.check;
-         Mc[ci] = ((tree*) rc.check)->multi;
-         Xc[ci] = ((tree*) rc.check)->pos.data();
-         children[ci] = rc.check;
-      }
-      std::array<double, NDIM> com = { 0, 0, 0 };
-      const auto &MR = Mc[RIGHT];
-      const auto &ML = Mc[LEFT];
-      M() = ML() + MR();
-      double rleft = 0.0;
-      double rright = 0.0;
-      for (int dim = 0; dim < NDIM; dim++) {
-         com[dim] = (ML() * Xc[LEFT][dim].to_double() + MR() * Xc[RIGHT][dim].to_double()) / (ML() + MR());
-         pos[dim] = com[dim];
-         rleft += sqr(Xc[LEFT][dim].to_double() - com[dim]);
-         rright += sqr(Xc[RIGHT][dim].to_double() - com[dim]);
-      }
-      std::array<double, NDIM> xl, xr;
-      for (int dim = 0; dim < NDIM; dim++) {
-         xl[dim] = Xc[LEFT][dim].to_double() - com[dim];
-         xr[dim] = Xc[RIGHT][dim].to_double() - com[dim];
-      }
-      M = (ML >> xl) + (MR >> xr);
-      rleft = std::sqrt(rleft) + ((tree*) children[LEFT])->radius;
-      rright = std::sqrt(rright) + ((tree*) children[RIGHT])->radius;
-      radius = std::max(rleft, rright);
-      float rmax = 0.0;
-      const auto corners = params.box.get_corners();
-      for (int ci = 0; ci < NCORNERS; ci++) {
-         double d = 0.0;
-         for (int dim = 0; dim < NDIM; dim++) {
-            d += sqr(com[dim] - corners[ci][dim].to_double());
-         }
-         rmax = std::max((float) std::sqrt(d), rmax);
-      }
-      radius = std::min(radius, rmax);
-      //    printf("x      = %e\n", pos[0].to_float());
-      //   printf("y      = %e\n", pos[1].to_float());
-      //  printf("z      = %e\n", pos[2].to_float());
-      // printf("radius = %e\n", radius);
-   } else {
-      std::array<double, NDIM> com = { 0, 0, 0 };
-      for (auto i = parts.first; i < parts.second; i++) {
-         for (int dim = 0; dim < NDIM; dim++) {
-            com[dim] += particles->pos(dim, i).to_double();
-         }
-      }
-      for (int dim = 0; dim < NDIM; dim++) {
-         com[dim] /= (parts.second - parts.first);
-         pos[dim] = com[dim];
+				int radix_depth = (int(log(double(size + 1) / MAX_BUCKET_SIZE) / log(2) + TREE_RADIX_CUSHION));
+				radix_depth = std::min(std::max(radix_depth, TREE_RADIX_MIN), TREE_RADIX_MAX) + params.depth;
+				const auto radix_begin = morton_key(box.begin, radix_depth);
+				std::array<fixed64, NDIM> tmp;
+				for (int dim = 0; dim < NDIM; dim++) {
+					tmp[dim] = box.end[dim] - fixed32::min();
+				}
+				const auto radix_end = morton_key(tmp, radix_depth) + 1;
+				auto bounds = particles->local_sort(parts.first, parts.second, radix_depth, radix_begin, radix_end);
+				assert(bounds[0] >= parts.first);
+				assert(bounds[bounds.size() - 1] <= parts.second);
+				auto bndptr = std::make_shared<decltype(bounds)>(std::move(bounds));
+				for (int ci = 0; ci < NCHILD; ci++) {
+					child_params[ci].bounds = bndptr;
+				}
+				child_params[LEFT].key_begin = 0;
+				child_params[LEFT].key_end = child_params[RIGHT].key_begin = (radix_end - radix_begin) / 2;
+				child_params[RIGHT].key_end = (radix_end - radix_begin);
+			}
+			for (int ci = 0; ci < NCHILD; ci++) {
+				futs[ci] = create_child(child_params[ci]);
+			}
+		}
+		std::array<multipole, NCHILD> Mc;
+		std::array<fixed32*, NCHILD> Xc;
+		std::array<float, NCHILD> Rc;
+		auto &M = (multi);
+		for (int ci = 0; ci < NCHILD; ci++) {
+			sort_return rc = futs[ci].get();
+			children[ci] = rc.check;
+			Mc[ci] = ((tree*) rc.check)->multi;
+			Xc[ci] = ((tree*) rc.check)->pos.data();
+			children[ci] = rc.check;
+		}
+		std::array<double, NDIM> com = { 0, 0, 0 };
+		const auto &MR = Mc[RIGHT];
+		const auto &ML = Mc[LEFT];
+		M() = ML() + MR();
+		double rleft = 0.0;
+		double rright = 0.0;
+		for (int dim = 0; dim < NDIM; dim++) {
+			com[dim] = (ML() * Xc[LEFT][dim].to_double() + MR() * Xc[RIGHT][dim].to_double()) / (ML() + MR());
+			pos[dim] = com[dim];
+			rleft += sqr(Xc[LEFT][dim].to_double() - com[dim]);
+			rright += sqr(Xc[RIGHT][dim].to_double() - com[dim]);
+		}
+		std::array<double, NDIM> xl, xr;
+		for (int dim = 0; dim < NDIM; dim++) {
+			xl[dim] = Xc[LEFT][dim].to_double() - com[dim];
+			xr[dim] = Xc[RIGHT][dim].to_double() - com[dim];
+		}
+		M = (ML >> xl) + (MR >> xr);
+		rleft = std::sqrt(rleft) + ((tree*) children[LEFT])->radius;
+		rright = std::sqrt(rright) + ((tree*) children[RIGHT])->radius;
+		radius = std::max(rleft, rright);
+		float rmax = 0.0;
+		const auto corners = params.box.get_corners();
+		for (int ci = 0; ci < NCORNERS; ci++) {
+			double d = 0.0;
+			for (int dim = 0; dim < NDIM; dim++) {
+				d += sqr(com[dim] - corners[ci][dim].to_double());
+			}
+			rmax = std::max((float) std::sqrt(d), rmax);
+		}
+		radius = std::min(radius, rmax);
+		//    printf("x      = %e\n", pos[0].to_float());
+		//   printf("y      = %e\n", pos[1].to_float());
+		//  printf("z      = %e\n", pos[2].to_float());
+		// printf("radius = %e\n", radius);
+	} else {
+		std::array<double, NDIM> com = { 0, 0, 0 };
+		for (auto i = parts.first; i < parts.second; i++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				com[dim] += particles->pos(dim, i).to_double();
+			}
+		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			com[dim] /= (parts.second - parts.first);
+			pos[dim] = com[dim];
 
-      }
-      auto &M = (multi);
-      M = 0.0;
-      radius = 0.0;
-      for (auto i = parts.first; i < parts.second; i++) {
-         double this_radius = 0.0;
-         M() += 1.0;
-         for (int n = 0; n < NDIM; n++) {
-            const auto xn = particles->pos(n, i).to_double() - com[n];
-            this_radius += xn * xn;
-            for (int m = n; m < NDIM; m++) {
-               const auto xm = particles->pos(m, i).to_double() - com[m];
-               const auto xnm = xn * xm;
-               M(n, m) += xnm;
-               for (int l = m; l > NDIM; l++) {
-                  const auto xl = particles->pos(l, i).to_double() - com[l];
-                  M(n, m, l) -= xnm * xl;
-               }
-            }
-         }
-         this_radius = std::sqrt(this_radius);
-         radius = std::max(radius, (float) (this_radius));
-      }
-      parts.first = parts.first;
-      parts.second = parts.second;
-   }
-   sort_return rc;
-   return rc;
+		}
+		auto &M = (multi);
+		M = 0.0;
+		radius = 0.0;
+		for (auto i = parts.first; i < parts.second; i++) {
+			double this_radius = 0.0;
+			M() += 1.0;
+			for (int n = 0; n < NDIM; n++) {
+				const auto xn = particles->pos(n, i).to_double() - com[n];
+				this_radius += xn * xn;
+				for (int m = n; m < NDIM; m++) {
+					const auto xm = particles->pos(m, i).to_double() - com[m];
+					const auto xnm = xn * xm;
+					M(n, m) += xnm;
+					for (int l = m; l > NDIM; l++) {
+						const auto xl = particles->pos(l, i).to_double() - com[l];
+						M(n, m, l) -= xnm * xl;
+					}
+				}
+			}
+			this_radius = std::sqrt(this_radius);
+			radius = std::max(radius, (float) (this_radius));
+		}
+		parts.first = parts.first;
+		parts.second = parts.second;
+	}
+	sort_return rc;
+	return rc;
 }
 
 hpx::lcos::local::mutex tree::mtx;
 hpx::lcos::local::mutex tree::gpu_mtx;
 
 void tree::cleanup() {
-   shutdown_daemon = true;
-   while (daemon_running) {
-      hpx::this_thread::yield();
-   }
+	shutdown_daemon = true;
+	while (daemon_running) {
+		hpx::this_thread::yield();
+	}
 }
 
 hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool thread, bool gpu) {
-   kick_params_type &params = *params_ptr;
-   const auto part_begin = ((tree*) (*this))->parts.first;
-   const auto part_end = ((tree*) (*this))->parts.second;
-   if (part_end - part_begin <= 1024*96) {
+	kick_params_type &params = *params_ptr;
+	const auto part_begin = ((tree*) (*this))->parts.first;
+	const auto part_end = ((tree*) (*this))->parts.second;
+	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
+	const auto gpu_partcnt = global().opts.nparts / (sm_count * KICK_OCCUPANCY);
+	if (part_end - part_begin <= params.cuda_cutoff) {
 //   if (params_ptr->depth == cuda_depth()) {
 //   if (gpu) {
-      return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
-   } else {
+		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
+	} else {
 //      static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
 //      //   thread = false;
 //      if (thread) {
@@ -276,33 +279,34 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
 //            threads_used--;
 //         }
 //      }
-      if (thread) {
-         kick_params_type *new_params;
-         new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
-         new (new_params) kick_params_type;
-         new_params->dchecks = params_ptr->dchecks.copy_top();
-         new_params->echecks = params_ptr->echecks.copy_top();
-         new_params->L[params_ptr->depth] = params_ptr->L[params_ptr->depth];
-         new_params->Lpos[params_ptr->depth] = params_ptr->Lpos[params_ptr->depth];
-         new_params->depth = params_ptr->depth;
-         new_params->theta = params_ptr->theta;
-         new_params->eta = params_ptr->eta;
-         new_params->scale = params_ptr->scale;
-         new_params->t0 = params_ptr->t0;
-         new_params->rung = params_ptr->rung;
-         auto func = [this, new_params]() {
-            auto rc = ((tree*) ptr)->kick(new_params);
-            new_params->kick_params_type::~kick_params_type();
-            kick_params_alloc.deallocate(new_params);
-         //   threads_used--;
-            return rc;
-         };
-         auto fut = hpx::async(std::move(func));
-         return std::move(fut);
-      } else {
-         return hpx::make_ready_future(((tree*) ptr)->kick(params_ptr));
-      }
-   }
+		if (thread) {
+			kick_params_type *new_params;
+			new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
+			new (new_params) kick_params_type;
+			new_params->dchecks = params_ptr->dchecks.copy_top();
+			new_params->echecks = params_ptr->echecks.copy_top();
+			new_params->L[params_ptr->depth] = params_ptr->L[params_ptr->depth];
+			new_params->Lpos[params_ptr->depth] = params_ptr->Lpos[params_ptr->depth];
+			new_params->depth = params_ptr->depth;
+			new_params->theta = params_ptr->theta;
+			new_params->eta = params_ptr->eta;
+			new_params->scale = params_ptr->scale;
+			new_params->t0 = params_ptr->t0;
+			new_params->rung = params_ptr->rung;
+			new_params->cuda_cutoff = params_ptr->cuda_cutoff;
+			auto func = [this, new_params]() {
+				auto rc = ((tree*) ptr)->kick(new_params);
+				new_params->kick_params_type::~kick_params_type();
+				kick_params_alloc.deallocate(new_params);
+				//   threads_used--;
+					return rc;
+				};
+			auto fut = hpx::async(std::move(func));
+			return std::move(fut);
+		} else {
+			return hpx::make_ready_future(((tree*) ptr)->kick(params_ptr));
+		}
+	}
 }
 
 #define CC_CP_DIRECT 0
@@ -313,167 +317,182 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
 
 //int num_kicks = 0;
 hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
-   kick_params_type &params = *params_ptr;
+	kick_params_type &params = *params_ptr;
+
+	if (params.depth == 0) {
+		const auto sm_count = global().cuda.devices[0].multiProcessorCount;
+		int target = (sm_count * KICK_OCCUPANCY);
+		int pcnt = parts.second - parts.first;
+		int count;
+		do {
+			count = compute_block_count(pcnt);
+			if (count < target) {
+				pcnt /= 2;
+			}
+		} while (count < target);
+		params.cuda_cutoff = pcnt;
+		cuda_block_count = count;
+	}
 
 #ifdef TEST_CHECKLIST_TIME
-   static timer tm;
+	static timer tm;
 #endif
-   kick_return rc;
-   rc.flops = 0;
-   //  printf( "%li\n", params.depth);
-   assert(params.depth < TREE_MAX_DEPTH);
-   auto &L = params.L[params.depth];
-   const auto &Lpos = params.Lpos[params.depth];
-   array<float, NDIM> dx;
-   for (int dim = 0; dim < NDIM; dim++) {
-      const auto x1 = pos[dim];
-      const auto x2 = Lpos[dim];
-      dx[dim] = distance(x1,  x2);
-   }
-   L <<= dx;
+	kick_return rc;
+	rc.flops = 0;
+	//  printf( "%li\n", params.depth);
+	assert(params.depth < TREE_MAX_DEPTH);
+	auto &L = params.L[params.depth];
+	const auto &Lpos = params.Lpos[params.depth];
+	array<float, NDIM> dx;
+	for (int dim = 0; dim < NDIM; dim++) {
+		const auto x1 = pos[dim];
+		const auto x2 = Lpos[dim];
+		dx[dim] = distance(x1, x2);
+	}
+	L <<= dx;
 
-   const auto theta2 = sqr(std::min((float)params.theta,(float)0.4));
-   array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
-   auto &multis = params.multi_interactions;
-   auto &parti = params.part_interactions;
-   auto &next_checks = params.next_checks;
-   int ninteractions = is_leaf() ? 4 : 2;
-   bool found_ewald = false;
-   for (int type = 0; type < ninteractions; type++) {
-      const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
-      auto &checks = ewald_dist ? params.echecks : params.dchecks;
-      const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
-      parti.resize(0);
-      multis.resize(0);
-      do {
-         next_checks.resize(0);
+	const auto theta2 = sqr(std::min((float) params.theta, (float) 0.4));
+	array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
+	auto &multis = params.multi_interactions;
+	auto &parti = params.part_interactions;
+	auto &next_checks = params.next_checks;
+	int ninteractions = is_leaf() ? 4 : 2;
+	bool found_ewald = false;
+	for (int type = 0; type < ninteractions; type++) {
+		const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
+		auto &checks = ewald_dist ? params.echecks : params.dchecks;
+		const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
+		parti.resize(0);
+		multis.resize(0);
+		do {
+			next_checks.resize(0);
 #ifdef TEST_CHECKLIST_TIME
-         tm.start();
+			tm.start();
 #endif
-         for (int ci = 0; ci < checks.size(); ci++) {
-            const auto other_radius = checks[ci].get_radius();
-            const auto other_pos = checks[ci].get_pos();
-            float d2 = 0.f;
-            const float R2 = sqr(other_radius + SINK_BIAS * radius);
+			for (int ci = 0; ci < checks.size(); ci++) {
+				const auto other_radius = checks[ci].get_radius();
+				const auto other_pos = checks[ci].get_pos();
+				float d2 = 0.f;
+				const float R2 = sqr(other_radius + SINK_BIAS * radius);
 #ifdef PERIODIC_OFF
-            for (int dim = 0; dim < NDIM; dim++) {
-               d2 += sqr(other_pos[dim].to_float() - pos[dim].to_float());
-            }
+				for (int dim = 0; dim < NDIM; dim++) {
+					d2 += sqr(other_pos[dim].to_float() - pos[dim].to_float());
+				}
 #else
-            for (int dim = 0; dim < NDIM; dim++) {
-               d2 += sqr(distance(other_pos[dim], pos[dim]));
-            }
+				for (int dim = 0; dim < NDIM; dim++) {
+					d2 += sqr(distance(other_pos[dim], pos[dim]));
+				}
 #endif
-            if (ewald_dist) {
-               d2 = std::max(d2, EWALD_MIN_DIST2);
-            }
-            const bool far = R2 < theta2 * d2;
-            //         const bool opened = checks[ci].opened++;
-            if (!direct) {
-               if (far) {
-                  if (checks[ci].opened) {
-                     parti.push_back(checks[ci]);
-                  } else {
-                     multis.push_back(checks[ci]);
-                  }
-               } else {
-                  if (checks[ci].is_leaf()) {
-                     next_checks.push_back(checks[ci]);
-                  } else {
-                     const auto child_checks = checks[ci].get_children().get();
-                     next_checks.push_back(child_checks[LEFT]);
-                     next_checks.push_back(child_checks[RIGHT]);
-                  }
-               }
-            } else {
-               if (far) {
-                  if (checks[ci].opened) {
-                     parti.push_back(checks[ci]);
-                  } else {
-                     multis.push_back(checks[ci]);
-                  }
-               } else {
-                  if (checks[ci].opened) {
-                     parti.push_back(checks[ci]);
-                  } else {
-                     if (checks[ci].is_leaf()) {
-                        next_checks.push_back(checks[ci]);
-                     } else {
-                        const auto child_checks = checks[ci].get_children().get();
-                        next_checks.push_back(child_checks[LEFT]);
-                        next_checks.push_back(child_checks[RIGHT]);
-                     }
-                  }
-               }
-            }
-            if (checks[ci].is_leaf()) {
-               checks[ci].opened++;
-            }
-         }
+				if (ewald_dist) {
+					d2 = std::max(d2, EWALD_MIN_DIST2);
+				}
+				const bool far = R2 < theta2 * d2;
+				//         const bool opened = checks[ci].opened++;
+				if (!direct) {
+					if (far) {
+						if (checks[ci].opened) {
+							parti.push_back(checks[ci]);
+						} else {
+							multis.push_back(checks[ci]);
+						}
+					} else {
+						if (checks[ci].is_leaf()) {
+							next_checks.push_back(checks[ci]);
+						} else {
+							const auto child_checks = checks[ci].get_children().get();
+							next_checks.push_back(child_checks[LEFT]);
+							next_checks.push_back(child_checks[RIGHT]);
+						}
+					}
+				} else {
+					if (far) {
+						if (checks[ci].opened) {
+							parti.push_back(checks[ci]);
+						} else {
+							multis.push_back(checks[ci]);
+						}
+					} else {
+						if (checks[ci].opened) {
+							parti.push_back(checks[ci]);
+						} else {
+							if (checks[ci].is_leaf()) {
+								next_checks.push_back(checks[ci]);
+							} else {
+								const auto child_checks = checks[ci].get_children().get();
+								next_checks.push_back(child_checks[LEFT]);
+								next_checks.push_back(child_checks[RIGHT]);
+							}
+						}
+					}
+				}
+				if (checks[ci].is_leaf()) {
+					checks[ci].opened++;
+				}
+			}
 #ifdef TEST_CHECKLIST_TIME
-      tm.stop();
+			tm.stop();
 #endif
-         checks.resize(0);
-         for (int i = 0; i < next_checks.size(); i++) {
-            checks.push(next_checks[i]);
-         }
-      } while (direct && checks.size());
+			checks.resize(0);
+			for (int i = 0; i < next_checks.size(); i++) {
+				checks.push(next_checks[i]);
+			}
+		} while (direct && checks.size());
 
-      switch (type) {
-      case CC_CP_DIRECT:
-         rc.flops += cpu_cc_direct(params_ptr);
-         if (parti.size()) {
-            //           printf("CP_DIRECT found on CPU\n");
-            //          abort();
-         }
-         break;
-      case CC_CP_EWALD:
+		switch (type) {
+		case CC_CP_DIRECT:
+			rc.flops += cpu_cc_direct(params_ptr);
+			if (parti.size()) {
+				//           printf("CP_DIRECT found on CPU\n");
+				//          abort();
+			}
+			break;
+		case CC_CP_EWALD:
 #ifndef PERIODIC_OFF
-         if (multis.size()) {
-            found_ewald = true;
-            auto tmp = send_ewald_to_gpu(params_ptr).get();
-            //     printf( "%i\n", tmp);
-            rc.flops += tmp;
-         } else {
-            if (params.depth < cuda_depth()) {
-               cpu_node_count--;
-            }
-         }
+			if (multis.size()) {
+				found_ewald = true;
+				auto tmp = send_ewald_to_gpu(params_ptr).get();
+				//     printf( "%i\n", tmp);
+				rc.flops += tmp;
+			} else {
+				if (params.depth < cuda_depth()) {
+					cpu_node_count--;
+				}
+			}
 #endif
-         break;
-      case PC_PP_DIRECT:
-         //       printf("PC_PP_DIRECT on CPU\n");
-         printf("%i %i %i\n", multis.size(), parti.size(), params_ptr->depth);
-         break;
-      case PC_PP_EWALD:
-         //        printf("PC_PP_EWALD on CPU\n");
-         break;
-      }
+			break;
+		case PC_PP_DIRECT:
+			//       printf("PC_PP_DIRECT on CPU\n");
+			printf("%i %i %i\n", multis.size(), parti.size(), params_ptr->depth);
+			break;
+		case PC_PP_EWALD:
+			//        printf("PC_PP_EWALD on CPU\n");
+			break;
+		}
 
-   }
+	}
 //  printf( "%li\n", params.depth);
-   if (!is_leaf()) {
+	if (!is_leaf()) {
 // printf("4\n");
-      const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
-      int depth0 = params.depth;
-      params.depth++;
-      params.dchecks.push_top();
-      params.echecks.push_top();
-      params.L[params.depth] = L;
-      params.Lpos[params.depth] = pos;
-      array<hpx::future<kick_return>, NCHILD> futs;
-      futs[LEFT] = children[LEFT].kick(params_ptr, try_thread, found_ewald);
+		const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
+		int depth0 = params.depth;
+		params.depth++;
+		params.dchecks.push_top();
+		params.echecks.push_top();
+		params.L[params.depth] = L;
+		params.Lpos[params.depth] = pos;
+		array<hpx::future<kick_return>, NCHILD> futs;
+		futs[LEFT] = children[LEFT].kick(params_ptr, try_thread, found_ewald);
 
 //  printf("5\n");
-      params.dchecks.pop_top();
-      params.echecks.pop_top();
-      params.L[params.depth] = L;
-      futs[RIGHT] = children[RIGHT].kick(params_ptr, false, found_ewald);
-      params.depth--;
-      if (params.depth != depth0) {
-         printf("error\n");
-         abort();
-      }
+		params.dchecks.pop_top();
+		params.echecks.pop_top();
+		params.L[params.depth] = L;
+		futs[RIGHT] = children[RIGHT].kick(params_ptr, false, found_ewald);
+		params.depth--;
+		if (params.depth != depth0) {
+			printf("error\n");
+			abort();
+		}
 //  printf("6\n");
 //  if( params.depth != params.dchecks.depth()) {
 //      printf("%li %li\n", params.depth, params.dchecks.depth());
@@ -487,20 +506,20 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 //      rc3.rung = std::max(rc1.rung, rc2.rung);
 //      rc3.flops += rc1.flops + rc2.flops;
 //      return hpx::make_ready_future(rc3);
-      return hpx::when_all(futs.begin(), futs.end()).then(
-            [rc](hpx::future<std::vector<hpx::future<kick_return>>> futfut) {
-               auto futs = futfut.get();
-               auto rc1 = futs[LEFT].get();
-               auto rc2 = futs[RIGHT].get();
-               kick_return rc3 = rc;
-               rc3.rung = std::max(rc1.rung, rc2.rung);
-               rc3.flops += rc1.flops + rc2.flops;
-               return rc3;
-            });
-   } else {
-      rc.rung = 0;
-      return hpx::make_ready_future(rc);
-   }
+		return hpx::when_all(futs.begin(), futs.end()).then(
+				[rc](hpx::future<std::vector<hpx::future<kick_return>>> futfut) {
+					auto futs = futfut.get();
+					auto rc1 = futs[LEFT].get();
+					auto rc2 = futs[RIGHT].get();
+					kick_return rc3 = rc;
+					rc3.rung = std::max(rc1.rung, rc2.rung);
+					rc3.flops += rc1.flops + rc2.flops;
+					return rc3;
+				});
+	} else {
+		rc.rung = 0;
+		return hpx::make_ready_future(rc);
+	}
 }
 
 lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> tree::gpu_queue;
@@ -515,248 +534,241 @@ cuda_exec_return cuda_execute_kick_kernel(kick_params_type **params, int grid_si
 void cuda_execute_ewald_cc_kernel(kick_params_type *params_ptr);
 
 void tree::gpu_daemon() {
-   static bool first_call = true;
-   static std::vector<std::function<bool()>> completions;
-   static timer timer;
-   static int grid_count;
-   static int grid_ewald_count;
-   static bool skip;
-   static bool ewald_skip;
-   static double wait_time = 1.0e-2;
-   if (first_call) {
-      printf("Starting gpu daemon\n");
-      timer.reset();
-      timer.start();
-      grid_count = 0;
-      grid_ewald_count = 0;
-      first_call = false;
-   }
-   int i = 0;
-   while (i < completions.size()) {
-      if (completions[i]()) {
-         completions[i] = completions.back();
-         completions.pop_back();
-      } else {
-         i++;
-      }
-   }
-   timer.stop();
-   if (timer.read() > wait_time) {
-      timer.reset();
-      timer.start();
-      bool found_ewald = false;
-      if (gpu_ewald_queue.size() > 0) {
-         while (gpu_ewald_queue.size() > 0) {
-            found_ewald = true;
-            wait_time = 1.0e-2;
-            int grid_size = gpu_ewald_queue.size();
-            int ogrid_size = grid_size;
-            int n = 2;
-            while (grid_size > KICK_EWALD_GRID_SIZE) {
-               grid_size = ogrid_size / n;
-               n++;
-            }
-            grid_ewald_count += grid_size;
-            auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<int32_t>>>();
-            unified_allocator all_params_alloc;
-            kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate(
-                  grid_size * sizeof(kick_params_type*));
-            for (int i = 0; i < grid_size; i++) {
-               auto tmp = gpu_ewald_queue.pop();
-               all_params[i] = tmp.params;
-               promises->push_back(std::move(tmp.promise));
-            }
-            printf("Executing %i ewald blocks\n", grid_size);
-            auto exec_ret = cuda_execute_ewald_kernel(all_params, grid_size);
-            completions.push_back(std::function < bool() > ([=]() {
-               if (exec_ret()) {
-                  printf("Done executing %i ewald blocks\n", grid_size);
-                  for (int i = 0; i < grid_size; i++) {
-                     (*promises)[i].set_value(all_params[i]->flops);
-                  }
-                  unified_allocator all_params_alloc;
-                  all_params_alloc.deallocate(all_params);
-                  return true;
-               } else {
-                  return false;
-               }
-            }));
-         }
-      } else {
-         if (gpu_queue.size() >= 2 * KICK_GRID_SIZE && !found_ewald) {
-            wait_time /= 2.0;
-         } else if (gpu_queue.size() <= KICK_GRID_SIZE / 2) {
-            wait_time *= 2.0;
-         }
-         wait_time = std::max(wait_time, 1.0e-3);
-         wait_time = std::min(wait_time, 1.0e-1);
-         while (gpu_queue.size() > 0) {
-            int grid_size = gpu_queue.size();
-            int ogrid_size = grid_size;
-            int n = 2;
-            while (grid_size > KICK_GRID_SIZE) {
-               grid_size = ogrid_size / n;
-               n++;
-            }
-            grid_count += grid_size;
-            auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<kick_return>>>();
-            auto deleters = std::make_shared<std::vector<std::function<void()>> >();
-            unified_allocator calloc;
-            kick_params_type *all_params = (kick_params_type*) calloc.allocate(grid_size * sizeof(kick_params_type));
-            auto stream = get_stream();
-            for (int i = 0; i < grid_size; i++) {
-               auto tmp = gpu_queue.pop();
-               //      particles->prefetch(tmp.parts.first,tmp.parts.second,stream);
-               deleters->push_back(tmp.params->dchecks.to_device(stream));
-               deleters->push_back(tmp.params->echecks.to_device(stream));
-               memcpy(all_params + i, tmp.params, sizeof(kick_params_type));
-               auto tmpparams = tmp.params;
-               deleters->push_back([tmpparams]() {
-                  kick_params_alloc.deallocate(tmpparams);
-               });
-               promises->push_back(std::move(tmp.promise));
-            }
-            deleters->push_back([calloc, all_params]() {
-               unified_allocator calloc;
-               calloc.deallocate(all_params);
-            });
-            void *test;
-            //        CUDA_CHECK(cudaMemPrefetchAsync(all_params, grid_size * sizeof(kick_params_type), 0, stream));
-            printf("Executing %i blocks\n", grid_size);
-            auto exec_ret = cuda_execute_kick_kernel(all_params, grid_size, stream);
-            completions.push_back(std::function < bool() > ([=]() {
-               if (exec_ret.first()) {
-                  for (auto &d : *deleters) {
-                     d();
-                  }
-                  for (int i = 0; i < grid_size; i++) {
-                     (*promises)[i].set_value(exec_ret.second[i]);
-                  }
-                  unified_allocator alloc;
-                  alloc.deallocate(exec_ret.second);
-                  printf("Done executing %li blocks\n", promises->size());
-                  return true;
-               } else {
-                  return false;
-               }
-            }));
-         }
-      }
-   } else {
-      timer.start();
-   }
-   if (!shutdown_daemon) {
-      hpx::async(gpu_daemon);
-   } else {
-      first_call = true;
-      daemon_running = false;
-   }
+	static bool first_call = true;
+	static std::vector<std::function<bool()>> completions;
+	static timer timer;
+	static int grid_ewald_count;
+	static bool skip;
+	static bool ewald_skip;
+	static double wait_time = 1.0e-2;
+	if (first_call) {
+		printf("Starting gpu daemon\n");
+		timer.reset();
+		timer.start();
+		grid_ewald_count = 0;
+		first_call = false;
+	}
+	int i = 0;
+	while (i < completions.size()) {
+		if (completions[i]()) {
+			completions[i] = completions.back();
+			completions.pop_back();
+		} else {
+			i++;
+		}
+	}
+	timer.stop();
+	if (timer.read() > wait_time) {
+		timer.reset();
+		timer.start();
+		bool found_ewald = false;
+		if (gpu_ewald_queue.size() > 0) {
+			while (gpu_ewald_queue.size() > 0) {
+				found_ewald = true;
+				wait_time = 1.0e-2;
+				int grid_size = gpu_ewald_queue.size();
+				int ogrid_size = grid_size;
+				int n = 2;
+				while (grid_size > KICK_EWALD_GRID_SIZE) {
+					grid_size = ogrid_size / n;
+					n++;
+				}
+				grid_ewald_count += grid_size;
+				auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<int32_t>>>();
+				unified_allocator all_params_alloc;
+				kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate(
+						grid_size * sizeof(kick_params_type*));
+				for (int i = 0; i < grid_size; i++) {
+					auto tmp = gpu_ewald_queue.pop();
+					all_params[i] = tmp.params;
+					promises->push_back(std::move(tmp.promise));
+				}
+				printf("Executing %i ewald blocks\n", grid_size);
+				auto exec_ret = cuda_execute_ewald_kernel(all_params, grid_size);
+				completions.push_back(std::function<bool()>([=]() {
+					if (exec_ret()) {
+						printf("Done executing %i ewald blocks\n", grid_size);
+						for (int i = 0; i < grid_size; i++) {
+							(*promises)[i].set_value(all_params[i]->flops);
+						}
+						unified_allocator all_params_alloc;
+						all_params_alloc.deallocate(all_params);
+						return true;
+					} else {
+						return false;
+					}
+				}));
+			}
+		} else if (gpu_queue.size() == cuda_block_count) {
+			int grid_size = gpu_queue.size();
+			auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<kick_return>>>();
+			auto deleters = std::make_shared<std::vector<std::function<void()>> >();
+			unified_allocator calloc;
+			kick_params_type *all_params = (kick_params_type*) calloc.allocate(grid_size * sizeof(kick_params_type));
+			auto stream = get_stream();
+			for (int i = 0; i < grid_size; i++) {
+				auto tmp = gpu_queue.pop();
+				//      particles->prefetch(tmp.parts.first,tmp.parts.second,stream);
+				deleters->push_back(tmp.params->dchecks.to_device(stream));
+				deleters->push_back(tmp.params->echecks.to_device(stream));
+				memcpy(all_params + i, tmp.params, sizeof(kick_params_type));
+				auto tmpparams = tmp.params;
+				deleters->push_back([tmpparams]() {
+					kick_params_alloc.deallocate(tmpparams);
+				});
+				promises->push_back(std::move(tmp.promise));
+			}
+			deleters->push_back([calloc, all_params]() {
+				unified_allocator calloc;
+				calloc.deallocate(all_params);
+			});
+			void *test;
+			//        CUDA_CHECK(cudaMemPrefetchAsync(all_params, grid_size * sizeof(kick_params_type), 0, stream));
+			printf("Executing %i blocks\n", grid_size);
+			auto exec_ret = cuda_execute_kick_kernel(all_params, grid_size, stream);
+			completions.push_back(std::function<bool()>([=]() {
+				if (exec_ret.first()) {
+					for (auto &d : *deleters) {
+						d();
+					}
+					for (int i = 0; i < grid_size; i++) {
+						(*promises)[i].set_value(exec_ret.second[i]);
+					}
+					unified_allocator alloc;
+					alloc.deallocate(exec_ret.second);
+					printf("Done executing %li blocks\n", promises->size());
+					return true;
+				} else {
+					return false;
+				}
+			}));
+		}
+	} else {
+		timer.start();
+	}
+	if (!shutdown_daemon) {
+		hpx::async(gpu_daemon);
+	} else {
+		first_call = true;
+		daemon_running = false;
+	}
 }
 
 hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
-   if (!daemon_running) {
-      std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
-      if (!daemon_running) {
-         shutdown_daemon = false;
-         daemon_running = true;
-         hpx::async([]() {
-            gpu_daemon();
-         });
-      }
-   }
+	if (!daemon_running) {
+		std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
+		if (!daemon_running) {
+			shutdown_daemon = false;
+			daemon_running = true;
+			hpx::async([]() {
+				gpu_daemon();
+			});
+		}
+	}
 
-   gpu_kick gpu;
-   tree_ptr me;
-   me.ptr = (uintptr_t)(this);
+	gpu_kick gpu;
+	tree_ptr me;
+	me.ptr = (uintptr_t) (this);
 //   me.rank = hpx_rank();
-   kick_params_type *new_params;
-   new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
-   new (new_params) kick_params_type();
-   new_params->tptr = me;
-   new_params->dchecks = params->dchecks.copy_top();
-   new_params->echecks = params->echecks.copy_top();
-   new_params->L[params->depth] = params->L[params->depth];
-   new_params->Lpos[params->depth] = params->Lpos[params->depth];
-   new_params->depth = params->depth;
-   new_params->theta = params->theta;
-   new_params->eta = params->eta;
-   new_params->scale = params->scale;
-   new_params->t0 = params->t0;
-   new_params->rung = params->rung;
-   gpu.params = new_params;
-   auto fut = gpu.promise.get_future();
-   gpu.parts = parts;
-   gpu_queue.push(std::move(gpu));
+	kick_params_type *new_params;
+	new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
+	new (new_params) kick_params_type();
+	new_params->tptr = me;
+	new_params->dchecks = params->dchecks.copy_top();
+	new_params->echecks = params->echecks.copy_top();
+	new_params->L[params->depth] = params->L[params->depth];
+	new_params->Lpos[params->depth] = params->Lpos[params->depth];
+	new_params->depth = params->depth;
+	new_params->theta = params->theta;
+	new_params->eta = params->eta;
+	new_params->scale = params->scale;
+	new_params->t0 = params->t0;
+	new_params->rung = params->rung;
+	new_params->cuda_cutoff = params->cuda_cutoff;
+	gpu.params = new_params;
+	auto fut = gpu.promise.get_future();
+	gpu.parts = parts;
+	gpu_queue.push(std::move(gpu));
 
-   return std::move(fut);
+	return std::move(fut);
 
 }
 
-hpx::future<int32_t> tree::send_ewald_to_gpu(kick_params_type *params) {
-   if (!daemon_running) {
-      std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
-      if (!daemon_running) {
-         shutdown_daemon = false;
-         daemon_running = true;
-         hpx::async([]() {
-            gpu_daemon();
-         });
-      }
-   }
-   gpu_ewald gpu;
-   tree_ptr me;
-   me.ptr = (uintptr_t)(this);
-//  me.rank = hpx_rank();
-   params->tptr = me;
-   gpu.params = params;
-   auto fut = gpu.promise.get_future();
-   gpu_ewald_queue.push(std::move(gpu));
+int tree::compute_block_count(size_t cutoff) {
+	if (parts.second - parts.first <= cutoff) {
+		return 1;
+	} else {
+		auto left = ((tree*) children[LEFT])->compute_block_count(cutoff);
+		auto right = ((tree*) children[RIGHT])->compute_block_count(cutoff);
+		return left + right;
+	}
+}
 
-   return std::move(fut);
+hpx::future<int32_t> tree::send_ewald_to_gpu(kick_params_type *params) {
+	if (!daemon_running) {
+		std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
+		if (!daemon_running) {
+			shutdown_daemon = false;
+			daemon_running = true;
+			hpx::async([]() {
+				gpu_daemon();
+			});
+		}
+	}
+	gpu_ewald gpu;
+	tree_ptr me;
+	me.ptr = (uintptr_t) (this);
+//  me.rank = hpx_rank();
+	params->tptr = me;
+	gpu.params = params;
+	auto fut = gpu.promise.get_future();
+	gpu_ewald_queue.push(std::move(gpu));
+
+	return std::move(fut);
 
 }
 
 int tree::cpu_cc_direct(kick_params_type *params_ptr) {
-   kick_params_type &params = *params_ptr;
-   auto &L = params.L[params.depth];
-   auto &multis = params.multi_interactions;
-   int flops = 0;
-   if (multis.size()) {
-      array<fixed32, NDIM> X, Y;
-      multipole_type<float> M;
-      expansion<float> Lacc;
-      Lacc = 0;
-      const auto cnt1 = multis.size();
-      for (int dim = 0; dim < NDIM; dim++) {
-         X[dim] = pos[dim];
-      }
-      array<float, NDIM> dX;
-      for (int j = 0; j < cnt1; j++) {
-         for (int dim = 0; dim < NDIM; dim++) {
-            Y[dim] = ((const tree*) multis[j])->pos[dim];
-         }
-         M = (((const tree*) multis[j])->multi);
+	kick_params_type &params = *params_ptr;
+	auto &L = params.L[params.depth];
+	auto &multis = params.multi_interactions;
+	int flops = 0;
+	if (multis.size()) {
+		array<fixed32, NDIM> X, Y;
+		multipole_type<float> M;
+		expansion<float> Lacc;
+		Lacc = 0;
+		const auto cnt1 = multis.size();
+		for (int dim = 0; dim < NDIM; dim++) {
+			X[dim] = pos[dim];
+		}
+		array<float, NDIM> dX;
+		for (int j = 0; j < cnt1; j++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim] = ((const tree*) multis[j])->pos[dim];
+			}
+			M = (((const tree*) multis[j])->multi);
 #ifdef PERIODIC_OFF
-         for (int dim = 0; dim < NDIM; dim++) {
-            dX[dim] = X[dim].to_float() - Y[dim].to_float();
-         }
+			for (int dim = 0; dim < NDIM; dim++) {
+				dX[dim] = X[dim].to_float() - Y[dim].to_float();
+			}
 #else
-         /** fixed this***/
-         for (int dim = 0; dim < NDIM; dim++) {
-            dX[dim] = distance(X[dim], Y[dim]);
-         }
+			/** fixed this***/
+			for (int dim = 0; dim < NDIM; dim++) {
+				dX[dim] = distance(X[dim], Y[dim]);
+			}
 #endif
-         auto tmp = multipole_interaction(Lacc, M, dX, false);
-         if (j == 0) {
-            flops = 3 + tmp;
-         }
-      }
-      flops *= cnt1;
-      for (int i = 0; i < LP; i++) {
-         L[i] += Lacc[i];
-         flops++;
-      }
-   }
-   return flops;
+			auto tmp = multipole_interaction(Lacc, M, dX, false);
+			if (j == 0) {
+				flops = 3 + tmp;
+			}
+		}
+		flops *= cnt1;
+		for (int i = 0; i < LP; i++) {
+			L[i] += Lacc[i];
+			flops++;
+		}
+	}
+	return flops;
 }
 
