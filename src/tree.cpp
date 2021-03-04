@@ -321,7 +321,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 
 	if (params.depth == 0) {
 		const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-		int target = (sm_count * KICK_OCCUPANCY);
+		int target = 2*(sm_count * KICK_OCCUPANCY);
 		int pcnt = parts.second - parts.first;
 		int count;
 		do {
@@ -351,7 +351,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 	}
 	L <<= dx;
 
-	const auto theta2 = sqr(std::min((float) params.theta, (float) 0.4));
+	const auto theta2 = sqr(params.theta);
 	array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
 	auto &multis = params.multi_interactions;
 	auto &parti = params.part_interactions;
