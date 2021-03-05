@@ -321,15 +321,15 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 
 	if (params.depth == 0) {
 		const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-		int target = 2*(sm_count * KICK_OCCUPANCY);
+		const int target_max = 2 * sm_count * KICK_OCCUPANCY;
 		int pcnt = parts.second - parts.first;
 		int count;
 		do {
 			count = compute_block_count(pcnt);
-			if (count < target) {
-				pcnt /= 2;
+			if (count < target_max) {
+				pcnt = pcnt / 2;
 			}
-		} while (count < target);
+		} while (count < target_max);
 		params.cuda_cutoff = pcnt * 2;
 		cuda_block_count = compute_block_count(params.cuda_cutoff);
 	}

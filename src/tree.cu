@@ -233,7 +233,7 @@ cuda_kick(kick_params_type * params_ptr)
                atomicAdd(&pc_interaction_time, (double)(clock64() - tm));
             }
             tm = clock64();
-            flops += cuda_pp_interactions(parts,parti, params_ptr);
+            flops += cuda_pp_interactions(parts,parti, params_ptr, rc.phi);
             if( tid == 0 ) {
                atomicAdd(&pp_interaction_time, (double)(clock64() - tm));
             }

@@ -21,7 +21,7 @@
 #define TEST_RADIX
 #define TEST_BOUNDS
 #endif
-#define TEST_FORCE
+//#define TEST_FORCE
 //#define TEST_STACK
 #define N_TEST_PARTS (6*46)
 

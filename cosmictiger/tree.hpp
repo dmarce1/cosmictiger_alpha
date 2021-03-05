@@ -111,7 +111,7 @@ struct sort_params {
 struct kick_return {
 	int8_t rung;
 	size_t flops;
-
+	array<float,TREE_MAX_DEPTH> phi;
 };
 
 class tree_ptr;
