@@ -222,14 +222,10 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 					opened_checks.resize(0);
 				}
 			} while (direct && check_count);
-//         if( tid == 0 ) {
-//            printf( "%i %i %i\n", params.depth, count[MI], count[PI]);
-//         }
 			__syncwarp();
 			auto &tmp_parti = params.tmp;
 			auto tm = clock64();
 			if (type == PC_PP_DIRECT) {
-				tm = clock64();
 				auto &rungs = shmem.rungs;
 				auto &sinks = shmem.sink;
 				int list_index;
@@ -253,6 +249,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 					const size_t& first = myparts.first;
 					const size_t& last = myparts.second;
 					list_index = -1;
+					const auto hfac = (1.f + SINK_BIAS) * params.hsoft;
 					if (j < parti.size()) {
 						bool res = false;
 						for (int k = 0; k < last - first; k++) {
@@ -262,16 +259,14 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 								float dy0 = distance(other.pos[1], sinks[1][k]);
 								float dz0 = distance(other.pos[2], sinks[2][k]);
 								float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-								res = res || sqr(other.radius + params.hsoft) > d2 * theta2;
+								res = sqr(other.radius + hfac) > d2 * theta2;
+								if (res) {
+									break;
+								}
 							}
 						}
-						if (res) {
-							list_index = PI;
-							indices[PI][tid + 1] = 1;
-						} else {
-							list_index = MI;
-							indices[MI][tid + 1] = 1;
-						}
+						list_index = res ? PI : MI;
+						indices[list_index][tid + 1] = 1;
 					}
 					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
 						array<int, 2> tmp;
@@ -298,13 +293,14 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 					}
 					__syncwarp();
 				}
-				if (tid == 0) {
-					atomicAdd(&pc_interaction_time, (double) (clock64() - tm));
-				}
 			}
 			switch (type) {
 			case PC_PP_DIRECT:
+				tm = clock64();
 				flops += cuda_pc_interactions(parts, multis, params_ptr);
+				if (tid == 0) {
+					atomicAdd(&pc_interaction_time, (double) (clock64() - tm));
+				}
 				tm = clock64();
 				flops += cuda_pp_interactions(parts, tmp_parti, params_ptr);
 				if (tid == 0) {
