@@ -40,6 +40,9 @@ particle_set::particle_set(size_t size, size_t offset) {
       CUDA_CHECK(cudaMemAdvise(gptr_[dim], size * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
    }
 #endif
+   for( int i = 0; i < size; i++) {
+   	rptr_[i] = 0;
+   }
 }
 //
 //void particle_set::prefetch(size_t b, size_t e, cudaStream_t stream) {

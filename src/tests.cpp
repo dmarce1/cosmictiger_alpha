@@ -92,6 +92,7 @@ void kick_test() {
       }
       params_ptr->L[0] = L;
       params_ptr->Lpos[0] = Lpos;
+      params_ptr->t0 = true;
       auto rc = root.kick(params_ptr).get();
       tm_kick.stop();
       /*   tm.start();
@@ -128,7 +129,7 @@ void force_test() {
    printf("Doing force test\n");
    printf("Generating particles\n");
    particle_set parts(global().opts.nparts);
-   parts.load_particles("ics");
+   parts.generate_random();
    tree::set_particle_set(&parts);
    particle_set *parts_ptr;
    CUDA_MALLOC(parts_ptr, sizeof(particle_set));
@@ -166,6 +167,7 @@ void force_test() {
    }
    params_ptr->L[0] = L;
    params_ptr->Lpos[0] = Lpos;
+   params_ptr->t0 = true;
    auto rc = root.kick(params_ptr).get();
    tree::cleanup();
    managed_allocator<tree>::cleanup();

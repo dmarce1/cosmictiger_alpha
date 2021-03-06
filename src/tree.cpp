@@ -244,8 +244,6 @@ sort_return tree::sort(sort_params params) {
 			this_radius = std::sqrt(this_radius);
 			radius = std::max(radius, (float) (this_radius));
 		}
-		parts.first = parts.first;
-		parts.second = parts.second;
 	}
 	sort_return rc;
 	return rc;
@@ -283,6 +281,7 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
 			kick_params_type *new_params;
 			new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
 			new (new_params) kick_params_type;
+			new_params->t0 = params_ptr->t0;
 			new_params->dchecks = params_ptr->dchecks.copy_top();
 			new_params->echecks = params_ptr->echecks.copy_top();
 			new_params->L[params_ptr->depth] = params_ptr->L[params_ptr->depth];
@@ -537,43 +536,27 @@ void tree::gpu_daemon() {
 	static bool first_call = true;
 	static std::vector<std::function<bool()>> completions;
 	static timer timer;
-	static int grid_ewald_count;
 	static bool skip;
 	static bool ewald_skip;
 	static double wait_time = 1.0e-2;
+	static int min_ewald;
 	if (first_call) {
 		printf("Starting gpu daemon\n");
 		timer.reset();
 		timer.start();
-		grid_ewald_count = 0;
 		first_call = false;
-	}
-	int i = 0;
-	while (i < completions.size()) {
-		if (completions[i]()) {
-			completions[i] = completions.back();
-			completions.pop_back();
-		} else {
-			i++;
-		}
+		min_ewald = KICK_EWALD_GRID_SIZE;
 	}
 	timer.stop();
 	if (timer.read() > wait_time) {
 		timer.reset();
 		timer.start();
 		bool found_ewald = false;
-		if (gpu_ewald_queue.size() > 0) {
-			while (gpu_ewald_queue.size() > 0) {
+		if (gpu_ewald_queue.size() >= min_ewald) {
+			while (gpu_ewald_queue.size() >= min_ewald) {
+				int grid_size = std::min(KICK_EWALD_GRID_SIZE,(int)gpu_ewald_queue.size());
+				min_ewald = KICK_EWALD_GRID_SIZE;
 				found_ewald = true;
-				wait_time = 1.0e-2;
-				int grid_size = gpu_ewald_queue.size();
-				int ogrid_size = grid_size;
-				int n = 2;
-				while (grid_size > KICK_EWALD_GRID_SIZE) {
-					grid_size = ogrid_size / n;
-					n++;
-				}
-				grid_ewald_count += grid_size;
 				auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<int32_t>>>();
 				unified_allocator all_params_alloc;
 				kick_params_type **all_params = (kick_params_type**) all_params_alloc.allocate(
@@ -642,9 +625,20 @@ void tree::gpu_daemon() {
 					return false;
 				}
 			}));
+		} else {
+			min_ewald = std::max(min_ewald / 2, 1);
 		}
 	} else {
 		timer.start();
+	}
+	int i = 0;
+	while (i < completions.size()) {
+		if (completions[i]()) {
+			completions[i] = completions.back();
+			completions.pop_back();
+		} else {
+			i++;
+		}
 	}
 	if (!shutdown_daemon) {
 		hpx::async(gpu_daemon);
@@ -673,6 +667,7 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
 	kick_params_type *new_params;
 	new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
 	new (new_params) kick_params_type();
+	new_params->t0 = params->t0;
 	new_params->tptr = me;
 	new_params->dchecks = params->dchecks.copy_top();
 	new_params->echecks = params->echecks.copy_top();
@@ -748,17 +743,13 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 				Y[dim] = ((const tree*) multis[j])->pos[dim];
 			}
 			M = (((const tree*) multis[j])->multi);
-#ifdef PERIODIC_OFF
-			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = X[dim].to_float() - Y[dim].to_float();
-			}
-#else
 			/** fixed this***/
 			for (int dim = 0; dim < NDIM; dim++) {
 				dX[dim] = distance(X[dim], Y[dim]);
 			}
-#endif
-			auto tmp = multipole_interaction(Lacc, M, dX, false);
+			expansion<float> D;
+			green_direct(D, dX);
+			auto tmp = multipole_interaction(Lacc, M, D);
 			if (j == 0) {
 				flops = 3 + tmp;
 			}

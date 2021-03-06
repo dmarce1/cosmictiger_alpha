@@ -66,7 +66,9 @@ CUDA_DEVICE int cuda_cc_interactions(particle_set *parts, const vector<tree_ptr>
 		for (int dim = 0; dim < NDIM; dim++) {
 			fpos[dim] = distance(pos[dim], ((tree*) multis[i])->pos[dim]);
 		}
-		multipole_interaction(L, mpole, fpos, false);
+		expansion<float> D;
+		green_direct(D, fpos);
+		multipole_interaction(L, mpole, D);
 	}
 	interacts += multis.size();
 	if (tid == 0) {
@@ -117,7 +119,9 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
 		for (int dim = 0; dim < NDIM; dim++) {
 			fpos[dim] = distance(pos[dim],((tree*) multis[i])->pos[dim]);
 		}
-		flops += multipole_interaction_ewald(L, mpole, fpos, false);
+		expansion<float> D;
+		green_ewald(D,fpos);
+		flops += multipole_interaction(L, mpole, D);
 	}
 	for (int i = 0; i < LP; i++) {
 		Lreduce[tid] = L[i];
@@ -193,7 +197,9 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
 				for (int dim = 0; dim < NDIM; dim++) {
 					dx[dim] = distance(pos[dim], sources[dim][j]);
 				}
-				multipole_interaction(L, 1.0f, dx, false);
+				expansion<float> D;
+				green_direct(D, dx);
+				multipole_interaction(L, 1.0f, D);
 			}
 			flops += part_index * FLOPS_CP;
 			interacts += part_index;
@@ -218,8 +224,7 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
 	return flops;
 }
 
-CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr> &parti, kick_params_type *params_ptr,
-		array<float, TREE_MAX_DEPTH>& phis) {
+CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr> &parti, kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
 	__shared__
@@ -234,7 +239,6 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 	const auto h = params.hsoft;
 	const auto h2 = h * h;
 	const auto hinv = 1.0f / h;
-	const auto h2inv = 1.0f / h / h;
 	float phi = 0.f;
 	int flops = 0;
 	size_t part_index;
@@ -246,7 +250,7 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 	const size_t nsinks = myparts.second - myparts.first;
 	for (int i = tid; i < nsinks; i += KICK_BLOCK_SIZE) {
 		rungs[i] = parts->rung(i + myparts.first);
-		if (rungs[i] >= params.rung || rungs[i] == -1) {
+		if (rungs[i] >= params.rung) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				sinks[dim][i] = parts->pos(dim, i + myparts.first);
 			}
@@ -286,7 +290,7 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 		__syncwarp();
 		const auto offset = ((tree*) params.tptr)->parts.first;
 		for (int k = 0; k < nsinks; k++) {
-			if (rungs[k] >= params.rung || rungs[k] == -1) {
+			if (rungs[k] >= params.rung) {
 				auto &f0tid = f[0][tid];
 				auto &f1tid = f[1][tid];
 				auto &f2tid = f[2][tid];
@@ -356,8 +360,6 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &f = shmem.f;
 	auto &F = params.F;
-	auto &rungs = shmem.rungs;
-	auto &sinks = shmem.sink;
 	auto &nactive = shmem.indices[0];
 	const auto &myparts = ((tree*) params.tptr)->parts;
 	const int mmax = ((multis.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
@@ -366,9 +368,11 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 		return 0;
 	}
 	nactive[tid] = 0;
+	auto &rungs = shmem.rungs;
+	auto &sinks = shmem.sink;
 	for (int i = tid; i < nparts; i += KICK_BLOCK_SIZE) {
 		rungs[i] = parts->rung(i + myparts.first);
-		if (rungs[i] >= params.rung || rungs[i] == -1) {
+		if (rungs[i] >= params.rung) {
 			nactive[tid]++;
 			for (int dim = 0; dim < NDIM; dim++) {
 				sinks[dim][i] = parts->pos(dim, myparts.first + i);
@@ -386,7 +390,7 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 	int flops = nactive[0] * multis.size() * FLOPS_PC;
 	for (int i = tid; i < mmax; i += KICK_BLOCK_SIZE) {
 		for (int k = 0; k < nparts; k++) {
-			if (rungs[k] >= params.rung || rungs[k] == -1) {
+			if (rungs[k] >= params.rung) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					f[dim][tid] = 0.f;
 				}
@@ -397,7 +401,9 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 					for (int dim = 0; dim < NDIM; dim++) {
 						dx[dim] = distance(sinks[dim][k], source[dim]);
 					}
-					multipole_interaction(Lforce, ((tree*) multis[i])->multi, dx, false);
+					expansion<float> D;
+					green_direct(D, dx);
+					multipole_interaction(Lforce, ((tree*) multis[i])->multi, D);
 					for (int dim = 0; dim < NDIM; dim++) {
 						f[dim][tid] += Lforce[dim + 1];
 					}
