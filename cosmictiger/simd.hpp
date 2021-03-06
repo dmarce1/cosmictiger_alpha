@@ -107,7 +107,10 @@ class simd_int;
 
 class simd_float {
 private:
-	_simd_float v[2];
+	union {
+		_simd_float v[2];
+		float floats[16];
+	};
 public:
 	static constexpr std::size_t size() {
 		return 2 * SIMD_VLEN;
@@ -117,8 +120,8 @@ public:
 	simd_float(const simd_float&) = default;
 	inline simd_float(float d) {
 #ifdef USE_AVX512
-        v[0] = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
-        v[1] = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
+		v[0] = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
+		v[1] = _mm512_set_ps(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
 #endif
 #ifdef USE_AVX2
 		v[0] = _mm256_set_ps(d, d, d, d, d, d, d, d);
@@ -213,10 +216,10 @@ public:
 		return *this;
 	}
 	inline float& operator[](std::size_t i) {
-		return reinterpret_cast<float*>(&v)[i];
+		return floats[i];
 	}
 	inline float operator[](std::size_t i) const {
-		return reinterpret_cast<const float*>(&v)[i];
+		return floats[i];
 	}
 
 	friend simd_float copysign(const simd_float&, const simd_float&);
@@ -272,7 +275,10 @@ public:
 
 class simd_int {
 private:
-	_simd_int v[2];
+	union {
+		_simd_int v[2];
+		int ints[16];
+	};
 public:
 	static constexpr std::size_t size() {
 		return 2 * SIMD_VLEN;
@@ -282,8 +288,8 @@ public:
 	simd_int(const simd_int&) = default;
 	inline simd_int(int d) {
 #ifdef USE_AVX512
-        v[0] = _mm512_set_epi32(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
-        v[1] = _mm512_set_epi32(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
+		v[0] = _mm512_set_epi32(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
+		v[1] = _mm512_set_epi32(d, d, d, d, d, d, d, d, d, d, d, d, d, d, d, d);
 #endif
 #ifdef USE_AVX2
 		v[0] = _mm256_set_epi32(d, d, d, d, d, d, d, d);
@@ -325,10 +331,10 @@ public:
 		return *this * other;
 	}
 	inline int& operator[](std::size_t i) {
-		return reinterpret_cast<int*>(&v)[i];
+		return ints[i];
 	}
 	inline int operator[](std::size_t i) const {
-		return reinterpret_cast<const int*>(&v)[i];
+		return ints[i];
 	}
 	friend class simd_float;
 
@@ -358,7 +364,7 @@ inline simd_float two_pow(const simd_float &r) {											// 21
 	static const simd_float c8 = simd_float((1.0 / 40320.0) * std::pow(std::log(2), 8));
 	simd_float r0;
 #ifdef USE_AVX512
-    __m512i n[2];
+	__m512i n[2];
 #endif
 #ifdef USE_AVX2
 	__m256i n[2];
@@ -384,15 +390,16 @@ inline simd_float two_pow(const simd_float &r) {											// 21
 	y = fma(y, x, c3);																		// 2
 	y = fma(y, x, c2);																		// 2
 	y = fma(y, x, c1);																		// 2
-	y = fma(y, x, one);																		// 2
+	y =
+			fma(y, x, one);																		// 2
 #ifdef USE_AVX512
-	static const auto sevenf =  _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f);
-	auto imm00 = _mm512_add_epi32(n[0], sevenf); // 1
-	auto imm01 = _mm512_add_epi32(n[1], sevenf); // 1
-	imm00 = _mm512_slli_epi32(imm00, 23);
-	imm01 = _mm512_slli_epi32(imm01, 23);
-	r0.v[0] = _mm512_castsi512_ps(imm00);
-	r0.v[1] = _mm512_castsi512_ps(imm01);
+					static const auto sevenf = _mm512_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f);
+					auto imm00 = _mm512_add_epi32(n[0], sevenf); // 1
+					auto imm01 = _mm512_add_epi32(n[1], sevenf);// 1
+					imm00 = _mm512_slli_epi32(imm00, 23);
+					imm01 = _mm512_slli_epi32(imm01, 23);
+					r0.v[0] = _mm512_castsi512_ps(imm00);
+					r0.v[1] = _mm512_castsi512_ps(imm01);
 #endif
 #ifdef USE_AVX2
 	static const auto sevenf = _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f);

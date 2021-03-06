@@ -528,7 +528,7 @@ void tree::gpu_daemon() {
 	static timer timer;
 	static bool skip;
 	static bool ewald_skip;
-	static double wait_time = 1.0e-2;
+	static double wait_time = 1.0e-3;
 	static int min_ewald;
 	if (first_call) {
 		printf("Starting gpu daemon\n");
@@ -720,37 +720,41 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	auto &L = params.L[params.depth];
 	auto &multis = params.multi_interactions;
 	int flops = 0;
-	array<fixed32, NDIM> X;
+	array<simd_int, NDIM> X;
+	array<simd_int, NDIM> Y;
+	array<simd_float, NDIM> dX;
+	expansion<simd_float> D;
+	multipole_type<simd_float> M;
+	expansion<simd_float> Lacc;
 	for (int dim = 0; dim < NDIM; dim++) {
-		X[dim] = pos[dim];
+		X[dim] = fixed<int>(pos[dim]).raw();
 	}
 	if (multis.size()) {
-		multipole_type<simd_float> M;
-		expansion<simd_float> Lacc;
 		for (int i = 0; i < LP; i++) {
 			Lacc[i] = 0.f;
 		}
 		const auto cnt1 = multis.size();
-		array<simd_float, NDIM> dX;
 		for (int j = 0; j < cnt1; j += simd_float::size()) {
 			for (int k = 0; k < simd_float::size(); k++) {
 				if (j + k < cnt1) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						dX[dim][k] = distance(X[dim], ((const tree*) multis[j + k])->pos[dim]);
+						Y[dim][k] = fixed<int>(((const tree*) multis[j + k])->pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
 						M[i][k] = (((const tree*) multis[j + k])->multi)[i];
 					}
 				} else {
 					for (int dim = 0; dim < NDIM; dim++) {
-						dX[dim][k] = distance(X[dim], ((const tree*) multis[cnt1 - 1])->pos[dim]);
+						Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
 						M[i][k] = 0.f;
 					}
 				}
 			}
-			expansion<simd_float> D;
+			for (int dim = 0; dim < NDIM; dim++) {
+				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
+			}
 			green_direct(D, dX);
 			auto tmp = multipole_interaction(Lacc, M, D);
 			if (j == 0) {
@@ -766,6 +770,27 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 		}
 	}
 	return flops;
+}
+
+int tree::cpu_pp_direct(kick_params_type *params_ptr) {
+	kick_params_type &params = *params_ptr;
+	auto &L = params.L[params.depth];
+	auto &partis = params.part_interactions;
+	int nparts = parts.second - parts.first;
+	std::array<std::vector<fixed32>, NDIM> sources;
+	for (int k = 0; k < partis.size(); k++) {
+		const auto& other_parts = ((tree*) partis[k])->parts;
+		for (size_t l = other_parts.first; l < other_parts.second; l++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				sources[dim].push_back(particles->pos(l, dim));
+			}
+		}
+	}
+	for (int k = 0; k < nparts; k++) {
+		if (particles->rung(k + parts.first) >= params.rung) {
+		}
+	}
+	return 0;
 }
 /*
  int tree::cpu_cc_ewald(kick_params_type *params_ptr) {

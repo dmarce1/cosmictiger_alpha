@@ -324,6 +324,7 @@ public:
 	}
 	static void cleanup();
 	int cpu_cc_direct(kick_params_type *params);
+	int cpu_pp_direct(kick_params_type *params);
 	int cpu_cc_ewald(kick_params_type *params);
 	sort_return sort(sort_params = sort_params());
 	hpx::future<kick_return> kick(kick_params_type*);
