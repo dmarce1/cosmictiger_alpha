@@ -320,7 +320,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 	if (params.depth == 0) {
 		tmp_tm.start();
 		const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-		const int target_max =  2 * sm_count * KICK_OCCUPANCY;
+		const int target_max = 2 * sm_count * KICK_OCCUPANCY;
 		int pcnt = parts.second - parts.first;
 		int count;
 		do {
@@ -444,9 +444,9 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 			break;
 		case CC_CP_EWALD:
 			if (multis.size()) {
-						send_ewald_to_gpu(params_ptr).get();
+				send_ewald_to_gpu(params_ptr).get();
 				//			hpx::this_thread::yield();
-		//		rc.flops += cpu_cc_ewald(params_ptr);
+				//		rc.flops += cpu_cc_ewald(params_ptr);
 			}
 			break;
 		case PC_PP_DIRECT:
@@ -720,26 +720,37 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	auto &L = params.L[params.depth];
 	auto &multis = params.multi_interactions;
 	int flops = 0;
+	array<fixed32, NDIM> X;
+	for (int dim = 0; dim < NDIM; dim++) {
+		X[dim] = pos[dim];
+	}
 	if (multis.size()) {
-		array<fixed32, NDIM> X, Y;
-		multipole_type<float> M;
-		expansion<float> Lacc;
-		Lacc = 0;
-		const auto cnt1 = multis.size();
-		for (int dim = 0; dim < NDIM; dim++) {
-			X[dim] = pos[dim];
+		multipole_type<simd_float> M;
+		expansion<simd_float> Lacc;
+		for (int i = 0; i < LP; i++) {
+			Lacc[i] = 0.f;
 		}
-		array<float, NDIM> dX;
-		for (int j = 0; j < cnt1; j++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim] = ((const tree*) multis[j])->pos[dim];
+		const auto cnt1 = multis.size();
+		array<simd_float, NDIM> dX;
+		for (int j = 0; j < cnt1; j += simd_float::size()) {
+			for (int k = 0; k < simd_float::size(); k++) {
+				if (j + k < cnt1) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						dX[dim][k] = distance(X[dim], ((const tree*) multis[j + k])->pos[dim]);
+					}
+					for (int i = 0; i < MP; i++) {
+						M[i][k] = (((const tree*) multis[j + k])->multi)[i];
+					}
+				} else {
+					for (int dim = 0; dim < NDIM; dim++) {
+						dX[dim][k] = distance(X[dim], ((const tree*) multis[cnt1 - 1])->pos[dim]);
+					}
+					for (int i = 0; i < MP; i++) {
+						M[i][k] = 0.f;
+					}
+				}
 			}
-			M = (((const tree*) multis[j])->multi);
-			/** fixed this***/
-			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = distance(X[dim], Y[dim]);
-			}
-			expansion<float> D;
+			expansion<simd_float> D;
 			green_direct(D, dX);
 			auto tmp = multipole_interaction(Lacc, M, D);
 			if (j == 0) {
@@ -747,52 +758,53 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 			}
 		}
 		flops *= cnt1;
-		for (int i = 0; i < LP; i++) {
-			L[i] += Lacc[i];
-			flops++;
+		for (int k = 0; k < simd_float::size(); k++) {
+			for (int i = 0; i < LP; i++) {
+				L[i] += Lacc[i][k];
+				flops++;
+			}
 		}
 	}
 	return flops;
 }
-
-int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
-	//printf("Executing ewald\n");
-	kick_params_type &params = *params_ptr;
-	auto &L = params.L[params.depth];
-	auto &multis = params.multi_interactions;
-	int flops = 0;
-	if (multis.size()) {
-		array<fixed32, NDIM> X, Y;
-		multipole_type<float> M;
-		expansion<float> Lacc;
-		Lacc = 0;
-		const auto cnt1 = multis.size();
-		for (int dim = 0; dim < NDIM; dim++) {
-			X[dim] = pos[dim];
-		}
-		array<float, NDIM> dX;
-		for (int j = 0; j < cnt1; j++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				Y[dim] = ((const tree*) multis[j])->pos[dim];
-			}
-			M = (((const tree*) multis[j])->multi);
-			/** fixed this***/
-			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = distance(X[dim], Y[dim]);
-			}
-			expansion<float> D;
-			green_ewald(D, dX, *real_indices_ptr, *four_indices_ptr, *periodic_parts_ptr);
-			auto tmp = multipole_interaction(Lacc, M, D);
-			if (j == 0) {
-				flops = 3 + tmp;
-			}
-		}
-		flops *= cnt1;
-		for (int i = 0; i < LP; i++) {
-			L[i] += Lacc[i];
-			flops++;
-		}
-	}
-	return flops;
-}
+/*
+ int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
+ //printf("Executing ewald\n");
+ kick_params_type &params = *params_ptr;
+ auto &L = params.L[params.depth];
+ auto &multis = params.multi_interactions;
+ int flops = 0;
+ if (multis.size()) {
+ array<fixed32, NDIM> X, Y;
+ multipole_type<float> M;
+ expansion<float> Lacc;
+ Lacc = 0;
+ const auto cnt1 = multis.size();
+ for (int dim = 0; dim < NDIM; dim++) {
+ X[dim] = pos[dim];
+ }
+ array<float, NDIM> dX;
+ for (int j = 0; j < cnt1; j++) {
+ for (int dim = 0; dim < NDIM; dim++) {
+ Y[dim] = ((const tree*) multis[j])->pos[dim];
+ }
+ M = (((const tree*) multis[j])->multi);
+ for (int dim = 0; dim < NDIM; dim++) {
+ dX[dim] = distance(X[dim], Y[dim]);
+ }
+ expansion<float> D;
+ green_ewald(D, dX, *real_indices_ptr, *four_indices_ptr, *periodic_parts_ptr);
+ auto tmp = multipole_interaction(Lacc, M, D);
+ if (j == 0) {
+ flops = 3 + tmp;
+ }
+ }
+ flops *= cnt1;
+ for (int i = 0; i < LP; i++) {
+ L[i] += Lacc[i];
+ flops++;
+ }
+ }
+ return flops;
+ }*/
 

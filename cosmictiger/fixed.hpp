@@ -26,6 +26,8 @@ using fixed64 = fixed<uint64_t>;
 #include <cassert>
 #include <cstdlib>
 
+static constexpr float fixed2float = 1.f / float(size_t(1) << size_t(32));
+
 template<class T>
 class fixed {
    T i;
@@ -34,6 +36,10 @@ class fixed {
    static constexpr T width = (sizeof(float) * CHAR_BIT);
 public:
    friend class simd_fixed32;
+
+   T raw() const {
+   	return i;
+   }
 
    CUDA_EXPORT
    inline static fixed<T> max() {

@@ -120,16 +120,24 @@ extern __device__ periodic_parts *periodic_parts_ptr;
 #endif
 #endif
 
+#include <cosmictiger/simd.hpp>
+
+#ifdef __CUDA_ARCH__
+#define  GREEN_MAX fmaxf
+#else
+#define  GREEN_MAX max
+#endif
+
 template<class T>
 CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX) {
-	const T r0 = 1.0e-9;
+	const T r0 = T(1.0e-9);
 // const T H = options::get().soft_len;
 	const T nthree(-3.0f);
 	const T nfive(-5.0f);
 	const T nseven(-7.0f);
 	const T r2 = fma(dX[0], dX[0], fma(dX[1], dX[1], sqr(dX[2])));            // 5
 	const T r = sqrt(r2);               // 7
-	const T rinv = (r > r0) / fmax(r, r0);  // 3
+	const T rinv = (r > r0) / GREEN_MAX(r, r0);  // 3
 	const T r2inv = rinv * rinv;        // 1
 	const T d0 = -rinv;                 // 1
 	const T d1 = -d0 * r2inv;           // 2
@@ -139,10 +147,11 @@ CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX) {
 	return 25 + green_deriv_direct(D, d0, d1, d2, d3, d4, dX);
 }
 
-CUDA_EXPORT inline int green_deriv_ewald(expansion<float> &D, const float &d0, const float &d1, const float &d2,
-		const float &d3, const float &d4, const array<float, NDIM> &dx) {
-	float threedxadxb;
-	float dxadxbdxc;
+template<class T>
+CUDA_EXPORT inline int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, const T &d2,
+		const T &d3, const T &d4, const array<T, NDIM> &dx) {
+	T threedxadxb;
+	T dxadxbdxc;
 	const auto dx0dx0 = dx[0] * dx[0];
 	const auto dx0dx1 = dx[0] * dx[1];
 	const auto dx0dx2 = dx[0] * dx[2];
@@ -202,16 +211,16 @@ CUDA_EXPORT inline int green_deriv_ewald(expansion<float> &D, const float &d0, c
 	const auto dx1d2 = dx[1] * d2;
 	const auto dx2d2 = dx[2] * d2;
 	D[4] += d1;
-	D[10] = fma(float(3), dx0d2, D[10]);
-	D[20] = fma(float(6) * dx0dx0, d3, D[20]);
-	D[20] = fma(float(2), d2, D[20]);
+	D[10] = fma(T(3), dx0d2, D[10]);
+	D[20] = fma(T(6) * dx0dx0, d3, D[20]);
+	D[20] = fma(T(2), d2, D[20]);
 	D[20] += d2;
 	D[7] += d1;
-	D[16] = fma(float(3), dx1d2, D[16]);
-	D[30] = fma(float(6) * dx1dx1, d3, D[30]);
-	D[30] = fma(float(2), d2, D[30]);
+	D[16] = fma(T(3), dx1d2, D[16]);
+	D[30] = fma(T(6) * dx1dx1, d3, D[30]);
+	D[30] = fma(T(2), d2, D[30]);
 	D[30] += d2;
-	threedxadxb = float(3) * dx1dx0;
+	threedxadxb = T(3) * dx1dx0;
 	D[13] += dx0d2;
 	D[11] += dx1d2;
 	D[26] = fma(threedxadxb, d3, D[26]);
@@ -220,11 +229,11 @@ CUDA_EXPORT inline int green_deriv_ewald(expansion<float> &D, const float &d0, c
 	D[23] = fma(dx0dx0, d3, D[23]);
 	D[23] = fma(dx1dx1, d3, D[23]);
 	D[9] += d1;
-	D[19] = fma(float(3), dx2d2, D[19]);
-	D[34] = fma(float(6) * dx2dx2, d3, D[34]);
-	D[34] = fma(float(2), d2, D[34]);
+	D[19] = fma(T(3), dx2d2, D[19]);
+	D[34] = fma(T(6) * dx2dx2, d3, D[34]);
+	D[34] = fma(T(2), d2, D[34]);
 	D[34] += d2;
-	threedxadxb = float(3) * dx2dx0;
+	threedxadxb = T(3) * dx2dx0;
 	D[15] += dx0d2;
 	D[12] += dx2d2;
 	D[29] = fma(threedxadxb, d3, D[29]);
@@ -232,7 +241,7 @@ CUDA_EXPORT inline int green_deriv_ewald(expansion<float> &D, const float &d0, c
 	D[25] += d2;
 	D[25] = fma(dx0dx0, d3, D[25]);
 	D[25] = fma(dx2dx2, d3, D[25]);
-	threedxadxb = float(3) * dx2dx1;
+	threedxadxb = T(3) * dx2dx1;
 	D[18] += dx1d2;
 	D[17] += dx2d2;
 	D[33] = fma(threedxadxb, d3, D[33]);
@@ -248,6 +257,7 @@ CUDA_EXPORT inline int green_deriv_ewald(expansion<float> &D, const float &d0, c
 
 #include <cuda_runtime.h>
 
+#ifdef __CUDA_ARCH__
 CUDA_EXPORT inline int green_ewald(expansion<float> &D, const array<float, NDIM> &X, ewald_indices& real_indices, ewald_indices& four_indices, periodic_parts& hparts) {
 	const float fouroversqrtpi(4.0 / sqrt(M_PI));
 	const float one(1.0);
@@ -353,6 +363,8 @@ CUDA_EXPORT inline int green_ewald(expansion<float> &D, const array<float, NDIM>
 	}
 	return flops;
 }
+#endif
+
 
 template<class T>
 CUDA_EXPORT int inline green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,

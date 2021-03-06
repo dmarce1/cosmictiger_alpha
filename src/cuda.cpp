@@ -46,7 +46,7 @@ cuda_properties cuda_init() {
    CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, value));
    CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitMallocHeapSize));
    if (value != HEAP_SIZE) {
-      printf("Unable to set heap to %i\n", HEAP_SIZE);
+      printf("Unable to set heap to %li\n", HEAP_SIZE);
       fail = true;
    }
    return props;
@@ -61,7 +61,7 @@ cuda_properties cuda_init() {
    CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMaxL2FetchGranularity, value));
    CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitMaxL2FetchGranularity));
    if (value != L2FETCH) {
-      printf("Unable to set L2 fetch granularity to to %li\n", L2FETCH);
+      printf("Unable to set L2 fetch granularity to to %i\n", L2FETCH);
       fail = true;
    }
 //   value = PENDINGLAUNCHES;
