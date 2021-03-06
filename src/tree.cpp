@@ -400,7 +400,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 				const bool far2 = R2 < theta2 * d2;
 				const bool far3 = R3 < theta2 * d2;
 				const bool isleaf = checks[ci].is_leaf();
-				if (far1 || (direct) && far3) {
+				if (far1 || (direct && far3)) {
 					multis.push_back(checks[ci]);
 				} else if ((far2 || direct) && isleaf) {
 					parti.push_back(checks[ci]);
@@ -423,17 +423,17 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 
 		switch (type) {
 		case CC_CP_DIRECT:
-			//		rc.flops += cpu_cc_direct(params_ptr);
-			//		rc.flops += cpu_cp_direct(params_ptr);
+					rc.flops += cpu_cc_direct(params_ptr);
+					rc.flops += cpu_cp_direct(params_ptr);
 			break;
 		case CC_CP_EWALD:
 			if (multis.size()) {
-				//			send_ewald_to_gpu(params_ptr).get();
+							send_ewald_to_gpu(params_ptr).get();
 			}
 			break;
 		case PC_PP_DIRECT:
-			//		rc.flops += cpu_pc_direct(params_ptr);
-			//		rc.flops += cpu_pp_direct(params_ptr);
+					rc.flops += cpu_pc_direct(params_ptr);
+					rc.flops += cpu_pp_direct(params_ptr);
 			break;
 		case PC_PP_EWALD:
 			break;
@@ -869,12 +869,15 @@ int tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	simd_float mask;
 	array<simd_int, NDIM> X;
 	array<simd_int, NDIM> Y;
-	for (int k = 0; k < nparts; k++) {
+	for (int i = 0; i < nparts; i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			X[dim] = particles->pos(dim, k + parts.first).raw();
+			X[dim] = particles->pos(dim, i + parts.first).raw();
 		}
-		if (particles->rung(k + parts.first) >= params.rung) {
+		if (particles->rung(i + parts.first) >= params.rung) {
 			array<simd_float, NDIM> f;
+			for( int dim = 0; dim < NDIM; dim++) {
+				f[dim] = simd_float(0.f);
+			}
 			for (int j = 0; j < sources[0].size(); j += simd_float::size()) {
 				for (int k = 0; k < simd_float::size(); k++) {
 					if (j + k < sources[0].size()) {
@@ -893,7 +896,7 @@ int tree::cpu_pp_direct(kick_params_type *params_ptr) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
 				}
-				const auto r2 = fma(dX[0], dX[0], fma(dX[1], dX[1], dX[2] * dX[2]));
+				const auto r2 = max(fma(dX[0], dX[0], fma(dX[1], dX[1], dX[2] * dX[2])), params.hsoft*params.hsoft);
 				const auto rinv = simd_float(1) / sqrt(r2);
 				const auto rinv3 = mask * rinv * rinv * rinv;
 				for (int dim = 0; dim < NDIM; dim++) {
@@ -901,7 +904,7 @@ int tree::cpu_pp_direct(kick_params_type *params_ptr) {
 				}
 			}
 			for (int dim = 0; dim < NDIM; dim++) {
-				F[dim][k] += f[dim].sum();
+				F[dim][i] -= f[dim].sum();
 			}
 		}
 	}
@@ -926,9 +929,6 @@ int tree::cpu_pc_direct(kick_params_type *params_ptr) {
 		if (particles->rung(i + parts.first) >= params.rung) {
 			array<simd_float, NDIM> f;
 			array<simd_float, NDIM + 1> Lacc;
-			for (int i = 0; i < NDIM + 1; i++) {
-				Lacc[i] = 0.f;
-			}
 			const auto cnt1 = multis.size();
 			for (int j = 0; j < cnt1; j += simd_float::size()) {
 				for (int k = 0; k < simd_float::size(); k++) {
@@ -936,15 +936,15 @@ int tree::cpu_pc_direct(kick_params_type *params_ptr) {
 						for (int dim = 0; dim < NDIM; dim++) {
 							Y[dim][k] = fixed<int>(((const tree*) multis[j + k])->pos[dim]).raw();
 						}
-						for (int i = 0; i < MP; i++) {
-							M[i][k] = (((const tree*) multis[j + k])->multi)[i];
+						for (int l = 0; l < MP; l++) {
+							M[l][k] = (((const tree*) multis[j + k])->multi)[l];
 						}
 					} else {
 						for (int dim = 0; dim < NDIM; dim++) {
 							Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
 						}
-						for (int i = 0; i < MP; i++) {
-							M[i][k] = 0.f;
+						for (int l = 0; l < MP; l++) {
+							M[l][k] = 0.f;
 						}
 					}
 				}
@@ -953,9 +953,9 @@ int tree::cpu_pc_direct(kick_params_type *params_ptr) {
 				}
 				green_direct(D, dX);
 				multipole_interaction(Lacc, M, D);
-			}
-			for (int dim = 0; dim < NDIM; dim++) {
-				F[dim][i] += Lacc[1 + dim].sum();
+				for (int dim = 0; dim < NDIM; dim++) {
+					F[dim][i] -= Lacc[1 + dim].sum();
+				}
 			}
 		}
 	}
