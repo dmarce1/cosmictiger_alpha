@@ -113,19 +113,11 @@ public:
 };
 
 #ifndef TREECU
-extern CUDA_DEVICE ewald_indices *four_indices_ptr;
-extern CUDA_DEVICE ewald_indices *real_indices_ptr;
-extern CUDA_DEVICE periodic_parts *periodic_parts_ptr;
+#ifdef __CUDA_ARCH__
+extern __device__ ewald_indices *four_indices_ptr;
+extern __device__ ewald_indices *real_indices_ptr;
+extern __device__ periodic_parts *periodic_parts_ptr;
 #endif
-
-#ifdef HIPRECISION
-#define SINCOS sincos
-#define EXP exp
-#define ERFC erfc
-#else
-#define SINCOS sincosf
-#define EXP expf
-#define ERFC erfcf
 #endif
 
 template<class T>
@@ -147,7 +139,7 @@ CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX) {
 	return 25 + green_deriv_direct(D, d0, d1, d2, d3, d4, dX);
 }
 
-CUDA_DEVICE inline int green_deriv_ewald(expansion<float> &D, const float &d0, const float &d1, const float &d2,
+CUDA_EXPORT inline int green_deriv_ewald(expansion<float> &D, const float &d0, const float &d1, const float &d2,
 		const float &d3, const float &d4, const array<float, NDIM> &dx) {
 	float threedxadxb;
 	float dxadxbdxc;
@@ -255,12 +247,8 @@ CUDA_DEVICE inline int green_deriv_ewald(expansion<float> &D, const float &d0, c
 }
 
 #include <cuda_runtime.h>
-#ifdef __CUDA_ARCH__
 
-CUDA_DEVICE inline int green_ewald(expansion<float> &D, const array<float, NDIM> &X) {
-	const auto &hparts = *periodic_parts_ptr;
-	const auto &four_indices = *four_indices_ptr;
-	const auto &real_indices = *real_indices_ptr;
+CUDA_EXPORT inline int green_ewald(expansion<float> &D, const array<float, NDIM> &X, ewald_indices& real_indices, ewald_indices& four_indices, periodic_parts& hparts) {
 	const float fouroversqrtpi(4.0 / sqrt(M_PI));
 	const float one(1.0);
 	const float nthree(-3.0);
@@ -291,8 +279,8 @@ CUDA_DEVICE inline int green_ewald(expansion<float> &D, const array<float, NDIM>
 			const float rinv = mask / fmax(r, rcut);// 2
 			const float r2inv = rinv * rinv;// 1
 			const float r3inv = r2inv * rinv;// 1
-			const float exp0 = EXP(nfour * r2);// 26
-			const float erfc0 = ERFC(2.f * r);// 10
+			const float exp0 = expf(nfour * r2);// 26
+			const float erfc0 = erfcf(2.f * r);// 10
 			const float expfactor = fouroversqrtpi * r * exp0;// 2
 			const float e1 = expfactor * r3inv;// 1
 			const float e2 = neight * e1;// 1
@@ -317,7 +305,7 @@ CUDA_DEVICE inline int green_ewald(expansion<float> &D, const array<float, NDIM>
 		const float hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];// 5
 		float co;
 		float so;
-		SINCOS(twopi * hdotx, &so, &co);// 35
+		sincosf(twopi * hdotx, &so, &co);// 35
 		Dfour[0] = fma(hpart[0], co, Dfour[0]);// 2
 		Dfour[1] = fma(hpart[1], so, Dfour[1]);// 2
 		Dfour[2] = fma(hpart[2], so, Dfour[2]);// 2
@@ -365,7 +353,6 @@ CUDA_DEVICE inline int green_ewald(expansion<float> &D, const array<float, NDIM>
 	}
 	return flops;
 }
-#endif
 
 template<class T>
 CUDA_EXPORT int inline green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
@@ -477,7 +464,7 @@ CUDA_EXPORT int inline green_deriv_direct(expansion<T> &D, const T &d0, const T 
 
 // 986 // 251936
 template<class T>
-CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const multipole_type<T> &M,const expansion<T>& D) { // 670/700 + 418 * NT + 50 * NFOUR
+CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const multipole_type<T> &M, const expansion<T>& D) { // 670/700 + 418 * NT + 50 * NFOUR
 	int flops = 0;
 	for (int i = 0; i < LP; i++) {
 		L[i] = fma(M[0], D[i], L[i]);                  // 35

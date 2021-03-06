@@ -119,7 +119,7 @@ class kick_params_type;
 struct tree_ptr {
 	uintptr_t ptr;
 //   int rank;
-	int8_t opened;
+//	int8_t opened;
 #ifndef NDEBUG
 	int constructed;
 #endif
@@ -127,7 +127,7 @@ struct tree_ptr {
 	inline tree_ptr() {
 		//   rank = -1;
 		ptr = 0;
-		opened = false;
+//		opened = false;
 #ifndef NDEBUG
 		constructed = 1234;
 #endif
@@ -136,7 +136,7 @@ struct tree_ptr {
 	inline tree_ptr(tree_ptr &&other) {
 		//  rank = other.rank;
 		ptr = other.ptr;
-		opened = other.opened;
+//		opened = other.opened;
 #ifndef NDEBUG
 		constructed = 1234;
 #endif
@@ -145,7 +145,7 @@ struct tree_ptr {
 	inline tree_ptr(const tree_ptr &other) {
 		//  rank = other.rank;
 		ptr = other.ptr;
-		opened = other.opened;
+//		opened = other.opened;
 #ifndef NDEBUG
 		constructed = 1234;
 #endif
@@ -155,7 +155,7 @@ struct tree_ptr {
 		assert(constructed == 1234);
 		ptr = other.ptr;
 		// rank = other.rank;
-		opened = other.opened;
+//		opened = other.opened;
 		return *this;
 	}
 	CUDA_EXPORT
@@ -163,19 +163,19 @@ struct tree_ptr {
 		assert(constructed == 1234);
 		ptr = other.ptr;
 		// rank = other.rank;
-		opened = other.opened;
+//		opened = other.opened;
 		return *this;
 	}
 	CUDA_EXPORT
 	inline bool operator==(const tree_ptr &other) const {
 		assert(constructed == 1234);
-		return /*rank == other.rank && */ptr == other.ptr && opened == other.opened;
+		return /*rank == other.rank && */ptr == other.ptr/* && opened == other.opened*/;
 	}
 	template<class A>
 	void serialization(A &&arc, unsigned) {
 		arc & ptr;
 		//   arc & rank;
-		arc & opened;
+//		arc & opened;
 	}
 	CUDA_EXPORT
 
@@ -298,6 +298,10 @@ private:
 	array<tree_ptr, NCHILD> children;
 	pair<size_t, size_t> parts;
 	multipole multi;
+	static ewald_indices* real_indices_ptr;
+	static ewald_indices* four_indices_ptr;
+	static periodic_parts* periodic_parts_ptr;
+
 public:
 	static particle_set *particles;
 	static std::atomic<int> cuda_node_count;
@@ -319,6 +323,7 @@ public:
 	}
 	static void cleanup();
 	int cpu_cc_direct(kick_params_type *params);
+	int cpu_cc_ewald(kick_params_type *params);
 	sort_return sort(sort_params = sort_params());
 	hpx::future<kick_return> kick(kick_params_type*);
 	static std::atomic<bool> daemon_running;

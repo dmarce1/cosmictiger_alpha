@@ -3,9 +3,9 @@ struct periodic_parts;
 #include <cosmictiger/cuda.hpp>
 #include <stack>
 
-CUDA_DEVICE ewald_indices *four_indices_ptr;
-CUDA_DEVICE ewald_indices *real_indices_ptr;
-CUDA_DEVICE periodic_parts *periodic_parts_ptr;
+__device__ ewald_indices *four_indices_ptr;
+__device__ ewald_indices *real_indices_ptr;
+__device__ periodic_parts *periodic_parts_ptr;
 
 #define TREECU
 #include <cosmictiger/tree.hpp>
@@ -152,16 +152,16 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 							const bool far1 = R1 < theta2d2;                 // 2
 							const bool far2 = R2 < theta2d2;
 							const bool far3 = R3 < theta2d2;
-				//			const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
-							const bool isleaf = ((const tree*) check)->parts.second - ((const tree*) check)->parts.first <= GROUP_SIZE;
-							auto& other_opened = check.opened;
-							const auto& me_opened = direct;
-							const bool mi = (!me_opened && far1 && !other_opened) || (me_opened && far3);
-							const bool pi = ((far2 && isleaf) || (me_opened && other_opened));
+							//			const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
+							const bool isleaf = ((const tree*) check)->parts.second
+									- ((const tree*) check)->parts.first<= GROUP_SIZE;
+//							auto& other_opened = check.opened;
+			//				const auto& me_opened = direct;
+							const bool mi =  far1  || (direct && far3);
+							const bool pi = (far2 && isleaf) || (direct && isleaf);
 							list_index = int(mi) * MI
 									+ (1 - int(mi))
 											* (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
-							other_opened += int(isleaf);
 							indices[list_index][tid + 1] = 1;
 						}
 						__syncwarp();
@@ -424,6 +424,11 @@ void tree::cuda_set_kick_params(particle_set *p, ewald_indices *real_indices, ew
 		periodic_parts *parts) {
 	cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
 	CUDA_CHECK(cudaDeviceSynchronize());
+	if( tree::real_indices_ptr == nullptr ) {
+		tree::real_indices_ptr = new ewald_indices(EWALD_NREAL, false);
+		tree::four_indices_ptr = new ewald_indices(EWALD_NFOUR, true);
+		tree::periodic_parts_ptr = new periodic_parts();
+	}
 }
 
 #ifdef TIMINGS

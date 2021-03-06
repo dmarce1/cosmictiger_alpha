@@ -11,13 +11,13 @@ particle_set *tree::particles;
 
 static unified_allocator kick_params_alloc;
 
+timer tmp_tm;
+
 void tree::set_particle_set(particle_set *parts) {
 	particles = parts;
 }
 
 static int cuda_block_count;
-std::atomic<int> tree::cuda_node_count(0);
-std::atomic<int> tree::cpu_node_count(0);
 
 CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	int lev = 12;
@@ -96,11 +96,6 @@ sort_return tree::sort(sort_params params) {
 	}
 
 	//  multi = params.allocs->multi_alloc.allocate();
-	if (params.depth == cuda_depth()) {
-		cuda_node_count++;
-	} else if (params.depth < cuda_depth()) {
-		cpu_node_count++;
-	}
 #ifdef TEST_TREE
 	const auto &box = params.box;
 	bool failed = false;
@@ -252,6 +247,10 @@ sort_return tree::sort(sort_params params) {
 hpx::lcos::local::mutex tree::mtx;
 hpx::lcos::local::mutex tree::gpu_mtx;
 
+ewald_indices* tree::real_indices_ptr = nullptr;
+ewald_indices* tree::four_indices_ptr = nullptr;
+periodic_parts* tree::periodic_parts_ptr = nullptr;
+
 void tree::cleanup() {
 	shutdown_daemon = true;
 	while (daemon_running) {
@@ -270,13 +269,13 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
 //   if (gpu) {
 		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
 	} else {
-//      static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
-//      //   thread = false;
-//      if (thread) {
-//         if (++threads_used > hpx::thread::hardware_concurrency()) {
-//            threads_used--;
-//         }
-//      }
+		static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
+		if (thread) {
+			if (threads_used++ > 2 * hpx::thread::hardware_concurrency()) {
+				//		thread = false;
+				threads_used--;
+			}
+		}
 		if (thread) {
 			kick_params_type *new_params;
 			new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
@@ -319,8 +318,9 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 
 	if (params.depth == 0) {
+		tmp_tm.start();
 		const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-		const int target_max = 2 * sm_count * KICK_OCCUPANCY;
+		const int target_max =  2 * sm_count * KICK_OCCUPANCY;
 		int pcnt = parts.second - parts.first;
 		int count;
 		do {
@@ -389,7 +389,7 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 				//         const bool opened = checks[ci].opened++;
 				if (!direct) {
 					if (far) {
-						if (checks[ci].opened) {
+						if (checks[ci].is_leaf()) {
 							parti.push_back(checks[ci]);
 						} else {
 							multis.push_back(checks[ci]);
@@ -405,13 +405,13 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 					}
 				} else {
 					if (far) {
-						if (checks[ci].opened) {
+						if (checks[ci].is_leaf()) {
 							parti.push_back(checks[ci]);
 						} else {
 							multis.push_back(checks[ci]);
 						}
 					} else {
-						if (checks[ci].opened) {
+						if (checks[ci].is_leaf()) {
 							parti.push_back(checks[ci]);
 						} else {
 							if (checks[ci].is_leaf()) {
@@ -423,9 +423,6 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 							}
 						}
 					}
-				}
-				if (checks[ci].is_leaf()) {
-					checks[ci].opened++;
 				}
 			}
 #ifdef TEST_CHECKLIST_TIME
@@ -446,18 +443,11 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 			}
 			break;
 		case CC_CP_EWALD:
-#ifndef PERIODIC_OFF
 			if (multis.size()) {
-				found_ewald = true;
-				auto tmp = send_ewald_to_gpu(params_ptr).get();
-				//     printf( "%i\n", tmp);
-				rc.flops += tmp;
-			} else {
-				if (params.depth < cuda_depth()) {
-					cpu_node_count--;
-				}
+						send_ewald_to_gpu(params_ptr).get();
+				//			hpx::this_thread::yield();
+		//		rc.flops += cpu_cc_ewald(params_ptr);
 			}
-#endif
 			break;
 		case PC_PP_DIRECT:
 			//       printf("PC_PP_DIRECT on CPU\n");
@@ -554,7 +544,7 @@ void tree::gpu_daemon() {
 		bool found_ewald = false;
 		if (gpu_ewald_queue.size() >= min_ewald) {
 			while (gpu_ewald_queue.size() >= min_ewald) {
-				int grid_size = std::min(KICK_EWALD_GRID_SIZE,(int)gpu_ewald_queue.size());
+				int grid_size = std::min(KICK_EWALD_GRID_SIZE, (int) gpu_ewald_queue.size());
 				min_ewald = KICK_EWALD_GRID_SIZE;
 				found_ewald = true;
 				auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<int32_t>>>();
@@ -609,6 +599,8 @@ void tree::gpu_daemon() {
 			//        CUDA_CHECK(cudaMemPrefetchAsync(all_params, grid_size * sizeof(kick_params_type), 0, stream));
 			printf("Executing %i blocks\n", grid_size);
 			auto exec_ret = cuda_execute_kick_kernel(all_params, grid_size, stream);
+			tmp_tm.stop();
+			printf("%e\n", tmp_tm.read());
 			completions.push_back(std::function<bool()>([=]() {
 				if (exec_ret.first()) {
 					for (auto &d : *deleters) {
@@ -749,6 +741,47 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 			}
 			expansion<float> D;
 			green_direct(D, dX);
+			auto tmp = multipole_interaction(Lacc, M, D);
+			if (j == 0) {
+				flops = 3 + tmp;
+			}
+		}
+		flops *= cnt1;
+		for (int i = 0; i < LP; i++) {
+			L[i] += Lacc[i];
+			flops++;
+		}
+	}
+	return flops;
+}
+
+int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
+	//printf("Executing ewald\n");
+	kick_params_type &params = *params_ptr;
+	auto &L = params.L[params.depth];
+	auto &multis = params.multi_interactions;
+	int flops = 0;
+	if (multis.size()) {
+		array<fixed32, NDIM> X, Y;
+		multipole_type<float> M;
+		expansion<float> Lacc;
+		Lacc = 0;
+		const auto cnt1 = multis.size();
+		for (int dim = 0; dim < NDIM; dim++) {
+			X[dim] = pos[dim];
+		}
+		array<float, NDIM> dX;
+		for (int j = 0; j < cnt1; j++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				Y[dim] = ((const tree*) multis[j])->pos[dim];
+			}
+			M = (((const tree*) multis[j])->multi);
+			/** fixed this***/
+			for (int dim = 0; dim < NDIM; dim++) {
+				dX[dim] = distance(X[dim], Y[dim]);
+			}
+			expansion<float> D;
+			green_ewald(D, dX, *real_indices_ptr, *four_indices_ptr, *periodic_parts_ptr);
 			auto tmp = multipole_interaction(Lacc, M, D);
 			if (j == 0) {
 				flops = 3 + tmp;

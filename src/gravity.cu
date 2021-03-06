@@ -120,7 +120,7 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
 			fpos[dim] = distance(pos[dim],((tree*) multis[i])->pos[dim]);
 		}
 		expansion<float> D;
-		green_ewald(D,fpos);
+		green_ewald(D,fpos, *real_indices_ptr, *four_indices_ptr, *periodic_parts_ptr);
 		flops += multipole_interaction(L, mpole, D);
 	}
 	for (int i = 0; i < LP; i++) {
@@ -360,67 +360,57 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &f = shmem.f;
 	auto &F = params.F;
-	auto &nactive = shmem.indices[0];
 	const auto &myparts = ((tree*) params.tptr)->parts;
 	const int mmax = ((multis.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
 	const int nparts = myparts.second - myparts.first;
 	if (multis.size() == 0) {
 		return 0;
 	}
-	nactive[tid] = 0;
 	auto &rungs = shmem.rungs;
 	auto &sinks = shmem.sink;
 	for (int i = tid; i < nparts; i += KICK_BLOCK_SIZE) {
 		rungs[i] = parts->rung(i + myparts.first);
 		if (rungs[i] >= params.rung) {
-			nactive[tid]++;
 			for (int dim = 0; dim < NDIM; dim++) {
 				sinks[dim][i] = parts->pos(dim, myparts.first + i);
 			}
 		}
 	}
-	__syncwarp();
-	for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-		if (tid < P) {
-			nactive[tid] += nactive[tid + P];
-		}
-		__syncwarp();
-	}
-	int interacts = nactive[0] * multis.size();
-	int flops = nactive[0] * multis.size() * FLOPS_PC;
-	for (int i = tid; i < mmax; i += KICK_BLOCK_SIZE) {
-		for (int k = 0; k < nparts; k++) {
-			if (rungs[k] >= params.rung) {
+	int interacts = 0;
+	int flops = 0;
+	for (int k = 0; k < nparts; k++) {
+		if (rungs[k] >= params.rung) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				f[dim][tid] = 0.f;
+			}
+			for (int i = tid; i < multis.size(); i += KICK_BLOCK_SIZE) {
+				const auto &source = ((tree*) multis[i])->pos;
+				array<float, NDIM> dx;
+				array<float, NDIM + 1> Lforce;
 				for (int dim = 0; dim < NDIM; dim++) {
-					f[dim][tid] = 0.f;
+					dx[dim] = distance(sinks[dim][k], source[dim]);
 				}
-				if (i < multis.size()) {
-					const auto &source = ((tree*) multis[i])->pos;
-					array<float, NDIM> dx;
-					array<float, NDIM + 1> Lforce;
+				expansion<float> D;
+				green_direct(D, dx);
+				multipole_interaction(Lforce, ((tree*) multis[i])->multi, D);
+				for (int dim = 0; dim < NDIM; dim++) {
+					f[dim][tid] += Lforce[dim + 1];
+				}
+			}
+			interacts += multis.size();
+			flops += multis.size() * FLOPS_PC;
+			__syncwarp();
+			for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+				if (tid < P) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						dx[dim] = distance(sinks[dim][k], source[dim]);
-					}
-					expansion<float> D;
-					green_direct(D, dx);
-					multipole_interaction(Lforce, ((tree*) multis[i])->multi, D);
-					for (int dim = 0; dim < NDIM; dim++) {
-						f[dim][tid] += Lforce[dim + 1];
+						f[dim][tid] += f[dim][tid + P];
 					}
 				}
 				__syncwarp();
-				for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-					if (tid < P) {
-						for (int dim = 0; dim < NDIM; dim++) {
-							f[dim][tid] += f[dim][tid + P];
-						}
-					}
-					__syncwarp();
-				}
-				if (tid == 0) {
-					for (int dim = 0; dim < NDIM; dim++) {
-						F[dim][k] -= f[dim][0];
-					}
+			}
+			if (tid == 0) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					F[dim][k] -= f[dim][0];
 				}
 			}
 		}
@@ -436,7 +426,9 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 //CUDA_DEVICE extern ewald_indices *four_indices_ptr;
 //CUDA_DEVICE extern ewald_indices *real_indices_ptr;
 //CUDA_DEVICE extern periodic_parts *periodic_parts_ptr;
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *err, float *norm);
 
+#ifdef __CUDA_ARCH__
 CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *err, float *norm) {
 	const int &tid = threadIdx.x;
 	const int &bid = blockIdx.x;
@@ -513,6 +505,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 		err[bid] = fabsf(f_ffm - f_dir);
 	}
 }
+#endif
 
 void cuda_compare_with_direct(particle_set *parts) {
 	size_t *test_parts;

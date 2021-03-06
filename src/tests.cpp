@@ -44,6 +44,7 @@ static void tree_test() {
    }
 }
 
+
 void kick_test() {
    printf("Doing kick test\n");
    printf("Generating particles\n");
