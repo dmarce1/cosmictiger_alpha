@@ -81,6 +81,7 @@ hpx::future<sort_return> tree::create_child(sort_params &params) {
 sort_return tree::sort(sort_params params) {
 	const auto &opts = global().opts;
 	if (params.iamroot()) {
+		int dummy;
 		params.set_root();
 		params.min_depth = ewald_min_level(global().opts.theta, global().opts.hsoft);
 		printf("min ewald = %i\n", params.min_depth);
@@ -267,44 +268,47 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
 	if (part_end - part_begin <= params.cuda_cutoff) {
 //   if (params_ptr->depth == cuda_depth()) {
 //   if (gpu) {
-		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
-	} else {
-		static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
-		if (thread) {
-			if (threads_used++ > 2 * hpx::thread::hardware_concurrency()) {
-				//		thread = false;
-				threads_used--;
-			}
-		}
-		if (thread) {
-			kick_params_type *new_params;
-			new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
-			new (new_params) kick_params_type;
-			new_params->t0 = params_ptr->t0;
-			new_params->dchecks = params_ptr->dchecks.copy_top();
-			new_params->echecks = params_ptr->echecks.copy_top();
-			new_params->L[params_ptr->depth] = params_ptr->L[params_ptr->depth];
-			new_params->Lpos[params_ptr->depth] = params_ptr->Lpos[params_ptr->depth];
-			new_params->depth = params_ptr->depth;
-			new_params->theta = params_ptr->theta;
-			new_params->eta = params_ptr->eta;
-			new_params->scale = params_ptr->scale;
-			new_params->t0 = params_ptr->t0;
-			new_params->rung = params_ptr->rung;
-			new_params->cuda_cutoff = params_ptr->cuda_cutoff;
-			auto func = [this, new_params]() {
-				auto rc = ((tree*) ptr)->kick(new_params);
-				new_params->kick_params_type::~kick_params_type();
-				kick_params_alloc.deallocate(new_params);
-				//   threads_used--;
-					return rc;
-				};
-			auto fut = hpx::async(std::move(func));
-			return std::move(fut);
-		} else {
-			return hpx::make_ready_future(((tree*) ptr)->kick(params_ptr));
+///		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
+		thread = false;
+	} //else {
+	static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
+	if (thread) {
+		if (threads_used++ > 2 * hpx::thread::hardware_concurrency()) {
+			//		thread = false;
+			threads_used--;
 		}
 	}
+	if (thread) {
+		kick_params_type *new_params;
+		new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
+		new (new_params) kick_params_type;
+		new_params->first = params_ptr->first;
+		new_params->dchecks = params_ptr->dchecks.copy_top();
+		new_params->echecks = params_ptr->echecks.copy_top();
+		new_params->L[params_ptr->depth] = params_ptr->L[params_ptr->depth];
+		new_params->Lpos[params_ptr->depth] = params_ptr->Lpos[params_ptr->depth];
+		new_params->depth = params_ptr->depth;
+		new_params->theta = params_ptr->theta;
+		new_params->eta = params_ptr->eta;
+		new_params->scale = params_ptr->scale;
+		new_params->t0 = params_ptr->t0;
+		new_params->rung = params_ptr->rung;
+		new_params->cuda_cutoff = params_ptr->cuda_cutoff;
+		auto func = [this, new_params]() {
+			int dummy;
+			new_params->stack_top = (uintptr_t) &dummy;
+			auto rc = ((tree*) ptr)->kick(new_params);
+			new_params->kick_params_type::~kick_params_type();
+			kick_params_alloc.deallocate(new_params);
+			//   threads_used--;
+				return rc;
+			};
+		auto fut = hpx::async(std::move(func));
+		return std::move(fut);
+	} else {
+		return hpx::make_ready_future(((tree*) ptr)->kick(params_ptr));
+	}
+//	}
 }
 
 #define CC_CP_DIRECT 0
@@ -317,7 +321,10 @@ hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool threa
 hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 
+	auto& F = params.F;
 	if (params.depth == 0) {
+		int dummy;
+		params.stack_top = (uintptr_t) &dummy;
 		tmp_tm.start();
 		const auto sm_count = global().cuda.devices[0].multiProcessorCount;
 		const int target_max = 2 * sm_count * KICK_OCCUPANCY;
@@ -331,6 +338,13 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 		} while (count < target_max);
 		params.cuda_cutoff = pcnt * 2;
 		cuda_block_count = compute_block_count(params.cuda_cutoff);
+	}
+	if (children[0].ptr == 0) {
+		for (int i = 0; i < parts.second - parts.first; i++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				F[dim][i] = 0.f;
+			}
+		}
 	}
 
 #ifdef TEST_CHECKLIST_TIME
@@ -372,57 +386,30 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 				const auto other_radius = checks[ci].get_radius();
 				const auto other_pos = checks[ci].get_pos();
 				float d2 = 0.f;
-				const float R2 = sqr(other_radius + SINK_BIAS * radius);
-#ifdef PERIODIC_OFF
-				for (int dim = 0; dim < NDIM; dim++) {
-					d2 += sqr(other_pos[dim].to_float() - pos[dim].to_float());
-				}
-#else
 				for (int dim = 0; dim < NDIM; dim++) {
 					d2 += sqr(distance(other_pos[dim], pos[dim]));
 				}
-#endif
 				if (ewald_dist) {
 					d2 = std::max(d2, EWALD_MIN_DIST2);
 				}
-				const bool far = R2 < theta2 * d2;
-				//         const bool opened = checks[ci].opened++;
-				if (!direct) {
-					if (far) {
-						if (checks[ci].is_leaf()) {
-							parti.push_back(checks[ci]);
-						} else {
-							multis.push_back(checks[ci]);
-						}
-					} else {
-						if (checks[ci].is_leaf()) {
-							next_checks.push_back(checks[ci]);
-						} else {
-							const auto child_checks = checks[ci].get_children().get();
-							next_checks.push_back(child_checks[LEFT]);
-							next_checks.push_back(child_checks[RIGHT]);
-						}
-					}
+				const auto myradius = SINK_BIAS * (radius + params.hsoft);
+				const auto R1 = sqr(other_radius + myradius + params.hsoft);                 // 2
+				const auto R2 = sqr(other_radius * params.theta + myradius + params.hsoft);
+				const auto R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + params.hsoft);
+				const bool far1 = R1 < theta2 * d2;
+				const bool far2 = R2 < theta2 * d2;
+				const bool far3 = R3 < theta2 * d2;
+				const bool isleaf = checks[ci].is_leaf();
+				if (far1 || (direct) && far3) {
+					multis.push_back(checks[ci]);
+				} else if ((far2 || direct) && isleaf) {
+					parti.push_back(checks[ci]);
+				} else if (isleaf) {
+					next_checks.push_back(checks[ci]);
 				} else {
-					if (far) {
-						if (checks[ci].is_leaf()) {
-							parti.push_back(checks[ci]);
-						} else {
-							multis.push_back(checks[ci]);
-						}
-					} else {
-						if (checks[ci].is_leaf()) {
-							parti.push_back(checks[ci]);
-						} else {
-							if (checks[ci].is_leaf()) {
-								next_checks.push_back(checks[ci]);
-							} else {
-								const auto child_checks = checks[ci].get_children().get();
-								next_checks.push_back(child_checks[LEFT]);
-								next_checks.push_back(child_checks[RIGHT]);
-							}
-						}
-					}
+					const auto child_checks = checks[ci].get_children().get();
+					next_checks.push_back(child_checks[LEFT]);
+					next_checks.push_back(child_checks[RIGHT]);
 				}
 			}
 #ifdef TEST_CHECKLIST_TIME
@@ -436,25 +423,19 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 
 		switch (type) {
 		case CC_CP_DIRECT:
-			rc.flops += cpu_cc_direct(params_ptr);
-			if (parti.size()) {
-				//           printf("CP_DIRECT found on CPU\n");
-				//          abort();
-			}
+			//		rc.flops += cpu_cc_direct(params_ptr);
+			//		rc.flops += cpu_cp_direct(params_ptr);
 			break;
 		case CC_CP_EWALD:
 			if (multis.size()) {
-				send_ewald_to_gpu(params_ptr).get();
-				//			hpx::this_thread::yield();
-				//		rc.flops += cpu_cc_ewald(params_ptr);
+				//			send_ewald_to_gpu(params_ptr).get();
 			}
 			break;
 		case PC_PP_DIRECT:
-			//       printf("PC_PP_DIRECT on CPU\n");
-			printf("%i %i %i\n", multis.size(), parti.size(), params_ptr->depth);
+			//		rc.flops += cpu_pc_direct(params_ptr);
+			//		rc.flops += cpu_pp_direct(params_ptr);
 			break;
 		case PC_PP_EWALD:
-			//        printf("PC_PP_EWALD on CPU\n");
 			break;
 		}
 
@@ -482,19 +463,6 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 			printf("error\n");
 			abort();
 		}
-//  printf("6\n");
-//  if( params.depth != params.dchecks.depth()) {
-//      printf("%li %li\n", params.depth, params.dchecks.depth());
-//   }
-//   if( params.depth != params.echecks.depth()) {
-//     printf( "%li %li\n", params.depth, params.echecks.depth());
-// }
-//      auto rc1 = futs[LEFT].get();
-//      auto rc2 = futs[RIGHT].get();
-//      kick_return rc3 = rc;
-//      rc3.rung = std::max(rc1.rung, rc2.rung);
-//      rc3.flops += rc1.flops + rc2.flops;
-//      return hpx::make_ready_future(rc3);
 		return hpx::when_all(futs.begin(), futs.end()).then(
 				[rc](hpx::future<std::vector<hpx::future<kick_return>>> futfut) {
 					auto futs = futfut.get();
@@ -506,7 +474,53 @@ hpx::future<kick_return> tree::kick(kick_params_type *params_ptr) {
 					return rc3;
 				});
 	} else {
-		rc.rung = 0;
+		int max_rung = 0;
+		const auto invlog2 = 1.0f / logf(2);
+		for (int k = 0; k < parts.second - parts.first; k++) {
+			const auto this_rung = particles->rung(k + parts.first);
+			if (this_rung >= params.rung) {
+				array<float, NDIM> g;
+				float phi;
+				for (int dim = 0; dim < NDIM; dim++) {
+					const auto x2 = pos[dim];
+					const auto x1 = particles->pos(dim, k + parts.first);
+					dx[dim] = distance(x1, x2);
+				}
+				shift_expansion(L, g, phi, dx);
+				//		int dummy;
+				//		printf( "%li\n", params.stack_top - (uintptr_t)(&dummy));
+				for (int dim = 0; dim < NDIM; dim++) {
+					F[dim][k] += g[dim];
+				}
+#ifdef TEST_FORCE
+				for (int dim = 0; dim < NDIM; dim++) {
+					particles->force(dim, k + parts.first) = F[dim][k];
+				}
+#endif
+				float dt = params.t0 / (1 << this_rung);
+				if (!params.t0) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						particles->vel(dim, k + parts.first) += 0.5 * dt * F[dim][k];
+					}
+				}
+				float fmag = 0.0;
+				for (int dim = 0; dim < NDIM; dim++) {
+					fmag += sqr(F[dim][k]);
+				}
+				fmag = sqrtf(fmag);
+				assert(fmag > 0.0);
+				dt = std::min(std::sqrt(params.scale * params.eta / fmag), params.t0);
+				int new_rung = std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1),
+						params.rung);
+				dt = params.t0 / (1 << new_rung);
+				for (int dim = 0; dim < NDIM; dim++) {
+					particles->vel(dim, k + parts.first) += 0.5 * dt * F[dim][k];
+				}
+				max_rung = std::max(max_rung, new_rung);
+				particles->set_rung(new_rung, k + parts.first);
+			}
+		}
+		rc.rung = max_rung;
 		return hpx::make_ready_future(rc);
 	}
 }
@@ -660,6 +674,7 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
 	new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
 	new (new_params) kick_params_type();
 	new_params->t0 = params->t0;
+	new_params->first = params->first;
 	new_params->tptr = me;
 	new_params->dchecks = params->dchecks.copy_top();
 	new_params->echecks = params->echecks.copy_top();
@@ -669,7 +684,6 @@ hpx::future<kick_return> tree::send_kick_to_gpu(kick_params_type *params) {
 	new_params->theta = params->theta;
 	new_params->eta = params->eta;
 	new_params->scale = params->scale;
-	new_params->t0 = params->t0;
 	new_params->rung = params->rung;
 	new_params->cuda_cutoff = params->cuda_cutoff;
 	gpu.params = new_params;
@@ -772,22 +786,177 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	return flops;
 }
 
-int tree::cpu_pp_direct(kick_params_type *params_ptr) {
+int tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
-	auto &partis = params.part_interactions;
 	int nparts = parts.second - parts.first;
-	std::array<std::vector<fixed32>, NDIM> sources;
+	static thread_local std::array<std::vector<fixed32>, NDIM> sources;
+	auto &partis = params.part_interactions;
+	for (int dim = 0; dim < NDIM; dim++) {
+		sources[dim].resize(0);
+	}
 	for (int k = 0; k < partis.size(); k++) {
 		const auto& other_parts = ((tree*) partis[k])->parts;
 		for (size_t l = other_parts.first; l < other_parts.second; l++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				sources[dim].push_back(particles->pos(l, dim));
+				sources[dim].push_back(particles->pos(dim, l));
 			}
 		}
 	}
+	array<simd_int, NDIM> X;
+	array<simd_int, NDIM> Y;
+	array<simd_float, NDIM> dX;
+	expansion<simd_float> D;
+	simd_float M;
+	expansion<simd_float> Lacc;
+	for (int dim = 0; dim < NDIM; dim++) {
+		X[dim] = fixed<int>(pos[dim]).raw();
+	}
+	for (int i = 0; i < LP; i++) {
+		Lacc[i] = 0.f;
+	}
+	const auto cnt1 = sources[0].size();
+	for (int j = 0; j < cnt1; j += simd_float::size()) {
+		for (int k = 0; k < simd_float::size(); k++) {
+			if (j + k < cnt1) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					Y[dim][k] = sources[dim][j + k].raw();
+				}
+				for (int i = 0; i < MP; i++) {
+					M[k] = 1.f;
+				}
+			} else {
+				for (int dim = 0; dim < NDIM; dim++) {
+					Y[dim][k] = sources[dim][cnt1 - 1].raw();
+				}
+				for (int i = 0; i < MP; i++) {
+					M[k] = 0.f;
+				}
+			}
+		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
+		}
+		green_direct(D, dX);
+		multipole_interaction(Lacc, M, D);
+	}
+	for (int k = 0; k < simd_float::size(); k++) {
+		for (int i = 0; i < LP; i++) {
+			L[i] += Lacc[i][k];
+		}
+	}
+	return 0;
+}
+
+int tree::cpu_pp_direct(kick_params_type *params_ptr) {
+	kick_params_type &params = *params_ptr;
+	auto &L = params.L[params.depth];
+	auto& F = params.F;
+	int nparts = parts.second - parts.first;
+	static thread_local std::array<std::vector<fixed32>, NDIM> sources;
+	auto &partis = params.part_interactions;
+	for (int dim = 0; dim < NDIM; dim++) {
+		sources[dim].resize(0);
+	}
+	for (int k = 0; k < partis.size(); k++) {
+		const auto& other_parts = ((tree*) partis[k])->parts;
+		for (size_t l = other_parts.first; l < other_parts.second; l++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				sources[dim].push_back(particles->pos(dim, l));
+			}
+		}
+	}
+	simd_float mask;
+	array<simd_int, NDIM> X;
+	array<simd_int, NDIM> Y;
 	for (int k = 0; k < nparts; k++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			X[dim] = particles->pos(dim, k + parts.first).raw();
+		}
 		if (particles->rung(k + parts.first) >= params.rung) {
+			array<simd_float, NDIM> f;
+			for (int j = 0; j < sources[0].size(); j += simd_float::size()) {
+				for (int k = 0; k < simd_float::size(); k++) {
+					if (j + k < sources[0].size()) {
+						mask[k] = 1.f;
+						for (int dim = 0; dim < NDIM; dim++) {
+							Y[dim][k] = sources[dim][j + k].raw();
+						}
+					} else {
+						mask[k] = 0.f;
+						for (int dim = 0; dim < NDIM; dim++) {
+							Y[dim][k] = sources[dim][sources[0].size() - 1].raw();
+						}
+					}
+				}
+				array<simd_float, NDIM> dX;
+				for (int dim = 0; dim < NDIM; dim++) {
+					dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
+				}
+				const auto r2 = fma(dX[0], dX[0], fma(dX[1], dX[1], dX[2] * dX[2]));
+				const auto rinv = simd_float(1) / sqrt(r2);
+				const auto rinv3 = mask * rinv * rinv * rinv;
+				for (int dim = 0; dim < NDIM; dim++) {
+					f[dim] = fma(rinv3, dX[dim], f[dim]);
+				}
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				F[dim][k] += f[dim].sum();
+			}
+		}
+	}
+	return 0;
+}
+
+int tree::cpu_pc_direct(kick_params_type *params_ptr) {
+	kick_params_type &params = *params_ptr;
+	auto &L = params.L[params.depth];
+	auto &multis = params.multi_interactions;
+	auto& F = params.F;
+	int nparts = parts.second - parts.first;
+	array<simd_int, NDIM> X;
+	array<simd_float, NDIM> dX;
+	array<simd_int, NDIM> Y;
+	multipole_type<simd_float> M;
+	expansion<simd_float> D;
+	for (int i = 0; i < nparts; i++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			X[dim] = particles->pos(dim, i + parts.first).raw();
+		}
+		if (particles->rung(i + parts.first) >= params.rung) {
+			array<simd_float, NDIM> f;
+			array<simd_float, NDIM + 1> Lacc;
+			for (int i = 0; i < NDIM + 1; i++) {
+				Lacc[i] = 0.f;
+			}
+			const auto cnt1 = multis.size();
+			for (int j = 0; j < cnt1; j += simd_float::size()) {
+				for (int k = 0; k < simd_float::size(); k++) {
+					if (j + k < cnt1) {
+						for (int dim = 0; dim < NDIM; dim++) {
+							Y[dim][k] = fixed<int>(((const tree*) multis[j + k])->pos[dim]).raw();
+						}
+						for (int i = 0; i < MP; i++) {
+							M[i][k] = (((const tree*) multis[j + k])->multi)[i];
+						}
+					} else {
+						for (int dim = 0; dim < NDIM; dim++) {
+							Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
+						}
+						for (int i = 0; i < MP; i++) {
+							M[i][k] = 0.f;
+						}
+					}
+				}
+				for (int dim = 0; dim < NDIM; dim++) {
+					dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
+				}
+				green_direct(D, dX);
+				multipole_interaction(Lacc, M, D);
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				F[dim][i] += Lacc[1 + dim].sum();
+			}
 		}
 	}
 	return 0;

@@ -255,8 +255,10 @@ struct kick_params_type {
 	float eta;
 	float scale;
 	float hsoft;
+	bool first;
 	int rung;
-	bool t0;
+	float t0;
+	uintptr_t stack_top;
 	size_t flops;CUDA_EXPORT
 	inline kick_params_type() {
 		THREAD;
@@ -266,6 +268,7 @@ struct kick_params_type {
 			eta = 0.1;
 			scale = 1.0;
 			t0 = 1.0;
+			first = true;
 			rung = 0;
 			hsoft = global().opts.hsoft;
 			theta = global().opts.theta;
@@ -324,7 +327,9 @@ public:
 	}
 	static void cleanup();
 	int cpu_cc_direct(kick_params_type *params);
+	int cpu_cp_direct(kick_params_type *params);
 	int cpu_pp_direct(kick_params_type *params);
+	int cpu_pc_direct(kick_params_type *params);
 	int cpu_cc_ewald(kick_params_type *params);
 	sort_return sort(sort_params = sort_params());
 	hpx::future<kick_return> kick(kick_params_type*);

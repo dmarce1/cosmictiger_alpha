@@ -275,10 +275,11 @@ CUDA_EXPORT inline void expansion<T>::translate_L2(array<T,NDIM>& g, T& phi, con
 }
 
 
-CUDA_DEVICE expansion<float>& shift_expansion(expansion<float> &me, const array<float, NDIM> &dX);
-CUDA_DEVICE void shift_expansion(expansion<float> &me, array<float, NDIM> &g, float &phi,
+CUDA_EXPORT expansion<float>& shift_expansion(expansion<float> &me, const array<float, NDIM> &dX);
+CUDA_EXPORT void shift_expansion(expansion<float> &me, array<float, NDIM> &g, float &phi,
       const array<float, NDIM> &dX);
 CUDA_DEVICE void expansion_init();
+__host__ void expansion_init_cpu();
 
 /* namespace fmmx */
 #endif /* expansion_H_ */

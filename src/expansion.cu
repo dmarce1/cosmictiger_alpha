@@ -11,30 +11,55 @@
 
 
 
-__managed__ expansion<float> Lfactor;
+__device__ expansion<float> Lfactor_gpu;
+expansion<float> Lfactor_cpu;
 
 __device__ void expansion_init() {
    for (int i = 0; i < LP; i++) {
-      Lfactor[i] = float(0.0);
+      Lfactor_gpu[i] = float(0.0);
    }
-   Lfactor() += float(1);
+   Lfactor_gpu() += float(1);
    for (int a = 0; a < NDIM; ++a) {
-      Lfactor(a) += float(1.0);
+      Lfactor_gpu(a) += float(1.0);
       for (int b = 0; b < NDIM; ++b) {
-         Lfactor(a, b) += float(0.5);
+         Lfactor_gpu(a, b) += float(0.5);
          for (int c = 0; c < NDIM; ++c) {
-            Lfactor(a, b, c) += float(1.0 / 6.0);
+            Lfactor_gpu(a, b, c) += float(1.0 / 6.0);
             for (int d = 0; d < NDIM; ++d) {
-               Lfactor(a, b, c, d) += float(1.0 / 24.0);
+               Lfactor_gpu(a, b, c, d) += float(1.0 / 24.0);
             }
          }
       }
    }
 }
 
-CUDA_DEVICE expansion<float>& shift_expansion(expansion<float> &me,
+__host__ void expansion_init_cpu() {
+   for (int i = 0; i < LP; i++) {
+      Lfactor_cpu[i] = float(0.0);
+   }
+   Lfactor_cpu() += float(1);
+   for (int a = 0; a < NDIM; ++a) {
+      Lfactor_cpu(a) += float(1.0);
+      for (int b = 0; b < NDIM; ++b) {
+         Lfactor_cpu(a, b) += float(0.5);
+         for (int c = 0; c < NDIM; ++c) {
+            Lfactor_cpu(a, b, c) += float(1.0 / 6.0);
+            for (int d = 0; d < NDIM; ++d) {
+               Lfactor_cpu(a, b, c, d) += float(1.0 / 24.0);
+            }
+         }
+      }
+   }
+}
+
+CUDA_EXPORT expansion<float>& shift_expansion(expansion<float> &me,
       const array<float, NDIM> &dX) {
-   for (int a = 0; a < 3; a++) {
+#ifdef __CUDA_ARCH__
+	const auto& Lfactor = Lfactor_gpu;
+#else
+	const auto& Lfactor = Lfactor_cpu;
+#endif
+	for (int a = 0; a < 3; a++) {
       me() += me(a) * dX[a];
       for (int b = 0; b <= a; b++) {
          me() += me(a, b) * dX[a] * dX[b] * Lfactor(a, b);
@@ -81,8 +106,13 @@ CUDA_DEVICE expansion<float>& shift_expansion(expansion<float> &me,
    return me;
 }
 
-CUDA_DEVICE void shift_expansion(expansion<float> &me, array<float, NDIM> &g, float &phi,
+CUDA_EXPORT void shift_expansion(expansion<float> &me, array<float, NDIM> &g, float &phi,
       const array<float, NDIM> &dX) {
+#ifdef __CUDA_ARCH__
+	const auto& Lfactor = Lfactor_gpu;
+#else
+	const auto& Lfactor = Lfactor_cpu;
+#endif
    phi = me();
    for (int a = 0; a < 3; a++) {
       phi += me(a) * dX[a];

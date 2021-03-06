@@ -402,7 +402,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 				}
 #endif
 				float dt = params.t0 / (1 << this_rung);
-				if (!params.t0) {
+				if (!params.first) {
 					for (int dim = 0; dim < NDIM; dim++) {
 						parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
 					}
@@ -451,6 +451,7 @@ void tree::cuda_set_kick_params(particle_set *p, ewald_indices *real_indices, ew
 		periodic_parts *parts) {
 	cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
 	CUDA_CHECK(cudaDeviceSynchronize());
+	expansion_init_cpu();
 	if( tree::real_indices_ptr == nullptr ) {
 		tree::real_indices_ptr = new ewald_indices(EWALD_NREAL, false);
 		tree::four_indices_ptr = new ewald_indices(EWALD_NFOUR, true);
