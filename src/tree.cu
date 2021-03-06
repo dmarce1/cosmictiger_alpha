@@ -31,9 +31,9 @@ __managed__ double ewald_interaction_time = 0;
 __managed__ double total_time = 0;
 
 #define MI 0
-#define CI 1
-#define OI 2
-#define PI 3
+#define PI 1
+#define CI 2
+#define OI 3
 
 void show_timings() {
 	const auto walk_time = total_time - pp_interaction_time - pc_interaction_time - cp_interaction_time
@@ -84,8 +84,8 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 		__syncwarp();
 	}
 	const auto& myparts = ((tree*) params.tptr)->parts;
+	auto &indices = shmem.indices;
 	{
-		auto &indices = shmem.indices;
 		auto &count = shmem.count;
 
 		const auto theta = params.theta;
@@ -103,7 +103,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 		for (int i = 0; i < NITERS; i++) {
 			lists[i]->resize(0);
 		}
-		const auto myradius = SINK_BIAS * ((tree*) tptr)->radius;
+		const auto myradius = SINK_BIAS * (((tree*) tptr)->radius + params.hsoft);
 		const auto &mypos = ((tree*) tptr)->pos;
 		const bool iamleaf = ((tree*) tptr)->children[0].ptr;
 		int ninteractions = iamleaf == 0 ? 4 : 2;
@@ -156,9 +156,9 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 							const bool isleaf = ((const tree*) check)->parts.second
 									- ((const tree*) check)->parts.first<= GROUP_SIZE;
 //							auto& other_opened = check.opened;
-			//				const auto& me_opened = direct;
-							const bool mi =  far1  || (direct && far3);
-							const bool pi = (far2 && isleaf) || (direct && isleaf);
+							//				const auto& me_opened = direct;
+							const bool mi = far1 || (direct && far3);
+							const bool pi = (far2 || direct) && isleaf;
 							list_index = int(mi) * MI
 									+ (1 - int(mi))
 											* (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
@@ -226,12 +226,14 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 //            printf( "%i %i %i\n", params.depth, count[MI], count[PI]);
 //         }
 			__syncwarp();
+			auto &tmp_parti = params.tmp;
 			auto tm = clock64();
-			auto &rungs = shmem.rungs;
-			auto &sinks = shmem.sink;
-			switch (type) {
-			case PC_PP_DIRECT:
+			if (type == PC_PP_DIRECT) {
 				tm = clock64();
+				auto &rungs = shmem.rungs;
+				auto &sinks = shmem.sink;
+				int list_index;
+				const auto pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
 				for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 					rungs[k] = parts->rung(k + myparts.first);
 					if (rungs[k] >= params.rung) {
@@ -240,42 +242,71 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 						}
 					}
 				}
-				for (int j = 0; j < parti.size(); j++) {
+				tmp_parti.resize(0);
+				for (int j = tid; j < pmax; j += KICK_BLOCK_SIZE) {
+					if (tid == 0) {
+						indices[PI][0] = indices[MI][0] = 0;
+					}
+					indices[PI][tid + 1] = 0;
+					indices[MI][tid + 1] = 0;
 					const auto& other = *((tree*) parti[j]);
 					const size_t& first = myparts.first;
 					const size_t& last = myparts.second;
-					auto& reduce = shmem.Lreduce;
-					reduce[tid] = 0.f;
-					for (int k = tid; k < last - first; k += KICK_BLOCK_SIZE) {
-						const auto this_rung = rungs[k];
-						if (this_rung >= params.rung) {
-							float dx0 = distance(other.pos[0], sinks[0][k]);
-							float dy0 = distance(other.pos[1], sinks[1][k]);
-							float dz0 = distance(other.pos[2], sinks[2][k]);
-							float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-							reduce[tid] += sqr(other.radius + params.hsoft) > d2 * theta2;
+					list_index = -1;
+					if (j < parti.size()) {
+						bool res = false;
+						for (int k = 0; k < last - first; k++) {
+							const auto this_rung = rungs[k];
+							if (this_rung >= params.rung) {
+								float dx0 = distance(other.pos[0], sinks[0][k]);
+								float dy0 = distance(other.pos[1], sinks[1][k]);
+								float dz0 = distance(other.pos[2], sinks[2][k]);
+								float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
+								res = res || sqr(other.radius + params.hsoft) > d2 * theta2;
+							}
+						}
+						if (res) {
+							list_index = PI;
+							indices[PI][tid + 1] = 1;
+						} else {
+							list_index = MI;
+							indices[MI][tid + 1] = 1;
 						}
 					}
-					for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
+						array<int, 2> tmp;
 						__syncwarp();
-						if (tid < P) {
-							reduce[tid] += reduce[tid + P];
+						if (tid - P + 1 >= 0) {
+							tmp[0] = indices[0][tid - P + 1];
+							tmp[1] = indices[1][tid - P + 1];
 						}
+						__syncwarp();
+						if (tid - P + 1 >= 0) {
+							indices[0][tid + 1] += tmp[0];
+							indices[1][tid + 1] += tmp[1];
+						}
+					}
+					const auto part_cnt = tmp_parti.size();
+					const auto mult_cnt = multis.size();
+					__syncwarp();
+					tmp_parti.resize(part_cnt + indices[PI][KICK_BLOCK_SIZE]);
+					multis.resize(mult_cnt + indices[MI][KICK_BLOCK_SIZE]);
+					if (list_index == PI) {
+						tmp_parti[part_cnt + indices[PI][tid]] = parti[j];
+					} else if (list_index == MI) {
+						multis[mult_cnt + indices[MI][tid]] = parti[j];
 					}
 					__syncwarp();
-					if (reduce[0] == 0.f) {
-						multis.push_back(parti[j]);
-						parti[j] = parti.back();
-						parti.pop_back();
-						j--;
-					}
 				}
 				if (tid == 0) {
 					atomicAdd(&pc_interaction_time, (double) (clock64() - tm));
 				}
+			}
+			switch (type) {
+			case PC_PP_DIRECT:
 				flops += cuda_pc_interactions(parts, multis, params_ptr);
 				tm = clock64();
-				flops += cuda_pp_interactions(parts, parti, params_ptr);
+				flops += cuda_pp_interactions(parts, tmp_parti, params_ptr);
 				if (tid == 0) {
 					atomicAdd(&pp_interaction_time, (double) (clock64() - tm));
 				}

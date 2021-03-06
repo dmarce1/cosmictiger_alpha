@@ -240,6 +240,7 @@ struct cuda_kick_shmem {
 struct kick_params_type {
 	vector<tree_ptr> multi_interactions;
 	vector<tree_ptr> part_interactions;
+	vector<tree_ptr> tmp;
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> opened_checks;
 	stack_vector<tree_ptr> dchecks;
