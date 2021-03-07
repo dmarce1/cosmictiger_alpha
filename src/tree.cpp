@@ -16,7 +16,7 @@ static unified_allocator kick_params_alloc;
 timer tmp_tm;
 
 #define NWAVE 2
-#define GPUOS 4
+#define GPUOS 8
 
 void tree::set_particle_set(particle_set *parts) {
 	particles = parts;
@@ -664,7 +664,7 @@ void tree::gpu_daemon() {
 			}*/
 			for (int i = 0; i < NWAVE; i++) {
 				printf("Sending %i blocks to GPU\n", gpu_waves[i].size());
-			//	particles->set_preferred_gpu(gpu_waves[i].front().parts.first, gpu_waves[i].front().parts.second, stream);
+				particles->set_preferred_gpu(gpu_waves[i].front().parts.first, gpu_waves[i].front().parts.second, stream);
 				gpu_returns[i] = cuda_execute_kick_kernel(gpu_params[i], gpu_waves[i].size(), stream);
 			}
 /*			for (int i = 0; i < NWAVE; i++) {

@@ -85,12 +85,12 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 	}
 	const auto& myparts = ((tree*) params.tptr)->parts;
 	auto &indices = shmem.indices;
+	const auto& h = params.hsoft;
 	{
 		auto &count = shmem.count;
 
 		const auto theta = params.theta;
 		const auto theta2 = params.theta * params.theta;
-		const auto theta_o_sink_bias = params.theta / SINK_BIAS;
 		array<vector<tree_ptr>*, NITERS> lists;
 		auto &multis = params.multi_interactions;
 		auto &parti = params.part_interactions;
@@ -100,13 +100,14 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 		lists[PI] = &parti;
 		lists[CI] = &next_checks;
 		lists[OI] = &opened_checks;
-		for (int i = 0; i < NITERS; i++) {
-			lists[i]->resize(0);
-		}
-		const auto myradius = SINK_BIAS * (((tree*) tptr)->radius + params.hsoft);
-		const auto &mypos = ((tree*) tptr)->pos;
-		const bool iamleaf = ((tree*) tptr)->children[0].ptr;
+		const auto& me = ((tree*) tptr);
+		const auto myradius1 = me->radius + h;
+		const auto myradius2 = SINK_BIAS * myradius1;
+		;
+		const auto &mypos = me->pos;
+		const bool iamleaf = me->children[0].ptr;
 		int ninteractions = iamleaf == 0 ? 4 : 2;
+		const auto tp1 = tid + 1;
 		for (int type = 0; type < ninteractions; type++) {
 			const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
 			auto& checks = ewald_dist ? params.echecks : params.dchecks;
@@ -126,7 +127,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 					const int cimax = ((check_count - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
 					for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
 						for (int i = 0; i < NITERS; i++) {
-							indices[i][tid + 1] = 0;
+							indices[i][tp1] = 0;
 						}
 						__syncwarp();
 						if (tid < NITERS) {
@@ -145,24 +146,22 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 							}
 							float d2 = fmaf(dist[0], dist[0], fmaf(dist[1], dist[1], sqr(dist[2])));
 							d2 = (1 - int(ewald_dist)) * d2 + int(ewald_dist) * fmaxf(d2, EWALD_MIN_DIST2);
-							const auto R1 = sqr(other_radius + myradius + h);                 // 2
-							const auto R2 = sqr(other_radius * theta + myradius + h);
-							const auto R3 = sqr(other_radius + myradius * theta_o_sink_bias + h);
+							const auto other_radius_ph = other_radius + h;
+							const auto R1 = sqr(other_radius_ph + myradius2);                 // 2
+							const auto R2 = sqr(other_radius_ph * theta + myradius2);
+							const auto R3 = sqr(other_radius_ph + myradius1 * theta);
 							const auto theta2d2 = theta2 * d2;
 							const bool far1 = R1 < theta2d2;                 // 2
 							const bool far2 = R2 < theta2d2;
 							const bool far3 = R3 < theta2d2;
-							//			const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
 							const bool isleaf = ((const tree*) check)->parts.second
 									- ((const tree*) check)->parts.first<= GROUP_SIZE;
-//							auto& other_opened = check.opened;
-							//				const auto& me_opened = direct;
 							const bool mi = far1 || (direct && far3);
 							const bool pi = (far2 || direct) && isleaf;
 							list_index = int(mi) * MI
 									+ (1 - int(mi))
 											* (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
-							indices[list_index][tid + 1] = 1;
+							indices[list_index][tp1] = 1;
 						}
 						__syncwarp();
 						for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
@@ -175,14 +174,14 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 							__syncwarp();
 							if (tid - P + 1 >= 0) {
 								for (int i = 0; i < NITERS; i++) {
-									indices[i][tid + 1] += tmp[i];
+									indices[i][tp1] += tmp[i];
 								}
 							}
 							__syncwarp();
 						}
 						__syncwarp();
 						for (int i = 0; i < NITERS; i++) {
-							assert(indices[i][tid] <= indices[i][tid + 1]);
+							assert(indices[i][tid] <= indices[i][tp1]);
 							lists[i]->resize(count[i] + indices[i][KICK_BLOCK_SIZE]);
 						}
 						if (ci < check_count) {
@@ -198,24 +197,26 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 						__syncwarp();
 					}
 					__syncwarp();
-					check_count = 2 * count[CI];
+					auto& countCI = count[CI];
+					auto& countOI = count[OI];
+					check_count = 2 * countCI + countOI;
 					checks.resize(check_count);
-					for (int i = tid; i < count[CI]; i += KICK_BLOCK_SIZE) {
+					for (int i = tid; i < countCI; i += KICK_BLOCK_SIZE) {
+						const auto base = 2 * i;
 						const auto children = next_checks[i].get_children();
 						for (int j = 0; j < NCHILD; j++) {
-							checks[2 * i + j] = children[j];
+							checks[base + j] = children[j];
 						}
 					}
 					__syncwarp();
-					check_count += count[OI];
-					checks.resize(check_count);
-					for (int i = tid; i < count[OI]; i += KICK_BLOCK_SIZE) {
-						checks[2 * count[CI] + i] = opened_checks[i];
+					const auto base = 2 * countCI;
+					for (int i = tid; i < countOI; i += KICK_BLOCK_SIZE) {
+						checks[base + i] = opened_checks[i];
 					}
 					__syncwarp();
 					if (tid == 0) {
-						count[CI] = 0;
-						count[OI] = 0;
+						countCI = 0;
+						countOI = 0;
 					}
 					__syncwarp();
 					next_checks.resize(0);
@@ -229,7 +230,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 				auto &rungs = shmem.rungs;
 				auto &sinks = shmem.sink;
 				int list_index;
-				const auto pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
+				const int pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
 				for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 					rungs[k] = parts->rung(k + myparts.first);
 					if (rungs[k] >= params.rung) {
@@ -243,8 +244,8 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 					if (tid == 0) {
 						indices[PI][0] = indices[MI][0] = 0;
 					}
-					indices[PI][tid + 1] = 0;
-					indices[MI][tid + 1] = 0;
+					indices[PI][tp1] = 0;
+					indices[MI][tp1] = 0;
 					const auto& other = *((tree*) parti[j]);
 					const size_t& first = myparts.first;
 					const size_t& last = myparts.second;
@@ -266,7 +267,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 							}
 						}
 						list_index = res ? PI : MI;
-						indices[list_index][tid + 1] = 1;
+						indices[list_index][tp1] = 1;
 					}
 					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
 						array<int, 2> tmp;
@@ -277,8 +278,8 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 						}
 						__syncwarp();
 						if (tid - P + 1 >= 0) {
-							indices[0][tid + 1] += tmp[0];
-							indices[1][tid + 1] += tmp[1];
+							indices[0][tp1] += tmp[0];
+							indices[1][tp1] += tmp[1];
 						}
 					}
 					const auto part_cnt = tmp_parti.size();

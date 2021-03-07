@@ -61,23 +61,23 @@ particle_set::particle_set(size_t size, size_t offset) {
 	pptr_ = (particle*) data;
 	for (size_t dim = 0; dim < NDIM; dim++) {
 		xptr_[dim] = (fixed32*) (data + dim * size * sizeof(fixed32));
-//		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size * sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
-//		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size * sizeof(fixed32), cudaMemAdviseSetAccessedBy, 0));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size * sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size * sizeof(fixed32), cudaMemAdviseSetAccessedBy, 0));
 	}
 	for (size_t dim = 0; dim < NDIM; dim++) {
 		vptr_[dim] = (float*) (data + size_t(NDIM) * size * sizeof(fixed32) + dim * size * sizeof(float));
-//		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
+		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
 	}
 	rptr_ = (int8_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size);
-//	CUDA_CHECK(cudaMemAdvise(rptr_, size * sizeof(int8_t), cudaMemAdviseSetAccessedBy, 0));
+	CUDA_CHECK(cudaMemAdvise(rptr_, size * sizeof(int8_t), cudaMemAdviseSetAccessedBy, 0));
 	mptr_ = (uint64_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(int8_t) * size);
-//	CUDA_CHECK(cudaMemAdvise(mptr_, size * sizeof(uint64_t), cudaMemAdviseSetAccessedBy, 0));
+	CUDA_CHECK(cudaMemAdvise(mptr_, size * sizeof(uint64_t), cudaMemAdviseSetAccessedBy, 0));
 #ifdef TEST_FORCE
 	for (size_t dim = 0; dim < NDIM; dim++) {
 		const auto offset = size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(int8_t) * size
 				+ size * sizeof(uint64_t);
 		gptr_[dim] = (float*) (data + offset + dim * size * sizeof(float));
-//		CUDA_CHECK(cudaMemAdvise(gptr_[dim], size * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
+		CUDA_CHECK(cudaMemAdvise(gptr_[dim], size * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
 	}
 #endif
 	for (int i = 0; i < size; i++) {
