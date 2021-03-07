@@ -31,7 +31,6 @@ struct tree_ptr;
 
 #ifndef __CUDACC__
 struct tree_alloc {
-	managed_allocator<multipole> multi_alloc;
 	managed_allocator<tree> tree_alloc;
 };
 
@@ -250,16 +249,34 @@ struct kick_params_type {
 	array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
 	tree_ptr tptr;
 	int depth;
-	int cuda_cutoff;
+	int block_cutoff;
 	float theta;
 	float eta;
 	float scale;
 	float hsoft;
 	bool first;
 	int rung;
+	bool cpu_block;
 	float t0;
 	uintptr_t stack_top;
-	size_t flops;CUDA_EXPORT
+	size_t flops;
+	kick_params_type& operator=( kick_params_type& other ) {
+		first = other.first;
+		dchecks = other.dchecks.copy_top();
+		echecks = other.echecks.copy_top();
+		L[other.depth] = other.L[other.depth];
+		Lpos[other.depth] = other.Lpos[other.depth];
+		depth = other.depth;
+		theta = other.theta;
+		eta = other.eta;
+		scale = other.scale;
+		t0 = other.t0;
+		rung = other.rung;
+		block_cutoff = other.block_cutoff;
+		return *this;
+	}
+
+	CUDA_EXPORT
 	inline kick_params_type() {
 		THREAD;
 		if (tid == 0) {
@@ -268,6 +285,7 @@ struct kick_params_type {
 			eta = 0.1;
 			scale = 1.0;
 			t0 = 1.0;
+			cpu_block = false;
 			first = true;
 			rung = 0;
 			hsoft = global().opts.hsoft;
@@ -282,8 +300,11 @@ struct kick_params_type;
 #ifndef __CUDACC__
 struct gpu_kick {
 	kick_params_type *params;
-	hpx::lcos::local::promise<kick_return> promise;
+	std::shared_ptr<hpx::lcos::local::promise<kick_return>> promise;
 	pair<size_t, size_t> parts;
+	gpu_kick() {
+		promise = std::make_shared<hpx::lcos::local::promise<kick_return>>();
+	}
 };
 
 struct gpu_ewald {
@@ -307,7 +328,6 @@ private:
 	static periodic_parts* periodic_parts_ptr;
 
 public:
-	static particle_set *particles;
 	static std::atomic<int> cuda_node_count;
 	static std::atomic<int> cpu_node_count;
 	static void set_cuda_particle_set(particle_set*);
@@ -379,10 +399,8 @@ inline bool tree_ptr::is_leaf() const {
 	return ((tree*) ptr)->children[0] == tree_ptr();
 }
 
-cudaStream_t get_stream();
-void cleanup_stream(cudaStream_t s);
 
 std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size);
 
-std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size,
+kick_return* cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size,
 		cudaStream_t stream);

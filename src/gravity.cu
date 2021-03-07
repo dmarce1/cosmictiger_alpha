@@ -154,7 +154,7 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
 	}
 	auto &sources = shmem.src;
 	const auto &myparts = ((tree*) params.tptr)->parts;
-	size_t part_index;
+	int part_index;
 	int flops = 0;
 	expansion<float> L;
 	if (parti.size() > 0) {
@@ -168,9 +168,11 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
 		while (i < parti.size()) {
 			part_index = 0;
 			while (part_index < KICK_PP_MAX && i < parti.size()) {
-				while (i + 1 < parti.size()) {
-					if (these_parts.second == ((tree*) parti[i + 1])->parts.first) {
-						these_parts.second = ((tree*) parti[i + 1])->parts.second;
+				const auto ip1 = i + 1;
+				const auto other_tree = ((tree*) parti[ip1]);
+				while (ip1 < parti.size()) {
+					if (these_parts.second == other_tree->parts.first) {
+						these_parts.second = other_tree->parts.second;
 						i++;
 					} else {
 						break;
@@ -178,13 +180,14 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
 				}
 				const size_t imin = these_parts.first;
 				const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
-				for (size_t j = imin + tid; j < imax; j += KICK_BLOCK_SIZE) {
+				const int sz = imax - imin;
+				for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						sources[dim][part_index + j - imin] = parts->pos(dim, j);
+						sources[dim][part_index + j] = parts->pos(dim, j + imin);
 					}
 				}
-				these_parts.first += imax - imin;
-				part_index += imax - imin;
+				these_parts.first += sz;
+				part_index += sz;
 				if (these_parts.first == these_parts.second) {
 					i++;
 					if (i < parti.size()) {
@@ -241,13 +244,13 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 	const auto hinv = 1.0f / h;
 	float phi = 0.f;
 	int flops = 0;
-	size_t part_index;
+	int part_index;
 	if (parti.size() == 0) {
 		return 0;
 	}
 //   printf( "%i\n", parti.size());
 	const auto &myparts = ((tree*) params.tptr)->parts;
-	const size_t nsinks = myparts.second - myparts.first;
+	const int nsinks = myparts.second - myparts.first;
 	for (int i = tid; i < nsinks; i += KICK_BLOCK_SIZE) {
 		rungs[i] = parts->rung(i + myparts.first);
 		if (rungs[i] >= params.rung) {
@@ -262,9 +265,11 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 	while (i < parti.size()) {
 		part_index = 0;
 		while (part_index < KICK_PP_MAX && i < parti.size()) {
-			while (i + 1 < parti.size()) {
-				if (these_parts.second == ((tree*) parti[i + 1])->parts.first) {
-					these_parts.second = ((tree*) parti[i + 1])->parts.second;
+			const auto ip1 = i + 1;
+			const auto other_tree = ((tree*) parti[ip1]);
+			while (ip1 < parti.size()) {
+				if (these_parts.second == other_tree->parts.first) {
+					these_parts.second = other_tree->parts.second;
 					i++;
 				} else {
 					break;
@@ -272,13 +277,14 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 			}
 			const size_t imin = these_parts.first;
 			const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
-			for (size_t j = imin + tid; j < imax; j += KICK_BLOCK_SIZE) {
+			const int sz = imax - imin;
+			for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
 				for (int dim = 0; dim < NDIM; dim++) {
-					sources[dim][part_index + j - imin] = parts->pos(dim, j);
+					sources[dim][part_index + j] = parts->pos(dim, j + imin);
 				}
 			}
-			these_parts.first += imax - imin;
-			part_index += imax - imin;
+			these_parts.first += sz;
+			part_index += sz;
 			if (these_parts.first == these_parts.second) {
 				i++;
 				if (i < parti.size()) {
@@ -288,34 +294,32 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 		}
 		int interacts = 0;
 		__syncwarp();
-		const auto offset = ((tree*) params.tptr)->parts.first;
+		array<float, NDIM> dx;
+		auto &f0tid = f[0][tid];
+		auto &f1tid = f[1][tid];
+		auto &f2tid = f[2][tid];
+		auto &dx0 = dx[0];
+		auto &dx1 = dx[1];
+		auto &dx2 = dx[2];
+		float r3inv, r1inv;
 		for (int k = 0; k < nsinks; k++) {
 			if (rungs[k] >= params.rung) {
-				auto &f0tid = f[0][tid];
-				auto &f1tid = f[1][tid];
-				auto &f2tid = f[2][tid];
-				for (int dim = 0; dim < NDIM; dim++) {
-					f[dim][tid] = 0.f;
-				}
-				array<float, NDIM> dx;
-				auto &dx0 = dx[0];
-				auto &dx1 = dx[1];
-				auto &dx2 = dx[2];
+				f0tid = 0.f;
+				f1tid = 0.f;
+				f2tid = 0.f;
 				for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
-//                 const auto tm = clock64();
 					dx0 = distance(sinks[0][k], sources[0][j]);
 					dx1 = distance(sinks[1][k], sources[1][j]);
 					dx2 = distance(sinks[2][k], sources[2][j]);
 					const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 3
-					float r3inv, r1inv;
 					if (r2 >= h2) {
 						r1inv = rsqrt(r2); // 8
 						r3inv = r1inv * r1inv * r1inv; // 2
 					} else {
 						const float r1overh1 = sqrtf(r2) * hinv;
-						float r2overh2 = r1overh1 * r1overh1;
-						float r3overh3 = r1overh1 * r2overh2;
-						float r5overh5 = r3overh3 * r1overh1;
+						const float r2overh2 = r1overh1 * r1overh1;
+						const float r3overh3 = r1overh1 * r2overh2;
+						const float r5overh5 = r3overh3 * r1overh1;
 						r1inv = fmaf(-0.3125f, r5overh5, 1.3125f * r3overh3 - fmaf(2.1875f, r1overh1, 2.1875f));
 						r3inv = fmaf(r2overh2, (5.25f - 1.875f * r2overh2), -4.375f);
 					}
@@ -378,24 +382,31 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 	}
 	int interacts = 0;
 	int flops = 0;
+	array<float, NDIM> dx;
+	array<float, NDIM + 1> Lforce;
+	expansion<float> D;
+	auto& f0tid = f[0][tid];
+	auto& f1tid = f[1][tid];
+	auto& f2tid = f[2][tid];
+	auto& dx0 = dx[0];
+	auto& dx1 = dx[1];
+	auto& dx2 = dx[2];
 	for (int k = 0; k < nparts; k++) {
 		if (rungs[k] >= params.rung) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				f[dim][tid] = 0.f;
-			}
+			f0tid = 0.f;
+			f1tid = 0.f;
+			f2tid = 0.f;
 			for (int i = tid; i < multis.size(); i += KICK_BLOCK_SIZE) {
-				const auto &source = ((tree*) multis[i])->pos;
-				array<float, NDIM> dx;
-				array<float, NDIM + 1> Lforce;
-				for (int dim = 0; dim < NDIM; dim++) {
-					dx[dim] = distance(sinks[dim][k], source[dim]);
-				}
-				expansion<float> D;
+				const auto& other_ptr = ((tree*) multis[i]);
+				const auto &source = other_ptr->pos;
+				dx0 = distance(sinks[0][k], source[0]);
+				dx1 = distance(sinks[1][k], source[1]);
+				dx2 = distance(sinks[2][k], source[2]);
 				green_direct(D, dx);
-				multipole_interaction(Lforce, ((tree*) multis[i])->multi, D);
-				for (int dim = 0; dim < NDIM; dim++) {
-					f[dim][tid] += Lforce[dim + 1];
-				}
+				multipole_interaction(Lforce, other_ptr->multi, D);
+				f0tid += Lforce[1];
+				f1tid += Lforce[2];
+				f2tid += Lforce[3];
 			}
 			interacts += multis.size();
 			flops += multis.size() * FLOPS_PC;
@@ -464,7 +475,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 					dx[dim] = X[dim] - n[dim];
 				}
 				const float r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);
-				if (r2 < (EWALD_REAL_CUTOFF * EWALD_REAL_CUTOFF)) {  // 1
+				if (r2 < (EWALD_REAL_CUTOFF2)) {  // 1
 					const float r = sqrt(r2);// 1
 					const float rinv = 1.f / r;// 2
 					const float r2inv = rinv * rinv;// 1

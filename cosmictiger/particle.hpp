@@ -34,6 +34,8 @@ struct particle {
 struct particle_set {
    particle_set() = default;
    particle_set(size_t, size_t = 0);
+   void set_preferred_cpu(size_t first, size_t last, cudaStream_t stream);
+   void set_preferred_gpu(size_t first, size_t last, cudaStream_t stream);
    ~particle_set();
    CUDA_EXPORT
    fixed32 pos(int dim, size_t index) const;

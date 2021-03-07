@@ -148,8 +148,8 @@ CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX) {
 }
 
 template<class T>
-CUDA_EXPORT inline int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, const T &d2,
-		const T &d3, const T &d4, const array<T, NDIM> &dx) {
+CUDA_EXPORT inline int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
+		const T &d4, const array<T, NDIM> &dx) {
 	T threedxadxb;
 	T dxadxbdxc;
 	const auto dx0dx0 = dx[0] * dx[0];
@@ -257,114 +257,129 @@ CUDA_EXPORT inline int green_deriv_ewald(expansion<T> &D, const T &d0, const T &
 
 #include <cuda_runtime.h>
 
-#ifdef __CUDA_ARCH__
-CUDA_EXPORT inline int green_ewald(expansion<float> &D, const array<float, NDIM> &X, ewald_indices& real_indices, ewald_indices& four_indices, periodic_parts& hparts) {
-	const float fouroversqrtpi(4.0 / sqrt(M_PI));
-	const float one(1.0);
-	const float nthree(-3.0);
-	const float nfour(-4.0);
-	const float nfive(-5.0);
-	const float nseven(-7.0);
-	const float neight(-8.0);
-	const float rcut(1.0e-6);
-	const float r = sqrt(sqr(X[0]) + sqr(X[1]) + sqr(X[2]));                   // 5
-	const float zmask = r > rcut;// 1
-	expansion<float> &Dreal = D;
-	expansion<float> Dfour;
+CUDA_DEVICE inline float erfcexp(const float &x, float *e) {				// 76
+	const float p(0.3275911f);
+	const float a1(0.254829592f);
+	const float a2(-0.284496736f);
+	const float a3(1.421413741f);
+	const float a4(-1.453152027f);
+	const float a5(1.061405429f);
+	const float t1 = float(1.f) / (float(1.f) + p * x);			//37
+	const float t2 = t1 * t1;											// 1
+	const float t3 = t2 * t1;											// 1
+	const float t4 = t2 * t2;											// 1
+	const float t5 = t2 * t3;											// 1
+	*e = expf(-x * x);														// 16
+	return (a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5) * *e; 			// 11
+}
+
+template<class T>
+CUDA_EXPORT inline int green_ewald(expansion<T> &D, const array<T, NDIM> &X, ewald_indices& real_indices,
+		ewald_indices& four_indices, periodic_parts& hparts) {
+	const T fouroversqrtpi(4.0 / sqrt(M_PI));
+	const T one(1.0);
+	const T nthree(-3.0);
+	const T nfive(-5.0);
+	const T nseven(-7.0);
+	const T neight(-8.0);
+	const T rcut(1.0e-6);
+	const T r = sqrt(sqr(X[0]) + sqr(X[1]) + sqr(X[2]));                   // 5
+	const T zmask = r > rcut;                   // 1
+	expansion<T> &Dreal = D;
+	expansion<T> Dfour;
 	int flops = 0;
 	Dreal = 0.0;
 	Dfour = 0.0;
 	for (int i = 0; i < real_indices.size(); i++) {
 		const auto n = real_indices.get(i);
-		array<float, NDIM> dx;
+		array<T, NDIM> dx;
 		for (int dim = 0; dim < NDIM; dim++) {                                        // 6
 			dx[dim] = X[dim] - n[dim];
 		}
-		const float r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);                   // 5
-		if (r2 < (EWALD_REAL_CUTOFF * EWALD_REAL_CUTOFF)) {                           // 1
-			flops += FLOPS_EWALD;
-			const float r = sqrt(r2);// 1
-			const float cmask = one - (sqr(n[0]) + sqr(n[1]) + sqr(n[2]) > 0.0);// 7
-			const float mask = (one - (one - zmask) * cmask);// 3
-			const float rinv = mask / fmax(r, rcut);// 2
-			const float r2inv = rinv * rinv;// 1
-			const float r3inv = r2inv * rinv;// 1
-			const float exp0 = expf(nfour * r2);// 26
-			const float erfc0 = erfcf(2.f * r);// 10
-			const float expfactor = fouroversqrtpi * r * exp0;// 2
-			const float e1 = expfactor * r3inv;// 1
-			const float e2 = neight * e1;// 1
-			const float e3 = neight * e2;// 1
-			const float e4 = neight * e3;// 1
-			const float d0 = -erfc0 * rinv;// 2
-			const float d1 = fma(-d0, r2inv, e1);// 3
-			const float d2 = fma(nthree * d1, r2inv, e2);// 3
-			const float d3 = fma(nfive * d2, r2inv, e3);// 3
-			const float d4 = fma(nseven * d3, r2inv, e4);// 3
-			green_deriv_ewald(Dreal, d0, d1, d2, d3, d4, dx);
-		}
-
+		const T r2 = fma(dx[0], dx[0], fma(dx[1], dx[1], sqr(dx[2])));                   // 5
+#ifdef __CUDA_ARCH__
+				if (r2 < (EWALD_REAL_CUTOFF2)) {                           // 1
+#endif
+		flops += FLOPS_EWALD;
+		const T r = sqrt(r2);                           // 1
+		const T cmask = one - (fma(n[0], n[0], fma(n[1], n[1], sqr(n[2]))) > 0.0);                           // 7
+		const T mask = (one - (one - zmask) * cmask);                           // 3
+		const T rinv = mask / max(r, rcut);                           // 2
+		const T r2inv = rinv * rinv;                           // 1
+		const T r3inv = r2inv * rinv;                           // 1
+		T exp0;                           // 26
+		T erfc0 = erfcexp(2.f * r, &exp0);                           // 10
+		const T expfactor = fouroversqrtpi * r * exp0;                           // 2
+		const T e1 = expfactor * r3inv;                           // 1
+		const T e2 = neight * e1;                           // 1
+		const T e3 = neight * e2;                           // 1
+		const T e4 = neight * e3;                           // 1
+		const T d0 = -erfc0 * rinv;                           // 2
+		const T d1 = fma(-d0, r2inv, e1);                           // 3
+		const T d2 = fma(nthree * d1, r2inv, e2);                           // 3
+		const T d3 = fma(nfive * d2, r2inv, e3);                           // 3
+		const T d4 = fma(nseven * d3, r2inv, e4);                           // 3
+		green_deriv_ewald(Dreal, d0, d1, d2, d3, d4, dx);
+#ifdef __CUDA_ARCH__
 	}
-	const float twopi = 2.0 * M_PI;
+#endif
+	}
+	const T twopi = 2.0 * M_PI;
 
 	for (int i = 0; i < four_indices.size(); i++) {
 		const auto &h = four_indices.get(i);
 		const auto &hpart = hparts.get(i);
-//    print( "H = %e %e %e\n", h[0], h[1], h[2]);
-		const float h2 = sqr(h[0]) + sqr(h[1]) + sqr(h[2]);// 5
-		const float hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];// 5
-		float co;
-		float so;
-		sincosf(twopi * hdotx, &so, &co);// 35
-		Dfour[0] = fma(hpart[0], co, Dfour[0]);// 2
-		Dfour[1] = fma(hpart[1], so, Dfour[1]);// 2
-		Dfour[2] = fma(hpart[2], so, Dfour[2]);// 2
-		Dfour[3] = fma(hpart[3], so, Dfour[3]);// 2
-		Dfour[4] = fma(hpart[4], co, Dfour[4]);// 2
-		Dfour[5] = fma(hpart[5], co, Dfour[5]);// 2
-		Dfour[6] = fma(hpart[6], co, Dfour[6]);// 2
-		Dfour[7] = fma(hpart[7], co, Dfour[7]);// 2
-		Dfour[8] = fma(hpart[8], co, Dfour[8]);// 2
-		Dfour[9] = fma(hpart[9], co, Dfour[9]);// 2
-		Dfour[10] = fma(hpart[10], so, Dfour[10]);// 2
-		Dfour[11] = fma(hpart[11], so, Dfour[11]);// 2
-		Dfour[12] = fma(hpart[12], so, Dfour[12]);// 2
-		Dfour[13] = fma(hpart[13], so, Dfour[13]);// 2
-		Dfour[14] = fma(hpart[14], so, Dfour[14]);// 2
-		Dfour[15] = fma(hpart[15], so, Dfour[15]);// 2
-		Dfour[16] = fma(hpart[16], so, Dfour[16]);// 2
-		Dfour[17] = fma(hpart[17], so, Dfour[17]);// 2
-		Dfour[18] = fma(hpart[18], so, Dfour[18]);// 2
-		Dfour[19] = fma(hpart[19], so, Dfour[19]);// 2
-		Dfour[20] = fma(hpart[20], co, Dfour[20]);// 2
-		Dfour[21] = fma(hpart[21], co, Dfour[21]);// 2
-		Dfour[22] = fma(hpart[22], co, Dfour[22]);// 2
-		Dfour[23] = fma(hpart[23], co, Dfour[23]);// 2
-		Dfour[24] = fma(hpart[24], co, Dfour[24]);// 2
-		Dfour[25] = fma(hpart[25], co, Dfour[25]);// 2
-		Dfour[26] = fma(hpart[26], co, Dfour[26]);// 2
-		Dfour[27] = fma(hpart[27], co, Dfour[27]);// 2
-		Dfour[28] = fma(hpart[28], co, Dfour[28]);// 2
-		Dfour[30] = fma(hpart[30], co, Dfour[30]);// 2
-		Dfour[29] = fma(hpart[29], co, Dfour[29]);// 2
-		Dfour[31] = fma(hpart[31], co, Dfour[31]);// 2
-		Dfour[32] = fma(hpart[32], co, Dfour[32]);// 2
-		Dfour[33] = fma(hpart[33], co, Dfour[33]);// 2
-		Dfour[34] = fma(hpart[34], co, Dfour[34]);// 2
+		const T hdotx = fma(h[0], X[0], fma(h[1], X[1], h[2] * X[2]));                           // 5
+		T co;
+		T so;
+		sincosf(twopi * hdotx, &so, &co);                           // 35
+		Dfour[0] = fma(hpart[0], co, Dfour[0]);                           // 2
+		Dfour[1] = fma(hpart[1], so, Dfour[1]);                           // 2
+		Dfour[2] = fma(hpart[2], so, Dfour[2]);                           // 2
+		Dfour[3] = fma(hpart[3], so, Dfour[3]);                           // 2
+		Dfour[4] = fma(hpart[4], co, Dfour[4]);                           // 2
+		Dfour[5] = fma(hpart[5], co, Dfour[5]);                           // 2
+		Dfour[6] = fma(hpart[6], co, Dfour[6]);                           // 2
+		Dfour[7] = fma(hpart[7], co, Dfour[7]);                           // 2
+		Dfour[8] = fma(hpart[8], co, Dfour[8]);                           // 2
+		Dfour[9] = fma(hpart[9], co, Dfour[9]);                           // 2
+		Dfour[10] = fma(hpart[10], so, Dfour[10]);                           // 2
+		Dfour[11] = fma(hpart[11], so, Dfour[11]);                           // 2
+		Dfour[12] = fma(hpart[12], so, Dfour[12]);                           // 2
+		Dfour[13] = fma(hpart[13], so, Dfour[13]);                           // 2
+		Dfour[14] = fma(hpart[14], so, Dfour[14]);                           // 2
+		Dfour[15] = fma(hpart[15], so, Dfour[15]);                           // 2
+		Dfour[16] = fma(hpart[16], so, Dfour[16]);                           // 2
+		Dfour[17] = fma(hpart[17], so, Dfour[17]);                           // 2
+		Dfour[18] = fma(hpart[18], so, Dfour[18]);                           // 2
+		Dfour[19] = fma(hpart[19], so, Dfour[19]);                           // 2
+		Dfour[20] = fma(hpart[20], co, Dfour[20]);                           // 2
+		Dfour[21] = fma(hpart[21], co, Dfour[21]);                           // 2
+		Dfour[22] = fma(hpart[22], co, Dfour[22]);                           // 2
+		Dfour[23] = fma(hpart[23], co, Dfour[23]);                           // 2
+		Dfour[24] = fma(hpart[24], co, Dfour[24]);                           // 2
+		Dfour[25] = fma(hpart[25], co, Dfour[25]);                           // 2
+		Dfour[26] = fma(hpart[26], co, Dfour[26]);                           // 2
+		Dfour[27] = fma(hpart[27], co, Dfour[27]);                           // 2
+		Dfour[28] = fma(hpart[28], co, Dfour[28]);                           // 2
+		Dfour[30] = fma(hpart[30], co, Dfour[30]);                           // 2
+		Dfour[29] = fma(hpart[29], co, Dfour[29]);                           // 2
+		Dfour[31] = fma(hpart[31], co, Dfour[31]);                           // 2
+		Dfour[32] = fma(hpart[32], co, Dfour[32]);                           // 2
+		Dfour[33] = fma(hpart[33], co, Dfour[33]);                           // 2
+		Dfour[34] = fma(hpart[34], co, Dfour[34]);                           // 2
 	}
 	for (int i = 0; i < LP; i++) {                     // 17
 		Dreal[i] += Dfour[i];
 	}
-	expansion<float> D1;
+	expansion<T> D1;
 	green_direct(D1, X);
-	D() = (M_PI / 4.0) + D();                          // 1
+	D() = T(M_PI / 4.0) + D();                          // 1
 	for (int i = 0; i < LP; i++) {                     // 35
 		D[i] = fma(-zmask, D1[i], D[i]);
 	}
 	return flops;
 }
-#endif
-
 
 template<class T>
 CUDA_EXPORT int inline green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
@@ -609,9 +624,6 @@ template<class T>
 CUDA_EXPORT inline int multipole_interaction(array<T, NDIM + 1> &L, const multipole_type<T> &M, const expansion<T>& D) { // 517 / 47428
 
 	int flops = 0;
-	for (int i = 0; i < NDIM + 1; i++) {
-		L[i] = M[0] * D[i];
-	}
 	flops += 1 + NDIM;
 	const auto half = T(0.5);
 	const auto sixth = T(1.0 / 6.0);
@@ -633,67 +645,70 @@ CUDA_EXPORT inline int multipole_interaction(array<T, NDIM + 1> &L, const multip
 	const auto halfD31 = half * D[31];            // 1
 	const auto halfD32 = half * D[32];            // 1
 	const auto halfD33 = half * D[33];            // 1
+	for (int i = 0; i < NDIM + 1; i++) {
+		L[i] = M[0] * D[i];
+	}
 	L[0] = fma(M[1], D[4] * half, L[0]);        // 3
-	L[0] = fma(M[7], D[10] * sixth, L[0]);      // 3
-	L[0] = fma(M[8], halfD11, L[0]);            // 2
-	L[0] = fma(M[9], halfD12, L[0]);            // 2
-	L[0] = fma(M[2], D[5], L[0]);               // 2
-	L[0] = fma(M[10], halfD13, L[0]);           // 2
-	L[0] = fma(M[11], D[14], L[0]);             // 2
-	L[0] = fma(M[3], D[6], L[0]);               // 2
-	L[0] = fma(M[12], halfD15, L[0]);           // 2
-	L[0] = fma(M[4], D[7] * half, L[0]);        // 3
-	L[0] = fma(M[13], D[16] * sixth, L[0]);     // 3
-	L[0] = fma(M[14], halfD17, L[0]);           // 2
-	L[0] = fma(M[5], D[8], L[0]);               // 2
-	L[0] = fma(M[15], halfD18, L[0]);           // 2
-	L[0] = fma(M[6], D[9] * half, L[0]);        // 3
-	L[0] = fma(M[16], D[19] * sixth, L[0]);     // 3
 	L[1] = fma(M[1], D[10] * half, L[1]);          // 3
 	L[2] = fma(M[1], halfD11, L[2]);               // 2
 	L[3] = fma(M[1], halfD12, L[3]);               // 2
-	L[1] = fma(M[7], D[20] * sixth, L[1]);         // 3
-	L[2] = fma(M[7], D[21] * sixth, L[2]);         // 3
-	L[3] = fma(M[7], D[22] * sixth, L[3]);         // 3
-	L[1] = fma(M[8], halfD21, L[1]);               // 2
-	L[2] = fma(M[8], halfD23, L[2]);               // 2
-	L[3] = fma(M[8], halfD24, L[3]);               // 2
-	L[1] = fma(M[9], halfD22, L[1]);               // 2
-	L[2] = fma(M[9], halfD24, L[2]);               // 2
-	L[3] = fma(M[9], halfD25, L[3]);               // 2
+	L[0] = fma(M[2], D[5], L[0]);               // 2
 	L[1] = fma(M[2], D[11], L[1]);                 // 2
 	L[2] = fma(M[2], D[13], L[2]);                 // 2
 	L[3] = fma(M[2], D[14], L[3]);                 // 2
-	L[1] = fma(M[10], halfD23, L[1]);              // 2
-	L[2] = fma(M[10], halfD26, L[2]);              // 2
-	L[3] = fma(M[10], halfD27, L[3]);              // 2
-	L[1] = fma(M[11], D[24], L[1]);                // 2
-	L[2] = fma(M[11], D[27], L[2]);                // 2
-	L[3] = fma(M[11], D[28], L[3]);                // 2
+	L[0] = fma(M[3], D[6], L[0]);               // 2
 	L[1] = fma(M[3], D[12], L[1]);                 // 2
 	L[2] = fma(M[3], D[14], L[2]);                 // 2
 	L[3] = fma(M[3], D[15], L[3]);                 // 2
-	L[1] = fma(M[12], halfD25, L[1]);              // 2
-	L[2] = fma(M[12], halfD28, L[2]);              // 2
-	L[3] = fma(M[12], halfD29, L[3]);              // 2
+	L[0] = fma(M[4], D[7] * half, L[0]);        // 3
 	L[1] = fma(M[4], halfD13, L[1]);               // 2
 	L[2] = fma(M[4], D[16] * half, L[2]);          // 3
 	L[3] = fma(M[4], halfD17, L[3]);               // 2
-	L[1] = fma(M[13], D[26] * sixth, L[1]);        // 3
-	L[2] = fma(M[13], D[30] * sixth, L[2]);        // 3
-	L[3] = fma(M[13], D[31] * sixth, L[3]);        // 3
-	L[1] = fma(M[14], halfD27, L[1]);              // 2
-	L[2] = fma(M[14], halfD31, L[2]);              // 2
-	L[3] = fma(M[14], halfD32, L[3]);              // 2
+	L[0] = fma(M[5], D[8], L[0]);               // 2
 	L[1] = fma(M[5], D[14], L[1]);                 // 2
 	L[2] = fma(M[5], D[17], L[2]);                 // 2
 	L[3] = fma(M[5], D[18], L[3]);                 // 2
-	L[1] = fma(M[15], halfD28, L[1]);              // 2
-	L[2] = fma(M[15], halfD32, L[2]);              // 2
-	L[3] = fma(M[15], halfD33, L[3]);              // 2
+	L[0] = fma(M[6], D[9] * half, L[0]);        // 3
 	L[1] = fma(M[6], halfD15, L[1]);               // 2
 	L[2] = fma(M[6], halfD18, L[2]);               // 2
 	L[3] = fma(M[6], D[19] * half, L[3]);          // 3
+	L[0] = fma(M[7], D[10] * sixth, L[0]);      // 3
+	L[1] = fma(M[7], D[20] * sixth, L[1]);         // 3
+	L[2] = fma(M[7], D[21] * sixth, L[2]);         // 3
+	L[3] = fma(M[7], D[22] * sixth, L[3]);         // 3
+	L[0] = fma(M[8], halfD11, L[0]);            // 2
+	L[1] = fma(M[8], halfD21, L[1]);               // 2
+	L[2] = fma(M[8], halfD23, L[2]);               // 2
+	L[3] = fma(M[8], halfD24, L[3]);               // 2
+	L[0] = fma(M[9], halfD12, L[0]);            // 2
+	L[1] = fma(M[9], halfD22, L[1]);               // 2
+	L[2] = fma(M[9], halfD24, L[2]);               // 2
+	L[3] = fma(M[9], halfD25, L[3]);               // 2
+	L[0] = fma(M[10], halfD13, L[0]);           // 2
+	L[1] = fma(M[10], halfD23, L[1]);              // 2
+	L[2] = fma(M[10], halfD26, L[2]);              // 2
+	L[3] = fma(M[10], halfD27, L[3]);              // 2
+	L[0] = fma(M[11], D[14], L[0]);             // 2
+	L[1] = fma(M[11], D[24], L[1]);                // 2
+	L[2] = fma(M[11], D[27], L[2]);                // 2
+	L[3] = fma(M[11], D[28], L[3]);                // 2
+	L[0] = fma(M[12], halfD15, L[0]);           // 2
+	L[1] = fma(M[12], halfD25, L[1]);              // 2
+	L[2] = fma(M[12], halfD28, L[2]);              // 2
+	L[3] = fma(M[12], halfD29, L[3]);              // 2
+	L[0] = fma(M[13], D[16] * sixth, L[0]);     // 3
+	L[1] = fma(M[13], D[26] * sixth, L[1]);        // 3
+	L[2] = fma(M[13], D[30] * sixth, L[2]);        // 3
+	L[3] = fma(M[13], D[31] * sixth, L[3]);        // 3
+	L[0] = fma(M[14], halfD17, L[0]);           // 2
+	L[1] = fma(M[14], halfD27, L[1]);              // 2
+	L[2] = fma(M[14], halfD31, L[2]);              // 2
+	L[3] = fma(M[14], halfD32, L[3]);              // 2
+	L[0] = fma(M[15], halfD18, L[0]);           // 2
+	L[1] = fma(M[15], halfD28, L[1]);              // 2
+	L[2] = fma(M[15], halfD32, L[2]);              // 2
+	L[3] = fma(M[15], halfD33, L[3]);              // 2
+	L[0] = fma(M[16], D[19] * sixth, L[0]);     // 3
 	L[1] = fma(M[16], D[29] * sixth, L[1]);        // 3
 	L[2] = fma(M[16], D[33] * sixth, L[2]);        // 3
 	L[3] = fma(M[16], D[34] * sixth, L[3]);        // 3

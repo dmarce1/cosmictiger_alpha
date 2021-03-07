@@ -544,50 +544,13 @@ std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, i
 	return ready_func;
 }
 
-std::pair<std::function<bool()>, kick_return*> cuda_execute_kick_kernel(kick_params_type *params, int grid_size,
-		cudaStream_t stream) {
+kick_return* cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStream_t stream) {
 	const size_t shmemsize = sizeof(cuda_kick_shmem);
 	unified_allocator alloc;
 	kick_return *returns = (kick_return*) alloc.allocate(grid_size * sizeof(kick_return));
-// printf( "a\n");
-//  CUDA_MALLOC(returns, grid_size);
-// printf( "b\n");
-//  printf( "Shmem = %li\n", shmemsize);
 	/***************************************************************************************************************************************************/
 	/**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(returns,params);/**/
 	/***************************************************************************************************************************************************/
-// printf( "c\n");
-	struct cuda_kick_future_shared {
-		cudaStream_t stream;
-		kick_return *returns;
-		int grid_size;
-		mutable bool ready;
-	public:
-		cuda_kick_future_shared() {
-			ready = false;
-		}
-		bool operator()() const {
-			if (!ready) {
-				if (cudaStreamQuery(stream) == cudaSuccess) {
-					ready = true;
-					CUDA_CHECK(cudaStreamSynchronize(stream));
-					cleanup_stream(stream);
-				}
-			}
-			return ready;
-		}
-	};
-// printf( "d\n");
-
-	cuda_kick_future_shared fut;
-	fut.returns = returns;
-	fut.stream = stream;
-	fut.grid_size = grid_size;
-	std::function<bool()> ready_func = [fut]() {
-		return fut();
-	};
-// printf( "e\n");
-
-	return std::make_pair(std::move(ready_func), std::move(fut.returns));
+	return returns;
 }
 
