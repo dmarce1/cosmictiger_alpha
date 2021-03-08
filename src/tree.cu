@@ -46,7 +46,7 @@ void show_timings() {
 
 }
 
-CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
+CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
 	__shared__ volatile
 	extern int shmem_ptr[];
@@ -58,7 +58,6 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 	tree_ptr tptr = params.tptr;
 	tree& me = *((tree*) params.tptr);
 	const int &tid = threadIdx.x;
-	kick_return rc;
 	auto &F = params.F;
 	auto &L = params.L[params.depth];
 	int list_index;
@@ -343,7 +342,6 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 			break;
 		}
 	}
-	rc.flops = flops;
 	if (!(((tree*) tptr)->children[0].ptr == 0)) {
 		params.dchecks.push_top();
 		params.echecks.push_top();
@@ -354,7 +352,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 			params.tptr = ((tree*) tptr)->children[RIGHT];
 		}
 		__syncwarp();
-		kick_return rc1 = cuda_kick(params_ptr);
+		cuda_kick(params_ptr);
 		if (tid == 0) {
 			params.L[params.depth] = L;
 			params.tptr = ((tree*) tptr)->children[LEFT];
@@ -362,13 +360,10 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 		__syncwarp();
 		params.dchecks.pop_top();
 		params.echecks.pop_top();
-		kick_return rc2 = cuda_kick(params_ptr);
+		cuda_kick(params_ptr);
 		if (tid == 0) {
 			params.depth--;
 		}
-		__syncwarp();
-		rc.rung = max(rc1.rung, rc2.rung);
-		rc.flops += rc1.flops + rc2.flops;
 		//   printf( "%li\n", rc.flops);
 	} else {
 		auto& rungs = shmem.rungs;
@@ -425,9 +420,7 @@ CUDA_DEVICE kick_return cuda_kick(kick_params_type * params_ptr) {
 			}
 			__syncwarp();
 		}
-		rc.rung = rungs[0];
 	}
-	return rc;
 }
 
 CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *real_indices, ewald_indices *four_indices,
@@ -458,13 +451,10 @@ extern __managed__ double pp_crit1_time;
 extern __managed__ double pp_crit2_time;
 #endif
 
-CUDA_KERNEL cuda_kick_kernel(kick_return *res, kick_params_type *params) {
+CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 	const int &bid = blockIdx.x;
-#ifdef TIMINGS
 	auto tm = clock64();
-#endif
-	auto tm = clock64();
-	res[bid] = cuda_kick(params + bid);
+	cuda_kick(params + bid);
 	__syncwarp();
 	if (threadIdx.x == 0) {
 		//     printf( "Kick done\n");
@@ -505,46 +495,11 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 	}
 }
 
-std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size) {
-	auto stream = get_stream();
-	/***/cuda_ewald_cc_kernel<<<grid_size,KICK_BLOCK_SIZE,sizeof(cuda_ewald_shmem),stream>>>(params_ptr);
-
-	struct cuda_ewald_future_shared {
-		cudaStream_t stream;
-		int grid_size;
-		mutable bool ready;
-	public:
-		cuda_ewald_future_shared() {
-			ready = false;
-		}
-		bool operator()() const {
-			if (!ready) {
-				if (cudaStreamQuery(stream) == cudaSuccess) {
-					ready = true;
-					CUDA_CHECK(cudaStreamSynchronize(stream));
-					cleanup_stream(stream);
-				}
-			}
-			return ready;
-		}
-	};
-
-	cuda_ewald_future_shared fut;
-	fut.stream = stream;
-	fut.grid_size = grid_size;
-	std::function<bool()> ready_func = [fut]() {
-		return fut();
-	};
-	return ready_func;
-}
-
-kick_return* cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStream_t stream) {
+void cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStream_t stream) {
 	const size_t shmemsize = sizeof(cuda_kick_shmem);
-	unified_allocator alloc;
-	kick_return *returns = (kick_return*) alloc.allocate(grid_size * sizeof(kick_return));
 	/***************************************************************************************************************************************************/
-	/**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(returns,params);/**/
+	/**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(params);/**/
 	/***************************************************************************************************************************************************/
-	return returns;
+
 }
 

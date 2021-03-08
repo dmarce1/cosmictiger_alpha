@@ -107,11 +107,6 @@ struct sort_params {
 
 #endif
 
-struct kick_return {
-	int8_t rung;
-	size_t flops;
-};
-
 class tree_ptr;
 class kick_params_type;
 
@@ -200,7 +195,7 @@ struct tree_ptr {
 	array<fixed32, NDIM> get_pos() const;CUDA_EXPORT
 	bool is_leaf() const;
 #ifndef __CUDACC__
-	hpx::future<kick_return> kick(kick_params_type*, bool);
+	hpx::future<void> kick(kick_params_type*, bool);
 #endif
 };
 
@@ -300,10 +295,10 @@ struct kick_params_type;
 #ifndef __CUDACC__
 struct gpu_kick {
 	kick_params_type *params;
-	std::shared_ptr<hpx::lcos::local::promise<kick_return>> promise;
+	std::shared_ptr<hpx::lcos::local::promise<void>> promise;
 	pair<size_t, size_t> parts;
 	gpu_kick() {
-		promise = std::make_shared<hpx::lcos::local::promise<kick_return>>();
+		promise = std::make_shared<hpx::lcos::local::promise<void>>();
 	}
 };
 
@@ -339,7 +334,7 @@ public:
 	static fast_future<sort_return> cleanup_child();
 	static hpx::lcos::local::mutex mtx;
 	static hpx::lcos::local::mutex gpu_mtx;
-	hpx::future<kick_return> send_kick_to_gpu(kick_params_type *params);
+	hpx::future<void> send_kick_to_gpu(kick_params_type *params);
 	hpx::future<int32_t> send_ewald_to_gpu(kick_params_type *params);
 	static void gpu_daemon();
 	inline bool is_leaf() const {
@@ -352,7 +347,7 @@ public:
 	int cpu_pc_direct(kick_params_type *params);
 	int cpu_cc_ewald(kick_params_type *params);
 	sort_return sort(sort_params = sort_params());
-	hpx::future<kick_return> kick(kick_params_type*);
+	hpx::future<void> kick(kick_params_type*);
 	static std::atomic<bool> daemon_running;
 	static std::atomic<bool> shutdown_daemon;
 	static lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> gpu_queue;
@@ -400,7 +395,5 @@ inline bool tree_ptr::is_leaf() const {
 }
 
 
-std::function<bool()> cuda_execute_ewald_kernel(kick_params_type **params_ptr, int grid_size);
-
-kick_return* cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size,
+void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size,
 		cudaStream_t stream);
