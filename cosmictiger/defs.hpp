@@ -22,7 +22,7 @@
 #define TEST_BOUNDS
 #endif
 
-//#define TEST_FORCE
+#define TEST_FORCE
 //#define TEST_STACK
 #define N_TEST_PARTS (6*46)
 
@@ -33,7 +33,7 @@
 #define TREE_SORT_MULTITHREAD
 #define TREE_MIN_PARTS2THREAD (64*1024)
 #define KICK_BLOCK_SIZE 32
-#define KICK_PP_MAX size_t(17*32)
+#define KICK_PP_MAX size_t(16*32)
 #define MAX_BUCKET_SIZE 92
 #define GROUP_SIZE MAX_BUCKET_SIZE
 #define GPU_QUEUE_SIZE (1024*1024)

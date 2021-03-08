@@ -347,6 +347,13 @@ inline simd_float sqrt(const simd_float &vec) {
 
 }
 
+inline simd_float rsqrt(const simd_float &vec) {
+	simd_float r;
+	r.v = _mmx_rsqrt_ps(vec.v);
+	return r;
+
+}
+
 inline simd_float operator*(float d, const simd_float &other) {
 	const simd_float a = d;
 	return a * other;

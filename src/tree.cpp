@@ -908,7 +908,7 @@ int tree::cpu_cp_direct(kick_params_type *params_ptr) {
 			dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
 		}
 		green_direct(D, dX);
-		multipole_interaction(Lacc, M, D);
+		multipole_interaction(Lacc, D);
 	}
 	for (int k = 0; k < simd_float::size(); k++) {
 		for (int i = 0; i < LP; i++) {
