@@ -94,7 +94,7 @@ void kick_test() {
       params_ptr->L[0] = L;
       params_ptr->Lpos[0] = Lpos;
       params_ptr->t0 = true;
-      auto rc = root.kick(params_ptr).get();
+      root.kick(params_ptr).get();
       tm_kick.stop();
       /*   tm.start();
        drift(parts_ptr, 1.0,1.0,1.0);
@@ -117,8 +117,8 @@ void kick_test() {
       printf("Kick    = %e s\n", tm_kick.read());
       printf("Cleanup = %e s\n", tm_cleanup.read());
       printf("Total   = %e s\n", total);
-      printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
-      printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
+    //  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
+     // printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
       show_timings();
    }
    parts_ptr->particle_set::~particle_set();
@@ -169,7 +169,7 @@ void force_test() {
    params_ptr->L[0] = L;
    params_ptr->Lpos[0] = Lpos;
    params_ptr->t0 = true;
-   auto rc = root.kick(params_ptr).get();
+   root.kick(params_ptr).get();
    tree::cleanup();
    managed_allocator<tree>::cleanup();
    params_ptr->kick_params_type::~kick_params_type();
@@ -179,7 +179,7 @@ void force_test() {
    cuda_compare_with_direct(parts_ptr);
    tm.stop();
    printf( "Comparison took %e s\n", tm.read());
-   printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
+  // printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
    CUDA_FREE(params_ptr);
    CUDA_FREE(parts_ptr);
 }
