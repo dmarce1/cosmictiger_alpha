@@ -264,32 +264,37 @@ void tree::cleanup() {
 	}
 }
 
-hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool thread, bool gpu) {
+hpx::future<kick_return> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	kick_params_type &params = *params_ptr;
 	const auto part_begin = ((tree*) (*this))->parts.first;
 	const auto part_end = ((tree*) (*this))->parts.second;
-	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-	const auto gpu_partcnt = global().opts.nparts / (sm_count * KICK_OCCUPANCY);
-	bool use_cpu_block = false;
-	if (part_end - part_begin <= params.block_cutoff && !params.cpu_block) {
+	if (part_end - part_begin <= params.block_cutoff) {
 		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
-	} else if (thread) {
-		kick_params_type *new_params;
-		new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
-		new (new_params) kick_params_type;
-		*new_params = *params_ptr;
-		auto func = [this, new_params]() {
-			int dummy;
-			auto rc = ((tree*) ptr)->kick(new_params);
-			new_params->kick_params_type::~kick_params_type();
-			kick_params_alloc.deallocate(new_params);
-			return rc;
-		};
-		auto fut = hpx::async(std::move(func));
-		return std::move(fut);
 	} else {
-		auto fut = hpx::make_ready_future(((tree*) ptr)->kick(params_ptr));
-		return fut;
+		const int max_threads = 2 * hpx::threads::hardware_concurrency();
+		static std::atomic<int> used_threads(0);
+		if (used_threads++ > max_threads) {
+			used_threads--;
+			thread = false;
+		}
+		if (thread) {
+			kick_params_type *new_params;
+			new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
+			new (new_params) kick_params_type;
+			*new_params = *params_ptr;
+			auto func = [this, new_params]() {
+				auto rc = ((tree*) ptr)->kick(new_params);
+				used_threads--;
+				new_params->kick_params_type::~kick_params_type();
+				kick_params_alloc.deallocate(new_params);
+				return rc;
+			};
+			auto fut = hpx::async(std::move(func));
+			return std::move(fut);
+		} else {
+			auto fut = hpx::make_ready_future(((tree*) ptr)->kick(params_ptr));
+			return fut;
+		}
 	}
 }
 
@@ -310,8 +315,8 @@ hpx::future<kick_return> tree::kick(kick_params_type * params_ptr) {
 		kick_timer.start();
 		tmp_tm.start();
 		const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-	//	auto cpu_load = NWAVE * CPU_LOAD;
-		const int target_max = GPUOS * NWAVE * sm_count * KICK_OCCUPANCY;// + cpu_load;
+		//	auto cpu_load = NWAVE * CPU_LOAD;
+		const int target_max = GPUOS * NWAVE * sm_count * KICK_OCCUPANCY;		// + cpu_load;
 		int pcnt = parts.second - parts.first;
 		int count;
 		do {
@@ -355,7 +360,6 @@ hpx::future<kick_return> tree::kick(kick_params_type * params_ptr) {
 	auto &parti = params.part_interactions;
 	auto &next_checks = params.next_checks;
 	int ninteractions = is_leaf() ? 4 : 2;
-	bool found_ewald = false;
 	for (int type = 0; type < ninteractions; type++) {
 		const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
 		auto &checks = ewald_dist ? params.echecks : params.dchecks;
@@ -367,34 +371,46 @@ hpx::future<kick_return> tree::kick(kick_params_type * params_ptr) {
 #ifdef TEST_CHECKLIST_TIME
 			tm.start();
 #endif
-			for (int ci = 0; ci < checks.size(); ci++) {
-				const auto other_radius = checks[ci].get_radius();
-				const auto other_pos = checks[ci].get_pos();
-				float d2 = 0.f;
-				for (int dim = 0; dim < NDIM; dim++) {
-					d2 += sqr(distance(other_pos[dim], pos[dim]));
+			const auto cmax = ((checks.size() - 1) / simd_float::size() + 1) * simd_float::size();
+			for (int ci = 0; ci < cmax; ci += simd_float::size()) {
+				simd_float other_radius;
+				array<simd_int, NDIM> other_pos;
+				for (int k = 0; k < simd_float::size(); k++) {
+					const int index = std::min(ci + k, (int) checks.size() - 1);
+					other_radius[k] = checks[index].get_radius();
+					for (int dim = 0; dim < NDIM; dim++) {
+						other_pos[dim][k] = checks[index].get_pos()[dim].raw();
+					}
 				}
+				simd_float dx0 = (other_pos[0] - pos[0].raw()) * fixed2float;
+				simd_float dx1 = (other_pos[1] - pos[1].raw()) * fixed2float;
+				simd_float dx2 = (other_pos[2] - pos[2].raw()) * fixed2float;
+				simd_float d2 = fma(dx0, dx0, fma(dx1, dx1, sqr(dx2)));
 				if (ewald_dist) {
-					d2 = std::max(d2, EWALD_MIN_DIST2);
+					d2 = max(d2, simd_float(EWALD_MIN_DIST2));
 				}
-				const auto myradius = SINK_BIAS * (radius + params.hsoft);
-				const auto R1 = sqr(other_radius + myradius + params.hsoft);                 // 2
-				const auto R2 = sqr(other_radius * params.theta + myradius + params.hsoft);
-				const auto R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + params.hsoft);
-				const bool far1 = R1 < theta2 * d2;
-				const bool far2 = R2 < theta2 * d2;
-				const bool far3 = R3 < theta2 * d2;
-				const bool isleaf = checks[ci].is_leaf();
-				if (far1 || (direct && far3)) {
-					multis.push_back(checks[ci]);
-				} else if ((far2 || direct) && isleaf) {
-					parti.push_back(checks[ci]);
-				} else if (isleaf) {
-					next_checks.push_back(checks[ci]);
-				} else {
-					const auto child_checks = checks[ci].get_children().get();
-					next_checks.push_back(child_checks[LEFT]);
-					next_checks.push_back(child_checks[RIGHT]);
+				const simd_float myradius = SINK_BIAS * (radius + params.hsoft);
+				const simd_float R1 = sqr(other_radius + myradius + params.hsoft);                 // 2
+				const simd_float R2 = sqr(other_radius * params.theta + myradius + params.hsoft);
+				const simd_float R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + params.hsoft);
+				const simd_float far1 = R1 < theta2 * d2;
+				const simd_float far2 = R2 < theta2 * d2;
+				const simd_float far3 = R3 < theta2 * d2;
+				for (int k = 0; k < simd_float::size(); k++) {
+					if (ci + k < checks.size()) {
+						const bool isleaf = checks[ci + k].is_leaf();
+						if (far1[k] || (direct && far3[k])) {
+							multis.push_back(checks[ci + k]);
+						} else if ((far2[k] || direct) && isleaf) {
+							parti.push_back(checks[ci + k]);
+						} else if (isleaf) {
+							next_checks.push_back(checks[ci + k]);
+						} else {
+							const auto child_checks = checks[ci + k].get_children().get();
+							next_checks.push_back(child_checks[LEFT]);
+							next_checks.push_back(child_checks[RIGHT]);
+						}
+					}
 				}
 			}
 #ifdef TEST_CHECKLIST_TIME
@@ -412,14 +428,7 @@ hpx::future<kick_return> tree::kick(kick_params_type * params_ptr) {
 			rc.flops += cpu_cp_direct(params_ptr);
 			break;
 		case CC_CP_EWALD:
-//			if (params.cpu_block) {
-//				if (gpu_queue.size()) {
-//					hpx::this_thread::yield();
-//				}
 			rc.flops += cpu_cc_ewald(params_ptr);
-//			} else if (multis.size()) {
-//			send_ewald_to_gpu(params_ptr).get();
-//			}
 			break;
 		case PC_PP_DIRECT:
 			rc.flops += cpu_pc_direct(params_ptr);
@@ -441,13 +450,13 @@ hpx::future<kick_return> tree::kick(kick_params_type * params_ptr) {
 		params.L[params.depth] = L;
 		params.Lpos[params.depth] = pos;
 		array<hpx::future<kick_return>, NCHILD> futs;
-		futs[LEFT] = children[LEFT].kick(params_ptr, try_thread, found_ewald);
+		futs[LEFT] = children[LEFT].kick(params_ptr, try_thread);
 
 //  printf("5\n");
 		params.dchecks.pop_top();
 		params.echecks.pop_top();
 		params.L[params.depth] = L;
-		futs[RIGHT] = children[RIGHT].kick(params_ptr, false, found_ewald);
+		futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
 		params.depth--;
 		if (params.depth != depth0) {
 			printf("error\n");
@@ -516,7 +525,6 @@ hpx::future<kick_return> tree::kick(kick_params_type * params_ptr) {
 }
 
 lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> tree::gpu_queue;
-lockfree_queue<gpu_ewald, GPU_QUEUE_SIZE> tree::gpu_ewald_queue;
 std::atomic<bool> tree::daemon_running(false);
 std::atomic<bool> tree::shutdown_daemon(false);
 
@@ -546,54 +554,23 @@ void tree::gpu_daemon() {
 		timer.reset();
 		timer.start();
 		bool found_ewald = false;
-		if (gpu_ewald_queue.size() >= min_ewald) {
-			while (gpu_ewald_queue.size() >= min_ewald) {
-				int grid_size = std::min(KICK_EWALD_GRID_SIZE, (int) gpu_ewald_queue.size());
-				min_ewald *= 2;
-				min_ewald = std::min(min_ewald, KICK_EWALD_GRID_SIZE);
-				found_ewald = true;
-				auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<int32_t>>>();
-				unified_allocator gpu_params_alloc;
-				kick_params_type **gpu_params = (kick_params_type**) gpu_params_alloc.allocate(
-						grid_size * sizeof(kick_params_type*));
-				for (int i = 0; i < grid_size; i++) {
-					auto tmp = gpu_ewald_queue.pop();
-					gpu_params[i] = tmp.params;
-					promises->push_back(std::move(tmp.promise));
-				}
-				printf("Executing %i ewald blocks\n", grid_size);
-				auto exec_ret = cuda_execute_ewald_kernel(gpu_params, grid_size);
-				completions.push_back(std::function<bool()>([=]() {
-					if (exec_ret()) {
-						printf("Done executing %i ewald blocks\n", grid_size);
-						for (int i = 0; i < grid_size; i++) {
-							(*promises)[i].set_value(gpu_params[i]->flops);
-						}
-						unified_allocator gpu_params_alloc;
-						gpu_params_alloc.deallocate(gpu_params);
-						return true;
-					} else {
-						return false;
-					}
-				}));
-			}
-		} else if (gpu_queue.size() == kick_block_count) {
+		if (gpu_queue.size() == kick_block_count) {
 			kick_timer.stop();
-			printf( "Time to GPU = %e\n", kick_timer.read());
+			printf("Time to GPU = %e\n", kick_timer.read());
 			using promise_type = std::vector<std::shared_ptr<hpx::lcos::local::promise<kick_return>>>;
 			std::shared_ptr<promise_type> gpu_promises[NWAVE];
-	//		std::shared_ptr<promise_type> cpu_promises[NWAVE];
+			//		std::shared_ptr<promise_type> cpu_promises[NWAVE];
 			for (int i = 0; i < NWAVE; i++) {
 				gpu_promises[i] = std::make_shared<promise_type>();
-	//			cpu_promises[i] = std::make_shared<promise_type>();
+//			cpu_promises[i] = std::make_shared<promise_type>();
 			}
 			auto deleters = std::make_shared<std::vector<std::function<void()>> >();
 			unified_allocator calloc;
 			kick_params_type* gpu_params[NWAVE];
-	//		kick_params_type* cpu_params[NWAVE];
+			//		kick_params_type* cpu_params[NWAVE];
 			std::vector<gpu_kick> kicks;
 			std::vector<gpu_kick> gpu_waves[NWAVE];
-		//	std::vector<gpu_kick> cpu_waves[NWAVE];
+			//	std::vector<gpu_kick> cpu_waves[NWAVE];
 			while (gpu_queue.size()) {
 				kicks.push_back(gpu_queue.pop());
 			}
@@ -603,25 +580,15 @@ void tree::gpu_daemon() {
 			for (int i = 0; i < kicks.size(); i++) {
 				gpu_waves[i * NWAVE / kicks.size()].push_back(kicks[i]);
 			}
-			for( int j = 0; j < NWAVE; j++) {
-				std::sort(gpu_waves[j].begin(),gpu_waves[j].end(), [](gpu_kick a, gpu_kick b) {
+			for (int j = 0; j < NWAVE; j++) {
+				std::sort(gpu_waves[j].begin(), gpu_waves[j].end(), [](gpu_kick a, gpu_kick b) {
 					return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first);
 				});
 			}
 
-/*			for (int j = 0; j < NWAVE; j++) {
-				for (int i = 1; i < CPU_LOAD; i++) {
-					cpu_waves[j].push_back(gpu_waves[j][i]);
-					gpu_waves[j][i] = gpu_waves[j].back();
-					gpu_waves[j].pop_back();
-				}
-			}*/
 			for (int i = 0; i < NWAVE; i++) {
 				gpu_params[i] = (kick_params_type*) calloc.allocate(gpu_waves[i].size() * sizeof(kick_params_type));
 			}
-//			for (int i = 0; i < NWAVE; i++) {
-//				cpu_params[i] = (kick_params_type*) calloc.allocate(cpu_waves[i].size() * sizeof(kick_params_type));
-//			}
 			auto stream = get_stream();
 			for (int j = 0; j < NWAVE; j++) {
 				for (int i = 0; i < gpu_waves[j].size(); i++) {
@@ -640,56 +607,13 @@ void tree::gpu_daemon() {
 					calloc.deallocate(gpu_params[j]);
 				});
 			}
-/*			for (int j = 0; j < NWAVE; j++) {
-				for (int i = 0; i < cpu_waves[j].size(); i++) {
-					auto tmp = std::move(cpu_waves[j][i]);
-					memcpy(cpu_params[j] + i, tmp.params, sizeof(kick_params_type));
-					auto tmpparams = tmp.params;
-					deleters->push_back([tmpparams]() {
-						kick_params_alloc.deallocate(tmpparams);
-					});
-					cpu_promises[j]->push_back(std::move(tmp.promise));
-				}
-				deleters->push_back([calloc, cpu_params, j]() {
-					unified_allocator calloc;
-					calloc.deallocate(cpu_params[j]);
-				});
-			}*/
 			printf("Executing \n");
 			kick_return* gpu_returns[NWAVE];
-		//	kick_return* cpu_returns[NWAVE];
-/*			unified_allocator alloc;
-			for (int i = 0; i < NWAVE; i++) {
-				cpu_returns[i] = (kick_return*) alloc.allocate(sizeof(kick_return) * cpu_waves[i].size());
-			}*/
 			for (int i = 0; i < NWAVE; i++) {
 				printf("Sending %i blocks to GPU\n", gpu_waves[i].size());
 				particles->set_preferred_gpu(gpu_waves[i].front().parts.first, gpu_waves[i].front().parts.second, stream);
 				gpu_returns[i] = cuda_execute_kick_kernel(gpu_params[i], gpu_waves[i].size(), stream);
 			}
-/*			for (int i = 0; i < NWAVE; i++) {
-				if (i == 1) {
-					if (cudaEventQuery(event) == cudaSuccess) {
-						printf("GPU finished first\n");
-					} else {
-						printf("waiting on GPU\n");
-						CUDA_CHECK(cudaEventSynchronize(event));
-					}
-				}
-				std::vector<hpx::future<kick_return>> futs;
-				printf("Sending %i blocks to CPU\n", cpu_waves[i].size());
-				for (int j = 0; j < cpu_waves[i].size(); j++) {
-					futs.push_back(hpx::async([=]() {
-						cpu_params[i][j].cpu_block = true;
-						return ((tree*) cpu_params[i][j].tptr)->kick(cpu_params[i] + j);
-					}));
-				}
-				for (int j = 0; j < cpu_waves[i].size(); j++) {
-					(*cpu_promises[i])[j]->set_value(futs[j].get());
-				}
-				printf("Done with %i blocks on CPU\n", cpu_waves[i].size());
-			}*/
-		//	CUDA_CHECK(cudaEventDestroy(event));
 			completions.push_back(std::function<bool()>([=]() {
 				if( cudaStreamQuery(stream) == cudaSuccess) {
 					CUDA_CHECK(cudaStreamSynchronize(stream));
@@ -712,8 +636,6 @@ void tree::gpu_daemon() {
 					return false;
 				}
 			}));
-		} else {
-			min_ewald = std::max(min_ewald / 2, 1);
 		}
 	} else {
 		timer.start();
@@ -774,31 +696,6 @@ int tree::compute_block_count(size_t cutoff) {
 		return left + right;
 	}
 }
-
-hpx::future<int32_t> tree::send_ewald_to_gpu(kick_params_type * params) {
-	if (!daemon_running) {
-		std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
-		if (!daemon_running) {
-			shutdown_daemon = false;
-			daemon_running = true;
-			hpx::async([]() {
-				gpu_daemon();
-			});
-		}
-	}
-	gpu_ewald gpu;
-	tree_ptr me;
-	me.ptr = (uintptr_t) (this);
-//  me.rank = hpx_rank();
-	params->tptr = me;
-	gpu.params = params;
-	auto fut = gpu.promise.get_future();
-	gpu_ewald_queue.push(std::move(gpu));
-
-	return std::move(fut);
-
-}
-
 int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];

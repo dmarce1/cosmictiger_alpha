@@ -200,7 +200,7 @@ struct tree_ptr {
 	array<fixed32, NDIM> get_pos() const;CUDA_EXPORT
 	bool is_leaf() const;
 #ifndef __CUDACC__
-	hpx::future<kick_return> kick(kick_params_type*, bool, bool);
+	hpx::future<kick_return> kick(kick_params_type*, bool);
 #endif
 };
 
