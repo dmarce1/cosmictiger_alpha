@@ -37,7 +37,7 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, const vector<tree_ptr
 		for (int dim = 0; dim < NDIM; dim++) {
 			fpos[dim] = distance(pos[dim], ((tree*) multis[i])->pos[dim]);
 		}
-		flops += 3;
+		flops += 6;
 		flops += green_direct(D, fpos);
 		flops += multipole_interaction(L, mpole, D);
 		interacts++;
@@ -85,7 +85,7 @@ CUDA_DEVICE void cuda_ewald_cc_interactions(particle_set *parts, kick_params_typ
 		for (int dim = 0; dim < NDIM; dim++) {
 			fpos[dim] = distance(pos[dim],check->pos[dim]);
 		}
-		flops += 3;
+		flops += 6;
 		flops += green_ewald(D, fpos);
 		flops += multipole_interaction(L,check->multi, D);
 		interacts++;
@@ -169,7 +169,7 @@ CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr
 					dx[dim] = distance(pos[dim], sources[dim][j]);
 				}
 				expansion<float> D;
-				flops += 3;
+				flops += 6;
 				flops += green_direct(D, dx);
 				flops += multipole_interaction(L, D);
 				interacts++;

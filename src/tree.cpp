@@ -17,7 +17,7 @@ static unified_allocator kick_params_alloc;
 timer tmp_tm;
 
 #define NWAVE 2
-#define GPUOS 8
+#define GPUOS 16
 
 void tree::set_particle_set(particle_set *parts) {
 	particles = parts;
@@ -354,6 +354,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto &parti = params.part_interactions;
 	auto &next_checks = params.next_checks;
 	int ninteractions = is_leaf() ? 4 : 2;
+	int interacts = 0;
+	int flops = 0;
 	for (int type = 0; type < ninteractions; type++) {
 		const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
 		auto &checks = ewald_dist ? params.echecks : params.dchecks;
@@ -365,46 +367,34 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 #ifdef TEST_CHECKLIST_TIME
 			tm.start();
 #endif
-			const auto cmax = ((checks.size() - 1) / simd_float::size() + 1) * simd_float::size();
-			for (int ci = 0; ci < cmax; ci += simd_float::size()) {
-				simd_float other_radius;
-				array<simd_int, NDIM> other_pos;
-				for (int k = 0; k < simd_float::size(); k++) {
-					const int index = std::min(ci + k, (int) checks.size() - 1);
-					other_radius[k] = checks[index].get_radius();
-					for (int dim = 0; dim < NDIM; dim++) {
-						other_pos[dim][k] = checks[index].get_pos()[dim].raw();
-					}
+			for (int ci = 0; ci < checks.size(); ci++) {
+				const auto other_radius = checks[ci].get_radius();
+				const auto other_pos = checks[ci].get_pos();
+				float d2 = 0.f;
+				for (int dim = 0; dim < NDIM; dim++) {
+					d2 += sqr(distance(other_pos[dim], pos[dim]));
 				}
-				simd_float dx0 = (other_pos[0] - pos[0].raw()) * fixed2float;
-				simd_float dx1 = (other_pos[1] - pos[1].raw()) * fixed2float;
-				simd_float dx2 = (other_pos[2] - pos[2].raw()) * fixed2float;
-				simd_float d2 = fma(dx0, dx0, fma(dx1, dx1, sqr(dx2)));
 				if (ewald_dist) {
-					d2 = max(d2, simd_float(EWALD_MIN_DIST2));
+					d2 = std::max(d2, EWALD_MIN_DIST2);
 				}
-				const simd_float myradius = (radius + params.hsoft);
-				const simd_float R1 = sqr(other_radius + SINK_BIAS * myradius + params.hsoft);                 // 2
-				const simd_float R2 = sqr((other_radius + params.hsoft) * params.theta + SINK_BIAS * myradius);
-				const simd_float R3 = sqr(other_radius + (myradius * params.theta) + params.hsoft);
-				const simd_float far1 = R1 < theta2 * d2;
-				const simd_float far2 = R2 < theta2 * d2;
-				const simd_float far3 = R3 < theta2 * d2;
-				for (int k = 0; k < simd_float::size(); k++) {
-					if (ci + k < checks.size()) {
-						const bool isleaf = checks[ci + k].is_leaf();
-						if (far1[k] || (direct && far3[k])) {
-							multis.push_back(checks[ci + k]);
-						} else if ((far2[k] || direct) && isleaf) {
-							parti.push_back(checks[ci + k]);
-						} else if (isleaf) {
-							next_checks.push_back(checks[ci + k]);
-						} else {
-							const auto child_checks = checks[ci + k].get_children().get();
-							next_checks.push_back(child_checks[LEFT]);
-							next_checks.push_back(child_checks[RIGHT]);
-						}
-					}
+				const auto myradius = SINK_BIAS * (radius + params.hsoft);
+				const auto R1 = sqr(other_radius + myradius + params.hsoft);                 // 2
+				const auto R2 = sqr(other_radius * params.theta + myradius + params.hsoft);
+				const auto R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + params.hsoft);
+				const bool far1 = R1 < theta2 * d2;
+				const bool far2 = R2 < theta2 * d2;
+				const bool far3 = R3 < theta2 * d2;
+				const bool isleaf = checks[ci].is_leaf();
+				if (far1 || (direct && far3)) {
+					multis.push_back(checks[ci]);
+				} else if ((far2 || direct) && isleaf) {
+					parti.push_back(checks[ci]);
+				} else if (isleaf) {
+					next_checks.push_back(checks[ci]);
+				} else {
+					const auto child_checks = checks[ci].get_children().get();
+					next_checks.push_back(child_checks[LEFT]);
+					next_checks.push_back(child_checks[RIGHT]);
 				}
 			}
 #ifdef TEST_CHECKLIST_TIME
@@ -434,6 +424,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 
 	}
 //  printf( "%li\n", params.depth);
+
+	kick_return_update_interactions_cpu(KR_OP, interacts, flops);
+
 	if (!is_leaf()) {
 // printf("4\n");
 		const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
@@ -520,7 +513,6 @@ std::atomic<bool> tree::daemon_running(false);
 std::atomic<bool> tree::shutdown_daemon(false);
 
 void cuda_execute_kick_kernel(kick_params_type **params, int grid_size);
-void cuda_execute_ewald_cc_kernel(kick_params_type *params_ptr);
 
 void tree::gpu_daemon() {
 	static bool first_call = true;
@@ -676,11 +668,10 @@ int tree::compute_block_count(size_t cutoff) {
 		return left + right;
 	}
 }
-int tree::cpu_cc_direct(kick_params_type *params_ptr) {
+void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
 	auto &multis = params.multi_interactions;
-	int flops = 0;
 	array<simd_int, NDIM> X;
 	array<simd_int, NDIM> Y;
 	array<simd_float, NDIM> dX;
@@ -690,12 +681,15 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
+	int flops = 0;
+	int interacts = 0;
 	if (multis.size()) {
 		for (int i = 0; i < LP; i++) {
 			Lacc[i] = 0.f;
 		}
 		const auto cnt1 = multis.size();
 		for (int j = 0; j < cnt1; j += simd_float::size()) {
+			int n = 0;
 			for (int k = 0; k < simd_float::size(); k++) {
 				if (j + k < cnt1) {
 					for (int dim = 0; dim < NDIM; dim++) {
@@ -704,6 +698,7 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 					for (int i = 0; i < MP; i++) {
 						M[i][k] = (((const tree*) multis[j + k])->multi)[i];
 					}
+					n++;
 				} else {
 					for (int dim = 0; dim < NDIM; dim++) {
 						Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
@@ -713,27 +708,24 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 					}
 				}
 			}
+			interacts += n;
 			for (int dim = 0; dim < NDIM; dim++) {
 				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
 			}
-			green_direct(D, dX);
-			auto tmp = multipole_interaction(Lacc, M, D);
-			if (j == 0) {
-				flops = 3 + tmp;
-			}
+			flops += n * 6;
+			flops += n * green_direct(D, dX);
+			flops += n * multipole_interaction(Lacc, M, D);
 		}
-		flops *= cnt1;
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {
 				L[i] += Lacc[i][k];
-				flops++;
 			}
 		}
+		kick_return_update_interactions_cpu(KR_CC, interacts, flops);
 	}
-	return flops;
 }
 
-int tree::cpu_cp_direct(kick_params_type *params_ptr) {
+void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
 	int nparts = parts.second - parts.first;
@@ -792,10 +784,9 @@ int tree::cpu_cp_direct(kick_params_type *params_ptr) {
 			L[i] += Lacc[i][k];
 		}
 	}
-	return 0;
 }
 
-int tree::cpu_pp_direct(kick_params_type *params_ptr) {
+void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
 	auto& F = params.F;
@@ -855,10 +846,9 @@ int tree::cpu_pp_direct(kick_params_type *params_ptr) {
 			}
 		}
 	}
-	return 0;
 }
 
-int tree::cpu_pc_direct(kick_params_type *params_ptr) {
+void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
 	auto &multis = params.multi_interactions;
@@ -877,7 +867,7 @@ int tree::cpu_pc_direct(kick_params_type *params_ptr) {
 			array<simd_float, NDIM> f;
 			array<simd_float, NDIM + 1> Lacc;
 			const auto cnt1 = multis.size();
-			for( int j = 0; j  < NDIM + 1; j++) {
+			for (int j = 0; j < NDIM + 1; j++) {
 				Lacc[j] = 0.f;
 			}
 			for (int j = 0; j < cnt1; j += simd_float::size()) {
@@ -909,14 +899,12 @@ int tree::cpu_pc_direct(kick_params_type *params_ptr) {
 			}
 		}
 	}
-	return 0;
 }
 
-int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
+void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
 	auto &multis = params.multi_interactions;
-	int flops = 0;
 	array<simd_int, NDIM> X;
 	array<simd_int, NDIM> Y;
 	array<simd_float, NDIM> dX;
@@ -926,12 +914,15 @@ int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
+	int flops = 0;
+	int interacts = 0;
 	if (multis.size()) {
 		for (int i = 0; i < LP; i++) {
 			Lacc[i] = 0.f;
 		}
 		const auto cnt1 = multis.size();
 		for (int j = 0; j < cnt1; j += simd_float::size()) {
+			int n = 0;
 			for (int k = 0; k < simd_float::size(); k++) {
 				if (j + k < cnt1) {
 					for (int dim = 0; dim < NDIM; dim++) {
@@ -940,6 +931,7 @@ int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 					for (int i = 0; i < MP; i++) {
 						M[i][k] = (((const tree*) multis[j + k])->multi)[i];
 					}
+					n++;
 				} else {
 					for (int dim = 0; dim < NDIM; dim++) {
 						Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
@@ -949,22 +941,19 @@ int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 					}
 				}
 			}
+			interacts += n;
 			for (int dim = 0; dim < NDIM; dim++) {
 				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
 			}
-			green_ewald(D, dX);
-			auto tmp = multipole_interaction(Lacc, M, D);
-			if (j == 0) {
-				flops = 3 + tmp;
-			}
+			flops += 6 * n;
+			flops += n * green_ewald(D, dX);
+			flops += n * multipole_interaction(Lacc, M, D);
 		}
-		flops *= cnt1;
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {
 				L[i] += Lacc[i][k];
-				flops++;
 			}
 		}
+		kick_return_update_interactions_cpu(KR_EWCC, interacts, flops);
 	}
-	return flops;
 }
