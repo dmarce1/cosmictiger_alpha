@@ -301,7 +301,6 @@ CUDA_EXPORT inline int green_ewald(expansion<T> &D, const array<T, NDIM> &X, ewa
 #ifdef __CUDA_ARCH__
 				if (r2 < (EWALD_REAL_CUTOFF2)) {                           // 1
 #endif
-		flops += FLOPS_EWALD;
 		const T r = sqrt(r2);                           // 1
 		const T cmask = one - (fma(n[0], n[0], fma(n[1], n[1], sqr(n[2]))) > 0.0);                           // 7
 		const T mask = (one - (one - zmask) * cmask);                           // 3
