@@ -6,6 +6,7 @@
 #include <cosmictiger/interactions.hpp>
 #include <functional>
 #include <cosmictiger/gravity.hpp>
+#include <cosmictiger/kick_return.hpp>
 
 //CUDA_KERNEL cuda_kick()
 
@@ -17,28 +18,10 @@
 
 CUDA_DEVICE particle_set *parts;
 
-__managed__ double pp_interaction_time = 0;
-__managed__ double pc_interaction_time = 0;
-__managed__ double cp_interaction_time = 0;
-__managed__ double cc_interaction_time = 0;
-__managed__ double ewald_interaction_time = 0;
-__managed__ double total_time = 0;
-
 #define MI 0
 #define PI 1
 #define CI 2
 #define OI 3
-
-void show_timings() {
-	const auto walk_time = total_time - pp_interaction_time - pc_interaction_time - cp_interaction_time
-			- cc_interaction_time - ewald_interaction_time;
-	printf("%e %e %e %e %e %e\n", walk_time / total_time, pp_interaction_time / total_time,
-			pc_interaction_time / total_time, cp_interaction_time / total_time, cc_interaction_time / total_time,
-			ewald_interaction_time / total_time);
-	total_time = ewald_interaction_time = pp_interaction_time = pc_interaction_time = cp_interaction_time =
-			cc_interaction_time = 0.0;
-
-}
 
 CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
@@ -284,28 +267,12 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		}
 		switch (type) {
 		case PC_PP_DIRECT:
-			tm = clock64();
 			flops += cuda_pc_interactions(parts, multis, params_ptr);
-			if (tid == 0) {
-				atomicAdd(&pc_interaction_time, (double) (clock64() - tm));
-			}
-			tm = clock64();
 			flops += cuda_pp_interactions(parts, tmp_parti, params_ptr);
-			if (tid == 0) {
-				atomicAdd(&pp_interaction_time, (double) (clock64() - tm));
-			}
 			break;
 		case CC_CP_DIRECT:
-			tm = clock64();
 			flops += cuda_cc_interactions(parts, multis, params_ptr);
-			if (tid == 0) {
-				atomicAdd(&cc_interaction_time, (double) (clock64() - tm));
-			}
-			tm = clock64();
 			flops += cuda_cp_interactions(parts, parti, params_ptr);
-			if (tid == 0) {
-				atomicAdd(&cp_interaction_time, (double) (clock64() - tm));
-			}
 			break;
 
 		case PC_PP_EWALD:
@@ -319,20 +286,11 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			}
 			break;
 		case CC_CP_EWALD:
-#ifndef PERIODIC_OFF
 			if (count[PI] > 0) {
 				printf("CP Ewald should not exist\n");
 				//     __trap();
 			}
-			if (count[MI] > 0) {
-				tm = clock64();
-				flops += cuda_ewald_cc_interactions(parts, params_ptr, &shmem.Lreduce);
-				if (tid == 0) {
-					atomicAdd(&ewald_interaction_time, (double) (clock64() - tm));
-				}
-				tm = clock64();
-			}
-#endif
+			flops += cuda_ewald_cc_interactions(parts, params_ptr, &shmem.Lreduce);
 			break;
 		}
 	}
@@ -366,7 +324,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 			const auto this_rung = parts->rung(k + myparts.first);
 			if (this_rung >= params.rung) {
-
 				array<float, NDIM> g;
 				float phi;
 				array<float, NDIM> dx;
@@ -406,6 +363,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				rungs[tid] = fmaxf(rungs[tid], new_rung);
 				parts->set_rung(new_rung, k + myparts.first);
 			}
+			kick_return_update_rung_gpu(parts->rung(k + myparts.first));
+
 		}
 		__syncwarp();
 		for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
@@ -434,13 +393,11 @@ extern __managed__ double pp_crit2_time;
 
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 	const int &bid = blockIdx.x;
-	auto tm = clock64();
 	cuda_kick(params + bid);
 	__syncwarp();
 	if (threadIdx.x == 0) {
 		//     printf( "Kick done\n");
 		params[bid].kick_params_type::~kick_params_type();
-		atomicAdd(&total_time, (double) clock64() - tm);
 	}
 
 }

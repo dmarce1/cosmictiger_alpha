@@ -40,8 +40,11 @@ set(cosmictiger_source_files
     src/tests.cpp
     src/tree.cpp
     src/tree.cu
+    src/kick_return.cu
+    src/kick_return.cpp
 )
 set(cosmictiger_header_files
+	cosmictiger/kick_return.hpp
 	cosmictiger/defs.hpp
 	cosmictiger/gravity.hpp
 	cosmictiger/gravity.hpp

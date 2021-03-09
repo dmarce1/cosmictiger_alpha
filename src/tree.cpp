@@ -4,6 +4,7 @@
 #include <cosmictiger/timer.hpp>
 #include <cosmictiger/simd.hpp>
 #include <cosmictiger/gravity.hpp>
+#include <cosmictiger/kick_return.hpp>
 
 #include <cmath>
 
@@ -506,6 +507,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				max_rung = std::max(max_rung, new_rung);
 				particles->set_rung(new_rung, k + parts.first);
 			}
+			kick_return_update_rung_cpu(particles->rung(k + parts.first));
+
 		}
 		//	rc.rung = max_rung;
 		return hpx::make_ready_future();
