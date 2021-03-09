@@ -45,8 +45,8 @@
 #define FLOP_RSQRT 7
 #define FLOP_DIV 7
 #define FLOP_SQRT 7
-#define FLOP_EXP 20
-#define FLOP_SINCOS 20
+#define FLOP_EXP 21
+#define FLOP_SINCOS 21
 
 
 

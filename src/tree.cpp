@@ -877,6 +877,9 @@ int tree::cpu_pc_direct(kick_params_type *params_ptr) {
 			array<simd_float, NDIM> f;
 			array<simd_float, NDIM + 1> Lacc;
 			const auto cnt1 = multis.size();
+			for( int j = 0; j  < NDIM + 1; j++) {
+				Lacc[j] = 0.f;
+			}
 			for (int j = 0; j < cnt1; j += simd_float::size()) {
 				for (int k = 0; k < simd_float::size(); k++) {
 					if (j + k < cnt1) {
@@ -900,9 +903,9 @@ int tree::cpu_pc_direct(kick_params_type *params_ptr) {
 				}
 				green_direct(D, dX);
 				multipole_interaction(Lacc, M, D);
-				for (int dim = 0; dim < NDIM; dim++) {
-					F[dim][i] -= Lacc[1 + dim].sum();
-				}
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				F[dim][i] -= Lacc[1 + dim].sum();
 			}
 		}
 	}

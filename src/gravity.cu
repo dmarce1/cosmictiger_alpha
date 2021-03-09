@@ -360,6 +360,9 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 			f1tid = 0.f;
 			f2tid = 0.f;
 			const auto multsz = multis.size();
+			for( int i = 0; i < NDIM + 1; i++) {
+				Lforce[i] = 0.f;
+			}
 			for (int i = tid; i < multsz; i += KICK_BLOCK_SIZE) {
 				const auto& other_ptr = ((tree*) multis[i]);
 				const auto &source = other_ptr->pos;
@@ -369,11 +372,11 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 				flops += 6;
 				flops += green_direct(D, dx);
 				flops += multipole_interaction(Lforce, other_ptr->multi, D);
-				f0tid += Lforce[1];
-				f1tid += Lforce[2];
-				f2tid += Lforce[3];
 				interacts++;
 			}
+			f0tid = Lforce[1];
+			f1tid = Lforce[2];
+			f2tid = Lforce[3];
 			__syncwarp();
 			for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
 				if (tid < P) {
