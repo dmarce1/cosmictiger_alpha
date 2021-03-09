@@ -107,7 +107,8 @@ CUDA_DEVICE void cuda_ewald_cc_interactions(particle_set *parts, kick_params_typ
 
 #endif
 
-CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr> &parti, kick_params_type *params_ptr) {
+CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr> &parti,
+		kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
 	__shared__
@@ -191,7 +192,8 @@ CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr
 	kick_return_update_interactions_gpu(KR_CP, interacts, flops);
 }
 
-CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr> &parti, kick_params_type *params_ptr) {
+CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr> &parti,
+		kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
 	__shared__
@@ -334,6 +336,7 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 	}
 	auto &rungs = shmem.rungs;
 	auto &sinks = shmem.sink;
+	auto& msrcs = shmem.msrc;
 	for (int i = tid; i < nparts; i += KICK_BLOCK_SIZE) {
 		rungs[i] = parts->rung(i + myparts.first);
 		if (rungs[i] >= params.rung) {
@@ -353,41 +356,52 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 	auto& dx0 = dx[0];
 	auto& dx1 = dx[1];
 	auto& dx2 = dx[2];
-	for (int k = 0; k < nparts; k++) {
-		if (rungs[k] >= params.rung) {
-			f0tid = 0.f;
-			f1tid = 0.f;
-			f2tid = 0.f;
-			const auto multsz = multis.size();
-			for( int i = 0; i < NDIM + 1; i++) {
-				Lforce[i] = 0.f;
-			}
-			for (int i = tid; i < multsz; i += KICK_BLOCK_SIZE) {
-				const auto& other_ptr = ((tree*) multis[i]);
-				const auto &source = other_ptr->pos;
-				dx0 = distance(sinks[0][k], source[0]);
-				dx1 = distance(sinks[1][k], source[1]);
-				dx2 = distance(sinks[2][k], source[2]);
-				flops += 6;
-				flops += green_direct(D, dx);
-				flops += multipole_interaction(Lforce, other_ptr->multi, D);
-				interacts++;
-			}
-			f0tid = Lforce[1];
-			f1tid = Lforce[2];
-			f2tid = Lforce[3];
-			__syncwarp();
-			for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-				if (tid < P) {
-					for (int dim = 0; dim < NDIM; dim++) {
-						f[dim][tid] += f[dim][tid + P];
-					}
+	int nsrc = 0;
+	const auto mmax = (((multis.size()-1)/KICK_PC_MAX)+1)*KICK_PC_MAX;
+	for (int m = 0; m < mmax; m += KICK_PC_MAX) {
+		nsrc = 0;
+		for (int z = 0; z < KICK_PC_MAX; z++) {
+			if (m + z < multis.size()) {
+				const auto& other_ptr = ((tree*) multis[m + z]);
+				const float* src = (float*) &other_ptr->multi;
+				float* dst = (float*) &(msrcs[nsrc++]);
+				if (tid < sizeof(multipole_pos) / sizeof(float)) {
+					dst[tid] = src[tid];
 				}
-				__syncwarp();
 			}
-			if (tid == 0) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					F[dim][k] -= f[dim][0];
+		}
+		__syncwarp();
+		for (int k = 0; k < nparts; k++) {
+			if (rungs[k] >= params.rung) {
+				for (int i = 0; i < NDIM + 1; i++) {
+					Lforce[i] = 0.f;
+				}
+				for (int i = tid; i < nsrc; i += KICK_BLOCK_SIZE) {
+					const auto &source = msrcs[i].pos;
+					dx0 = distance(sinks[0][k], source[0]);
+					dx1 = distance(sinks[1][k], source[1]);
+					dx2 = distance(sinks[2][k], source[2]);
+					flops += 6;
+					flops += green_direct(D, dx);
+					flops += multipole_interaction(Lforce, msrcs[i].multi, D);
+					interacts++;
+				}
+				f0tid = Lforce[1];
+				f1tid = Lforce[2];
+				f2tid = Lforce[3];
+				__syncwarp();
+				for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+					if (tid < P) {
+						for (int dim = 0; dim < NDIM; dim++) {
+							f[dim][tid] += f[dim][tid + P];
+						}
+					}
+					__syncwarp();
+				}
+				if (tid == 0) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						F[dim][k] -= f[dim][0];
+					}
 				}
 			}
 		}

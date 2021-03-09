@@ -217,6 +217,11 @@ struct cuda_ewald_shmem {
 	array<float, KICK_BLOCK_SIZE> Lreduce;  // 256
 };
 
+struct multipole_pos {
+	multipole multi;
+	array<fixed32, NDIM> pos;
+};
+
 struct cuda_kick_shmem {
 	union {
 		array<array<float, KICK_BLOCK_SIZE>, NDIM> f; // 384
@@ -226,7 +231,10 @@ struct cuda_kick_shmem {
 		};
 		array<float, KICK_BLOCK_SIZE> Lreduce;  // 4480
 	};
-	array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
+	union {
+		array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
+		array<multipole_pos, KICK_PC_MAX> msrc;
+	};
 	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 768
 	array<int, MAX_BUCKET_SIZE> rungs; // 256
 };
@@ -255,7 +263,7 @@ struct kick_params_type {
 	float t0;
 	uintptr_t stack_top;
 	size_t flops;
-	kick_params_type& operator=( kick_params_type& other ) {
+	kick_params_type& operator=(kick_params_type& other) {
 		first = other.first;
 		dchecks = other.dchecks.copy_top();
 		echecks = other.echecks.copy_top();
@@ -313,11 +321,11 @@ struct tree {
 #ifndef __CUDACC__
 private:
 #endif
+	multipole multi;
 	array<fixed32, NDIM> pos;
 	float radius;
 	array<tree_ptr, NCHILD> children;
 	pair<size_t, size_t> parts;
-	multipole multi;
 	static ewald_indices* real_indices_ptr;
 	static ewald_indices* four_indices_ptr;
 	static periodic_parts* periodic_parts_ptr;
@@ -394,6 +402,4 @@ inline bool tree_ptr::is_leaf() const {
 	return ((tree*) ptr)->children[0] == tree_ptr();
 }
 
-
-void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size,
-		cudaStream_t stream);
+void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);
