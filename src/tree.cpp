@@ -17,7 +17,7 @@ static unified_allocator kick_params_alloc;
 timer tmp_tm;
 
 #define NWAVE 2
-#define GPUOS 16
+#define GPUOS 8
 
 void tree::set_particle_set(particle_set *parts) {
 	particles = parts;
@@ -799,6 +799,7 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	auto &L = params.L[params.depth];
 	auto &multis = params.multi_interactions;
 	int flops = 0;
+	int interacts = 0;
 	array<simd_int, NDIM> X;
 	array<simd_int, NDIM> Y;
 	array<simd_float, NDIM> dX;
@@ -814,6 +815,7 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 		}
 		const auto cnt1 = multis.size();
 		for (int j = 0; j < cnt1; j += simd_float::size()) {
+			int n = 0;
 			for (int k = 0; k < simd_float::size(); k++) {
 				if (j + k < cnt1) {
 					for (int dim = 0; dim < NDIM; dim++) {
@@ -822,6 +824,7 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 					for (int i = 0; i < MP; i++) {
 						M[i][k] = (((const tree*) multis[j + k])->multi)[i];
 					}
+					n++;
 				} else {
 					for (int dim = 0; dim < NDIM; dim++) {
 						Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
@@ -831,23 +834,21 @@ int tree::cpu_cc_direct(kick_params_type *params_ptr) {
 					}
 				}
 			}
+			interacts += n;
 			for (int dim = 0; dim < NDIM; dim++) {
 				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
 			}
-			green_direct(D, dX);
-			auto tmp = multipole_interaction(Lacc, M, D);
-			if (j == 0) {
-				flops = 3 + tmp;
-			}
+			flops += 6;
+			flops += green_direct(D, dX);
+			flops += multipole_interaction(Lacc, M, D);
 		}
-		flops *= cnt1;
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {
 				L[i] += Lacc[i][k];
-				flops++;
 			}
 		}
 	}
+	kick_return_update_interactions_cpu(KR_CC, interacts, flops);
 	return flops;
 }
 
@@ -903,7 +904,7 @@ int tree::cpu_cp_direct(kick_params_type *params_ptr) {
 			dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
 		}
 		green_direct(D, dX);
-		multipole_interaction(Lacc, D);
+		multipole_interaction(Lacc,M,  D);
 	}
 	for (int k = 0; k < simd_float::size(); k++) {
 		for (int i = 0; i < LP; i++) {
@@ -995,6 +996,9 @@ int tree::cpu_pc_direct(kick_params_type *params_ptr) {
 			array<simd_float, NDIM> f;
 			array<simd_float, NDIM + 1> Lacc;
 			const auto cnt1 = multis.size();
+			for( int j = 0; j  < NDIM + 1; j++) {
+				Lacc[j] = 0.f;
+			}
 			for (int j = 0; j < cnt1; j += simd_float::size()) {
 				for (int k = 0; k < simd_float::size(); k++) {
 					if (j + k < cnt1) {
@@ -1018,9 +1022,9 @@ int tree::cpu_pc_direct(kick_params_type *params_ptr) {
 				}
 				green_direct(D, dX);
 				multipole_interaction(Lacc, M, D);
-				for (int dim = 0; dim < NDIM; dim++) {
-					F[dim][i] -= Lacc[1 + dim].sum();
-				}
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				F[dim][i] -= Lacc[1 + dim].sum();
 			}
 		}
 	}
@@ -1032,6 +1036,7 @@ int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 	auto &L = params.L[params.depth];
 	auto &multis = params.multi_interactions;
 	int flops = 0;
+	int interacts = 0;
 	array<simd_int, NDIM> X;
 	array<simd_int, NDIM> Y;
 	array<simd_float, NDIM> dX;
@@ -1046,7 +1051,9 @@ int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 			Lacc[i] = 0.f;
 		}
 		const auto cnt1 = multis.size();
+		int n;
 		for (int j = 0; j < cnt1; j += simd_float::size()) {
+			n=0;
 			for (int k = 0; k < simd_float::size(); k++) {
 				if (j + k < cnt1) {
 					for (int dim = 0; dim < NDIM; dim++) {
@@ -1055,6 +1062,7 @@ int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 					for (int i = 0; i < MP; i++) {
 						M[i][k] = (((const tree*) multis[j + k])->multi)[i];
 					}
+					n++;
 				} else {
 					for (int dim = 0; dim < NDIM; dim++) {
 						Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
@@ -1064,22 +1072,20 @@ int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 					}
 				}
 			}
+			interacts += n;
 			for (int dim = 0; dim < NDIM; dim++) {
 				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
 			}
-			green_ewald(D, dX, *real_indices_ptr, *four_indices_ptr, *periodic_parts_ptr);
-			auto tmp = multipole_interaction(Lacc, M, D);
-			if (j == 0) {
-				flops = 3 + tmp;
-			}
+			flops += 6;
+			flops += green_ewald(D, dX, *real_indices_ptr, *four_indices_ptr, *periodic_parts_ptr);
+			flops +=  multipole_interaction(Lacc, M, D);
 		}
-		flops *= cnt1;
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {
 				L[i] += Lacc[i][k];
-				flops++;
 			}
 		}
 	}
+	kick_return_update_interactions_cpu(KR_EWCC, interacts, flops);
 	return flops;
 }
