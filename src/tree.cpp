@@ -16,8 +16,8 @@ static unified_allocator kick_params_alloc;
 
 timer tmp_tm;
 
-#define NWAVE 2
-#define GPUOS 8
+#define NWAVE 1
+#define GPUOS 4
 
 void tree::set_particle_set(particle_set *parts) {
 	particles = parts;
@@ -253,10 +253,6 @@ sort_return tree::sort(sort_params params) {
 
 hpx::lcos::local::mutex tree::mtx;
 hpx::lcos::local::mutex tree::gpu_mtx;
-
-ewald_indices* tree::real_indices_ptr = nullptr;
-ewald_indices* tree::four_indices_ptr = nullptr;
-periodic_parts* tree::periodic_parts_ptr = nullptr;
 
 void tree::cleanup() {
 	shutdown_daemon = true;
@@ -1077,7 +1073,7 @@ int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
 			}
 			flops += 6;
-			flops += green_ewald(D, dX, *real_indices_ptr, *four_indices_ptr, *periodic_parts_ptr);
+			flops += green_ewald(D, dX);
 			flops +=  multipole_interaction(Lacc, M, D);
 		}
 		for (int k = 0; k < simd_float::size(); k++) {

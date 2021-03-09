@@ -22,7 +22,7 @@
 #define TEST_BOUNDS
 #endif
 
-#define TEST_FORCE
+//#define TEST_FORCE
 //#define TEST_STACK
 #define N_TEST_PARTS (6*46)
 
@@ -35,8 +35,8 @@
 #define TREE_MIN_PARTS2THREAD (64*1024)
 #define KICK_BLOCK_SIZE 32
 #define KICK_PP_MAX size_t(16*32)
-#define KICK_PC_MAX (2*32)
-#define MAX_BUCKET_SIZE 92
+#define KICK_PC_MAX (63)
+#define MAX_BUCKET_SIZE 94
 #define GROUP_SIZE MAX_BUCKET_SIZE
 #define GPU_QUEUE_SIZE (1024*1024)
 #define KICK_GRID_SIZE 36
@@ -46,8 +46,8 @@
 #define FLOP_RSQRT 7
 #define FLOP_DIV 7
 #define FLOP_SQRT 7
-#define FLOP_EXP 21
-#define FLOP_SINCOS 21
+#define FLOP_EXP 18
+#define FLOP_SINCOS 18
 
 
 

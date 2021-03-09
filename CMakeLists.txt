@@ -25,6 +25,7 @@ enable_language(CUDA)
 #set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -ffast-math -march=native")
 
 set(cosmictiger_source_files
+    src/ewald_indices.cu
     src/cuda.cpp
     src/expansion.cu
     src/global.cpp
@@ -43,6 +44,7 @@ set(cosmictiger_source_files
     src/kick_return.cpp
 )
 set(cosmictiger_header_files
+	cosmictiger/ewald_indices.hpp
 	cosmictiger/kick_return.hpp
 	cosmictiger/defs.hpp
 	cosmictiger/gravity.hpp
@@ -108,7 +110,7 @@ target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SO
 #target_include_directories(hpx_lite PUBLIC  /home/dmarce1/workspace/cosmictiger/hpx_lite)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                       --maxrregcount 255 --use_fast_math --gpu-architecture=compute_75;
+                       --use_fast_math --gpu-architecture=compute_75;
                         >)
 #target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
 #                       --maxrregcount 168 --use_fast_math --gpu-architecture=compute_75;

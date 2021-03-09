@@ -71,9 +71,10 @@ void kick_return_show() {
 	printf("\n");
 
 	printf( "Interactions / part : GFLOP\n");
-	array<double,KR_COUNT> count_pct, flop_pct;
+	array<double,KR_COUNT> count_pct, flop_pct, flop_per;
 	double flop_tot = 0, count_tot = 0;
 	for( int i = 0; i < KR_COUNT; i++) {
+		flop_per[i] = rc.flop[i] / rc.count[i];
 		rc.count[i] /= global().opts.nparts;
 		flop_tot += rc.flop[i];
 		count_tot += rc.count[i];
@@ -82,14 +83,12 @@ void kick_return_show() {
 		count_pct[i] = rc.count[i] / count_tot * 100.0;
 		flop_pct[i] = rc.flop[i] / flop_tot * 100.0;
 	}
-
+	const char* names[] = {"PP", "PC", "CP", "CC", "OP", "CCEW"} ;
 	const auto fac = 1.0 / 1024.0/1024.0/1024.0;
-	printf( "PP   : %8.3e (%5.2f%%)  %8.3e (%5.2f%%)\n", rc.count[KR_PP],count_pct[KR_PP], rc.flop[KR_PP]*fac, flop_pct[KR_PP]);
-	printf( "PC   : %8.3e (%5.2f%%)  %8.3e (%5.2f%%)\n", rc.count[KR_PC],count_pct[KR_PC], rc.flop[KR_PC]*fac, flop_pct[KR_PC]);
-	printf( "CP   : %8.3e (%5.2f%%)  %8.3e (%5.2f%%)\n", rc.count[KR_CP],count_pct[KR_CP], rc.flop[KR_CP]*fac, flop_pct[KR_CP]);
-	printf( "CC   : %8.3e (%5.2f%%)  %8.3e (%5.2f%%)\n", rc.count[KR_CC],count_pct[KR_CC], rc.flop[KR_CC]*fac, flop_pct[KR_CC]);
-	printf( "CCEW : %8.3e (%5.2f%%)  %8.3e (%5.2f%%)\n", rc.count[KR_EWCC],count_pct[KR_EWCC], rc.flop[KR_EWCC]*fac, flop_pct[KR_EWCC]);
-	printf( "OP   : %8.3e (%5.2f%%)  %8.3e (%5.2f%%)\n", rc.count[KR_OP],count_pct[KR_OP], rc.flop[KR_OP]*fac, flop_pct[KR_OP]);
+	printf( "Evals per particles | FLOP | FLOP per eval\n");
+	for( int i = 0; i < 6; i++) {
+		printf( "%4s   : %8.3e (%5.2f%%)  %8.3e (%5.2f%%) %.2f\n", names[i], rc.count[i],count_pct[i], rc.flop[i]*fac, flop_pct[i], flop_per[i]);
+	}
 	printf( "\nTotal GFLOP  = %8.3e\n", flop_tot * fac);
 	printf( "Total GFLOPS = %8.3e\n\n", flop_tot * fac / elapsed);
 
