@@ -5,6 +5,7 @@
  *      Author: dmarce1
  */
 
+#include <cosmictiger/kick_return.hpp>
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/tests.hpp>
@@ -12,8 +13,6 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/particle.hpp>
 #include <cmath>
-
-void show_timings();
 
 static void tree_test() {
    printf("Doing tree test\n");
@@ -91,6 +90,7 @@ void kick_test() {
       for (int dim = 0; dim < NDIM; dim++) {
          Lpos[dim] = 0.5;
       }
+      kick_return_init(0);
       params_ptr->L[0] = L;
       params_ptr->Lpos[0] = Lpos;
       params_ptr->t0 = true;
@@ -109,17 +109,17 @@ void kick_test() {
       CUDA_FREE(params_ptr);
       tm_cleanup.stop();
       const auto total = tm_sort.read() + tm_kick.read() + tm_cleanup.read();
-      printf("PP/part = %f\n", get_pp_inters());
+      kick_return_show();
+   /*   printf("PP/part = %f\n", get_pp_inters());
       printf("PC/part = %f\n", get_pc_inters());
       printf("CP/part = %f\n", get_cp_inters());
       printf("CC/part = %f\n", get_cc_inters());
       printf("Sort    = %e s\n", tm_sort.read());
       printf("Kick    = %e s\n", tm_kick.read());
       printf("Cleanup = %e s\n", tm_cleanup.read());
-      printf("Total   = %e s\n", total);
+      printf("Total   = %e s\n", total);*/
     //  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
      // printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
-      show_timings();
    }
    parts_ptr->particle_set::~particle_set();
    CUDA_FREE(parts_ptr);
