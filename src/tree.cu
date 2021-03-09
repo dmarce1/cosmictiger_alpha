@@ -420,14 +420,11 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p) {
 	if (threadIdx.x == 0) {
 		parts = p;
-		expansion_init();
-
 	}
 }
 void tree::cuda_set_kick_params(particle_set *p) {
 	cuda_set_kick_params_kernel<<<1,1>>>(p);
 	CUDA_CHECK(cudaDeviceSynchronize());
-	expansion_init_cpu();
 }
 
 #ifdef TIMINGS
