@@ -11,6 +11,7 @@
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/array.hpp>
 #include <cosmictiger/tree.hpp>
+#include <cosmictiger/ewald_indices.hpp>
 
 #endif /* COSMICTIGER_GRAVITY_HPP_ */
 

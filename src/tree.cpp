@@ -253,10 +253,6 @@ sort_return tree::sort(sort_params params) {
 hpx::lcos::local::mutex tree::mtx;
 hpx::lcos::local::mutex tree::gpu_mtx;
 
-ewald_indices* tree::real_indices_ptr = nullptr;
-ewald_indices* tree::four_indices_ptr = nullptr;
-periodic_parts* tree::periodic_parts_ptr = nullptr;
-
 void tree::cleanup() {
 	shutdown_daemon = true;
 	while (daemon_running) {
@@ -271,12 +267,12 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	if (part_end - part_begin <= params.block_cutoff) {
 		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
 	} else {
-	//	const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
-	//	static std::atomic<int> used_threads(0);
-	//	if (used_threads++ > max_threads) {
-	//		used_threads--;
-	//		thread = false;
-	//	}
+		//	const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
+		//	static std::atomic<int> used_threads(0);
+		//	if (used_threads++ > max_threads) {
+		//		used_threads--;
+		//		thread = false;
+		//	}
 		if (thread) {
 			kick_params_type *new_params;
 			new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
@@ -284,11 +280,11 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 			*new_params = *params_ptr;
 			auto func = [this, new_params]() {
 				auto rc = ((tree*) ptr)->kick(new_params);
-		//		used_threads--;
-				new_params->kick_params_type::~kick_params_type();
-				kick_params_alloc.deallocate(new_params);
-				return rc;
-			};
+				//		used_threads--;
+					new_params->kick_params_type::~kick_params_type();
+					kick_params_alloc.deallocate(new_params);
+					return rc;
+				};
 			auto fut = hpx::async(std::move(func));
 			return std::move(fut);
 		} else {
@@ -353,7 +349,6 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	L <<= dx;
 
 	const auto theta2 = sqr(params.theta);
-	array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
 	auto &multis = params.multi_interactions;
 	auto &parti = params.part_interactions;
 	auto &next_checks = params.next_checks;
@@ -387,10 +382,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				if (ewald_dist) {
 					d2 = max(d2, simd_float(EWALD_MIN_DIST2));
 				}
-				const simd_float myradius = SINK_BIAS * (radius + params.hsoft);
-				const simd_float R1 = sqr(other_radius + myradius + params.hsoft);                 // 2
-				const simd_float R2 = sqr(other_radius * params.theta + myradius + params.hsoft);
-				const simd_float R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + params.hsoft);
+				const simd_float myradius = (radius + params.hsoft);
+				const simd_float R1 = sqr(other_radius + SINK_BIAS * myradius + params.hsoft);                 // 2
+				const simd_float R2 = sqr((other_radius + params.hsoft) * params.theta + SINK_BIAS * myradius);
+				const simd_float R3 = sqr(other_radius + (myradius * params.theta) + params.hsoft);
 				const simd_float far1 = R1 < theta2 * d2;
 				const simd_float far2 = R2 < theta2 * d2;
 				const simd_float far3 = R3 < theta2 * d2;
@@ -460,12 +455,11 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			printf("error\n");
 			abort();
 		}
-		return hpx::when_all(futs.begin(), futs.end()).then(
-				[](hpx::future<std::vector<hpx::future<void>>> futfut) {
-					auto futs = futfut.get();
-					futs[LEFT].get();
-					futs[RIGHT].get();
-					});
+		return hpx::when_all(futs.begin(), futs.end()).then([](hpx::future<std::vector<hpx::future<void>>> futfut) {
+			auto futs = futfut.get();
+			futs[LEFT].get();
+			futs[RIGHT].get();
+		});
 	} else {
 		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
@@ -513,7 +507,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				particles->set_rung(new_rung, k + parts.first);
 			}
 		}
-	//	rc.rung = max_rung;
+		//	rc.rung = max_rung;
 		return hpx::make_ready_future();
 	}
 }
@@ -598,7 +592,7 @@ void tree::gpu_daemon() {
 			printf("Executing \n");
 			for (int i = 0; i < NWAVE; i++) {
 				printf("Sending %i blocks to GPU\n", gpu_waves[i].size());
-				particles->set_preferred_gpu(gpu_waves[i].front().parts.first, gpu_waves[i].front().parts.second, stream);
+				//	particles->set_preferred_gpu(gpu_waves[i].front().parts.first, gpu_waves[i].front().parts.second, stream);
 				cuda_execute_kick_kernel(gpu_params[i], gpu_waves[i].size(), stream);
 			}
 			completions.push_back(std::function<bool()>([=]() {
@@ -952,7 +946,7 @@ int tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
 			}
-			green_ewald(D, dX, *real_indices_ptr, *four_indices_ptr, *periodic_parts_ptr);
+			green_ewald(D, dX);
 			auto tmp = multipole_interaction(Lacc, M, D);
 			if (j == 0) {
 				flops = 3 + tmp;

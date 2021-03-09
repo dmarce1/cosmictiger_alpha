@@ -1,11 +1,5 @@
-struct ewald_indices;
-struct periodic_parts;
 #include <cosmictiger/cuda.hpp>
 #include <stack>
-
-__device__ ewald_indices *four_indices_ptr;
-__device__ ewald_indices *real_indices_ptr;
-__device__ periodic_parts *periodic_parts_ptr;
 
 #define TREECU
 #include <cosmictiger/tree.hpp>
@@ -423,27 +417,17 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	}
 }
 
-CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p, ewald_indices *real_indices, ewald_indices *four_indices,
-		periodic_parts *periodic_parts) {
+CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p) {
 	if (threadIdx.x == 0) {
 		parts = p;
-		four_indices_ptr = four_indices;
-		real_indices_ptr = real_indices;
-		periodic_parts_ptr = periodic_parts;
 		expansion_init();
 
 	}
 }
-void tree::cuda_set_kick_params(particle_set *p, ewald_indices *real_indices, ewald_indices *four_indices,
-		periodic_parts *parts) {
-	cuda_set_kick_params_kernel<<<1,1>>>(p,real_indices, four_indices, parts);
+void tree::cuda_set_kick_params(particle_set *p) {
+	cuda_set_kick_params_kernel<<<1,1>>>(p);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	expansion_init_cpu();
-	if( tree::real_indices_ptr == nullptr ) {
-		tree::real_indices_ptr = new ewald_indices(EWALD_NREAL, false);
-		tree::four_indices_ptr = new ewald_indices(EWALD_NFOUR, true);
-		tree::periodic_parts_ptr = new periodic_parts();
-	}
 }
 
 #ifdef TIMINGS
@@ -497,6 +481,7 @@ CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
 
 void cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStream_t stream) {
 	const size_t shmemsize = sizeof(cuda_kick_shmem);
+//	CUDA_CHECK(cudaFuncSetCacheConfig(cuda_kick_kernel,cudaFuncCachePreferL1));
 	/***************************************************************************************************************************************************/
 	/**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(params);/**/
 	/***************************************************************************************************************************************************/

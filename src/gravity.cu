@@ -118,7 +118,7 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
 		for (int dim = 0; dim < NDIM; dim++) {
 			fpos[dim] = distance(pos[dim],check->pos[dim]);
 		}
-		green_ewald(D, fpos, *real_indices_ptr, *four_indices_ptr, *periodic_parts_ptr);
+		green_ewald(D, fpos);
 		flops += multipole_interaction(L,check->multi, D);
 	}
 	for (int i = 0; i < LP; i++) {
@@ -433,19 +433,13 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 }
 
 #ifdef TEST_FORCE
-//
-//CUDA_DEVICE extern ewald_indices *four_indices_ptr;
-//CUDA_DEVICE extern ewald_indices *real_indices_ptr;
-//CUDA_DEVICE extern periodic_parts *periodic_parts_ptr;
 CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *err, float *norm);
 
 #ifdef __CUDA_ARCH__
 CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *err, float *norm) {
 	const int &tid = threadIdx.x;
 	const int &bid = blockIdx.x;
-	const auto &hparts = *periodic_parts_ptr;
-	const auto &four_indices = *four_indices_ptr;
-	const auto &real_indices = *real_indices_ptr;
+	const ewald_data ewald;
 
 	const auto index = test_parts[bid];
 	array<fixed32, NDIM> sink;
@@ -468,8 +462,9 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 				const auto b = parts->pos(dim, source);
 				X[dim] = distance(a, b);
 			}
-			for (int i = 0; i < real_indices.size(); i++) {
-				const auto n = real_indices.get(i);
+			const int realsz = ewald.nreal();
+			for (int i = 0; i < realsz; i++) {
+				const auto* n = ewald.real_index(i);
 				array<float, NDIM> dx;
 				for (int dim = 0; dim < NDIM; dim++) {
 					dx[dim] = X[dim] - n[dim];
@@ -489,13 +484,14 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 					}
 				}
 			}
-			for (int i = 0; i < four_indices.size(); i++) {
-				const auto &h = four_indices.get(i);
-				const auto &hpart = hparts.get(i);
+			const int foursz = ewald.nfour();
+			for (int i = 0; i < foursz; i++) {
+				const auto *h = ewald.four_index(i);
+				const auto *hpart = ewald.periodic_part(i);
 				const float hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];
 				float so = sinf(2.0 * M_PI * hdotx);
 				for (int dim = 0; dim < NDIM; dim++) {
-					f[dim][tid] -= hpart(dim) * so;
+					f[dim][tid] -= hpart[1+dim] * so;
 				}
 			}
 		}

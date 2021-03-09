@@ -55,16 +55,7 @@ void kick_test() {
    particle_set *parts_ptr;
    CUDA_MALLOC(parts_ptr, sizeof(particle_set));
    new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-   ewald_indices *real_indices;
-   ewald_indices *four_indices;
-   periodic_parts *pparts;
-   CUDA_MALLOC(real_indices, 1);
-   CUDA_MALLOC(four_indices, 1);
-   CUDA_MALLOC(pparts, 1);
-   new (real_indices) ewald_indices(EWALD_NREAL, false);
-   new (four_indices) ewald_indices(EWALD_NFOUR, true);
-   new (pparts) periodic_parts();
-   tree::cuda_set_kick_params(parts_ptr, real_indices, four_indices, pparts);
+   tree::cuda_set_kick_params(parts_ptr);
    for (int i = 0; i < 2; i++) {
       tree root;
       timer tm_sort, tm_kick, tm_cleanup;
@@ -135,16 +126,7 @@ void force_test() {
    particle_set *parts_ptr;
    CUDA_MALLOC(parts_ptr, sizeof(particle_set));
    new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-   ewald_indices *real_indices;
-   ewald_indices *four_indices;
-   periodic_parts *pparts;
-   CUDA_MALLOC(real_indices, 1);
-   CUDA_MALLOC(four_indices, 1);
-   CUDA_MALLOC(pparts, 1);
-   new (real_indices) ewald_indices(EWALD_NREAL, false);
-   new (four_indices) ewald_indices(EWALD_NFOUR, true);
-   new (pparts) periodic_parts();
-   tree::cuda_set_kick_params(parts_ptr, real_indices, four_indices, pparts);
+   tree::cuda_set_kick_params(parts_ptr);
    tree root;
    root.sort();
    tree_ptr root_ptr;
@@ -179,7 +161,7 @@ void force_test() {
    cuda_compare_with_direct(parts_ptr);
    tm.stop();
    printf( "Comparison took %e s\n", tm.read());
-   printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
+ //  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
    CUDA_FREE(params_ptr);
    CUDA_FREE(parts_ptr);
 }

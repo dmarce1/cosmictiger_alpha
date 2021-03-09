@@ -19,108 +19,13 @@ CUDA_EXPORT inline T fma(T a, T b, T c) {
 #endif
 
 #include <cosmictiger/simd.hpp>
+#include <cosmictiger/ewald_indices.hpp>
 
 //#define EWALD_DOUBLE_PRECISION
 
 template<class T>
 CUDA_EXPORT int inline green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
 		const T &d4, const array<T, NDIM> &dx);
-
-struct ewald_indices {
-private:
-	array<float, NDIM> *h;
-	size_t count;
-public:
-	CUDA_EXPORT
-	size_t size() const {
-		return count;
-	}
-	CUDA_EXPORT
-	array<float, NDIM> get(size_t i) const {
-		assert(i < count);
-		return h[i];
-	}
-	~ewald_indices() {
-		CUDA_FREE(h);
-	}
-	ewald_indices(int n2max, bool nozero) {
-		const int nmax = sqrt(n2max) + 1;
-		CUDA_MALLOC(h, (2 * nmax + 1) * (2 * nmax + 1) * (2 * nmax + 1));
-		array<float, NDIM> this_h;
-		count = 0;
-		for (int i = -nmax; i <= nmax; i++) {
-			for (int j = -nmax; j <= nmax; j++) {
-				for (int k = -nmax; k <= nmax; k++) {
-					if (i * i + j * j + k * k <= n2max) {
-						this_h[0] = i;
-						this_h[1] = j;
-						this_h[2] = k;
-						const auto hdot = sqr(this_h[0]) + sqr(this_h[1]) + sqr(this_h[2]);
-						if (!nozero || hdot > 0) {
-							h[count++] = this_h;
-						}
-					}
-				}
-			}
-		}
-	}
-};
-
-struct periodic_parts {
-private:
-	expansion<float> *L;
-	size_t count;
-public:
-	~periodic_parts() {
-		CUDA_FREE(L);
-	}
-	periodic_parts() {
-		const ewald_indices indices(EWALD_NFOUR, true);
-		CUDA_MALLOC(L, indices.size());
-		count = 0;
-		for (int i = 0; i < indices.size(); i++) {
-			array<float, NDIM> h = indices.get(i);
-			const float h2 = sqr(h[0]) + sqr(h[1]) + sqr(h[2]);                     // 5 OP
-			expansion<float> D;
-			D = 0.0;
-			if (h2 > 0) {
-				const float c0 = 1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0);
-				D() = -(1.0 / M_PI) * c0;
-				for (int a = 0; a < NDIM; a++) {
-					D(a) = 2.0 * h[a] * c0;
-					for (int b = 0; b <= a; b++) {
-						D(a, b) = 4.0 * M_PI * h[a] * h[b] * c0;
-						for (int c = 0; c <= b; c++) {
-							D(a, b, c) = -8.0 * M_PI * M_PI * h[a] * h[b] * h[c] * c0;
-							for (int d = 0; d <= c; d++) {
-								D(a, b, c, d) = -16.0 * M_PI * M_PI * M_PI * h[a] * h[b] * h[c] * h[d] * c0;
-							}
-						}
-					}
-
-				}
-				L[count++] = D;
-			}
-		}
-	}
-	CUDA_EXPORT
-	size_t size() const {
-		return count;
-	}
-	CUDA_EXPORT
-	expansion<float> get(size_t i) const {
-		assert(i < count);
-		return L[i];
-	}
-};
-
-#ifndef TREECU
-#ifdef __CUDA_ARCH__
-extern __device__ ewald_indices *four_indices_ptr;
-extern __device__ ewald_indices *real_indices_ptr;
-extern __device__ periodic_parts *periodic_parts_ptr;
-#endif
-#endif
 
 #ifdef __CUDA_ARCH__
 #define  GREEN_MAX fmaxf
@@ -276,9 +181,10 @@ CUDA_DEVICE inline float erfcexp(const float &x, float *e) {				// 76
 	return fma(a1, t1, fma(a2, t2, fma(a3, t3, fma(a4, t4, a5 * t5)))) * *e; 			// 11
 }
 
+
 template<class T>
-CUDA_EXPORT inline int green_ewald(expansion<T> &D, const array<T, NDIM> &X, ewald_indices& real_indices,
-		ewald_indices& four_indices, periodic_parts& hparts) {
+CUDA_EXPORT inline int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
+	const ewald_data indices;
 	const T fouroversqrtpi(4.0 / sqrt(M_PI));
 	const T one(1.0);
 	const T nthree(-3.0);
@@ -290,9 +196,9 @@ CUDA_EXPORT inline int green_ewald(expansion<T> &D, const array<T, NDIM> &X, ewa
 	const T zmask = r > rcut;                   // 1
 	int flops = 0;
 	D = 0.0;
-	const auto realsz =  real_indices.size();
-	for (int i = 0; i < realsz; i++) {
-		const auto n = real_indices.get(i);
+	const auto nreal = indices.nreal();
+	for (int i = 0; i < nreal; i++) {
+		const auto* n = indices.real_index(i);
 		array<T, NDIM> dx;
 		for (int dim = 0; dim < NDIM; dim++) {                                        // 6
 			dx[dim] = X[dim] - n[dim];
@@ -326,11 +232,10 @@ CUDA_EXPORT inline int green_ewald(expansion<T> &D, const array<T, NDIM> &X, ewa
 #endif
 	}
 	const T twopi = 2.0 * M_PI;
-
-	const auto foursz = four_indices.size();
-	for (int i = 0; i < foursz; i++) {
-		const auto &h = four_indices.get(i);
-		const auto &hpart = hparts.get(i);
+	const auto nfour = indices.nfour();
+	for (int i = 0; i < nfour; i++) {
+		const auto h = indices.four_index(i);
+		const auto* hpart = indices.periodic_part(i);
 		const T hdotx = fma(h[0], X[0], fma(h[1], X[1], h[2] * X[2]));                           // 5
 		T co;
 		T so;

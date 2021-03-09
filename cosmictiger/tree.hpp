@@ -318,16 +318,10 @@ private:
 	array<tree_ptr, NCHILD> children;
 	pair<size_t, size_t> parts;
 	multipole multi;
-	static ewald_indices* real_indices_ptr;
-	static ewald_indices* four_indices_ptr;
-	static periodic_parts* periodic_parts_ptr;
 
 public:
-	static std::atomic<int> cuda_node_count;
-	static std::atomic<int> cpu_node_count;
 	static void set_cuda_particle_set(particle_set*);
-	static void cuda_set_kick_params(particle_set *p, ewald_indices *four_indices, ewald_indices *real_indices,
-			periodic_parts *periodic_parts);
+	static void cuda_set_kick_params(particle_set *p);
 #ifndef __CUDACC__
 	static void set_particle_set(particle_set*);
 	inline static hpx::future<sort_return> create_child(sort_params&);

@@ -27,6 +27,7 @@ enable_language(CUDA)
 set(cosmictiger_source_files
     src/cuda.cpp
     src/expansion.cu
+    src/ewald_indices.cu
     src/global.cpp
     src/gravity.cu
     src/hpx.cpp
@@ -48,6 +49,7 @@ set(cosmictiger_header_files
 	cosmictiger/multipole.hpp
 	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
+	cosmictiger/ewald_indices.hpp
 	cosmictiger/rand.hpp
 	cosmictiger/range.hpp
 	cosmictiger/stack_vector.hpp
