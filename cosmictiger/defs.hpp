@@ -42,12 +42,12 @@
 #define KICK_EWALD_GRID_SIZE 1024
 #define KICK_OCCUPANCY 8
 
-#define FLOPS_CC 510
-#define FLOPS_CP 213
-#define FLOPS_PC 215
-#define FLOPS_PP 53
-#define FLOPS_EWALD 510
-#define FLOPS_OPEN 97
+#define FLOP_RSQRT 7
+#define FLOP_DIV 7
+#define FLOP_SQRT 7
+#define FLOP_EXP 20
+#define FLOP_SINCOS 20
+
 
 
 //#define HIPRECISION

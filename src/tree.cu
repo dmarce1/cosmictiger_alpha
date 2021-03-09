@@ -48,10 +48,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		}
 		shift_expansion(L, dx);
 	}
-
-#ifdef COUNT_FLOPS
 	int flops = 0;
-#endif
+	int interacts = 0;
 	if (((tree*) tptr)->children[0].ptr == 0) {
 		for (int k = tid; k < MAX_BUCKET_SIZE; k += KICK_BLOCK_SIZE) {
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -96,7 +94,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		int check_count;
 		do {
 			check_count = checks.size();
-			flops += check_count * FLOPS_OPEN;
 			if (check_count) {
 				const int cimax = ((check_count - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
 				for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
@@ -117,17 +114,19 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
 							dist[dim] = distance(other_pos[dim], mypos[dim]);
 						}
-						float d2 = fmaf(dist[0], dist[0], fmaf(dist[1], dist[1], sqr(dist[2])));
-						d2 = (1 - int(ewald_dist)) * d2 + int(ewald_dist) * fmaxf(d2, EWALD_MIN_DIST2);
-						const auto other_radius_ph = other_radius + h;
+						float d2 = fmaf(dist[0], dist[0], fmaf(dist[1], dist[1], sqr(dist[2]))); // 5
+						d2 = (1 - int(ewald_dist)) * d2 + int(ewald_dist) * fmaxf(d2, EWALD_MIN_DIST2); // 5
+						const auto other_radius_ph = other_radius + h; // 2
 						const auto R1 = sqr(other_radius_ph + myradius2);                 // 2
-						const auto R2 = sqr(other_radius_ph * theta + myradius2);
-						const auto R3 = sqr(other_radius_ph + myradius1 * theta);
-						const auto theta2d2 = theta2 * d2;
-						const bool far1 = R1 < theta2d2;                 // 2
-						const bool far2 = R2 < theta2d2;
-						const bool far3 = R3 < theta2d2;
+						const auto R2 = sqr(other_radius_ph * theta + myradius2); // 3
+						const auto R3 = sqr(other_radius_ph + myradius1 * theta); // 3
+						const auto theta2d2 = theta2 * d2; // 1
+						const bool far1 = R1 < theta2d2;                 // 1
+						const bool far2 = R2 < theta2d2;                 // 1
+						const bool far3 = R3 < theta2d2;                 // 1
 						const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
+						interacts++;
+						flops += 27;
 						const bool mi = far1 || (direct && far3);
 						const bool pi = (far2 || direct) && isleaf;
 						list_index = int(mi) * MI
@@ -231,6 +230,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 							float dz0 = distance(other.pos[2], sinks[2][k]);
 							float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
 							res = sqr(other.radius + hfac) > d2 * theta2;
+							flops += 12;
 							if (res) {
 								break;
 							}
@@ -267,12 +267,12 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		}
 		switch (type) {
 		case PC_PP_DIRECT:
-			flops += cuda_pc_interactions(parts, multis, params_ptr);
-			flops += cuda_pp_interactions(parts, tmp_parti, params_ptr);
+			cuda_pc_interactions(parts, multis, params_ptr);
+			cuda_pp_interactions(parts, tmp_parti, params_ptr);
 			break;
 		case CC_CP_DIRECT:
-			flops += cuda_cc_interactions(parts, multis, params_ptr);
-			flops += cuda_cp_interactions(parts, parti, params_ptr);
+			cuda_cc_interactions(parts, multis, params_ptr);
+			cuda_cp_interactions(parts, parti, params_ptr);
 			break;
 
 		case PC_PP_EWALD:
@@ -290,7 +290,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				printf("CP Ewald should not exist\n");
 				//     __trap();
 			}
-			flops += cuda_ewald_cc_interactions(parts, params_ptr, &shmem.Lreduce);
+			cuda_ewald_cc_interactions(parts, params_ptr, &shmem.Lreduce);
 			break;
 		}
 	}
@@ -374,6 +374,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			__syncwarp();
 		}
 	}
+	kick_return_update_interactions_gpu(KR_OP, interacts, flops);
 }
 
 CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p) {
@@ -419,19 +420,6 @@ void cleanup_stream(cudaStream_t s) {
 	streams.push(s);
 }
 
-CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr) {
-	__shared__
-	volatile
-	extern int shmem_ptr[];
-	cuda_ewald_shmem &shmem = *((cuda_ewald_shmem*) (shmem_ptr));
-	const int &bid = blockIdx.x;
-	auto pptr = params_ptr[bid];
-	auto rc = cuda_ewald_cc_interactions(parts, pptr, &shmem.Lreduce);
-	__syncwarp();
-	if (threadIdx.x == 0) {
-		params_ptr[bid]->flops = rc;
-	}
-}
 
 void cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStream_t stream) {
 	const size_t shmemsize = sizeof(cuda_kick_shmem);
@@ -441,4 +429,5 @@ void cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStrea
 	/***************************************************************************************************************************************************/
 
 }
+
 

@@ -104,11 +104,11 @@ void kick_test() {
    /*   printf("PP/part = %f\n", get_pp_inters());
       printf("PC/part = %f\n", get_pc_inters());
       printf("CP/part = %f\n", get_cp_inters());
-      printf("CC/part = %f\n", get_cc_inters());
+      printf("CC/part = %f\n", get_cc_inters());*/
       printf("Sort    = %e s\n", tm_sort.read());
       printf("Kick    = %e s\n", tm_kick.read());
       printf("Cleanup = %e s\n", tm_cleanup.read());
-      printf("Total   = %e s\n", total);*/
+      printf("Total   = %e s\n", total);
     //  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
      // printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
    }

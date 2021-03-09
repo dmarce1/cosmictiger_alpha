@@ -12,7 +12,17 @@ __global__ void kick_return_init_kernel(int min_rung) {
 	for( int i = 0; i < MAX_RUNG; i++) {
 		gpu_return.rung_cnt[i] = 0;
 	}
+	for( int i = 0; i < KR_COUNT; i++) {
+		gpu_return.flop[i] = 0;
+		gpu_return.count[i] = 0;
+	}
 }
+
+__device__ void kick_return_update_interactions_gpu(int itype, int count, int flops) {
+	atomicAdd(&gpu_return.flop[itype], flops);
+	atomicAdd(&gpu_return.count[itype], count);
+}
+
 
 
 void kick_return_init_gpu(int min_rung) {

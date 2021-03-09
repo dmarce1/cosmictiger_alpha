@@ -7,40 +7,9 @@
 
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/array.hpp>
+#include <cosmictiger/kick_return.hpp>
 
-__managed__ double pp_crit1_time;
-__managed__ double pp_crit2_time;
-
-__managed__ double pp_inters = 0.0;
-__managed__ double pc_inters = 0.0;
-__managed__ double cp_inters = 0.0;
-__managed__ double cc_inters = 0.0;
-
-double get_pp_inters() {
-	const auto rc = pp_inters / global().opts.nparts;
-	pp_inters = 0;
-	return rc;
-}
-
-double get_pc_inters() {
-	const auto rc = pc_inters / global().opts.nparts;
-	pc_inters = 0;
-	return rc;
-}
-
-double get_cp_inters() {
-	const auto rc = cp_inters / global().opts.nparts;
-	cp_inters = 0;
-	return rc;
-}
-
-double get_cc_inters() {
-	const auto rc = cc_inters / global().opts.nparts;
-	cc_inters = 0;
-	return rc;
-}
-
-CUDA_DEVICE int cuda_cc_interactions(particle_set *parts, const vector<tree_ptr> &multis,
+CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, const vector<tree_ptr> &multis,
 		kick_params_type *params_ptr) {
 
 	kick_params_type &params = *params_ptr;
@@ -51,14 +20,14 @@ CUDA_DEVICE int cuda_cc_interactions(particle_set *parts, const vector<tree_ptr>
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &Lreduce = shmem.Lreduce;
 	if (multis.size() == 0) {
-		return 0;
+		return;
 	}
 	expansion<float> L;
 	int flops = 0;
+	int interacts = 0;
 	for (int i = 0; i < LP; i++) {
 		L[i] = 0.0f;
 	}
-	int interacts = 0;
 	const auto &pos = ((tree*) params.tptr)->pos;
 	const int sz = multis.size();
 	expansion<float> D;
@@ -68,14 +37,11 @@ CUDA_DEVICE int cuda_cc_interactions(particle_set *parts, const vector<tree_ptr>
 		for (int dim = 0; dim < NDIM; dim++) {
 			fpos[dim] = distance(pos[dim], ((tree*) multis[i])->pos[dim]);
 		}
-		green_direct(D, fpos);
-		multipole_interaction(L, mpole, D);
+		flops += 3;
+		flops += green_direct(D, fpos);
+		flops += multipole_interaction(L, mpole, D);
+		interacts++;
 	}
-	interacts += multis.size();
-	if (tid == 0) {
-		atomicAdd(&cc_inters, (double) interacts);
-	}
-	flops += multis.size() * FLOPS_CC;
 	for (int i = 0; i < LP; i++) {
 		Lreduce[tid] = L[i];
 		__syncwarp();
@@ -89,12 +55,12 @@ CUDA_DEVICE int cuda_cc_interactions(particle_set *parts, const vector<tree_ptr>
 			params.L[params.depth][i] += Lreduce[0];
 		}
 	}
-	return flops;
+	kick_return_update_interactions_gpu(KR_CC, interacts, flops);
 }
 
 #ifdef __CUDA_ARCH__
 
-CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type *params_ptr,
+CUDA_DEVICE void cuda_ewald_cc_interactions(particle_set *parts, kick_params_type *params_ptr,
 		array<float, KICK_BLOCK_SIZE> *lptr) {
 
 	kick_params_type &params = *params_ptr;
@@ -102,12 +68,13 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
 	auto &Lreduce = *lptr;
 	auto &multis = params.multi_interactions;
 	if( multis.size() == 0 ) {
-		return 0;
+		return;
 	}
 	expansion<float> L;
 	for (int i = 0; i < LP; i++) {
 		L[i] = 0.0;
 	}
+	int interacts = 0;
 	int flops = 0;
 	const auto &pos = ((tree*) params.tptr)->pos;
 	const auto sz = multis.size();
@@ -118,8 +85,10 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
 		for (int dim = 0; dim < NDIM; dim++) {
 			fpos[dim] = distance(pos[dim],check->pos[dim]);
 		}
-		green_ewald(D, fpos);
+		flops += 3;
+		flops += green_ewald(D, fpos);
 		flops += multipole_interaction(L,check->multi, D);
+		interacts++;
 	}
 	for (int i = 0; i < LP; i++) {
 		Lreduce[tid] = L[i];
@@ -134,12 +103,12 @@ CUDA_DEVICE int cuda_ewald_cc_interactions(particle_set *parts, kick_params_type
 			params.L[params.depth][i] += Lreduce[0];
 		}
 	}
-	return flops;
+	kick_return_update_interactions_gpu(KR_EWCC, interacts, flops);
 }
 
 #endif
 
-CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr> &parti, kick_params_type *params_ptr) {
+CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr> &parti, kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
 	__shared__
@@ -148,15 +117,15 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &Lreduce = shmem.Lreduce;
 	if (parti.size() == 0) {
-		return 0;
+		return;
 	}
 	auto &sources = shmem.src;
 	const auto &myparts = ((tree*) params.tptr)->parts;
 	int part_index;
 	int flops = 0;
+	int interacts = 0;
 	expansion<float> L;
 	if (parti.size() > 0) {
-		int interacts = 0;
 		for (int j = 0; j < LP; j++) {
 			L[j] = 0.0;
 		}
@@ -200,11 +169,11 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
 					dx[dim] = distance(pos[dim], sources[dim][j]);
 				}
 				expansion<float> D;
-				green_direct(D, dx);
-				multipole_interaction(L, D);
+				flops += 3;
+				flops += green_direct(D, dx);
+				flops += multipole_interaction(L, D);
+				interacts++;
 			}
-			flops += part_index * FLOPS_CP;
-			interacts += part_index;
 		}
 		for (int i = 0; i < LP; i++) {
 			Lreduce[tid] = L[i];
@@ -219,14 +188,11 @@ CUDA_DEVICE int cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>
 				params.L[params.depth][i] += Lreduce[0];
 			}
 		}
-		if (tid == 0) {
-			atomicAdd(&cp_inters, (double) interacts);
-		}
 	}
-	return flops;
+	kick_return_update_interactions_gpu(KR_CP, interacts, flops);
 }
 
-CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr> &parti, kick_params_type *params_ptr) {
+CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr> &parti, kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
 	__shared__
@@ -243,9 +209,10 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 	const auto hinv = 1.0f / h;
 	float phi = 0.f;
 	int flops = 0;
+	int interacts = 0;
 	int part_index;
 	if (parti.size() == 0) {
-		return 0;
+		return;
 	}
 //   printf( "%i\n", parti.size());
 	const auto &myparts = ((tree*) params.tptr)->parts;
@@ -292,7 +259,6 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 				}
 			}
 		}
-		int interacts = 0;
 		__syncwarp();
 		array<float, NDIM> dx;
 		auto &f0tid = f[0][tid];
@@ -310,27 +276,28 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 				for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
 					dx0 = distance(sinks[0][k], sources[0][j]);
 					dx1 = distance(sinks[1][k], sources[1][j]);
-					dx2 = distance(sinks[2][k], sources[2][j]);
-					const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 3
+					dx2 = distance(sinks[2][k], sources[2][j]);               // 3
+					const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 5
 					if (r2 >= h2) {
-						r1inv = rsqrt(r2); // 8
-						r3inv = r1inv * r1inv * r1inv; // 2
+						r1inv = rsqrt(r2);                                    // FLOP_RSQRT
+						r3inv = r1inv * r1inv * r1inv;                        // 2
+						flops += 2 + FLOP_RSQRT;
 					} else {
-						const float r1overh1 = sqrtf(r2) * hinv;
-						const float r2overh2 = r1overh1 * r1overh1;
-						const float r3overh3 = r1overh1 * r2overh2;
-						const float r5overh5 = r3overh3 * r1overh1;
-						r1inv = fmaf(-0.3125f, r5overh5, 1.3125f * r3overh3 - fmaf(2.1875f, r1overh1, 2.1875f));
-						r3inv = fmaf(r2overh2, (5.25f - 1.875f * r2overh2), -4.375f);
+						const float r1overh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
+						const float r2overh2 = r1overh1 * r1overh1;           // 1
+						const float r3overh3 = r1overh1 * r2overh2;           // 1
+						const float r5overh5 = r3overh3 * r1overh1;           // 1
+						r1inv = fmaf(-0.3125f, r5overh5, 1.3125f * r3overh3 - fmaf(2.1875f, r1overh1, 2.1875f)); // 7
+						r3inv = fmaf(r2overh2, (5.25f - 1.875f * r2overh2), -4.375f); // 5
+						flops += FLOP_SQRT + 16;
 					}
-					f0tid = fmaf(dx[0], r3inv, f0tid);
-					f1tid = fmaf(dx[1], r3inv, f1tid);
-					f2tid = fmaf(dx[2], r3inv, f2tid);
-					phi -= r1inv;
-					//                 printf("%li \n", (clock64() - tm) / 2);
+					f0tid = fmaf(dx[0], r3inv, f0tid); // 2
+					f1tid = fmaf(dx[1], r3inv, f1tid); // 2
+					f2tid = fmaf(dx[2], r3inv, f2tid); // 2
+					phi -= r1inv; // 1
+					flops += 15;
+					interacts++;
 				}
-				interacts += part_index;
-				flops += part_index * FLOPS_PP;
 				__syncwarp();
 				for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
 					if (tid < P) {
@@ -347,15 +314,12 @@ CUDA_DEVICE int cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>
 				}
 			}
 		}
-		if (tid == 0) {
-			atomicAdd(&pp_inters, double(interacts));
-		}
 	}
-	return flops;
+	kick_return_update_interactions_gpu(KR_PP, interacts, flops);
 }
 
 CUDA_DEVICE
-int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, kick_params_type *params_ptr) {
+void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
 	__shared__
@@ -367,7 +331,7 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 	const auto &myparts = ((tree*) params.tptr)->parts;
 	const int nparts = myparts.second - myparts.first;
 	if (multis.size() == 0) {
-		return 0;
+		return;
 	}
 	auto &rungs = shmem.rungs;
 	auto &sinks = shmem.sink;
@@ -402,14 +366,14 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 				dx0 = distance(sinks[0][k], source[0]);
 				dx1 = distance(sinks[1][k], source[1]);
 				dx2 = distance(sinks[2][k], source[2]);
-				green_direct(D, dx);
-				multipole_interaction(Lforce, other_ptr->multi, D);
+				flops += 6;
+				flops += green_direct(D, dx);
+				flops += multipole_interaction(Lforce, other_ptr->multi, D);
 				f0tid += Lforce[1];
 				f1tid += Lforce[2];
 				f2tid += Lforce[3];
+				interacts++;
 			}
-			interacts += multis.size();
-			flops += multis.size() * FLOPS_PC;
 			__syncwarp();
 			for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
 				if (tid < P) {
@@ -426,10 +390,7 @@ int cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, ki
 			}
 		}
 	}
-	if (tid == 0) {
-		atomicAdd(&pc_inters, double(interacts));
-	}
-	return flops;
+	kick_return_update_interactions_gpu(KR_PC, interacts, flops);
 }
 
 #ifdef TEST_FORCE
