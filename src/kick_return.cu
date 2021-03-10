@@ -37,7 +37,10 @@ kick_return kick_return_get_gpu() {
 	return gpu_return;
 }
 
-__device__ void kick_return_update_rung_gpu(int rung, float phi) {
+__device__ void kick_return_update_rung_gpu(int rung) {
 	atomicAdd(&gpu_return.rung_cnt[rung], 1);
+}
+
+__device__ void kick_return_update_pot_gpu(int rung, float phi) {
 	atomicAdd(&gpu_return.phis[rung], phi);
 }

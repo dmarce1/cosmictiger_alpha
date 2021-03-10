@@ -25,7 +25,7 @@ CUDA_DEVICE particle_set *parts;
 
 CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
-	__shared__ volatile
+	volatile __shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	//  printf( "%i\n", params_ptr->depth);
@@ -365,8 +365,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 				rungs[tid] = fmaxf(rungs[tid], new_rung);
 				parts->set_rung(new_rung, k + myparts.first);
+				kick_return_update_pot_gpu(new_rung, phi[k]);
 			}
-			kick_return_update_rung_gpu(parts->rung(k + myparts.first), phi[k]);
+			kick_return_update_rung_gpu(parts->rung(k + myparts.first));
 
 		}
 		cuda_sync();

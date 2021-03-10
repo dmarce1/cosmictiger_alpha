@@ -15,8 +15,7 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, const vector<tree_ptr
 
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
-	__shared__
-	volatile
+	volatile __shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &Lreduce = shmem.Lreduce;
@@ -112,8 +111,7 @@ CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr
 		kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
-	__shared__
-	volatile
+	volatile __shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &Lreduce = shmem.Lreduce;
@@ -197,8 +195,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr
 		kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
-	__shared__
-	volatile
+	volatile __shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &f = shmem.f;
@@ -327,8 +324,8 @@ CUDA_DEVICE
 void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
-	__shared__
 	volatile
+	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &f = shmem.f;
@@ -363,7 +360,7 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 	auto& dx1 = dx[1];
 	auto& dx2 = dx[2];
 	int nsrc = 0;
-	const auto mmax = (((multis.size()-1)/KICK_PC_MAX)+1)*KICK_PC_MAX;
+	const auto mmax = (((multis.size() - 1) / KICK_PC_MAX) + 1) * KICK_PC_MAX;
 	for (int m = 0; m < mmax; m += KICK_PC_MAX) {
 		nsrc = 0;
 		for (int z = 0; z < KICK_PC_MAX; z++) {

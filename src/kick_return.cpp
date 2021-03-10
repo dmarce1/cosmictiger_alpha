@@ -28,7 +28,7 @@ void kick_return_init(int min_rung) {
 }
 
 kick_return kick_return_get() {
-	auto rc = kick_return_get_gpu();
+	kick_return rc = kick_return_get_gpu();
 	for (int i = 0; i < MAX_RUNG; i++) {
 		rc.rung_cnt[i] += cpu_return.rung_cnt[i];
 		rc.phis[i] += cpu_return.phis[i];
@@ -103,8 +103,13 @@ void kick_return_show() {
 
 }
 
-void kick_return_update_rung_cpu(int rung, float phi) {
+void kick_return_update_pot_cpu(int rung, float phi) {
+	std::lock_guard<mutex_type> lock(mtx);
+	cpu_return.phis[rung] += phi;
+}
+
+void kick_return_update_rung_cpu(int rung) {
 	std::lock_guard<mutex_type> lock(mtx);
 	cpu_return.rung_cnt[rung]++;
-	cpu_return.phis[rung] += phi;
+
 }

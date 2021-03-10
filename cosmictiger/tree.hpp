@@ -346,11 +346,11 @@ public:
 		return children[0] == tree_ptr();
 	}
 	static void cleanup();
-	int cpu_cc_direct(kick_params_type *params);
-	int cpu_cp_direct(kick_params_type *params);
-	int cpu_pp_direct(kick_params_type *params);
-	int cpu_pc_direct(kick_params_type *params);
-	int cpu_cc_ewald(kick_params_type *params);
+	void cpu_cc_direct(kick_params_type *params);
+	void cpu_cp_direct(kick_params_type *params);
+	void cpu_pp_direct(kick_params_type *params);
+	void cpu_pc_direct(kick_params_type *params);
+	void cpu_cc_ewald(kick_params_type *params);
 	sort_return sort(sort_params = sort_params());
 	hpx::future<void> kick(kick_params_type*);
 	static std::atomic<bool> daemon_running;
