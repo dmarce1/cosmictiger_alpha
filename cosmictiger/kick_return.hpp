@@ -22,6 +22,7 @@
 
 
 struct kick_return {
+	array<float,MAX_RUNG> phis;
 	array<int,MAX_RUNG> rung_cnt;
 	array<double,KR_COUNT> flop;
 	array<double,KR_COUNT> count;
@@ -30,8 +31,8 @@ struct kick_return {
 
 
 kick_return kick_return_get();
-void kick_return_update_rung_cpu(int rung);
-__device__ void kick_return_update_rung_gpu(int rung);
+void kick_return_update_rung_cpu(int rung, float);
+__device__ void kick_return_update_rung_gpu(int rung, float);
 __device__ void kick_return_update_interactions_gpu(int itype, int count, int flops);
 void kick_return_update_interactions_cpu(int itype, int count, int flops);
 

@@ -20,6 +20,9 @@ void kick_return_init(int min_rung) {
 		cpu_return.flop[i] = 0;
 		cpu_return.count[i] = 0;
 	}
+	for( int i  = min_rung; i < MAX_RUNG; i++) {
+		cpu_return.phis[i] = 0.f;
+	}
 	kick_return_init_gpu(min_rung);
 	tm.start();
 }
@@ -28,6 +31,7 @@ kick_return kick_return_get() {
 	auto rc = kick_return_get_gpu();
 	for (int i = 0; i < MAX_RUNG; i++) {
 		rc.rung_cnt[i] += cpu_return.rung_cnt[i];
+		rc.phis[i] += cpu_return.phis[i];
 	}
 	for( int i = 0; i < KR_COUNT; i++) {
 		rc.count[i] += cpu_return.count[i];
@@ -60,6 +64,11 @@ void kick_return_show() {
 	const auto elapsed = tm.read();
 	tm.reset();
 	printf( "\nKick took %e seconds\n\n", elapsed);
+	float phi_sum = 0.f;
+	for( int i = 0; i < MAX_RUNG; i++) {
+		phi_sum += rc.phis[i];
+	}
+	printf( "Potential Energy = %e\n", phi_sum);
 	printf("Rungs ");
 	for (int i = min_rung; i < max_rung; i++) {
 		printf("%8i ", i);
@@ -94,7 +103,8 @@ void kick_return_show() {
 
 }
 
-void kick_return_update_rung_cpu(int rung) {
+void kick_return_update_rung_cpu(int rung, float phi) {
 	std::lock_guard<mutex_type> lock(mtx);
 	cpu_return.rung_cnt[rung]++;
+	cpu_return.phis[rung] += phi;
 }

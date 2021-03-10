@@ -16,6 +16,9 @@ __global__ void kick_return_init_kernel(int min_rung) {
 		gpu_return.flop[i] = 0;
 		gpu_return.count[i] = 0;
 	}
+	for( int i  = min_rung; i < MAX_RUNG; i++) {
+		gpu_return.phis[i] = 0.f;
+	}
 }
 
 __device__ void kick_return_update_interactions_gpu(int itype, int count, int flops) {
@@ -34,6 +37,7 @@ kick_return kick_return_get_gpu() {
 	return gpu_return;
 }
 
-__device__ void kick_return_update_rung_gpu(int rung) {
+__device__ void kick_return_update_rung_gpu(int rung, float phi) {
 	atomicAdd(&gpu_return.rung_cnt[rung], 1);
+	atomicAdd(&gpu_return.phis[rung], phi);
 }

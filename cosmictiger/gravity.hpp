@@ -33,4 +33,6 @@ CUDA_EXPORT inline float distance(fixed32 a, fixed32 b) {
 }
 
 
+#define PHI0 -4.375
+
 

@@ -325,6 +325,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
 
 	auto& F = params.F;
+	auto& phi = params.Phi;
 	if (params.depth == 0) {
 		kick_timer.start();
 		tmp_tm.start();
@@ -348,6 +349,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				F[dim][i] = 0.f;
 			}
+			phi[i] = -PHI0;
 		}
 	}
 
@@ -476,18 +478,19 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			const auto this_rung = particles->rung(k + parts.first);
 			if (this_rung >= params.rung) {
 				array<float, NDIM> g;
-				float phi;
+				float this_phi;
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto x2 = pos[dim];
 					const auto x1 = particles->pos(dim, k + parts.first);
 					dx[dim] = distance(x1, x2);
 				}
-				shift_expansion(L, g, phi, dx);
+				shift_expansion(L, g, this_phi, dx);
 				//		int dummy;
 				//		printf( "%li\n", params.stack_top - (uintptr_t)(&dummy));
 				for (int dim = 0; dim < NDIM; dim++) {
 					F[dim][k] += g[dim];
 				}
+				phi[k] += this_phi;
 #ifdef TEST_FORCE
 				for (int dim = 0; dim < NDIM; dim++) {
 					particles->force(dim, k + parts.first) = F[dim][k];
@@ -515,7 +518,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				max_rung = std::max(max_rung, new_rung);
 				particles->set_rung(new_rung, k + parts.first);
 			}
-			kick_return_update_rung_cpu(particles->rung(k + parts.first));
+			kick_return_update_rung_cpu(particles->rung(k + parts.first), phi[k]);
 
 		}
 	//	rc.rung = max_rung;

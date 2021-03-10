@@ -88,4 +88,11 @@ template<class T>
 CUDA_EXPORT inline T sqr(T a) {
    return a * a;
 }
+
+#ifdef __CUDACC__
+__device__ inline void cuda_sync() {
+	__syncwarp();
+}
+#endif
+
 #endif /* COSMICTIGER_CUDA_HPP_ */
