@@ -115,17 +115,26 @@ CUDA_EXPORT  int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, co
 	return 169;
 }
 
+static float __constant__ __device__  rmin = 1.0e-2;
+static float __constant__ __device__  fouroversqrtpi(2.256758334);
+static float __constant__ __device__  nthree(-3.0);
+static float __constant__ __device__  nfive(-5.0);
+static float __constant__ __device__  nseven(-7.0);
+static float __constant__ __device__  neight(-8.0);
+
 
 
 template<class T>
 CUDA_EXPORT  int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 	ewald_const econst;
-	const float rmin = 1.0e-2;
+#ifndef __CUDA_ARCH__
+	const T rmin = 1.0e-2;
 	const T fouroversqrtpi(4.0 / SQRT(M_PI));
 	const T nthree(-3.0);
 	const T nfive(-5.0);
 	const T nseven(-7.0);
 	const T neight(-8.0);
+#endif
 	T r = SQRT(FMA(X[0], X[0], FMA(X[1], X[1], sqr(X[2]))));                   // 5
 	r = FMAX(rmin, r);
 	int flops = 6;

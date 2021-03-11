@@ -28,7 +28,7 @@
 #define CUDA_KERNEL __global__ void
 
 #ifdef __CUDA_ARCH__
-#define CUDA_SYNC() __syncwarp()
+#define CUDA_SYNC() __threadfence_block()
 #else
 #define CUDA_SYNC()
 #endif

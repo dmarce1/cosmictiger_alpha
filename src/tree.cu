@@ -61,7 +61,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		cuda_sync();
 	}
 	const auto& myparts = ((tree*) params.tptr)->parts;
-	auto &indices = shmem.indices;
 	const auto& h = params.hsoft;
 	auto &count = shmem.count;
 
@@ -76,12 +75,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	lists[PI] = &parti;
 	lists[CI] = &next_checks;
 	lists[OI] = &opened_checks;
+	int my_index[NITERS];
+	int index_counts[NITERS];
 	const auto myradius1 = me.radius + h;
 	const auto myradius2 = SINK_BIAS * myradius1;
 	const auto &mypos = me.pos;
 	const bool iamleaf = me.children[0].ptr == 0;
 	int ninteractions = iamleaf ? 3 : 2;
-	const auto tp1 = tid + 1;
 	for (int type = 0; type < ninteractions; type++) {
 		const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
 		auto& checks = ewald_dist ? params.echecks : params.dchecks;
@@ -99,12 +99,15 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			if (check_count) {
 				const int cimax = ((check_count - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
 				for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
-					for (int i = 0; i < NITERS; i++) {
-						indices[i][tp1] = 0;
-					}
+					///	for (int i = 0; i < NITERS; i++) {
+					//		indices[i][tp1] = 0;
+					//	}
 					cuda_sync();
-					if (tid < NITERS) {
-						indices[tid][0] = 0;
+					//		if (tid < NITERS) {
+					//			indices[tid][0] = 0;
+					//		}
+					for (int i = 0; i < NITERS; i++) {
+						my_index[i] = 0;
 					}
 					cuda_sync();
 					const auto h = params.hsoft;
@@ -133,38 +136,47 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const bool pi = (far2 || direct) && isleaf;
 						list_index = int(mi) * MI
 								+ (1 - int(mi)) * (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
-						indices[list_index][tp1] = 1;
+						//		indices[list_index][tp1] = 1;
+						my_index[list_index] = 1;
 					}
-					cuda_sync();
-					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
-						array<int, NITERS> tmp;
-						if (tid - P + 1 >= 0) {
-							for (int i = 0; i < NITERS; i++) {
-								tmp[i] = indices[i][tid - P + 1];
-							}
-						}
-						cuda_sync();
-						if (tid - P + 1 >= 0) {
-							for (int i = 0; i < NITERS; i++) {
-								indices[i][tp1] += tmp[i];
-							}
-						}
-						cuda_sync();
-					}
-					cuda_sync();
 					for (int i = 0; i < NITERS; i++) {
-						assert(indices[i][tid] <= indices[i][tp1]);
-						lists[i]->resize(count[i] + indices[i][KICK_BLOCK_SIZE]);
+						index_counts[i] = my_index[i];
+					}
+					for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+						for (int i = 0; i < NITERS; i++) {
+							index_counts[i] += __shfl_xor_sync(0xFFFFFFFF, index_counts[i], P);
+						}
+					}
+					array<int, NITERS> tmp;
+					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
+						for (int i = 0; i < NITERS; i++) {
+							tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], P);
+							if (tid >= P) {
+								my_index[i] += tmp[i];
+							}
+						}
+					}
+					for (int i = 0; i < NITERS; i++) {
+						tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], 1);
+						if (tid >= 1) {
+							my_index[i] = tmp[i];
+						} else {
+							my_index[i] = 0;
+						}
+					}
+					for (int i = 0; i < NITERS; i++) {
+					///	assert(indices[i][tid] <= indices[i][tp1]);
+						lists[i]->resize(count[i] + index_counts[i]);
 					}
 					if (ci < check_count) {
 						const auto &check = checks[ci];
-						assert(count[list_index] + indices[list_index][tid] >= 0);
+						assert(count[list_index] + my_index[list_index] >= 0);
 						//          printf( "%i %i\n",(*lists[list_index]).size(), count[list_index] + indices[list_index][tid] );
-						(*lists[list_index])[count[list_index] + indices[list_index][tid]] = check;
+						(*lists[list_index])[count[list_index] + my_index[list_index]] = check;
 					}
 					cuda_sync();
 					if (tid < NITERS) {
-						count[tid] += indices[tid][KICK_BLOCK_SIZE];
+						count[tid] += index_counts[tid];
 					}
 					cuda_sync();
 				}
@@ -212,11 +224,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			}
 			tmp_parti.resize(0);
 			for (int j = tid; j < pmax; j += KICK_BLOCK_SIZE) {
-				if (tid == 0) {
-					indices[PI][0] = indices[MI][0] = 0;
-				}
-				indices[PI][tp1] = 0;
-				indices[MI][tp1] = 0;
+				my_index[0] = 0;
+				my_index[1] = 0;
 				const auto& other = *((tree*) parti[j]);
 				const size_t& first = myparts.first;
 				const size_t& last = myparts.second;
@@ -239,32 +248,43 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						}
 					}
 					list_index = res ? PI : MI;
-					indices[list_index][tp1] = 1;
+					my_index[list_index] = 1;
 				}
-				for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
-					array<int, 2> tmp;
-					cuda_sync();
-					if (tid - P + 1 >= 0) {
-						tmp[0] = indices[0][tid - P + 1];
-						tmp[1] = indices[1][tid - P + 1];
+				for (int i = 0; i < 2; i++) {
+					index_counts[i] = my_index[i];
+				}
+				for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+					for (int i = 0; i < 2; i++) {
+						index_counts[i] += __shfl_xor_sync(0xFFFFFFFF, index_counts[i], P);
 					}
-					cuda_sync();
-					if (tid - P + 1 >= 0) {
-						indices[0][tp1] += tmp[0];
-						indices[1][tp1] += tmp[1];
+				}
+				array<int, NITERS> tmp;
+				for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
+					for (int i = 0; i < 2; i++) {
+						tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], P);
+						if (tid >= P) {
+							my_index[i] += tmp[i];
+						}
+					}
+				}
+				for (int i = 0; i < 2; i++) {
+					tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], 1);
+					if (tid >= 1) {
+						my_index[i] = tmp[i];
+					} else {
+						my_index[i] = 0;
 					}
 				}
 				const auto part_cnt = tmp_parti.size();
 				const auto mult_cnt = multis.size();
 				cuda_sync();
-				tmp_parti.resize(part_cnt + indices[PI][KICK_BLOCK_SIZE]);
-				multis.resize(mult_cnt + indices[MI][KICK_BLOCK_SIZE]);
+				tmp_parti.resize(part_cnt + index_counts[PI]);
+				multis.resize(mult_cnt + index_counts[MI]);
 				if (list_index == PI) {
-					tmp_parti[part_cnt + indices[PI][tid]] = parti[j];
+					tmp_parti[part_cnt + my_index[PI]] = parti[j];
 				} else if (list_index == MI) {
-					multis[mult_cnt + indices[MI][tid]] = parti[j];
+					multis[mult_cnt + my_index[MI]] = parti[j];
 				}
-				cuda_sync();
 			}
 		}
 		switch (type) {
@@ -277,7 +297,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			cuda_cp_interactions(parts, parti, params_ptr);
 			break;
 		case CC_CP_EWALD:
-			cuda_ewald_cc_interactions(parts, params_ptr, &shmem.Lreduce);
+			cuda_ewald_cc_interactions(parts, params_ptr);
 			break;
 		}
 	}

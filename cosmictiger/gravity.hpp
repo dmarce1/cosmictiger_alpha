@@ -15,8 +15,7 @@
 #endif /* COSMICTIGER_GRAVITY_HPP_ */
 
 CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
-CUDA_DEVICE void cuda_ewald_cc_interactions(particle_set *parts, kick_params_type *params_ptr,
-		array<float, KICK_BLOCK_SIZE> * lptr);
+CUDA_DEVICE void cuda_ewald_cc_interactions(particle_set *parts, kick_params_type *params_ptr);
 CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
 CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
 CUDA_DEVICE void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
