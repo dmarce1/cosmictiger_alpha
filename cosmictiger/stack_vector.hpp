@@ -25,7 +25,7 @@ public:
       if (tid == 0) {
          bounds[0] = 0;
          bounds[1] = 0;
-      }SYNC;
+      }
    }
    CUDA_EXPORT inline void push(const T &a) {
       THREAD;
@@ -33,7 +33,7 @@ public:
       data.push_back(a);
       if (tid == 0) {
          bounds.back()++;}
-      SYNC;
+
    }
    CUDA_EXPORT inline int size() const {
       assert(bounds.size() >= 2);
@@ -45,7 +45,7 @@ public:
       data.resize(begin() + sz);
       if (tid == 0) {
          bounds.back() = data.size();
-      }SYNC;
+      }
    }
    CUDA_EXPORT inline T operator[](int i) const {
       assert(i < size());
@@ -62,7 +62,7 @@ public:
       res.resize(size());
       for (int i = tid; i < size(); i += blocksize) {
          res[i] = (*this)[i];
-      }SYNC;
+      }
       return res;
    }
    CUDA_EXPORT inline void push_top() {
@@ -73,7 +73,7 @@ public:
       data.resize(data.size() + sz);
       for (int i = begin() + tid; i < end(); i += blocksize) {
          data[i] = data[i - sz];
-      }SYNC;
+      }
    }
    CUDA_EXPORT inline void pop_top() {
       assert(bounds.size() >= 2);

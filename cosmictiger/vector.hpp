@@ -33,20 +33,18 @@ class vector {
    void destruct(int b, int e) {
       THREAD;
       BLOCK;
-      SYNC;
       for (int i = b + tid; i < e; i += blocksize) {
          (*this)[i].T::~T();
-      }SYNC;
+      }
    }
    CUDA_EXPORT
    inline
    void construct(int b, int e) {
       THREAD;
       BLOCK;
-      SYNC;
       for (int i = b + tid; i < e; i += blocksize) {
          new (ptr + i) T();
-      }SYNC;
+      }
    }
 public:
 #ifndef __CUDACC__
@@ -77,34 +75,32 @@ public:
 #endif
    CUDA_EXPORT inline vector() {
       THREAD;
-      SYNC;
       if (tid == 0) {
          dontfree = false;
          ptr = nullptr;
          cap = 0;
          sz = 0;
-      }SYNC;
+      }
    }
    CUDA_EXPORT inline vector(const vector &other) {
       THREAD;
       BLOCK;
-      SYNC;
       if (tid == 0) {
          dontfree = false;
          sz = 0;
          ptr = nullptr;
          cap = 0;
-      }SYNC;
+      };
       reserve(other.cap);
       if (tid == 0) {
          sz = other.sz;
          cap = other.sz;
-      }SYNC;
+      }
       construct(0, other.sz);
-      SYNC;
+
       for (int i = tid; i < other.sz; i += blocksize) {
          (*this)[i] = other[i];
-      }SYNC;
+      }
    }
    CUDA_EXPORT
    inline vector& operator=(const vector &other) {
@@ -137,12 +133,11 @@ public:
          other.sz = 0;
          other.cap = 0;
          other.dontfree = false;
-      }SYNC;
+      }
       return *this;
    }
    CUDA_EXPORT inline vector(vector &&other) {
       THREAD;
-      SYNC;
       if (tid == 0) {
          dontfree = other.dontfree;
          ptr = other.ptr;
@@ -152,7 +147,7 @@ public:
          other.sz = 0;
          other.cap = 0;
          other.dontfree = false;
-      }SYNC;
+      }
    }
    CUDA_EXPORT
    inline
@@ -175,7 +170,7 @@ public:
 #else
             CUDA_MALLOC(new_ptr, new_cap);
 #endif
-         }SYNC;
+         }
          for (int i = tid; i < sz; i += blocksize) {
             new (new_ptr + i) T();
             new_ptr[i] = std::move((*this)[i]);
@@ -193,7 +188,7 @@ public:
             }
             dontfree = false;
             ptr = new_ptr;
-         }SYNC;
+         }
       }
    }
    CUDA_EXPORT
@@ -207,7 +202,7 @@ public:
          sz = new_size;
       }
       construct(oldsz, new_size);
-      SYNC;
+
    }
    CUDA_EXPORT
    inline T operator[](int i) const {
@@ -228,20 +223,20 @@ public:
    void push_back(const T &dat) {
       THREAD;
       resize(size() + 1);
-      SYNC;
+
       if (tid == 0) {
          ptr[size() - 1] = dat;
-      }SYNC;
+      }
    }
    CUDA_EXPORT
    inline
    void push_back(T &&dat) {
       THREAD;
       resize(size() + 1);
-      SYNC;
+
       if (tid == 0) {
          ptr[size() - 1] = std::move(dat);
-      }SYNC;
+      }
    }
    CUDA_EXPORT
    inline T* data() {
@@ -254,9 +249,9 @@ public:
    CUDA_EXPORT inline ~vector() {
       //    printf( "destroying\n");
       THREAD;
-      SYNC;
+
       destruct(0, sz);
-      SYNC;
+
       if (tid == 0 && ptr && !dontfree) {
 #ifndef __CUDA_ARCH__
          unified_allocator alloc;
@@ -264,7 +259,7 @@ public:
 #else
          CUDA_FREE(ptr);
 #endif
-      }SYNC;
+      }
 
    }
    CUDA_EXPORT inline void pop_back() {
@@ -296,7 +291,7 @@ public:
          other.cap = tmp2;
          other.ptr = tmp3;
          other.dontfree = tmp4;
-      }SYNC;
+      }
    }
 };
 

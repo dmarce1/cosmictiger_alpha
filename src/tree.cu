@@ -58,7 +58,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			}
 			phi[k] = -PHI0;
 		}
-		cuda_sync();
 	}
 	const auto& myparts = ((tree*) params.tptr)->parts;
 	const auto& h = params.hsoft;
@@ -92,24 +91,16 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		for (int i = 0; i < NITERS; i++) {
 			lists[i]->resize(0);
 		}
-		cuda_sync();
+		__threadfence_block();
 		int check_count;
 		do {
 			check_count = checks.size();
 			if (check_count) {
 				const int cimax = ((check_count - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE;
 				for (int ci = tid; ci < cimax; ci += KICK_BLOCK_SIZE) {
-					///	for (int i = 0; i < NITERS; i++) {
-					//		indices[i][tp1] = 0;
-					//	}
-					cuda_sync();
-					//		if (tid < NITERS) {
-					//			indices[tid][0] = 0;
-					//		}
 					for (int i = 0; i < NITERS; i++) {
 						my_index[i] = 0;
 					}
-					cuda_sync();
 					const auto h = params.hsoft;
 					if (ci < check_count) {
 						auto &check = checks[ci];
@@ -136,7 +127,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const bool pi = (far2 || direct) && isleaf;
 						list_index = int(mi) * MI
 								+ (1 - int(mi)) * (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
-						//		indices[list_index][tp1] = 1;
 						my_index[list_index] = 1;
 					}
 					for (int i = 0; i < NITERS; i++) {
@@ -165,26 +155,24 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						}
 					}
 					for (int i = 0; i < NITERS; i++) {
-					///	assert(indices[i][tid] <= indices[i][tp1]);
 						lists[i]->resize(count[i] + index_counts[i]);
 					}
+					__threadfence_block();
 					if (ci < check_count) {
 						const auto &check = checks[ci];
 						assert(count[list_index] + my_index[list_index] >= 0);
-						//          printf( "%i %i\n",(*lists[list_index]).size(), count[list_index] + indices[list_index][tid] );
 						(*lists[list_index])[count[list_index] + my_index[list_index]] = check;
 					}
-					cuda_sync();
 					if (tid < NITERS) {
 						count[tid] += index_counts[tid];
 					}
-					cuda_sync();
 				}
-				cuda_sync();
+				__threadfence_block();
 				auto& countCI = count[CI];
 				auto& countOI = count[OI];
 				check_count = 2 * countCI + countOI;
 				checks.resize(check_count);
+				__threadfence_block();
 				for (int i = tid; i < countCI; i += KICK_BLOCK_SIZE) {
 					const auto base = 2 * i;
 					const auto children = next_checks[i].get_children();
@@ -192,22 +180,19 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						checks[base + j] = children[j];
 					}
 				}
-				cuda_sync();
 				const auto base = 2 * countCI;
 				for (int i = tid; i < countOI; i += KICK_BLOCK_SIZE) {
 					checks[base + i] = opened_checks[i];
 				}
-				cuda_sync();
+				__syncthreads();
 				if (tid == 0) {
 					countCI = 0;
 					countOI = 0;
 				}
-				cuda_sync();
 				next_checks.resize(0);
 				opened_checks.resize(0);
 			}
 		} while (direct && check_count);
-		cuda_sync();
 		auto &tmp_parti = params.tmp;
 		auto tm = clock64();
 		if (type == PC_PP_DIRECT) {
@@ -223,6 +208,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 			}
 			tmp_parti.resize(0);
+			__threadfence_block();
 			for (int j = tid; j < pmax; j += KICK_BLOCK_SIZE) {
 				my_index[0] = 0;
 				my_index[1] = 0;
@@ -277,9 +263,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 				const auto part_cnt = tmp_parti.size();
 				const auto mult_cnt = multis.size();
-				cuda_sync();
 				tmp_parti.resize(part_cnt + index_counts[PI]);
 				multis.resize(mult_cnt + index_counts[MI]);
+				__threadfence_block();
 				if (list_index == PI) {
 					tmp_parti[part_cnt + my_index[PI]] = parti[j];
 				} else if (list_index == MI) {
@@ -310,15 +296,15 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			params.Lpos[params.depth] = me.pos;
 			params.tptr = ((tree*) tptr)->children[RIGHT];
 		}
-		cuda_sync();
+		__threadfence_block();
 		cuda_kick(params_ptr);
 		if (tid == 0) {
 			params.L[params.depth] = L;
 			params.tptr = ((tree*) tptr)->children[LEFT];
 		}
-		cuda_sync();
 		params.dchecks.pop_top();
 		params.echecks.pop_top();
+		__threadfence_block();
 		cuda_kick(params_ptr);
 		if (tid == 0) {
 			params.depth--;
@@ -326,7 +312,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		//   printf( "%li\n", rc.flops);
 	} else {
 		auto& rungs = shmem.rungs;
-		rungs[tid] = 0;
+		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
 		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 			const auto this_rung = parts->rung(k + myparts.first);
@@ -369,19 +355,14 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
 				}
-				rungs[tid] = fmaxf(rungs[tid], new_rung);
+				max_rung = fmaxf(max_rung, new_rung);
 				parts->set_rung(new_rung, k + myparts.first);
 				kick_return_update_pot_gpu(new_rung, phi[k]);
 			}
 			kick_return_update_rung_gpu(parts->rung(k + myparts.first));
-
 		}
-		cuda_sync();
 		for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-			if (tid < P) {
-				rungs[tid] = fmaxf(rungs[tid], rungs[tid + P]);
-			}
-			cuda_sync();
+			max_rung = fmaxf(max_rung, __shfl_down_sync(0xffffffff, max_rung, P));
 		}
 	}
 	kick_return_update_interactions_gpu(KR_OP, interacts, flops);
