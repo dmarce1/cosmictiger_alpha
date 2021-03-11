@@ -215,7 +215,6 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr
 		}
 	}
 	int i = 0;
-	cuda_sync();
 	auto these_parts = ((tree*) parti[0])->parts;
 	const auto partsz = parti.size();
 	while (i < partsz) {
@@ -248,7 +247,6 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr
 				}
 			}
 		}
-		cuda_sync();
 		array<float, NDIM> dx;
 		float fx;
 		float fy;
@@ -258,6 +256,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr
 		auto &dx1 = dx[1];
 		auto &dx2 = dx[2];
 		float r3inv, r1inv;
+		__threadfence_block();
 		for (int k = 0; k < nsinks; k++) {
 			if (rungs[k] >= params.rung) {
 				fx = 0.f;
@@ -361,7 +360,7 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 				}
 			}
 		}
-		cuda_sync();
+		__threadfence_block();
 		for (int k = 0; k < nparts; k++) {
 			if (rungs[k] >= params.rung) {
 				for (int i = 0; i < NDIM + 1; i++) {
