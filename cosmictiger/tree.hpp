@@ -23,7 +23,6 @@
 
 #define TREE_PTR_STACK (TREE_MAX_DEPTH*WORKSPACE_SIZE)
 
-#define EWALD_MIN_DIST2 (0.25f * 0.25f)
 
 class tree;
 struct sort_params;

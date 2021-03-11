@@ -32,19 +32,15 @@ CUDA_EXPORT int inline green_deriv_direct(expansion<T> &D, const T &d0, const T 
 #define  GREEN_MAX max
 #endif
 
+
 template<class T>
-CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX) {
-	const T r02 = T(1.0e-20);
+CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX, T rmin = 0.f) {
 // const T H = options::get().soft_len;
 	const T nthree(-3.0f);
 	const T nfive(-5.0f);
 	const T nseven(-7.0f);
-	const T r2 = fma(dX[0], dX[0], fma(dX[1], dX[1], sqr(dX[2])));            // 5
-#ifdef __CUDA_ARCH__
-			const T rinv = (r2 > r02) * rsqrtf(fmaxf(r2,r02));                  // FLOP_RSQRT + 3
-#else
-	const T rinv = (r2 > r02) * rsqrt(max(r2, r02));
-#endif
+	const T r2 = max(fma(dX[0], dX[0], fma(dX[1], dX[1], sqr(dX[2]))), rmin * rmin);            // 5
+	const T rinv = rsqrt(r2);                  // FLOP_RSQRT + 3
 	const T r2inv = rinv * rinv;        // 1
 	const T d0 = -rinv;                 // 1
 	const T d1 = -d0 * r2inv;           // 2
@@ -183,33 +179,32 @@ CUDA_DEVICE inline float erfcexp(const float &x, float *e) {				// 18 + FLOP_DIV
 template<class T>
 CUDA_EXPORT inline int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 	ewald_const econst;
+	const float rmin = 1.0e-2;
 	const T fouroversqrtpi(4.0 / sqrt(M_PI));
 	const T one(1.0);
 	const T nthree(-3.0);
 	const T nfive(-5.0);
 	const T nseven(-7.0);
 	const T neight(-8.0);
-	const T rcut(1.0e-6);
-	const T r = sqrt(fma(X[0], X[0], fma(X[1], X[1], sqr(X[2]))));                   // 5
-	const T zmask = r > rcut;                                                        // 1
+	T r = sqrt(fma(X[0], X[0], fma(X[1], X[1], sqr(X[2]))));                   // 5
+	r = max(rmin, r);
 	int flops = 6;
 	D = 0.0;
-	const auto realsz =  econst.nreal();
+	const auto realsz = econst.nreal();
 	for (int i = 0; i < realsz; i++) {
 		const auto n = econst.real_index(i);
 		array<T, NDIM> dx;
 		for (int dim = 0; dim < NDIM; dim++) {                                        // 3
 			dx[dim] = X[dim] - n[dim];
 		}
-		const T r2 = fma(dx[0], dx[0], fma(dx[1], dx[1], sqr(dx[2])));                // 5
+		T r2 = fma(dx[0], dx[0], fma(dx[1], dx[1], sqr(dx[2])));                // 5
+		r2 = max(r2, rmin * rmin);
 		flops += 9;
 #ifdef __CUDA_ARCH__
-				if (r2 < (EWALD_REAL_CUTOFF2)) {                                        // 1
+		if (r2 < (EWALD_REAL_CUTOFF2)) {                                        // 1
 #endif
 		const T r = sqrt(r2);                                                         // FLOP_SQRT
-		const T cmask = one - (fma(n[0], n[0], fma(n[1], n[1], sqr(n[2]))) > 0.0);    // 7
-		const T mask = (one - (one - zmask) * cmask);                                 // 3
-		const T rinv = mask / max(r, rcut);                                           // 1 + FLOP_DIV
+		const T rinv = 1.f / r;                                           // 1 + FLOP_DIV
 		const T r2inv = rinv * rinv;                                                  // 1
 		const T r3inv = r2inv * rinv;                                                 // 1
 		T exp0;
@@ -277,10 +272,10 @@ CUDA_EXPORT inline int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 		flops += 75 + FLOP_SINCOS;
 	}
 	expansion<T> D1;
-	flops += green_direct(D1, X);
+	flops += green_direct(D1, X, T(rmin));
 	D() = T(M_PI / 4.0) + D();                          // 1
 	for (int i = 0; i < LP; i++) {                     // 70
-		D[i] = fma(-zmask, D1[i], D[i]);
+		D[i] -= D1[i];
 	}
 	flops += 71;
 	return flops;
@@ -422,10 +417,10 @@ CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const multipole_ty
 		L[i] = fma(M[0], D[i], L[i]);   // 70
 	}
 	L[0] = fma(M[1], D[4] * half, L[0]); // 3
-	L[1] = fma(M[1], D[10] * half, L[1]);// 3
+	L[1] = fma(M[1], D[10] * half, L[1]); // 3
 	L[2] = fma(M[1], halfD11, L[2]);     // 2
 	L[3] = fma(M[1], halfD12, L[3]);     // 2
-	L[4] = fma(M[1], D[20] * half, L[4]);// 3
+	L[4] = fma(M[1], D[20] * half, L[4]);     // 3
 	L[5] = fma(M[1], halfD21, L[5]);     // 2
 	L[6] = fma(M[1], halfD22, L[6]);     // 2
 	L[7] = fma(M[1], halfD23, L[7]);     // 2
@@ -453,12 +448,12 @@ CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const multipole_ty
 	L[9] = fma(M[3], D[29], L[9]);       // 2
 	L[0] = fma(M[4], D[7] * half, L[0]); // 3
 	L[1] = fma(M[4], halfD13, L[1]);     // 2
-	L[2] = fma(M[4], D[16] * half, L[2]);// 3
+	L[2] = fma(M[4], D[16] * half, L[2]);     // 3
 	L[3] = fma(M[4], halfD17, L[3]);     // 2
 	L[4] = fma(M[4], halfD23, L[4]);     // 2
 	L[5] = fma(M[4], halfD26, L[5]);     // 2
 	L[6] = fma(M[4], halfD27, L[6]);     // 2
-	L[7] = fma(M[4], D[30] * half, L[7]);// 3
+	L[7] = fma(M[4], D[30] * half, L[7]);     // 3
 	L[8] = fma(M[4], halfD31, L[8]);     // 2
 	L[9] = fma(M[4], halfD32, L[9]);     // 2
 	L[0] = fma(M[5], D[8], L[0]);        // 2
@@ -474,17 +469,17 @@ CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const multipole_ty
 	L[0] = fma(M[6], D[9] * half, L[0]); // 3
 	L[1] = fma(M[6], halfD15, L[1]);     // 2
 	L[2] = fma(M[6], halfD18, L[2]);     // 2
-	L[3] = fma(M[6], D[19] * half, L[3]);// 3
+	L[3] = fma(M[6], D[19] * half, L[3]);     // 3
 	L[4] = fma(M[6], halfD25, L[4]);     // 2
 	L[5] = fma(M[6], halfD28, L[5]);     // 2
 	L[6] = fma(M[6], halfD29, L[6]);     // 2
 	L[7] = fma(M[6], halfD32, L[7]);     // 2
 	L[8] = fma(M[6], halfD33, L[8]);     // 2
-	L[9] = fma(M[6], D[34] * half, L[9]);// 3
-	L[0] = fma(M[7], D[10] * sixth, L[0]);//3
-	L[1] = fma(M[7], D[20] * sixth, L[1]);//3
-	L[2] = fma(M[7], D[21] * sixth, L[2]);//3
-	L[3] = fma(M[7], D[22] * sixth, L[3]);//3
+	L[9] = fma(M[6], D[34] * half, L[9]);     // 3
+	L[0] = fma(M[7], D[10] * sixth, L[0]);     //3
+	L[1] = fma(M[7], D[20] * sixth, L[1]);     //3
+	L[2] = fma(M[7], D[21] * sixth, L[2]);     //3
+	L[3] = fma(M[7], D[22] * sixth, L[3]);     //3
 	L[0] = fma(M[8], halfD11, L[0]);     // 2
 	L[1] = fma(M[8], halfD21, L[1]);     // 2
 	L[2] = fma(M[8], halfD23, L[2]);     // 2
@@ -505,10 +500,10 @@ CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const multipole_ty
 	L[1] = fma(M[12], halfD25, L[1]);    // 2
 	L[2] = fma(M[12], halfD28, L[2]);    // 2
 	L[3] = fma(M[12], halfD29, L[3]);    // 2
-	L[0] = fma(M[13], D[16] * sixth, L[0]);//3
-	L[1] = fma(M[13], D[26] * sixth, L[1]);//3
-	L[2] = fma(M[13], D[30] * sixth, L[2]);//3
-	L[3] = fma(M[13], D[31] * sixth, L[3]);//3
+	L[0] = fma(M[13], D[16] * sixth, L[0]);    //3
+	L[1] = fma(M[13], D[26] * sixth, L[1]);    //3
+	L[2] = fma(M[13], D[30] * sixth, L[2]);    //3
+	L[3] = fma(M[13], D[31] * sixth, L[3]);    //3
 	L[0] = fma(M[14], halfD17, L[0]);     // 2
 	L[1] = fma(M[14], halfD27, L[1]);     // 2
 	L[2] = fma(M[14], halfD31, L[2]);     // 2
@@ -517,10 +512,10 @@ CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const multipole_ty
 	L[1] = fma(M[15], halfD28, L[1]);     // 2
 	L[2] = fma(M[15], halfD32, L[2]);     // 2
 	L[3] = fma(M[15], halfD33, L[3]);     // 2
-	L[0] = fma(M[16], D[19] * sixth, L[0]);// 3
-	L[1] = fma(M[16], D[29] * sixth, L[1]);// 3
-	L[2] = fma(M[16], D[33] * sixth, L[2]);// 3
-	L[3] = fma(M[16], D[34] * sixth, L[3]);// 3
+	L[0] = fma(M[16], D[19] * sixth, L[0]);     // 3
+	L[1] = fma(M[16], D[29] * sixth, L[1]);     // 3
+	L[2] = fma(M[16], D[33] * sixth, L[2]);     // 3
+	L[3] = fma(M[16], D[34] * sixth, L[3]);     // 3
 	return flops + 309;
 }
 
@@ -628,11 +623,11 @@ CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const expansion<T>
 	return 35;
 }
 
-
 template<class T>
 CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const T& M, const expansion<T>& D) { // 390 / 47301
 	for (int i = 0; i < LP; i++) {
-		L[i] = fma(M, D[i], L[i]);;
+		L[i] = fma(M, D[i], L[i]);
+		;
 	}
 	return 70;
 }

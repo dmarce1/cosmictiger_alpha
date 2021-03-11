@@ -91,9 +91,8 @@
 #define ABORT() abort()
 #endif
 
-#define EWALD_NREAL 10
+#define EWALD_MIN_DIST2 (0.25f * 0.25f)
 #define EWALD_REAL_CUTOFF2 (2.6f*2.6f)
-#define EWALD_NFOUR 8
 
 
 #endif /* COSMICTIGER_DEFS_HPP_ */

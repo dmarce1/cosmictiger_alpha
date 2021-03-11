@@ -369,6 +369,21 @@ inline simd_float min(const simd_float &a, const simd_float &b) {
 	return r;
 }
 
+inline simd_float copysign(const simd_float &y, const simd_float &x) {
+	simd_float v;
+	constexpr float signbit = -0.f;
+	static simd_float const avx_signbit = simd_float(signbit);
+	const auto tmp0 = _mmx_andnot_ps(avx_signbit.v, y.v);
+	const auto tmp2 = _mmx_and_ps(avx_signbit.v, x.v);
+	v.v = _mmx_or_ps(tmp2, tmp0); // (avx_signbit & from) | (~avx_signbit & to)
+	return v;
+}
+
+
+inline simd_float abs(const simd_float &a) {
+	return max(a, -a);
+}
+
 inline simd_float max(const simd_float &a, const simd_float &b) {
 	simd_float r;
 	r.v = _mmx_max_ps(a.v, b.v);
