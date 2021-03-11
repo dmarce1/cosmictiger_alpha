@@ -28,7 +28,7 @@
 #define CUDA_KERNEL __global__ void
 
 #ifdef __CUDA_ARCH__
-#define CUDA_SYNC() __syncthreads()
+#define CUDA_SYNC() __syncwarp()
 #else
 #define CUDA_SYNC()
 #endif
@@ -86,7 +86,7 @@ void cuda_enqueue_host_function(cudaStream_t stream, std::function<void()>&& fun
 
 #ifdef __CUDACC__
 __device__ inline void cuda_sync() {
-	__syncwarp();
+	__threadfence_block();
 }
 #endif
 

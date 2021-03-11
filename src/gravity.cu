@@ -15,7 +15,7 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, const vector<tree_ptr
 
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
-	__shared__
+	volatile __shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &Lreduce = shmem.Lreduce;
@@ -114,7 +114,7 @@ CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr
 		kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
-	__shared__
+	volatile __shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &Lreduce = shmem.Lreduce;
@@ -198,7 +198,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr
 		kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
-	__shared__
+	volatile __shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &f = shmem.f;
@@ -328,7 +328,7 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
 
-	__shared__
+	volatile __shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &f = shmem.f;
@@ -435,9 +435,9 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 	const auto f_x = parts->force(0, index);
 	const auto f_y = parts->force(1, index);
 	const auto f_z = parts->force(2, index);
-	__shared__ array<array<double, KICK_BLOCK_SIZE>, NDIM>
+	volatile __shared__ array<array<double, KICK_BLOCK_SIZE>, NDIM>
 	f;
-	__shared__ array<double,KICK_BLOCK_SIZE> phi;
+	volatile __shared__ array<double,KICK_BLOCK_SIZE> phi;
 	for (int dim = 0; dim < NDIM; dim++) {
 		f[dim][tid] = 0.0;
 	}

@@ -8,7 +8,7 @@
 
 
 template<class T>
-CUDA_EXPORT inline int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
+CUDA_EXPORT  int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
 		const T &d4, const array<T, NDIM> &dx) {
 	T threedxadxb;
 	T dxadxbdxc;
@@ -118,7 +118,7 @@ CUDA_EXPORT inline int green_deriv_ewald(expansion<T> &D, const T &d0, const T &
 
 
 template<class T>
-CUDA_EXPORT inline int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
+CUDA_EXPORT  int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 	ewald_const econst;
 	const float rmin = 1.0e-2;
 	const T fouroversqrtpi(4.0 / SQRT(M_PI));

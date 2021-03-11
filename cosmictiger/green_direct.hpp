@@ -6,7 +6,7 @@
 #include <cosmictiger/expansion.hpp>
 
 template<class T>
-CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX, T rmin = 0.f) {
+CUDA_EXPORT  int green_direct(expansion<T> &D, const array<T, NDIM> &dX, T rmin = 0.f) {
 	const T nthree(-3.0f);
 	const T nfive(-5.0f);
 	const T nseven(-7.0f);
@@ -23,7 +23,7 @@ CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX, T
 
 
 template<class T>
-CUDA_EXPORT int inline green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
+CUDA_EXPORT int  green_deriv_direct(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
 		const T &d4, const array<T, NDIM> &dx) {
 	T threedxadxb;
 	T dxadxbdxc;

@@ -14,7 +14,7 @@
 
 // 986 // 251936
 template<class T>
-CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const multipole_type<T> &M, const expansion<T>& D) { // 670/700 + 418 * NT + 50 * NFOUR
+CUDA_EXPORT  int multipole_interaction(expansion<T> &L, const multipole_type<T> &M, const expansion<T>& D) { // 670/700 + 418 * NT + 50 * NFOUR
 	int flops = 0;
 	const auto half = (0.5f);
 	const auto sixth = (1.0f / 6.0f);
@@ -144,7 +144,7 @@ CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const multipole_ty
 
 // 516 / 251466
 template<class T>
-CUDA_EXPORT inline int multipole_interaction(array<T, NDIM + 1> &L, const multipole_type<T> &M, const expansion<T>& D) { // 517 / 47428
+CUDA_EXPORT  int multipole_interaction(array<T, NDIM + 1> &L, const multipole_type<T> &M, const expansion<T>& D) { // 517 / 47428
 
 	int flops = 0;
 	flops += 1 + NDIM;
@@ -239,7 +239,7 @@ CUDA_EXPORT inline int multipole_interaction(array<T, NDIM + 1> &L, const multip
 }
 
 template<class T>
-CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const expansion<T>& D) { // 390 / 47301
+CUDA_EXPORT  int multipole_interaction(expansion<T> &L, const expansion<T>& D) { // 390 / 47301
 	for (int i = 0; i < LP; i++) {
 		L[i] += D[i];
 	}
@@ -247,7 +247,7 @@ CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const expansion<T>
 }
 
 template<class T>
-CUDA_EXPORT inline int multipole_interaction(expansion<T> &L, const T& M, const expansion<T>& D) { // 390 / 47301
+CUDA_EXPORT  int multipole_interaction(expansion<T> &L, const T& M, const expansion<T>& D) { // 390 / 47301
 	for (int i = 0; i < LP; i++) {
 		L[i] = FMA(M, D[i], L[i]);
 		;

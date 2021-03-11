@@ -25,7 +25,7 @@ CUDA_DEVICE particle_set *parts;
 
 CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
-	__shared__
+	volatile __shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	//  printf( "%i\n", params_ptr->depth);
@@ -80,7 +80,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	const auto myradius2 = SINK_BIAS * myradius1;
 	const auto &mypos = me.pos;
 	const bool iamleaf = me.children[0].ptr == 0;
-	int ninteractions = iamleaf ? 4 : 2;
+	int ninteractions = iamleaf ? 3 : 2;
 	const auto tp1 = tid + 1;
 	for (int type = 0; type < ninteractions; type++) {
 		const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
@@ -276,22 +276,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			cuda_cc_interactions(parts, multis, params_ptr);
 			cuda_cp_interactions(parts, parti, params_ptr);
 			break;
-
-		case PC_PP_EWALD:
-			if (count[PI] > 0) {
-				//        printf( "PP Ewald should not exist\n");
-				//  __trap();
-			}
-			if (count[MI] > 0) {
-				//      printf( "PC Ewald should not exist\n");
-				//   __trap();
-			}
-			break;
 		case CC_CP_EWALD:
-			if (count[PI] > 0) {
-				printf("CP Ewald should not exist\n");
-				//     __trap();
-			}
 			cuda_ewald_cc_interactions(parts, params_ptr, &shmem.Lreduce);
 			break;
 		}
