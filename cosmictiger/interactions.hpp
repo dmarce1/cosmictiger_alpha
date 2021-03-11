@@ -32,7 +32,6 @@ CUDA_EXPORT int inline green_deriv_direct(expansion<T> &D, const T &d0, const T 
 #define  GREEN_MAX max
 #endif
 
-
 template<class T>
 CUDA_EXPORT inline int green_direct(expansion<T> &D, const array<T, NDIM> &dX, T rmin = 0.f) {
 // const T H = options::get().soft_len;
@@ -181,7 +180,6 @@ CUDA_EXPORT inline int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 	ewald_const econst;
 	const float rmin = 1.0e-2;
 	const T fouroversqrtpi(4.0 / sqrt(M_PI));
-	const T one(1.0);
 	const T nthree(-3.0);
 	const T nfive(-5.0);
 	const T nseven(-7.0);
@@ -277,6 +275,21 @@ CUDA_EXPORT inline int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 	for (int i = 0; i < LP; i++) {                     // 70
 		D[i] -= D1[i];
 	}
+/**** Account for r == 0 case ****/
+	const T zero_mask = (r < 2 * rmin);
+	for( int i = 0; i < LP; i++) {
+		D[i] *= (T(1) - zero_mask);
+	}
+	D[0] = 2.837291e+00 * zero_mask + D[0] * (T(1) - zero_mask);
+	D[4] = -4.188790e+00 * zero_mask + D[4] * (T(1) - zero_mask);
+	D[7] = -4.188790e+00 * zero_mask + D[7] * (T(1) - zero_mask);
+	D[9] = -4.188790e+00 * zero_mask + D[9] * (T(1) - zero_mask);
+	D[20] = -7.42e+01 * zero_mask + D[20] * (T(1) - zero_mask);
+	D[23] = 3.73e+01 * zero_mask + D[23] * (T(1) - zero_mask);
+	D[25] = 3.73e+01 * zero_mask + D[25] * (T(1) - zero_mask);
+	D[30] = -7.42e+01 * zero_mask + D[30] * (T(1) - zero_mask);
+	D[32] = 3.73e+01 * zero_mask + D[32] * (T(1) - zero_mask);
+	D[34] = -7.42e+01 * zero_mask + D[34] * (T(1) - zero_mask);
 	flops += 71;
 	return flops;
 }
