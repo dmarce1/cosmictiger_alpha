@@ -90,6 +90,7 @@ struct sort_params {
 			child[i].depth = depth + 1;
 			child[i].allocs = allocs;
 			child[i].box = box;
+			child[i].min_depth = min_depth;
 #ifdef TEST_STACK
 			child[i].stack_ptr = stack_ptr;
 #endif
