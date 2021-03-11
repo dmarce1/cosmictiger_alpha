@@ -16,13 +16,15 @@
 //#define TIMINGS
 //#define PERIODIC_OFF
 
+//#define PERIODIC_OFF
+
 #ifndef NDEBUG
 #define TEST_TREE
 #define TEST_RADIX
 #define TEST_BOUNDS
 #endif
 
-//#define TEST_FORCE
+#define TEST_FORCE
 //#define TEST_STACK
 #define N_TEST_PARTS (6*46)
 
@@ -43,11 +45,11 @@
 #define KICK_EWALD_GRID_SIZE 1024
 #define KICK_OCCUPANCY 8
 
-#define FLOP_RSQRT 7
-#define FLOP_DIV 7
-#define FLOP_SQRT 7
-#define FLOP_EXP 18
-#define FLOP_SINCOS 18
+#define FLOP_RSQRT 4
+#define FLOP_DIV 5
+#define FLOP_SQRT 5
+#define FLOP_EXP 5
+#define FLOP_SINCOS 8
 
 
 

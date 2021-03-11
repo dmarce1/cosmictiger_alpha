@@ -25,7 +25,7 @@ CUDA_DEVICE particle_set *parts;
 
 CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
-	volatile __shared__
+	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	//  printf( "%i\n", params_ptr->depth);
@@ -232,7 +232,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 							float dz0 = distance(other.pos[2], sinks[2][k]);
 							float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
 							res = sqr(other.radius + hfac) > d2 * theta2;
-							flops += 12;
+							flops += 15;
 							if (res) {
 								break;
 							}
@@ -343,6 +343,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					parts->force(dim, k + myparts.first) = F[dim][k];
 				}
+				parts->pot(k + myparts.first) = phi[k];
 #endif
 				float dt = params.t0 / (1 << this_rung);
 				if (!params.first) {
@@ -427,7 +428,6 @@ void cleanup_stream(cudaStream_t s) {
 	streams.push(s);
 }
 
-
 void cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStream_t stream) {
 	const size_t shmemsize = sizeof(cuda_kick_shmem);
 	/***************************************************************************************************************************************************/
@@ -435,5 +435,4 @@ void cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStrea
 	/***************************************************************************************************************************************************/
 
 }
-
 

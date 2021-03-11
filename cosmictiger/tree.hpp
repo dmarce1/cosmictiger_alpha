@@ -247,8 +247,8 @@ struct kick_params_type {
 	vector<tree_ptr> opened_checks;
 	stack_vector<tree_ptr> dchecks;
 	stack_vector<tree_ptr> echecks;
-	array<array<float, MAX_BUCKET_SIZE>, NDIM> F;
-	array<float, MAX_BUCKET_SIZE> Phi;
+	array<array<double, MAX_BUCKET_SIZE>, NDIM> F;
+	array<double, MAX_BUCKET_SIZE> Phi;
 	array<expansion<float>, TREE_MAX_DEPTH> L;
 	array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
 	tree_ptr tptr;
@@ -321,7 +321,7 @@ struct tree {
 
 #ifndef __CUDACC__
 private:
-#endif
+#endif //*** multi and pos MUST be adjacent and ordered multi then pos !!!!!!! *****/
 	multipole multi;
 	array<fixed32, NDIM> pos;
 	float radius;

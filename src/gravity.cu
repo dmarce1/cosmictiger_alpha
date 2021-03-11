@@ -15,7 +15,7 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, const vector<tree_ptr
 
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
-	volatile __shared__
+	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &Lreduce = shmem.Lreduce;
@@ -62,6 +62,9 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, const vector<tree_ptr
 
 CUDA_DEVICE void cuda_ewald_cc_interactions(particle_set *parts, kick_params_type *params_ptr,
 		array<float, KICK_BLOCK_SIZE> *lptr) {
+#ifdef PERIODIC_OFF
+	return;
+#endif
 
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
@@ -111,7 +114,7 @@ CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr
 		kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
-	volatile __shared__
+	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &Lreduce = shmem.Lreduce;
@@ -195,7 +198,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr
 		kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
-	volatile __shared__
+	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &f = shmem.f;
@@ -287,7 +290,7 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr
 						const float r1overh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
 						const float r2overh2 = r1overh1 * r1overh1;           // 1
 						const float r3overh3 = r1overh1 * r2overh2;           // 1
-						const float r5overh5 = r3overh3 * r1overh1;           // 1
+						const float r5overh5 = r3overh3 * r2overh2;           // 1
 						r1inv = fmaf(-0.3125f, r5overh5, 1.3125f * r3overh3 - fmaf(2.1875f, r1overh1, 2.1875f)); // 7
 						r3inv = fmaf(r2overh2, (5.25f - 1.875f * r2overh2), PHI0); // 5
 						flops += FLOP_SQRT + 16;
@@ -324,7 +327,7 @@ CUDA_DEVICE
 void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
-	volatile
+
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
@@ -360,6 +363,7 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 	auto& dx1 = dx[1];
 	auto& dx2 = dx[2];
 	int nsrc = 0;
+	const int msize = sizeof(multipole_pos) / sizeof(float);
 	const auto mmax = (((multis.size() - 1) / KICK_PC_MAX) + 1) * KICK_PC_MAX;
 	for (int m = 0; m < mmax; m += KICK_PC_MAX) {
 		nsrc = 0;
@@ -368,7 +372,7 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 				const auto& other_ptr = ((tree*) multis[m + z]);
 				const float* src = (float*) &other_ptr->multi;
 				float* dst = (float*) &(msrcs[nsrc++]);
-				if (tid < sizeof(multipole_pos) / sizeof(float)) {
+				if (tid < msize) {
 					dst[tid] = src[tid];
 				}
 			}
@@ -415,13 +419,13 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 }
 
 #ifdef TEST_FORCE
-CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *err, float *norm);
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr,
+		float* pnorm);
 
 #ifdef __CUDA_ARCH__
-CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *err, float *norm) {
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr, float* pnorm) {
 	const int &tid = threadIdx.x;
 	const int &bid = blockIdx.x;
-	ewald_const econst;
 
 	const auto index = test_parts[bid];
 	array<fixed32, NDIM> sink;
@@ -433,9 +437,15 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 	const auto f_z = parts->force(2, index);
 	__shared__ array<array<double, KICK_BLOCK_SIZE>, NDIM>
 	f;
+	__shared__ array<double,KICK_BLOCK_SIZE> phi;
 	for (int dim = 0; dim < NDIM; dim++) {
 		f[dim][tid] = 0.0;
 	}
+#ifdef PERIODIC_OFF
+	phi[tid] = 0.0;
+#else
+	phi[tid] = -PHI0;
+#endif
 	for (size_t source = tid; source < parts->size(); source += KICK_BLOCK_SIZE) {
 		if (source != index) {
 			array<float, NDIM> X;
@@ -444,6 +454,17 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 				const auto b = parts->pos(dim, source);
 				X[dim] = distance(a, b);
 			}
+#ifdef PERIODIC_OFF
+			const auto r2 = fmaf(X[0], X[0], fmaf(X[1], X[1], sqr(X[2]))); // 5
+			float r1inv, r3inv;
+			r1inv = rsqrt(r2);// FLOP_RSQRT
+			r3inv = r1inv * r1inv * r1inv;// 2
+			f[0][tid] = fmaf(X[0], r3inv, f[0][tid]);// 2
+			f[1][tid] = fmaf(X[1], r3inv, f[1][tid]);// 2
+			f[2][tid] = fmaf(X[2], r3inv, f[2][tid]);// 2
+			phi[tid] -= r1inv;// 1
+#else
+			const ewald_const econst;
 			for (int i = 0; i < econst.nreal(); i++) {
 				const auto n =econst.real_index(i);
 				array<float, NDIM> dx;
@@ -459,7 +480,9 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 					const float exp0 = expf(-4.f * r2);// 26
 					const float erfc0 = erfcf(2.f * r);// 10
 					const float expfactor = 4.0 / sqrt(M_PI) * r * exp0;// 2
+					const float d0 = -erfc0 * rinv;
 					const float d1 = (expfactor + erfc0) * r3inv;// 2
+					phi[tid] += d0;
 					for (int dim = 0; dim < NDIM; dim++) {
 						f[dim][tid] -= dx[dim] * d1;
 					}
@@ -469,11 +492,15 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 				const auto &h = econst.four_index(i);
 				const auto &hpart = econst.four_expansion(i);
 				const float hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];
+				float co = cosf(2.0 * M_PI * hdotx);
 				float so = sinf(2.0 * M_PI * hdotx);
+				phi[tid] += hpart() * co;
 				for (int dim = 0; dim < NDIM; dim++) {
 					f[dim][tid] -= hpart(dim) * so;
 				}
 			}
+			phi[tid] += float(M_PI / 4.f);
+#endif
 		}
 	}
 	cuda_sync();
@@ -482,46 +509,73 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 			for (int dim = 0; dim < NDIM; dim++) {
 				f[dim][tid] += f[dim][tid + P];
 			}
+			phi[tid] += phi[tid + P];
 		}
 		cuda_sync();
 	}
+#ifdef PERIODIC_OFF
+	for(int dim = 0; dim < NDIM; dim++) {
+		f[dim][0] = -f[dim][0];
+	}
+#endif
 	const auto f_ffm = sqrt(f_x * f_x + f_y * f_y + f_z * f_z);
 	const auto f_dir = sqrt(sqr(f[0][0]) + sqr(f[1][0]) + sqr(f[2][0]));
 	if (tid == 0) {
-		norm[bid] = f_dir;
-		err[bid] = fabsf(f_ffm - f_dir) / fabsf(f_dir);
+		fnorm[bid] = f_dir;
+		pnorm[bid] = fabs(phi[0]);
+		ferr[bid] = fabsf(f_ffm - f_dir);
+		perr[bid] = fabs(parts->pot(index) - phi[0]);
+//		printf( "%e %e\n",f[0][0], f_x);
 	}
 }
 #endif
 
 void cuda_compare_with_direct(particle_set *parts) {
 	size_t *test_parts;
-	float *errs;
-	float *norms;
+	float *ferrs;
+	float *fnorms;
+	float *perrs;
+	float *pnorms;
 	CUDA_MALLOC(test_parts, N_TEST_PARTS);
-	CUDA_MALLOC(errs, N_TEST_PARTS);
-	CUDA_MALLOC(norms, N_TEST_PARTS);
+	CUDA_MALLOC(ferrs, N_TEST_PARTS);
+	CUDA_MALLOC(fnorms, N_TEST_PARTS);
+	CUDA_MALLOC(perrs, N_TEST_PARTS);
+	CUDA_MALLOC(pnorms, N_TEST_PARTS);
 	const size_t nparts = parts->size();
 	for (int i = 0; i < N_TEST_PARTS; i++) {
 		test_parts[i] = rand() % nparts;
 	}
-	cuda_pp_ewald_interactions<<<N_TEST_PARTS,KICK_BLOCK_SIZE>>>(parts, test_parts, errs, norms);
+	cuda_pp_ewald_interactions<<<N_TEST_PARTS,KICK_BLOCK_SIZE>>>(parts, test_parts, ferrs, fnorms, perrs, pnorms);
 	CUDA_CHECK(cudaDeviceSynchronize());
-	float avg_err = 0.0;
-	float norm = 0.0;
-	float err_max = 0.0;
+	float favg_err = 0.0;
+	float fnorm = 0.0;
+	float ferr_max = 0.0;
+	float pavg_err = 0.0;
+	float pnorm = 0.0;
+	float perr_max = 0.0;
 	for (int i = 0; i < N_TEST_PARTS; i++) {
-		avg_err += errs[i];
-		err_max = fmaxf(err_max, errs[i]);
-		norm += norms[i];
+		favg_err += ferrs[i];
+		ferr_max = fmaxf(ferr_max, ferrs[i]);
+		fnorm += fnorms[i];
 	}
-	avg_err /= N_TEST_PARTS;
-//	err_max /= (norm / N_TEST_PARTS);
-//   avg_err /= norm;
-	printf("Avg Error is %e\n", avg_err);
-	printf("Max Error is %e\n", err_max);
-	CUDA_FREE(norms);
-	CUDA_FREE(errs);
+	for (int i = 0; i < N_TEST_PARTS; i++) {
+		pavg_err += perrs[i];
+		perr_max = fmaxf(perr_max, perrs[i]);
+		pnorm += pnorms[i];
+	}
+//	avg_err /= N_TEST_PARTS;
+	ferr_max /= (fnorm / N_TEST_PARTS);
+	favg_err /= fnorm;
+	perr_max /= (pnorm / N_TEST_PARTS);
+	pavg_err /= pnorm;
+	printf("Avg Force Error is %e\n", favg_err);
+	printf("Max Froce Error is %e\n", ferr_max);
+	printf("Avg Pot Error is %e\n", pavg_err);
+	printf("Max Pot Error is %e\n", perr_max);
+	CUDA_FREE(fnorms);
+	CUDA_FREE(ferrs);
+	CUDA_FREE(pnorms);
+	CUDA_FREE(perrs);
 	CUDA_FREE(test_parts);
 }
 

@@ -285,12 +285,12 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 		auto fut = hpx::async(std::move(func));
 		return std::move(fut);
 	} else {
-	//	const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
-	//	static std::atomic<int> used_threads(0);
-	//	if (used_threads++ > max_threads) {
-	//		used_threads--;
-	//		thread = false;
-	//	}
+		//	const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
+		//	static std::atomic<int> used_threads(0);
+		//	if (used_threads++ > max_threads) {
+		//		used_threads--;
+		//		thread = false;
+		//	}
 		if (thread) {
 			kick_params_type *new_params;
 			new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
@@ -298,11 +298,11 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 			*new_params = *params_ptr;
 			auto func = [this, new_params]() {
 				auto rc = ((tree*) ptr)->kick(new_params);
-		//		used_threads--;
-				new_params->kick_params_type::~kick_params_type();
-				kick_params_alloc.deallocate(new_params);
-				return rc;
-			};
+				//		used_threads--;
+					new_params->kick_params_type::~kick_params_type();
+					kick_params_alloc.deallocate(new_params);
+					return rc;
+				};
 			auto fut = hpx::async(std::move(func));
 			return std::move(fut);
 		} else {
@@ -330,8 +330,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		kick_timer.start();
 		tmp_tm.start();
 		const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-	//	auto cpu_load = NWAVE * CPU_LOAD;
-		const int target_max = GPUOS * NWAVE * sm_count * KICK_OCCUPANCY;// + cpu_load;
+		//	auto cpu_load = NWAVE * CPU_LOAD;
+		const int target_max = GPUOS * NWAVE * sm_count * KICK_OCCUPANCY;	// + cpu_load;
 		int pcnt = parts.second - parts.first;
 		int count;
 		do {
@@ -465,12 +465,11 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			printf("error\n");
 			abort();
 		}
-		return hpx::when_all(futs.begin(), futs.end()).then(
-				[](hpx::future<std::vector<hpx::future<void>>> futfut) {
-					auto futs = futfut.get();
-					futs[LEFT].get();
-					futs[RIGHT].get();
-					});
+		return hpx::when_all(futs.begin(), futs.end()).then([](hpx::future<std::vector<hpx::future<void>>> futfut) {
+			auto futs = futfut.get();
+			futs[LEFT].get();
+			futs[RIGHT].get();
+		});
 	} else {
 		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
@@ -495,6 +494,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					particles->force(dim, k + parts.first) = F[dim][k];
 				}
+				particles->pot(k + parts.first) = phi[k];
 #endif
 				float dt = params.t0 / (1 << this_rung);
 				if (!params.t0) {
@@ -522,7 +522,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			kick_return_update_rung_cpu(particles->rung(k + parts.first));
 
 		}
-	//	rc.rung = max_rung;
+		//	rc.rung = max_rung;
 		return hpx::make_ready_future();
 	}
 }
@@ -555,42 +555,42 @@ void tree::gpu_daemon() {
 		timer.start();
 		bool found_ewald = false;
 		/*if (gpu_ewald_queue.size() >= min_ewald) {
-			while (gpu_ewald_queue.size() >= min_ewald) {
-				int grid_size = std::min(KICK_EWALD_GRID_SIZE, (int) gpu_ewald_queue.size());
-				min_ewald *= 2;
-				min_ewald = std::min(min_ewald, KICK_EWALD_GRID_SIZE);
-				found_ewald = true;
-				auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<int32_t>>>();
-				unified_allocator gpu_params_alloc;
-				kick_params_type **gpu_params = (kick_params_type**) gpu_params_alloc.allocate(
-						grid_size * sizeof(kick_params_type*));
-				for (int i = 0; i < grid_size; i++) {
-					auto tmp = gpu_ewald_queue.pop();
-					gpu_params[i] = tmp.params;
-					promises->push_back(std::move(tmp.promise));
-				}
-				printf("Executing %i ewald blocks\n", grid_size);
-				auto exec_ret = cuda_execute_ewald_kernel(gpu_params, grid_size);
-				completions.push_back(std::function<bool()>([=]() {
-					if (exec_ret()) {
-						printf("Done executing %i ewald blocks\n", grid_size);
-						for (int i = 0; i < grid_size; i++) {
-							(*promises)[i].set_value(gpu_params[i]->flops);
-						}
-						unified_allocator gpu_params_alloc;
-						gpu_params_alloc.deallocate(gpu_params);
-						return true;
-					} else {
-						return false;
-					}
-				}));
-			}
-		} else*/ if (gpu_queue.size() == kick_block_count) {
+		 while (gpu_ewald_queue.size() >= min_ewald) {
+		 int grid_size = std::min(KICK_EWALD_GRID_SIZE, (int) gpu_ewald_queue.size());
+		 min_ewald *= 2;
+		 min_ewald = std::min(min_ewald, KICK_EWALD_GRID_SIZE);
+		 found_ewald = true;
+		 auto promises = std::make_shared<std::vector<hpx::lcos::local::promise<int32_t>>>();
+		 unified_allocator gpu_params_alloc;
+		 kick_params_type **gpu_params = (kick_params_type**) gpu_params_alloc.allocate(
+		 grid_size * sizeof(kick_params_type*));
+		 for (int i = 0; i < grid_size; i++) {
+		 auto tmp = gpu_ewald_queue.pop();
+		 gpu_params[i] = tmp.params;
+		 promises->push_back(std::move(tmp.promise));
+		 }
+		 printf("Executing %i ewald blocks\n", grid_size);
+		 auto exec_ret = cuda_execute_ewald_kernel(gpu_params, grid_size);
+		 completions.push_back(std::function<bool()>([=]() {
+		 if (exec_ret()) {
+		 printf("Done executing %i ewald blocks\n", grid_size);
+		 for (int i = 0; i < grid_size; i++) {
+		 (*promises)[i].set_value(gpu_params[i]->flops);
+		 }
+		 unified_allocator gpu_params_alloc;
+		 gpu_params_alloc.deallocate(gpu_params);
+		 return true;
+		 } else {
+		 return false;
+		 }
+		 }));
+		 }
+		 } else*/if (gpu_queue.size() == kick_block_count) {
 			kick_timer.stop();
 			printf("Time to GPU = %e\n", kick_timer.read());
 			using promise_type = std::vector<std::shared_ptr<hpx::lcos::local::promise<void>>>;
 			std::shared_ptr<promise_type> gpu_promises[NWAVE];
-	//		std::shared_ptr<promise_type> cpu_promises[NWAVE];
+			//		std::shared_ptr<promise_type> cpu_promises[NWAVE];
 			for (int i = 0; i < NWAVE; i++) {
 				gpu_promises[i] = std::make_shared<promise_type>();
 			}
@@ -608,19 +608,19 @@ void tree::gpu_daemon() {
 			for (int i = 0; i < kicks.size(); i++) {
 				gpu_waves[i * NWAVE / kicks.size()].push_back(kicks[i]);
 			}
-			for( int j = 0; j < NWAVE; j++) {
-				std::sort(gpu_waves[j].begin(),gpu_waves[j].end(), [](gpu_kick a, gpu_kick b) {
+			for (int j = 0; j < NWAVE; j++) {
+				std::sort(gpu_waves[j].begin(), gpu_waves[j].end(), [](gpu_kick a, gpu_kick b) {
 					return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first);
 				});
 			}
 
-/*			for (int j = 0; j < NWAVE; j++) {
-				for (int i = 1; i < CPU_LOAD; i++) {
-					cpu_waves[j].push_back(gpu_waves[j][i]);
-					gpu_waves[j][i] = gpu_waves[j].back();
-					gpu_waves[j].pop_back();
-				}
-			}*/
+			/*			for (int j = 0; j < NWAVE; j++) {
+			 for (int i = 1; i < CPU_LOAD; i++) {
+			 cpu_waves[j].push_back(gpu_waves[j][i]);
+			 gpu_waves[j][i] = gpu_waves[j].back();
+			 gpu_waves[j].pop_back();
+			 }
+			 }*/
 			for (int i = 0; i < NWAVE; i++) {
 				gpu_params[i] = (kick_params_type*) calloc.allocate(gpu_waves[i].size() * sizeof(kick_params_type));
 			}
@@ -645,50 +645,50 @@ void tree::gpu_daemon() {
 					calloc.deallocate(gpu_params[j]);
 				});
 			}
-/*			for (int j = 0; j < NWAVE; j++) {
-				for (int i = 0; i < cpu_waves[j].size(); i++) {
-					auto tmp = std::move(cpu_waves[j][i]);
-					memcpy(cpu_params[j] + i, tmp.params, sizeof(kick_params_type));
-					auto tmpparams = tmp.params;
-					deleters->push_back([tmpparams]() {
-						kick_params_alloc.deallocate(tmpparams);
-					});
-					cpu_promises[j]->push_back(std::move(tmp.promise));
-				}
-				deleters->push_back([calloc, cpu_params, j]() {
-					unified_allocator calloc;
-					calloc.deallocate(cpu_params[j]);
-				});
-			}*/
+			/*			for (int j = 0; j < NWAVE; j++) {
+			 for (int i = 0; i < cpu_waves[j].size(); i++) {
+			 auto tmp = std::move(cpu_waves[j][i]);
+			 memcpy(cpu_params[j] + i, tmp.params, sizeof(kick_params_type));
+			 auto tmpparams = tmp.params;
+			 deleters->push_back([tmpparams]() {
+			 kick_params_alloc.deallocate(tmpparams);
+			 });
+			 cpu_promises[j]->push_back(std::move(tmp.promise));
+			 }
+			 deleters->push_back([calloc, cpu_params, j]() {
+			 unified_allocator calloc;
+			 calloc.deallocate(cpu_params[j]);
+			 });
+			 }*/
 			printf("Executing \n");
 			for (int i = 0; i < NWAVE; i++) {
 				printf("Sending %i blocks to GPU\n", gpu_waves[i].size());
 				particles->set_preferred_gpu(gpu_waves[i].front().parts.first, gpu_waves[i].front().parts.second, stream);
 				cuda_execute_kick_kernel(gpu_params[i], gpu_waves[i].size(), stream);
 			}
-/*			for (int i = 0; i < NWAVE; i++) {
-				if (i == 1) {
-					if (cudaEventQuery(event) == cudaSuccess) {
-						printf("GPU finished first\n");
-					} else {
-						printf("waiting on GPU\n");
-						CUDA_CHECK(cudaEventSynchronize(event));
-					}
-				}
-				std::vector<hpx::future<kick_return>> futs;
-				printf("Sending %i blocks to CPU\n", cpu_waves[i].size());
-				for (int j = 0; j < cpu_waves[i].size(); j++) {
-					futs.push_back(hpx::async([=]() {
-						cpu_params[i][j].cpu_block = true;
-						return ((tree*) cpu_params[i][j].tptr)->kick(cpu_params[i] + j);
-					}));
-				}
-				for (int j = 0; j < cpu_waves[i].size(); j++) {
-					(*cpu_promises[i])[j]->set_value(futs[j].get());
-				}
-				printf("Done with %i blocks on CPU\n", cpu_waves[i].size());
-			}*/
-		//	CUDA_CHECK(cudaEventDestroy(event));
+			/*			for (int i = 0; i < NWAVE; i++) {
+			 if (i == 1) {
+			 if (cudaEventQuery(event) == cudaSuccess) {
+			 printf("GPU finished first\n");
+			 } else {
+			 printf("waiting on GPU\n");
+			 CUDA_CHECK(cudaEventSynchronize(event));
+			 }
+			 }
+			 std::vector<hpx::future<kick_return>> futs;
+			 printf("Sending %i blocks to CPU\n", cpu_waves[i].size());
+			 for (int j = 0; j < cpu_waves[i].size(); j++) {
+			 futs.push_back(hpx::async([=]() {
+			 cpu_params[i][j].cpu_block = true;
+			 return ((tree*) cpu_params[i][j].tptr)->kick(cpu_params[i] + j);
+			 }));
+			 }
+			 for (int j = 0; j < cpu_waves[i].size(); j++) {
+			 (*cpu_promises[i])[j]->set_value(futs[j].get());
+			 }
+			 printf("Done with %i blocks on CPU\n", cpu_waves[i].size());
+			 }*/
+			//	CUDA_CHECK(cudaEventDestroy(event));
 			completions.push_back(std::function<bool()>([=]() {
 				if( cudaStreamQuery(stream) == cudaSuccess) {
 					CUDA_CHECK(cudaStreamSynchronize(stream));
@@ -836,7 +836,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 			}
 			interacts += n;
 			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
+				dX[dim] = distance(X[dim], Y[dim]);
 			}
 			flops += n * 6;
 			flops += n * green_direct(D, dX);
@@ -905,11 +905,11 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 			}
 		}
 		for (int dim = 0; dim < NDIM; dim++) {
-			dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
+			dX[dim] = distance(X[dim], Y[dim]);
 		}
 		flops += n * 6;
 		flops += n * green_direct(D, dX);
-		flops += n * multipole_interaction(Lacc,M,  D);
+		flops += n * multipole_interaction(Lacc, M, D);
 	}
 	for (int k = 0; k < simd_float::size(); k++) {
 		for (int i = 0; i < LP; i++) {
@@ -924,8 +924,8 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	auto &L = params.L[params.depth];
 	auto& F = params.F;
 	auto& Phi = params.Phi;
-	const simd_float h2(params.hsoft*params.hsoft);
-	const simd_float hinv(1.f/params.hsoft);
+	const simd_float h2(params.hsoft * params.hsoft);
+	const simd_float hinv(1.f / params.hsoft);
 	const simd_float tiny(1.0e-20);
 	int flops = 0;
 	int interacts = 0;
@@ -976,32 +976,33 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 				}
 				array<simd_float, NDIM> dX;
 				for (int dim = 0; dim < NDIM; dim++) {
-					dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);                                                 // 6
+					dX[dim] = distance(X[dim], Y[dim]);
 				}
-				const simd_float r2 = max(fma(dX[0], dX[0], fma(dX[1], dX[1], dX[2] * dX[2])), tiny);                               // 6
-				const simd_float far_flag = r2 > h2;                                                                                // 1
+				const simd_float r2 = max(fma(dX[0], dX[0], fma(dX[1], dX[1], dX[2] * dX[2])), tiny);                   // 6
+				const simd_float far_flag = r2 > h2;                                                                    // 1
 				simd_float rinv1, rinv3;
-				if( far_flag.sum() != 0 ) {                                                                                         // 7
-					rinv1 = mask * simd_float(1) / sqrt(r2);                                                       // 1 + FLOP_DIV + FLOP_SQRT
+				if (far_flag.sum() != 0) {                                                                              // 7
+					rinv1 = mask * simd_float(1) / sqrt(r2);                                      // 1 + FLOP_DIV + FLOP_SQRT
 					rinv3 = rinv1 * rinv1 * rinv1;                                                     // 2
 					flops += n * (2 + FLOP_DIV + FLOP_SQRT);
 				} else {
-					const simd_float rinv1_far = mask * simd_float(1) / sqrt(r2);                                                       // 1 + FLOP_DIV + FLOP_SQRT
-					const simd_float rinv3_far = rinv1_far * rinv1_far * rinv1_far;                                                     // 2
-					const simd_float r1overh1 = sqrt(r2) * hinv;                                                                        // FLOP_SQRT + 1
-					const simd_float r2overh2 = r1overh1 * r1overh1;                                                                    // 1
-					const simd_float r3overh3 = r1overh1 * r2overh2;                                                                    // 1
-					const simd_float r5overh5 = r3overh3 * r1overh1;                                                                    // 1
-					const simd_float rinv1_near = mask * fma(-0.3125f, r5overh5, 1.3125f * r3overh3 - fma(2.1875f, r1overh1, 2.1875f)); // 8
-					const simd_float rinv3_near = mask * fma(r2overh2, (simd_float(5.25f) - 1.875f * r2overh2), PHI0);                  // 5
+					const simd_float rinv1_far = mask * simd_float(1) / sqrt(r2);                 // 1 + FLOP_DIV + FLOP_SQRT
+					const simd_float rinv3_far = rinv1_far * rinv1_far * rinv1_far;                                      // 2
+					const simd_float r1overh1 = sqrt(r2) * hinv;                                             // FLOP_SQRT + 1
+					const simd_float r2overh2 = r1overh1 * r1overh1;                                                     // 1
+					const simd_float r3overh3 = r1overh1 * r2overh2;                                                     // 1
+					const simd_float r5overh5 = r3overh3 * r2overh2;                                                     // 1
+					const simd_float rinv1_near = mask
+							* fma(-0.3125f, r5overh5, 1.3125f * r3overh3 - fma(2.1875f, r1overh1, 2.1875f)); // 8
+					const simd_float rinv3_near = mask * fma(r2overh2, (simd_float(5.25f) - 1.875f * r2overh2), PHI0);   // 5
 					rinv1 = far_flag * rinv1_far + (simd_float(1) - far_flag) * rinv1_near;                            // 4
 					rinv3 = far_flag * rinv3_far + (simd_float(1) - far_flag) * rinv3_near;                            // 4
 					flops += n * (28 + FLOP_DIV + 2 * FLOP_SQRT);
 				}
 				for (int dim = 0; dim < NDIM; dim++) {
-					f[dim] = fma(rinv3, dX[dim], f[dim]);                                                                            // 2
+					f[dim] = fma(rinv3, dX[dim], f[dim]);                                                                // 2
 				}
-				phi -= rinv1;                                                                                                       // 1
+				phi -= rinv1;                                                                                           // 1
 				flops += n * (27 + 2 * FLOP_SQRT + FLOP_DIV);
 			}
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -1035,7 +1036,7 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 			array<simd_float, NDIM> f;
 			array<simd_float, NDIM + 1> Lacc;
 			const auto cnt1 = multis.size();
-			for( int j = 0; j  < NDIM + 1; j++) {
+			for (int j = 0; j < NDIM + 1; j++) {
 				Lacc[j] = 0.f;
 			}
 			for (int j = 0; j < cnt1; j += simd_float::size()) {
@@ -1060,7 +1061,7 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 					}
 				}
 				for (int dim = 0; dim < NDIM; dim++) {
-					dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
+					dX[dim] = distance(X[dim], Y[dim]);
 				}
 				flops += n * 6;
 				flops += n * green_direct(D, dX);
@@ -1075,6 +1076,9 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 }
 
 void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
+#ifdef PERIODIC_OFF
+	return;
+#endif
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
 	auto &multis = params.multi_interactions;
@@ -1096,7 +1100,7 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 		const auto cnt1 = multis.size();
 		int n;
 		for (int j = 0; j < cnt1; j += simd_float::size()) {
-			n=0;
+			n = 0;
 			for (int k = 0; k < simd_float::size(); k++) {
 				if (j + k < cnt1) {
 					for (int dim = 0; dim < NDIM; dim++) {
@@ -1117,7 +1121,7 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 			}
 			interacts += n;
 			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = simd_float(X[dim] - Y[dim]) * simd_float(fixed2float);
+				dX[dim] = distance(X[dim], Y[dim]);
 			}
 			flops += n * 6;
 			flops += n * green_ewald(D, dX);

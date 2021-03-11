@@ -15,11 +15,6 @@ void particle_set::set_preferred_cpu(size_t first, size_t last, cudaStream_t str
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId));
 		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), cudaCpuDeviceId, stream));
 		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim], size() * sizeof(float), cudaCpuDeviceId, stream));
-#ifdef TEST_FORCE
-		CUDA_CHECK(cudaMemAdvise(gptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
-		CUDA_CHECK(cudaMemAdvise(gptr_[dim], size() * sizeof(float), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId));
-		CUDA_CHECK(cudaMemPrefetchAsync(gptr_[dim], size() * sizeof(float), cudaCpuDeviceId, stream));
-#endif
 	}
 	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
 	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId));
@@ -35,11 +30,6 @@ void particle_set::set_preferred_gpu(size_t first, size_t last, cudaStream_t str
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
 		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), 0, stream));
 		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim], size() * sizeof(float), 0, stream));
-#ifdef TEST_FORCE
-		CUDA_CHECK(cudaMemAdvise(gptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, 0));
-		CUDA_CHECK(cudaMemAdvise(gptr_[dim], size() * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
-		CUDA_CHECK(cudaMemPrefetchAsync(gptr_[dim], size() * sizeof(float), 0, stream));
-#endif
 	}
 	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetPreferredLocation, 0));
 	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetAccessedBy, 0));
@@ -53,7 +43,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 	virtual_ = false;
 	size_t chunk_size = NDIM * (sizeof(fixed32) + sizeof(float)) + sizeof(uint8_t) + sizeof(uint64_t);
 #ifdef TEST_FORCE
-	chunk_size += NDIM * sizeof(float);
+	chunk_size += (NDIM+1) * sizeof(float);
 #endif
 	uint8_t *data;
 	CUDA_MALLOC(data, chunk_size * size);
@@ -73,12 +63,12 @@ particle_set::particle_set(size_t size, size_t offset) {
 	mptr_ = (uint64_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(int8_t) * size);
 	CUDA_CHECK(cudaMemAdvise(mptr_, size * sizeof(uint64_t), cudaMemAdviseSetAccessedBy, 0));
 #ifdef TEST_FORCE
+	const auto offset1 = size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(int8_t) * size
+			+ size * sizeof(uint64_t);
 	for (size_t dim = 0; dim < NDIM; dim++) {
-		const auto offset = size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(int8_t) * size
-				+ size * sizeof(uint64_t);
-		gptr_[dim] = (float*) (data + offset + dim * size * sizeof(float));
-		CUDA_CHECK(cudaMemAdvise(gptr_[dim], size * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
+		gptr_[dim] = (float*) (data + offset1 + dim * size * sizeof(float));
 	}
+	eptr_ = (float*) (data + offset1 + NDIM * size * sizeof(float));
 #endif
 	for (int i = 0; i < size; i++) {
 		rptr_[i] = 0;

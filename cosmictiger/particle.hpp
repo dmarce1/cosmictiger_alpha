@@ -65,6 +65,10 @@ struct particle_set {
    float force(int dim, size_t index) const;
    CUDA_EXPORT
    float& force(int dim, size_t index);
+   CUDA_EXPORT
+   float pot(size_t index) const;
+   CUDA_EXPORT
+   float& pot(size_t index);
 #endif
 #ifndef __CUDACC__
 private:
@@ -73,6 +77,7 @@ private:
    array<float*, NDIM> vptr_;
 #ifdef TEST_FORCE
    array<float*, NDIM> gptr_;
+   float* eptr_;
 #endif
    int8_t *rptr_;
    uint64_t *mptr_;
@@ -93,6 +98,7 @@ public:
       v.pptr_ = pptr_;
 #ifdef TEST_FORCE
       v.gptr_ = gptr_;
+      v.eptr_ = eptr_;
 #endif
       v.size_ = size_;
       v.offset_ = offset_;
@@ -192,6 +198,16 @@ CUDA_EXPORT inline float particle_set::force(int dim, size_t index) const {
 CUDA_EXPORT inline float& particle_set::force(int dim, size_t index) {
    assert(index < size_);
    return gptr_[dim][index - offset_];
+
+}
+CUDA_EXPORT inline float particle_set::pot(size_t index) const {
+   assert(index < size_);
+   return eptr_[index - offset_];
+
+}
+CUDA_EXPORT inline float& particle_set::pot(size_t index) {
+   assert(index < size_);
+   return eptr_[index - offset_];
 
 }
 #endif

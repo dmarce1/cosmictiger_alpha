@@ -101,7 +101,7 @@ void kick_test() {
       tm_cleanup.stop();
       const auto total = tm_sort.read() + tm_kick.read() + tm_cleanup.read();
       kick_return_show();
-   /*   printf("PP/part = %f\n", get_pp_inters());
+     /*   printf("PP/part = %f\n", get_pp_inters());
       printf("PC/part = %f\n", get_pc_inters());
       printf("CP/part = %f\n", get_cp_inters());
       printf("CC/part = %f\n", get_cc_inters());*/
@@ -152,8 +152,10 @@ void force_test() {
    params_ptr->L[0] = L;
    params_ptr->Lpos[0] = Lpos;
    params_ptr->t0 = true;
+   kick_return_init(0);
    root.kick(params_ptr).get();
-   tree::cleanup();
+   kick_return_show();
+    tree::cleanup();
    managed_allocator<tree>::cleanup();
    params_ptr->kick_params_type::~kick_params_type();
    timer tm;
