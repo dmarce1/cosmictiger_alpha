@@ -84,11 +84,6 @@ cuda_properties cuda_init();
 void cuda_enqueue_host_function(cudaStream_t stream, std::function<void()>&& function);
 
 
-template<class T>
-CUDA_EXPORT inline T sqr(T a) {
-   return a * a;
-}
-
 #ifdef __CUDACC__
 __device__ inline void cuda_sync() {
 	__syncwarp();

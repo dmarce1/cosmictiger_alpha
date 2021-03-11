@@ -326,7 +326,7 @@ private:
 	float radius;
 	array<tree_ptr, NCHILD> children;
 	pair<size_t, size_t> parts;
-
+	static particle_set* particles;
 public:
 	static std::atomic<int> cuda_node_count;
 	static std::atomic<int> cpu_node_count;

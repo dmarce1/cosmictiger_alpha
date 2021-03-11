@@ -160,7 +160,7 @@ public:
 	friend simd_float gather(void*, int, int);
 
 	friend simd_float two_pow(const simd_float &r);
-	friend void sincosf(const simd_float &x, simd_float *s, simd_float *c);
+	friend void sincos(const simd_float &x, simd_float *s, simd_float *c);
 	simd_float operator<(simd_float other) const { // 2
 		simd_float rc;
 		static const simd_float one(1);
@@ -299,7 +299,7 @@ inline simd_float cos(const simd_float &x) {		// 18
 	return sin(x + simd_float(M_PI / 2.0));
 }
 
-inline void sincosf(const simd_float &x, simd_float *s, simd_float *c) {		// 35
+inline void sincos(const simd_float &x, simd_float *s, simd_float *c) {		// 35
 //#ifdef __AVX512F__
 //	s->v = _mm512_sincos_ps(&(c->v),x.v);
 //#else

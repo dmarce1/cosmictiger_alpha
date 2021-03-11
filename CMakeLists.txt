@@ -25,10 +25,11 @@ enable_language(CUDA)
 #set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -ffast-math -march=native")
 
 set(cosmictiger_source_files
-    src/ewald_indices.cu
     src/cuda.cpp
     src/expansion.cu
+    src/ewald_indices.cu
     src/global.cpp
+    src/gravity.cpp
     src/gravity.cu
     src/hpx.cpp
     src/main.cpp
@@ -47,8 +48,11 @@ set(cosmictiger_header_files
 	cosmictiger/ewald_indices.hpp
 	cosmictiger/kick_return.hpp
 	cosmictiger/defs.hpp
+	cosmictiger/green_direct.hpp
+	cosmictiger/green_ewald.hpp
 	cosmictiger/gravity.hpp
 	cosmictiger/gravity.hpp
+	cosmictiger/math.hpp
 	cosmictiger/managed_vector.hpp
 	cosmictiger/multipole.hpp
 	cosmictiger/options.hpp
