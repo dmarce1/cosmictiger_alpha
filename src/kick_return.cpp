@@ -47,6 +47,18 @@ void kick_return_update_interactions_cpu(int itype, int count, int flops) {
 	cpu_return.count[itype] +=  count;
 }
 
+int kick_return_max_rung() {
+	kick_return rc = kick_return_get();
+	int max_rung = 0;
+	for( int i = 0; i < MAX_RUNG; i++) {
+		if( rc.rung_cnt[i]) {
+			max_rung = std::max(max_rung,i);
+		}
+	}
+	return max_rung;
+}
+
+
 void kick_return_show() {
 	kick_return rc;
 	tm.stop();
@@ -70,11 +82,11 @@ void kick_return_show() {
 	}
 	printf( "Potential Energy = %e\n", phi_sum);
 	printf("Rungs ");
-	for (int i = min_rung; i < max_rung; i++) {
+	for (int i = min_rung; i <= max_rung; i++) {
 		printf("%8i ", i);
 	}
 	printf("\n      ");
-	for (int i = min_rung; i < max_rung; i++) {
+	for (int i = min_rung; i <= max_rung; i++) {
 		printf("%8i ", rc.rung_cnt[i]);
 	}
 	printf("\n");

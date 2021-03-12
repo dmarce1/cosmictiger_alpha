@@ -63,7 +63,7 @@ public:
    constexpr
 #endif
    CUDA_EXPORT
-   fixed<T>& operator=(double number) {
+    fixed<T>& operator=(double number) {
       i = (c0 * number);
       return *this;
    }

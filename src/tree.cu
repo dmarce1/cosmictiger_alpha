@@ -25,7 +25,7 @@ CUDA_DEVICE particle_set *parts;
 
 CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
-	volatile __shared__
+	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	//  printf( "%i\n", params_ptr->depth);
@@ -272,18 +272,20 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					multis[mult_cnt + my_index[MI]] = parti[j];
 				}
 			}
+			parti.swap(tmp_parti);
+			__threadfence_block();
 		}
 		switch (type) {
 		case PC_PP_DIRECT:
-			cuda_pc_interactions(parts, multis, params_ptr);
-			cuda_pp_interactions(parts, tmp_parti, params_ptr);
+			cuda_pc_interactions(params_ptr);
+			cuda_pp_interactions(params_ptr);
 			break;
 		case CC_CP_DIRECT:
-			cuda_cc_interactions(parts, multis, params_ptr);
-			cuda_cp_interactions(parts, parti, params_ptr);
+			cuda_cc_interactions(params_ptr, DIRECT);
+			cuda_cp_interactions(params_ptr);
 			break;
 		case CC_CP_EWALD:
-			cuda_ewald_cc_interactions(parts, params_ptr);
+			cuda_cc_interactions(params_ptr, EWALD);
 			break;
 		}
 	}
@@ -383,10 +385,9 @@ extern __managed__ double pp_crit2_time;
 
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 	const int &bid = blockIdx.x;
+	params[bid].particles = parts;
 	cuda_kick(params + bid);
-	cuda_sync();
 	if (threadIdx.x == 0) {
-		//     printf( "Kick done\n");
 		params[bid].kick_params_type::~kick_params_type();
 	}
 

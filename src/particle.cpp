@@ -7,35 +7,65 @@
 #include <unordered_map>
 #include <algorithm>
 
-void particle_set::set_preferred_cpu(size_t first, size_t last, cudaStream_t stream) {
+void particle_set::prepare_kick(cudaStream_t stream) {
 	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
-		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId));
-		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId));
-		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), cudaCpuDeviceId, stream));
-		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim], size() * sizeof(float), cudaCpuDeviceId, stream));
-	}
-	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
-	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId));
-	CUDA_CHECK(cudaMemPrefetchAsync(rptr_, size() * sizeof(int8_t), cudaCpuDeviceId, stream));
-
-}
-
-void particle_set::set_preferred_gpu(size_t first, size_t last, cudaStream_t stream) {
-	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, 0));
+		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(fixed32), cudaMemAdviseUnsetReadMostly, 0));
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, 0));
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetAccessedBy, 0));
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
-		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), 0, stream));
 		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim], size() * sizeof(float), 0, stream));
+	}
+	for (int dim = 0; dim < NDIM; dim++) {
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, 0));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetAccessedBy, 0));
+		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), 0, stream));
 	}
 	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetPreferredLocation, 0));
 	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetAccessedBy, 0));
 	CUDA_CHECK(cudaMemPrefetchAsync(rptr_, size() * sizeof(int8_t), 0, stream));
-
 }
+
+void particle_set::prepare_drift(cudaStream_t stream) {
+	for (int dim = 0; dim < NDIM; dim++) {
+		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
+		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, 0));
+		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
+		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim], size() * sizeof(float), 0, stream));
+	}
+	for (int dim = 0; dim < NDIM; dim++) {
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseUnsetReadMostly, 0));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, 0));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetAccessedBy, 0));
+		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), 0, stream));
+	}
+}
+
+void particle_set::prepare_sort1(int dim, cudaStream_t stream) {
+	CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
+	CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, 0));
+	CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetAccessedBy, 0));
+	CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), 0, stream));
+}
+
+void particle_set::prepare_sort2(cudaStream_t stream) {
+	for (int dim = 0; dim < NDIM; dim++) {
+		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(fixed32), cudaMemAdviseUnsetReadMostly, cudaCpuDeviceId));
+		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
+		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId));
+		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim], size() * sizeof(float), cudaCpuDeviceId, stream));
+	}
+	for (int dim = 0; dim < NDIM; dim++) {
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseUnsetReadMostly, cudaCpuDeviceId));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId));
+		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), cudaCpuDeviceId, stream));
+	}
+	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
+	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId));
+	CUDA_CHECK(cudaMemPrefetchAsync(rptr_, size() * sizeof(int8_t), cudaCpuDeviceId, stream));
+}
+
+
 
 particle_set::particle_set(size_t size, size_t offset) {
 	offset_ = offset;
@@ -64,7 +94,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 	CUDA_CHECK(cudaMemAdvise(mptr_, size * sizeof(uint64_t), cudaMemAdviseSetAccessedBy, 0));
 #ifdef TEST_FORCE
 	const auto offset1 = size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(int8_t) * size
-			+ size * sizeof(uint64_t);
+	+ size * sizeof(uint64_t);
 	for (size_t dim = 0; dim < NDIM; dim++) {
 		gptr_[dim] = (float*) (data + offset1 + dim * size * sizeof(float));
 	}
@@ -128,7 +158,11 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
 	if (stop - start >= MIN_CUDA_SORT) {
 		timer tm;
 		tm.start();
-		begin = cuda_keygen(*this, start, stop, depth, key_min, key_max);
+		auto stream = get_stream();
+	//	prepare_sort1(stream);
+		begin = cuda_keygen(*this, start, stop, depth, key_min, key_max, stream );
+		prepare_sort2(stream);
+		cleanup_stream(stream);
 		//  printf( "%li %li\n", start , stop);
 		size_t key_cnt = key_max - key_min;
 		end.resize(key_cnt);
@@ -164,7 +198,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
 	morton_t next_key;
 	tm.reset();
 	tm.start();
-	int sorted = 0;
+	std::atomic<int> sorted( 0);
 	for (morton_t first_key = key_min; first_key < key_max; first_key++) {
 		bool flag = true;
 		bool first = true;
@@ -210,7 +244,7 @@ std::vector<size_t> particle_set::local_sort(size_t start, size_t stop, int64_t 
 		}
 	}
 	tm.stop();
-	// printf("Sort took %e s, %i sorted.\n", tm.read(), sorted);
+//	printf("Sort took %e s, %i sorted.\n", tm.read(), sorted);
 #ifdef TEST_RADIX
 	bool failed = false;
 	for (int i = start; i < stop - 1; i++) {

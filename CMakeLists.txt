@@ -25,7 +25,9 @@ enable_language(CUDA)
 #set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -ffast-math -march=native")
 
 set(cosmictiger_source_files
+	src/sort.cu
     src/cuda.cpp
+    src/drift.cu
     src/expansion.cu
     src/ewald_indices.cu
     src/global.cpp
@@ -45,6 +47,8 @@ set(cosmictiger_source_files
     src/kick_return.cpp
 )
 set(cosmictiger_header_files
+	cosmictiger/sort.hpp
+	cosmictiger/drift.hpp
 	cosmictiger/ewald_indices.hpp
 	cosmictiger/kick_return.hpp
 	cosmictiger/defs.hpp

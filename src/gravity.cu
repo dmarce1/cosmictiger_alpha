@@ -10,20 +10,19 @@
 #include <cosmictiger/kick_return.hpp>
 #include <cosmictiger/cuda.hpp>
 
-CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, const vector<tree_ptr> &multis,
-		kick_params_type *params_ptr) {
-
+CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type etype) {
 	kick_params_type &params = *params_ptr;
+	const auto& multis = params.multi_interactions;
 	const int &tid = threadIdx.x;
-	volatile __shared__
+	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 //	auto &Lreduce = shmem.Lreduce;
 	if (multis.size() == 0) {
 		return;
 	}
-	expansion<float> L;
-	expansion<float>& D = shmem.expanse[tid];
+	expansion<float> L = shmem.expanse2[tid];
+	expansion<float> D = shmem.expanse1[tid];
 	int flops = 0;
 	int interacts = 0;
 	for (int i = 0; i < LP; i++) {
@@ -38,7 +37,11 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, const vector<tree_ptr
 			fpos[dim] = distance(pos[dim], ((tree*) multis[i])->pos[dim]);
 		}
 		flops += 6;
-		flops += green_direct(D, fpos);
+		if (etype == DIRECT) {
+			flops += green_direct(D, fpos);
+		} else {
+			flops += green_ewald(D, fpos);
+		}
 		flops += multipole_interaction(L, mpole, D);
 		interacts++;
 	}
@@ -51,62 +54,16 @@ CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, const vector<tree_ptr
 	for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
 		params.L[params.depth][i] += L[i];
 	}
-	kick_return_update_interactions_gpu(KR_CC, interacts, flops);
+	__threadfence_block();
+	kick_return_update_interactions_gpu(etype == DIRECT ? KR_CC : KR_EWCC, interacts, flops);
 }
 
-#ifdef __CUDA_ARCH__
-
-CUDA_DEVICE void cuda_ewald_cc_interactions(particle_set *parts, kick_params_type *params_ptr) {
-#ifdef PERIODIC_OFF
-	return;
-#endif
-	volatile __shared__ extern int shmem_ptr[];
-	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-
+CUDA_DEVICE void cuda_cp_interactions( kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
+	particle_set *parts = params.particles;
+	const auto& parti = params.part_interactions;
 	const int &tid = threadIdx.x;
-//	auto &Lreduce = *lptr;
-	auto &multis = params.multi_interactions;
-	if( multis.size() == 0 ) {
-		return;
-	}
-	expansion<float> L;
-	expansion<float>& D = shmem.expanse[tid];
-	for (int i = 0; i < LP; i++) {
-		L[i] = 0.0;
-	}
-	int interacts = 0;
-	int flops = 0;
-	const auto &pos = ((tree*) params.tptr)->pos;
-	const auto sz = multis.size();
-	for (int i = tid; i < sz; i += KICK_BLOCK_SIZE) {
-		const auto& check = ((tree*) multis[i]);
-		array<float, NDIM> fpos;
-		for (int dim = 0; dim < NDIM; dim++) {
-			fpos[dim] = distance(pos[dim],check->pos[dim]);
-		}
-		flops += 6 + green_ewald(D, fpos);
-		flops += multipole_interaction(L,check->multi, D);
-		interacts++;
-	}
-	for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-		for (int i = 0; i < LP; i++) {
-			L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
-		}
-	}
-	for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
-		params.L[params.depth][i] += L[i];
-	}
-	kick_return_update_interactions_gpu(KR_EWCC, interacts, flops);
-}
-
-#endif
-
-CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr> &parti,
-		kick_params_type *params_ptr) {
-	kick_params_type &params = *params_ptr;
-	const int &tid = threadIdx.x;
-	volatile __shared__
+	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	//auto &Lreduce = shmem.Lreduce;
@@ -178,14 +135,16 @@ CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr
 			params.L[params.depth][i] += L[i];
 		}
 	}
+	__threadfence_block();
 	kick_return_update_interactions_gpu(KR_CP, interacts, flops);
 }
 
-CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr> &parti,
-		kick_params_type *params_ptr) {
+CUDA_DEVICE void cuda_pp_interactions( kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
+	particle_set *parts = params.particles;
+	const auto& parti = params.part_interactions;
 	const int &tid = threadIdx.x;
-	volatile __shared__
+	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 //	auto &f = shmem.f;
@@ -303,15 +262,18 @@ CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr
 			}
 		}
 	}
+	__threadfence_block();
 	kick_return_update_interactions_gpu(KR_PP, interacts, flops);
 }
 
 CUDA_DEVICE
-void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, kick_params_type *params_ptr) {
+void cuda_pc_interactions( kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
+	particle_set *parts = params.particles;
+	const auto& multis = params.multi_interactions;
 	const int &tid = threadIdx.x;
 
-	volatile __shared__
+	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	//auto &f = shmem.f;
@@ -414,6 +376,7 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 			}
 		}
 	}
+	__threadfence_block();
 	kick_return_update_interactions_gpu(KR_PC, interacts, flops);
 }
 

@@ -24,13 +24,13 @@
 #define TEST_BOUNDS
 #endif
 
-#define TEST_FORCE
+//#define TEST_FORCE
 //#define TEST_STACK
 #define N_TEST_PARTS (6*46)
 
-#define MAX_RUNG 64
+#define MAX_RUNG 127
 #define TREE_MAX_DEPTH 54
-#define TREE_RADIX_CUSHION -2
+#define TREE_RADIX_CUSHION -9
 #define TREE_RADIX_MIN 3
 #define TREE_RADIX_MAX 54
 #define TREE_SORT_MULTITHREAD
@@ -44,6 +44,9 @@
 #define KICK_GRID_SIZE 36
 #define KICK_EWALD_GRID_SIZE 1024
 #define KICK_OCCUPANCY 8
+
+#define DRIFT_BLOCK_SIZE 64
+#define DRIFT_OCCUPANCY 16
 
 #define FLOP_RSQRT 4
 #define FLOP_DIV 5

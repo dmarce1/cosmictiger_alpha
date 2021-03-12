@@ -14,11 +14,14 @@
 
 #endif /* COSMICTIGER_GRAVITY_HPP_ */
 
-CUDA_DEVICE void cuda_cc_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
-CUDA_DEVICE void cuda_ewald_cc_interactions(particle_set *parts, kick_params_type *params_ptr);
-CUDA_DEVICE void cuda_cp_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
-CUDA_DEVICE void cuda_pp_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
-CUDA_DEVICE void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr>&, kick_params_type *params_ptr);
+enum eval_type {
+	DIRECT, EWALD
+};
+
+CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type);
+CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr);
+CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr);
+CUDA_DEVICE void cuda_pc_interactions(kick_params_type *params_ptr);
 
 #ifdef TEST_FORCE
 void cuda_compare_with_direct(particle_set *parts);

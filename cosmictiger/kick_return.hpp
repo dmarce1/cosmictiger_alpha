@@ -41,7 +41,7 @@ void kick_return_update_interactions_cpu(int itype, int count, int flops);
 
 void kick_return_init(int min_rung);
 
-
+int kick_return_max_rung();
 void kick_return_show();
 
 #endif /* KICK_RETURN_HPP_ */

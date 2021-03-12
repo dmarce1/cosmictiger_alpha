@@ -8,6 +8,8 @@
 #include <cosmictiger/cuda.hpp>
 
 #include <cosmictiger/tree.hpp>
+#include <cosmictiger/sort.hpp>
+#include <cosmictiger/drift.hpp>
 #include <cstdlib>
 CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr);
 
@@ -49,7 +51,6 @@ cuda_properties cuda_init() {
       printf("Unable to set heap to %li\n", HEAP_SIZE);
       fail = true;
    }
-   return props;
    value = RECUR_LIMIT;
    CUDA_CHECK(cudaDeviceSetLimit(cudaLimitDevRuntimeSyncDepth, value));
    CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitDevRuntimeSyncDepth));
@@ -64,14 +65,25 @@ cuda_properties cuda_init() {
       printf("Unable to set L2 fetch granularity to to %i\n", L2FETCH);
       fail = true;
    }
-//   value = PENDINGLAUNCHES;
+   cudaFuncAttributes attrib;
+   CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&drift_kernel ));
+   printf( "Drift kernel takes %i registers\n", attrib.numRegs);
+
+   CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&count_kernel ));
+   printf( "Count kernel takes %i registers\n", attrib.numRegs);
+   printf( "Count kernel takes %i shmem\n", attrib.sharedSizeBytes);
+
+   CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&sort_kernel ));
+   printf( "Sort kernel takes %i registers\n", attrib.numRegs);
+
+   //   value = PENDINGLAUNCHES;
 //   CUDA_CHECK(cudaDeviceSetLimit(cudaLimitDevRuntimePendingLaunchCount , value));
 //   CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitDevRuntimePendingLaunchCount ));
 //   if (value != L2FETCH) {
 //      printf("Unable to set pending launch count to %li\n",  PENDINGLAUNCHES);
 //      fail = true;
 //   }
-   CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&cuda_ewald_cc_kernel, cudaFuncCachePreferL1));
+ //  CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&cuda_ewald_cc_kernel, cudaFuncCachePreferL1));
    //CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
    //   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
    if (fail) {
