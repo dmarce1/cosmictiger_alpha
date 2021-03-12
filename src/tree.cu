@@ -312,7 +312,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		//   printf( "%li\n", rc.flops);
 	} else {
 		auto& rungs = shmem.rungs;
-		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
 		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 			const auto this_rung = parts->rung(k + myparts.first);
@@ -355,14 +354,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
 				}
-				max_rung = fmaxf(max_rung, new_rung);
 				parts->set_rung(new_rung, k + myparts.first);
 				kick_return_update_pot_gpu(new_rung, phi[k]);
 			}
 			kick_return_update_rung_gpu(parts->rung(k + myparts.first));
-		}
-		for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-			max_rung = fmaxf(max_rung, __shfl_down_sync(0xffffffff, max_rung, P));
 		}
 	}
 	kick_return_update_interactions_gpu(KR_OP, interacts, flops);

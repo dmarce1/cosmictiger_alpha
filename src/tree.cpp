@@ -31,12 +31,13 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 		int N = 1 << (lev / NDIM);
 		double dx = 0.25 * N;
 		double a;
+		constexpr double ffac = 1.01;
 		if (lev % NDIM == 0) {
-			a = std::sqrt(3);
+			a = std::sqrt(3) + ffac * h;
 		} else if (lev % NDIM == 1) {
-			a = 1.5;
+			a = 1.5 + ffac * h;
 		} else {
-			a = std::sqrt(1.5);
+			a = std::sqrt(1.5) + ffac * h;
 		}
 		double r = (1.0 + SINK_BIAS) * a / theta + h * N;
 		if (dx > r) {
@@ -45,10 +46,6 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 		lev++;
 	}
 	return lev;
-}
-
-int cuda_depth() {
-	return 12;
 }
 
 hpx::future<sort_return> tree::create_child(sort_params &params) {
@@ -134,7 +131,8 @@ sort_return tree::sort(sort_params params) {
 		printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
 	}
 #endif
-	if (parts.second - parts.first > MAX_BUCKET_SIZE || (params.depth < params.min_depth && parts.second - parts.first > 0)) {
+	if (parts.second - parts.first > MAX_BUCKET_SIZE
+			|| (params.depth < params.min_depth && parts.second - parts.first > 0)) {
 		std::array<fast_future<sort_return>, NCHILD> futs;
 		{
 			const auto size = parts.second - parts.first;
