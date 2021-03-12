@@ -258,17 +258,16 @@ static void sort() {
 
 	timer tm;
 	particle_set parts(global().opts.nparts);
-	parts.generate_random();
 
 	timer tm1;
-	tm1.start();
-	find_median(parts.get_virtual_particle_set(),0, parts.size(), fixed32(0.0), fixed32::max(), 0);
-	tm1.stop();
-	printf("%e\n", tm1.read());
-	tm1.reset();
-	tm1.start();
-	find_median(parts.get_virtual_particle_set(),0, parts.size(), fixed32(0.0), fixed32::max(), 0);
-	tm1.stop();
+	for (int i = global().opts.nparts; i >= 64; i /= 2) {
+		parts.generate_random();
+		tm1.start();
+		sort_particles(parts.get_virtual_particle_set(), 0, i, fixed32(0.0), fixed32::max(), 0);
+		tm1.stop();
+		printf( "%li %e\n", i, tm1.read());
+		tm1.reset();
+	}
 
 	printf("%e\n", tm1.read());
 

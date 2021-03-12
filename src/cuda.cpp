@@ -73,7 +73,7 @@ cuda_properties cuda_init() {
    printf( "Count kernel takes %i registers\n", attrib.numRegs);
    printf( "Count kernel takes %i shmem\n", attrib.sharedSizeBytes);
 
-   CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&sort_kernel ));
+   CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&gpu_sort_kernel ));
    printf( "Sort kernel takes %i registers\n", attrib.numRegs);
 
    //   value = PENDINGLAUNCHES;
@@ -83,8 +83,9 @@ cuda_properties cuda_init() {
 //      printf("Unable to set pending launch count to %li\n",  PENDINGLAUNCHES);
 //      fail = true;
 //   }
- //  CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&cuda_ewald_cc_kernel, cudaFuncCachePreferL1));
-   //CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
+   CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&gpu_sort_kernel, cudaFuncCachePreferL1));
+   CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&count_kernel, cudaFuncCachePreferL1));
+    //CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
    //   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
    if (fail) {
       abort();
