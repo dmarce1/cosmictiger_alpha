@@ -38,7 +38,7 @@
 #define KICK_BLOCK_SIZE 32
 #define KICK_PP_MAX size_t(17*32)
 #define KICK_PC_MAX (2*32)
-#define MAX_BUCKET_SIZE 94
+#define MAX_BUCKET_SIZE 96
 #define GROUP_SIZE MAX_BUCKET_SIZE
 #define GPU_QUEUE_SIZE (1024*1024)
 #define KICK_GRID_SIZE 36

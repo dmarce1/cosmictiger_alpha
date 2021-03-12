@@ -92,7 +92,7 @@ void kick_return_show() {
 		count_pct[i] = rc.count[i] / count_tot * 100.0;
 		flop_pct[i] = rc.flop[i] / flop_tot * 100.0;
 	}
-	const char* names[] = {"PP", "PC", "CP", "CC", "OP", "CCEW"} ;
+	const char* names[] = {"PP", "PC", "CP", "CC", "OP", "EW"} ;
 	const auto fac = 1.0 / 1024.0/1024.0/1024.0;
 	printf( "Evals per particles | FLOP | FLOP per eval\n");
 	for( int i = 0; i < 6; i++) {

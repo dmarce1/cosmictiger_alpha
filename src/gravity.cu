@@ -351,7 +351,26 @@ void cuda_pc_interactions(particle_set *parts, const vector<tree_ptr> &multis, k
 	for (int m = 0; m < mmax; m += KICK_PC_MAX) {
 		nsrc = 0;
 		for (int z = 0; z < KICK_PC_MAX; z++) {
-			if (m + z < multis.size()) {
+			bool readone = true;
+			if (m + z < multis.size() - 2) {
+				const auto& other_ptr1 = ((tree*) multis[m + z]);
+				const auto& other_ptr2 = ((tree*) multis[m + z + 1]);
+				const auto& other_ptr3 = ((tree*) multis[m + z + 2]);
+				const float* src1 = (float*) &other_ptr1->multi;
+				const float* src2 = (float*) &other_ptr2->multi;
+				const float* src3 = (float*) &other_ptr3->multi;
+				float* dst = (float*) &(msrcs[nsrc]);
+				if (src1 + msize == src2 && src2 + msize == src3) {
+					if (tid < 3 * msize / 2) {
+						dst[tid] = src1[tid];
+						dst[tid + 3 * msize / 2] = src1[tid + 3 * msize / 2];
+						nsrc += 3;
+						z += 2;
+					}
+					readone = false;
+				}
+			}
+			if (readone && m + z < multis.size()) {
 				const auto& other_ptr = ((tree*) multis[m + z]);
 				const float* src = (float*) &other_ptr->multi;
 				float* dst = (float*) &(msrcs[nsrc++]);
