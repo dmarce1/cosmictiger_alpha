@@ -5,7 +5,7 @@
 
 #define COUNT_BLOCK_SIZE 1024
 #define SORT_BLOCK_SIZE 32
-#define SORT_OCCUPANCY (16)
+#define SORT_OCCUPANCY (1)
 #define SORT_GPU_LIMIT 1024*1024
 
 CUDA_KERNEL count_kernel(particle_set parts, size_t begin, size_t end, double xpos, int xdim, size_t* counts) {
@@ -33,27 +33,28 @@ CUDA_KERNEL count_kernel(particle_set parts, size_t begin, size_t end, double xp
 	counts[bid] = local_counts[0];
 }
 
-#define SORT_SHMEM_SIZE 32
+#define SORT_SHMEM_SIZE 2048
 
 #define ALL 0xFFFFFFFF
 
 CUDA_KERNEL gpu_sort_kernel(particle_set parts, size_t begin, size_t mid, size_t end, double xmid, int xdim,
 		unsigned long long* bottom, unsigned long long*top) {
+	__shared__ size_t swapa[SORT_SHMEM_SIZE];
+	__shared__ size_t swapb[SORT_SHMEM_SIZE];
+
 	const int& tid = threadIdx.x;
-	size_t lo = 0;
+	const int& bid = blockIdx.x;
+	const int& gsz = gridDim.x;
+	const size_t start = begin + bid * (mid - begin) / gsz;
+	const size_t stop = begin + (bid + 1) * (mid - begin) / gsz;
+	size_t lo = start;
 	size_t hi = mid;
 	int result = 0;
-	int tmp, my_index, index;
-	while (lo < mid || __any_sync(ALL, result)) {
-		if (__any_sync(ALL, !result) && lo < mid) {
-			my_index = !result;
-			for (int P = SORT_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-				my_index += __shfl_down_sync(ALL, my_index, P);
-			}
-			if (tid == 0) {
-				lo = atomicAdd(bottom, my_index);
-			}
-			lo = __shfl_sync(ALL, lo, 0);
+	int count;
+	int swap_count = 0;
+	int tmp, my_index, lo_index;
+	while (lo < stop || __any_sync(ALL, result)) {
+		while ((count = __popc(__ballot_sync(ALL, !result))) > SORT_BLOCK_SIZE / 2 && lo < stop) {
 			my_index = !result;
 			for (int P = 1; P < SORT_BLOCK_SIZE; P *= 2) {
 				tmp = __shfl_up_sync(ALL, my_index, P);
@@ -67,18 +68,16 @@ CUDA_KERNEL gpu_sort_kernel(particle_set parts, size_t begin, size_t mid, size_t
 			} else {
 				my_index = 0;
 			}
-			if (!result && lo + my_index < mid) {
+			if (!result && lo + my_index < stop) {
 				result = (parts.pos(xdim, lo + my_index).to_double() >= xmid);
-				index = lo + my_index;
+				lo_index = lo + my_index;
 			}
+			lo += count;
 		}
-		if (__any_sync(ALL, result)) {
+		while ((count = __popc(__ballot_sync(ALL, result))) > SORT_BLOCK_SIZE / 2 || lo >= stop) {
 			my_index = result;
-			for (int P = SORT_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-				my_index += __shfl_down_sync(ALL, my_index, P);
-			}
 			if (tid == 0) {
-				hi = atomicAdd(top, my_index);
+				hi = atomicAdd(top, count);
 			}
 			hi = __shfl_sync(ALL, hi, 0);
 			my_index = result;
@@ -94,10 +93,43 @@ CUDA_KERNEL gpu_sort_kernel(particle_set parts, size_t begin, size_t mid, size_t
 			} else {
 				my_index = 0;
 			}
+			int found_swap = 0;
+			int hi_index = hi + my_index;
 			if (result && parts.pos(xdim, hi + my_index).to_double() < xmid) {
-				parts.swap(hi + my_index, index);
 				result = 0;
+				found_swap = 1;
 			}
+			my_index = found_swap;
+			for (int P = 1; P < SORT_BLOCK_SIZE; P *= 2) {
+				tmp = __shfl_up_sync(ALL, my_index, P);
+				if (tid >= P) {
+					my_index += tmp;
+				}
+			}
+			tmp = __shfl_up_sync(ALL, my_index, 1);
+			if (tid > 0) {
+				my_index = tmp;
+			} else {
+				my_index = 0;
+			}
+			if (found_swap) {
+				swapa[swap_count + my_index] = hi_index;
+				swapb[swap_count + my_index] = lo_index;
+			}
+			swap_count += __popc(__ballot_sync(ALL, found_swap));
+		}
+		int max_remaining = __popc(__ballot_sync(ALL, !result));
+		if (swap_count >= SORT_SHMEM_SIZE - max_remaining || lo >= stop) {
+			for (int i = tid; i < swap_count; i += SORT_BLOCK_SIZE) {
+				const auto a = swapa[i];
+				const auto b = swapb[i];
+				for (int dim = 0; dim < NDIM; dim++) {
+					parts.swap_pos(dim, a, b);
+					parts.swap_vel(dim, a, b);
+				}
+				parts.swap_rung(a, b);
+			}
+			swap_count = 0;
 		}
 	}
 }
@@ -162,10 +194,10 @@ size_t sort_particles(particle_set parts, size_t begin, size_t end, double xmid,
 			CUDA_CHECK(cudaStreamSynchronize(stream));
 			unsigned long long* indexes;
 			CUDA_MALLOC(indexes, 2);
-			const auto nprocs = global().cuda.devices[0].multiProcessorCount;
+			const auto nprocs = 2 * SORT_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
 			indexes[0] = begin;
 			indexes[1] = pmid;
-			gpu_sort_kernel<<<2*SORT_OCCUPANCY*nprocs,SORT_BLOCK_SIZE>>>(parts, begin, pmid, end, xmid, xdim, indexes + 0, indexes + 1);
+			gpu_sort_kernel<<<nprocs,SORT_BLOCK_SIZE>>>(parts, begin, pmid, end, xmid, xdim, indexes + 0, indexes + 1);
 			yield();
 			CUDA_CHECK(cudaStreamSynchronize(stream));
 			cleanup_stream(stream);

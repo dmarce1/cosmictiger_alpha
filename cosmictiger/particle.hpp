@@ -34,6 +34,21 @@ struct particle {
 struct particle_set {
 	particle_set() = default;
 	CUDA_EXPORT
+	inline void swap_pos(int dim, size_t a, size_t b) {
+		auto tmp = xptr_[dim][a];
+		xptr_[dim][a] = xptr_[dim][b];
+		xptr_[dim][b] = tmp;
+	}
+	CUDA_EXPORT inline void swap_vel(int dim, size_t a, size_t b) {
+		auto tmp = vptr_[dim][a];
+		vptr_[dim][a] = vptr_[dim][b];
+		vptr_[dim][b] = tmp;
+	}
+	CUDA_EXPORT inline void swap_rung(size_t a, size_t b) {
+		auto tmp = rptr_[a];
+		rptr_[a] = rptr_[b];
+		rptr_[b] = tmp;
+	}
 	inline void swap(size_t a, size_t b) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			auto tmp1 = xptr_[dim][a];

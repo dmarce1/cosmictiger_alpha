@@ -31,7 +31,7 @@ int cpu_sort_depth() {
 	while ((1 << l) < hpx::threads::hardware_concurrency()) {
 		l++;
 	}
-	return l;
+	return 0;
 }
 
 CUDA_EXPORT inline int ewald_min_level(double theta, double h) {

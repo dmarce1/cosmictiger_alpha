@@ -45,8 +45,10 @@ set(cosmictiger_source_files
     src/tree.cu
     src/kick_return.cu
     src/kick_return.cpp
+    src/driver.cpp
 )
 set(cosmictiger_header_files
+	cosmictiger/driver.hpp
 	cosmictiger/sort.hpp
 	cosmictiger/drift.hpp
 	cosmictiger/ewald_indices.hpp
