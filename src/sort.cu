@@ -54,25 +54,27 @@ CUDA_KERNEL gpu_sort_kernel(particle_set parts, size_t begin, size_t mid, size_t
 	int swap_count = 0;
 	int tmp, my_index, lo_index;
 	while (lo < stop || __any_sync(ALL, result)) {
-		my_index = !result;
-		for (int P = 1; P < SORT_BLOCK_SIZE; P *= 2) {
-			tmp = __shfl_up_sync(ALL, my_index, P);
-			if (tid >= P) {
-				my_index += tmp;
+		while ((count = __popc(__ballot_sync(ALL, !result))) > SORT_BLOCK_SIZE / 2 && lo < stop) {
+			my_index = !result;
+			for (int P = 1; P < SORT_BLOCK_SIZE; P *= 2) {
+				tmp = __shfl_up_sync(ALL, my_index, P);
+				if (tid >= P) {
+					my_index += tmp;
+				}
 			}
+			tmp = __shfl_up_sync(ALL, my_index, 1);
+			if (tid > 0) {
+				my_index = tmp;
+			} else {
+				my_index = 0;
+			}
+			if (!result && lo + my_index < stop) {
+				result = (parts.pos(xdim, lo + my_index).to_double() >= xmid);
+				lo_index = lo + my_index;
+			}
+			lo += count;
 		}
-		tmp = __shfl_up_sync(ALL, my_index, 1);
-		if (tid > 0) {
-			my_index = tmp;
-		} else {
-			my_index = 0;
-		}
-		if (!result && lo + my_index < stop) {
-			result = (parts.pos(xdim, lo + my_index).to_double() >= xmid);
-			lo_index = lo + my_index;
-		}
-		lo += count;
-		while ((count = __popc(__ballot_sync(ALL, result))) >= SORT_BLOCK_SIZE || lo >= stop) {
+		while ((count = __popc(__ballot_sync(ALL, result))) > SORT_BLOCK_SIZE / 2 || lo >= stop) {
 			my_index = result;
 			if (tid == 0) {
 				hi = atomicAdd(top, count);
@@ -118,21 +120,13 @@ CUDA_KERNEL gpu_sort_kernel(particle_set parts, size_t begin, size_t mid, size_t
 		}
 		int max_remaining = __popc(__ballot_sync(ALL, !result));
 		if (swap_count >= SORT_SHMEM_SIZE - max_remaining || lo >= stop) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				for (int i = tid; i < swap_count; i += SORT_BLOCK_SIZE) {
-					const auto& a = swapa[i];
-					const auto& b = swapb[i];
+			for (int i = tid; i < swap_count; i += SORT_BLOCK_SIZE) {
+				const auto a = swapa[i];
+				const auto b = swapb[i];
+				for (int dim = 0; dim < NDIM; dim++) {
 					parts.swap_pos(dim, a, b);
-				}
-				for (int i = tid; i < swap_count; i += SORT_BLOCK_SIZE) {
-					const auto& a = swapa[i];
-					const auto& b = swapb[i];
 					parts.swap_vel(dim, a, b);
 				}
-			}
-			for (int i = tid; i < swap_count; i += SORT_BLOCK_SIZE) {
-				const auto& a = swapa[i];
-				const auto& b = swapb[i];
 				parts.swap_rung(a, b);
 			}
 			swap_count = 0;
