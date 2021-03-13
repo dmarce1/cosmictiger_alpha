@@ -6,6 +6,7 @@
 #include <cosmictiger/tests.hpp>
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/ewald_indices.hpp>
+#include <cosmictiger/driver.hpp>
 
 
 void yield() {
@@ -25,11 +26,10 @@ int hpx_main(int argc, char *argv[]) {
 		ewald_const::init();
 		printf("Done initializing ewald\n");
 		global_init(opts, cuda);
-
 		if (opts.test != "") {
 			test_run(opts.test);
 		} else {
-
+			drive_cosmos();
 		}
 	}
 	tree::cleanup();

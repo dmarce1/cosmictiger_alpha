@@ -28,7 +28,7 @@
 //#define TEST_STACK
 #define N_TEST_PARTS (6*46)
 
-#define MAX_RUNG 127
+#define MAX_RUNG 63
 #define TREE_MAX_DEPTH 54
 #define TREE_RADIX_CUSHION -9
 #define TREE_RADIX_MIN 3

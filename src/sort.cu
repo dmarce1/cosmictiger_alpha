@@ -165,7 +165,7 @@ size_t sort_particles(particle_set parts, size_t begin, size_t end, double xmid,
 			const auto nprocs = global().cuda.devices[0].multiProcessorCount;
 			indexes[0] = begin;
 			indexes[1] = pmid;
-			gpu_sort_kernel<<<SORT_OCCUPANCY*nprocs,SORT_BLOCK_SIZE>>>(parts, begin, pmid, end, xmid, xdim, indexes + 0, indexes + 1);
+			gpu_sort_kernel<<<2*SORT_OCCUPANCY*nprocs,SORT_BLOCK_SIZE>>>(parts, begin, pmid, end, xmid, xdim, indexes + 0, indexes + 1);
 			yield();
 			CUDA_CHECK(cudaStreamSynchronize(stream));
 			cleanup_stream(stream);

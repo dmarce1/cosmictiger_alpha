@@ -96,7 +96,7 @@ sort_return tree::sort(sort_params params) {
 		int dummy;
 		params.set_root();
 		params.min_depth = ewald_min_level(global().opts.theta, global().opts.hsoft);
-		printf("min ewald = %i\n", params.min_depth);
+//		printf("min ewald = %i\n", params.min_depth);
 	}
 	{
 //		const auto bnds = params.get_bounds();
@@ -153,9 +153,9 @@ sort_return tree::sort(sort_params params) {
 			const auto cpu_depth = cpu_sort_depth();
 			if (params.depth == 0) {
 				particles->prepare_sort(parts.first, parts.second, 0);
-			} else if (params.depth == cpu_depth) {
-				particles->prepare_sort(parts.first, parts.second, cudaCpuDeviceId);
-			}
+			} /*else if (params.depth == cpu_depth) {
+		//		particles->prepare_sort(parts.first, parts.second, cudaCpuDeviceId);
+			}*/
 			size_t pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim,
 					params.depth < cpu_depth ? GPU_SORT : CPU_SORT);
 			//		printf("Sorted %li particles at level %i xmid = %e\n", parts.second - parts.first, params.depth, xmid);
@@ -531,7 +531,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				}
 				fmag = sqrtf(fmag);
 				assert(fmag > 0.0);
-				dt = std::min(std::sqrt(params.scale * params.eta / fmag), params.t0);
+				dt = std::min(params.eta * std::sqrt(params.scale * params.hsoft / fmag), params.t0);
 				int new_rung = std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1),
 						params.rung);
 				dt = params.t0 / (1 << new_rung);
@@ -566,7 +566,7 @@ void tree::gpu_daemon() {
 	static double wait_time = 5.0e-3;
 	static int min_ewald;
 	if (first_call) {
-		printf("Starting gpu daemon\n");
+	//	printf("Starting gpu daemon\n");
 		timer.reset();
 		timer.start();
 		first_call = false;
@@ -610,7 +610,7 @@ void tree::gpu_daemon() {
 		 }
 		 } else*/if (gpu_queue.size() == kick_block_count) {
 			kick_timer.stop();
-			printf("Time to GPU = %e\n", kick_timer.read());
+		//	printf("Time to GPU = %e\n", kick_timer.read());
 			using promise_type = std::vector<std::shared_ptr<hpx::lcos::local::promise<void>>>;
 			std::shared_ptr<promise_type> gpu_promises[NWAVE];
 			//		std::shared_ptr<promise_type> cpu_promises[NWAVE];
@@ -683,9 +683,9 @@ void tree::gpu_daemon() {
 			 calloc.deallocate(cpu_params[j]);
 			 });
 			 }*/
-			printf("Executing \n");
+	//		printf("Executing \n");
 			for (int i = 0; i < NWAVE; i++) {
-				printf("Sending %li blocks to GPU\n", gpu_waves[i].size());
+		//		printf("Sending %li blocks to GPU\n", gpu_waves[i].size());
 				particles->prepare_kick(stream);
 				//		particles->set_preferred_gpu(gpu_waves[i].front().parts.first, gpu_waves[i].front().parts.second, stream);
 				cuda_execute_kick_kernel(gpu_params[i], gpu_waves[i].size(), stream);
@@ -725,7 +725,7 @@ void tree::gpu_daemon() {
 							(*gpu_promises[j])[i]->set_value();
 						}
 					}
-					printf("Done executing\n");
+			//		printf("Done executing\n");
 					return true;
 				} else {
 					return false;

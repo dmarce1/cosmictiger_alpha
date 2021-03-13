@@ -350,7 +350,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				fmag = sqrtf(fmag);
 				//   printf( "%e\n", fmag);
 				assert(fmag > 0.0);
-				dt = fminf(sqrt(params.scale * params.eta / fmag), params.t0);
+				dt = fminf( params.eta * sqrt(params.scale * params.hsoft / fmag), params.t0);
 				int new_rung = fmaxf(fmaxf(ceil(logf(params.t0 / dt) * invlog2), this_rung - 1), params.rung);
 				dt = params.t0 / (1 << new_rung);
 				for (int dim = 0; dim < NDIM; dim++) {

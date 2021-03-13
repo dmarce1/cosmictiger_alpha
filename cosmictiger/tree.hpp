@@ -44,10 +44,7 @@ struct sort_params {
 	uint8_t* stack_ptr;
 #endif
 	range box;
-	std::shared_ptr<std::vector<size_t>> bounds;
 	std::shared_ptr<tree_alloc> allocs;
-	uint32_t key_begin;
-	uint32_t key_end;
 	int8_t depth;
 	int8_t min_depth;
 	pair<size_t,size_t> parts;
@@ -73,41 +70,18 @@ struct sort_params {
 		}
 		parts.first = 0;
 		parts.second = global().opts.nparts;
-#ifdef TEST_STACK
-		stack_ptr = (uint8_t*) &stack_ptr;
-#endif
 		depth = 0;
-		bounds = std::make_shared<std::vector<size_t>>(2);
-		(*bounds)[0] = 0;
-		(*bounds)[1] = opts.nparts;
-		key_begin = 0;
-		key_end = 1;
 		allocs = std::make_shared<tree_alloc>();
-	}
-
-	std::pair<size_t, size_t> get_bounds() const {
-		std::pair<size_t, size_t> rc;
-		rc.first = (*bounds)[key_begin];
-		rc.second = (*bounds)[key_end];
-		return rc;
 	}
 
 	std::array<sort_params, NCHILD> get_children() const {
 		std::array<sort_params, NCHILD> child;
 		for (int i = 0; i < NCHILD; i++) {
-			child[i].bounds = bounds;
 			child[i].depth = depth + 1;
 			child[i].allocs = allocs;
 			child[i].box = box;
 			child[i].min_depth = min_depth;
-#ifdef TEST_STACK
-			child[i].stack_ptr = stack_ptr;
-#endif
 		}
-		int sort_dim = depth % NDIM;
-		child[LEFT].key_begin = key_begin;
-		child[LEFT].key_end = child[RIGHT].key_begin = ((key_begin + key_end) >> 1);
-		child[RIGHT].key_end = key_end;
 		return child;
 	}
 };
