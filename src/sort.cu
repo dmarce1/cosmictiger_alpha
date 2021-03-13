@@ -221,17 +221,13 @@ size_t cpu_count_particles(particle_set parts, size_t begin, size_t end, double 
 
 void yield();
 
-size_t sort_particles(particle_set parts, size_t begin, size_t end, double xmid, int xdim) {
+size_t sort_particles(particle_set parts, size_t begin, size_t end, double xmid, int xdim, sort_type type) {
 	size_t pmid;
 	if (end == begin) {
 		pmid = end;
 	} else {
-		if (end - begin >= SORT_GPU_LIMIT) {
-			//		printf( "GPU sort\n");
+		if (type == GPU_SORT) {
 			auto stream = get_stream();
-			if (end - begin == global().opts.nparts) {
-				parts.prepare_sort(stream);
-			}
 			pmid = begin + gpu_count_particles(parts, begin, end, xmid, xdim, stream);
 			CUDA_CHECK(cudaStreamSynchronize(stream));
 			unsigned long long* indexes;

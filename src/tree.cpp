@@ -26,6 +26,14 @@ void tree::set_particle_set(particle_set *parts) {
 
 static std::atomic<int> kick_block_count;
 
+int cpu_sort_depth() {
+	int l = 1;
+	while ((1 << l) < hpx::threads::hardware_concurrency()) {
+		l++;
+	}
+	return l;
+}
+
 CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	int lev = 12;
 	while (1) {
@@ -142,7 +150,14 @@ sort_return tree::sort(sort_params params) {
 			const int xdim = params.depth % NDIM;
 			auto part_handle = particles->get_virtual_particle_set();
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
-			size_t pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim);
+			const auto cpu_depth = cpu_sort_depth();
+			if (params.depth == 0) {
+				particles->prepare_sort(parts.first, parts.second, 0);
+			} else if (params.depth == cpu_depth) {
+				particles->prepare_sort(parts.first, parts.second, cudaCpuDeviceId);
+			}
+			size_t pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim,
+					params.depth < cpu_depth ? GPU_SORT : CPU_SORT);
 			//		printf("Sorted %li particles at level %i xmid = %e\n", parts.second - parts.first, params.depth, xmid);
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
 			child_params[LEFT].parts.first = parts.first;
