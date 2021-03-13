@@ -7,6 +7,11 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/ewald_indices.hpp>
 
+
+void yield() {
+	hpx::this_thread::yield();
+}
+
 int hpx_main(int argc, char *argv[]) {
 	options opts;
 	//  printf( "%li\n", sizeof(std::shared_ptr<int>));
