@@ -42,20 +42,38 @@ CUDA_KERNEL gpu_sort_kernel(particle_set parts, size_t begin, size_t mid, size_t
 	const int& tid = threadIdx.x;
 	size_t lo = 0;
 	size_t hi = mid;
-	int result;
-	int tmp;
-	while (lo < mid) {
-		if (tid == 0) {
-			lo = atomicAdd(bottom, SORT_BLOCK_SIZE);
+	int result = 0;
+	int tmp, my_index, index;
+	while (lo < mid || __any_sync(ALL, result)) {
+		if (__any_sync(ALL, !result) && lo < mid) {
+			my_index = !result;
+			for (int P = SORT_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+				my_index += __shfl_down_sync(ALL, my_index, P);
+			}
+			if (tid == 0) {
+				lo = atomicAdd(bottom, my_index);
+			}
+			lo = __shfl_sync(ALL, lo, 0);
+			my_index = !result;
+			for (int P = 1; P < SORT_BLOCK_SIZE; P *= 2) {
+				tmp = __shfl_up_sync(ALL, my_index, P);
+				if (tid >= P) {
+					my_index += tmp;
+				}
+			}
+			tmp = __shfl_up_sync(ALL, my_index, 1);
+			if (tid > 0) {
+				my_index = tmp;
+			} else {
+				my_index = 0;
+			}
+			if (!result && lo + my_index < mid) {
+				result = (parts.pos(xdim, lo + my_index).to_double() >= xmid);
+				index = lo + my_index;
+			}
 		}
-		lo = __shfl_sync(ALL, lo, 0);
-		if (lo + tid < mid) {
-			result = (parts.pos(xdim, lo + tid).to_double() >= xmid);
-		} else {
-			result = 0;
-		}
-		while (__any_sync(ALL, result)) {
-			int my_index = result;
+		if (__any_sync(ALL, result)) {
+			my_index = result;
 			for (int P = SORT_BLOCK_SIZE / 2; P >= 1; P /= 2) {
 				my_index += __shfl_down_sync(ALL, my_index, P);
 			}
@@ -77,99 +95,11 @@ CUDA_KERNEL gpu_sort_kernel(particle_set parts, size_t begin, size_t mid, size_t
 				my_index = 0;
 			}
 			if (result && parts.pos(xdim, hi + my_index).to_double() < xmid) {
-				parts.swap(hi + my_index, lo + tid);
+				parts.swap(hi + my_index, index);
 				result = 0;
 			}
 		}
 	}
-	/*
-	 __shared__ array<size_t, SORT_SHMEM_SIZE> lo_indices;
-
-	 int lo_count;
-	 size_t lo = 0;
-	 size_t hi = mid;
-	 int tmp;
-	 while (lo < mid) {
-	 lo_count = 0;
-	 //		printf( "%i %li %i\n", lo, *bottom, max_add);
-	 while (lo_count < SORT_SHMEM_SIZE && lo < mid) {
-	 int max_add = min(SORT_BLOCK_SIZE, SORT_SHMEM_SIZE - lo_count);
-	 if (tid == 0) {
-	 lo = atomicAdd(bottom, (unsigned long long) max_add);
-	 }
-	 lo = __shfl_sync(ALL, lo, 0);
-	 if (lo < mid) {
-	 max_add = min((size_t) max_add, (mid - lo));
-	 int result;
-	 if (tid < max_add) {
-	 result = int(!(parts.pos(xdim, lo + tid).to_double() < xmid));
-	 } else {
-	 result = 0;
-	 }
-	 int my_index = result;
-	 int count = result;
-	 for (int P = SORT_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-	 count += __shfl_xor_sync(ALL, count, P);
-	 }
-	 for (int P = 1; P < SORT_BLOCK_SIZE; P *= 2) {
-	 tmp = __shfl_up_sync(ALL, my_index, P);
-	 if (tid >= P) {
-	 my_index += tmp;
-	 }
-	 }
-	 tmp = __shfl_up_sync(ALL, my_index, 1);
-	 if (tid > 0) {
-	 my_index = tmp;
-	 } else {
-	 my_index = 0;
-	 }
-	 if (result) {
-	 lo_indices[lo_count + my_index] = lo + tid;
-	 }
-	 lo_count += count;
-	 }
-	 }
-	 while (lo_count) {
-	 int result;
-	 assert(lo_count<=SORT_SHMEM_SIZE);
-	 int max_add = min(lo_count, SORT_BLOCK_SIZE);
-	 if (tid == 0) {
-	 hi = atomicAdd(top, (unsigned long long) max_add);
-	 }
-	 hi = __shfl_sync(ALL, hi, 0);
-	 max_add = min((size_t) max_add, end - hi);
-	 if (tid < max_add) {
-	 //	assert(hi + tid < end);
-	 result = int(parts.pos(xdim, hi + tid).to_double() < xmid);
-	 } else {
-	 result = 0;
-	 }
-	 int my_index = result;
-	 int count = result;
-	 for (int P = SORT_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-	 count += __shfl_xor_sync(ALL, count, P);
-	 }
-	 for (int P = 1; P < SORT_BLOCK_SIZE; P *= 2) {
-	 tmp = __shfl_up_sync(ALL, my_index, P);
-	 if (tid >= P) {
-	 my_index += tmp;
-	 }
-	 }
-	 tmp = __shfl_up_sync(ALL, my_index, 1);
-	 if (tid > 0) {
-	 my_index = tmp;
-	 } else {
-	 my_index = 0;
-	 }
-	 if (result) {
-	 const size_t i1 = lo_indices[lo_count - my_index - 1];
-	 const size_t i2 = hi + tid;
-	 parts.swap(i1, i2);
-	 }
-	 lo_count -= count;
-	 assert(lo_count >= 0);
-	 }
-	 }*/
 }
 
 size_t cpu_sort_kernel(particle_set parts, size_t begin, size_t end, double xmid, int xdim) {
