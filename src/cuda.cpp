@@ -83,7 +83,7 @@ cuda_properties cuda_init() {
 //      printf("Unable to set pending launch count to %li\n",  PENDINGLAUNCHES);
 //      fail = true;
 //   }
-   CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&gpu_sort_kernel, cudaFuncCachePreferL1));
+ //  CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&gpu_sort_kernel, cudaFuncCachePreferL1));
    CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&count_kernel, cudaFuncCachePreferL1));
     //CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
    //   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));

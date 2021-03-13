@@ -17,6 +17,13 @@
 #include <memory>
 #include <stack>
 
+
+template<class A, class B>
+struct pair {
+	A first;
+	B second;
+};
+
 #define LEFT 0
 #define RIGHT 1
 //#define KICK_CUDA_SIZE (1<<16)
@@ -43,6 +50,7 @@ struct sort_params {
 	uint32_t key_end;
 	int8_t depth;
 	int8_t min_depth;
+	pair<size_t,size_t> parts;
 
 	template<class A>
 	void serialization(A &&arc, unsigned) {
@@ -63,6 +71,8 @@ struct sort_params {
 			box.begin[dim] = 0.f;
 			box.end[dim] = 1.f;
 		}
+		parts.first = 0;
+		parts.second = global().opts.nparts;
 #ifdef TEST_STACK
 		stack_ptr = (uint8_t*) &stack_ptr;
 #endif
@@ -95,8 +105,6 @@ struct sort_params {
 #endif
 		}
 		int sort_dim = depth % NDIM;
-		child[LEFT].box.end[sort_dim] = child[RIGHT].box.begin[sort_dim] = (fixed64(box.begin[sort_dim])
-				+ fixed64(box.end[sort_dim])) / fixed64(2);
 		child[LEFT].key_begin = key_begin;
 		child[LEFT].key_end = child[RIGHT].key_begin = ((key_begin + key_end) >> 1);
 		child[RIGHT].key_end = key_end;
@@ -205,12 +213,6 @@ struct sort_return {
 		assert(false);
 	}
 };
-template<class A, class B>
-struct pair {
-	A first;
-	B second;
-};
-
 #define NITERS 4
 struct cuda_ewald_shmem {
 	array<float, KICK_BLOCK_SIZE> Lreduce;  // 256

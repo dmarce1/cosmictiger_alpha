@@ -40,32 +40,24 @@ void particle_set::prepare_drift(cudaStream_t stream) {
 	}
 }
 
-void particle_set::prepare_sort1(int dim, size_t begin, size_t end, int device, cudaStream_t stream) {
-	const auto sz = end - begin;
-	CUDA_CHECK(cudaMemAdvise(xptr_[dim] + begin, sz * sizeof(fixed32), cudaMemAdviseSetReadMostly, device));
-	CUDA_CHECK(cudaMemAdvise(xptr_[dim] + begin, sz * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, device));
-	CUDA_CHECK(cudaMemAdvise(xptr_[dim] + begin, sz * sizeof(fixed32), cudaMemAdviseSetAccessedBy, device));
-	CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim] + begin, sz * sizeof(fixed32), device, stream));
-}
-
-void particle_set::prepare_sort2(size_t begin, size_t end, int device, cudaStream_t stream) {
-	const auto sz = end - begin;
+void particle_set::prepare_sort(cudaStream_t stream) {
+	int device = 0;
 	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(vptr_[dim] + begin, sz * sizeof(float), cudaMemAdviseUnsetReadMostly, device));
-		CUDA_CHECK(cudaMemAdvise(vptr_[dim] + begin, sz * sizeof(float), cudaMemAdviseSetPreferredLocation, device));
-		CUDA_CHECK(cudaMemAdvise(vptr_[dim] + begin, sz * sizeof(float), cudaMemAdviseSetAccessedBy, device));
-		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim] + begin, sz * sizeof(float), device, stream));
+		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseUnsetReadMostly, device));
+		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, device));
+		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetAccessedBy, device));
+		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim], size() * sizeof(float), device, stream));
 	}
 	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim] + begin, sz * sizeof(fixed32), cudaMemAdviseUnsetReadMostly, device));
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim] + begin, sz * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, device));
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim] + begin, sz * sizeof(fixed32), cudaMemAdviseSetAccessedBy, device));
-		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim] + begin, sz * sizeof(fixed32), device, stream));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseUnsetReadMostly, device));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, device));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetAccessedBy, device));
+		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), device, stream));
 	}
-	CUDA_CHECK(cudaMemAdvise(rptr_ + begin, sz * sizeof(int8_t), cudaMemAdviseUnsetReadMostly, device));
-	CUDA_CHECK(cudaMemAdvise(rptr_ + begin, sz * sizeof(int8_t), cudaMemAdviseSetPreferredLocation, device));
-	CUDA_CHECK(cudaMemAdvise(rptr_ + begin, sz * sizeof(int8_t), cudaMemAdviseSetAccessedBy, device));
-	CUDA_CHECK(cudaMemPrefetchAsync(rptr_ + begin, sz * sizeof(int8_t), device, stream));
+	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseUnsetReadMostly, device));
+	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetPreferredLocation, device));
+	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetAccessedBy, device));
+	CUDA_CHECK(cudaMemPrefetchAsync(rptr_, size() * sizeof(int8_t), device, stream));
 }
 
 particle_set::particle_set(size_t size, size_t offset) {

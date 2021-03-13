@@ -5,6 +5,7 @@
 #include <cosmictiger/simd.hpp>
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/kick_return.hpp>
+#include <cosmictiger/sort.hpp>
 
 #include <cmath>
 
@@ -54,10 +55,10 @@ hpx::future<sort_return> tree::create_child(sort_params &params) {
 	//  id.rank = 0;
 	id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
 	CHECK_POINTER(id.ptr);
-	const auto nparts = (*params.bounds)[params.key_end] - (*params.bounds)[params.key_begin];
+	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
 	if (nparts > TREE_MIN_PARTS2THREAD) {
-		if (++threads_used <= hpx::thread::hardware_concurrency()) {
+		if (++threads_used <= OVERSUBSCRIPTION * hpx::thread::hardware_concurrency()) {
 			thread = true;
 		} else {
 			threads_used--;
@@ -90,9 +91,10 @@ sort_return tree::sort(sort_params params) {
 		printf("min ewald = %i\n", params.min_depth);
 	}
 	{
-		const auto bnds = params.get_bounds();
-		parts.first = bnds.first;
-		parts.second = bnds.second;
+//		const auto bnds = params.get_bounds();
+///		parts.first = bnds.first;
+//		parts.second = bnds.second;
+		parts = params.parts;
 	}
 	if (params.depth == TREE_MAX_DEPTH) {
 		printf("Exceeded maximum tree depth\n");
@@ -100,8 +102,8 @@ sort_return tree::sort(sort_params params) {
 	}
 
 	//  multi = params.allocs->multi_alloc.allocate();
+	const auto& box = params.box;
 #ifdef TEST_TREE
-	const auto &box = params.box;
 	bool failed = false;
 	for (size_t i = parts.first; i < parts.second; i++) {
 		particle p = particles->part(i);
@@ -109,7 +111,7 @@ sort_return tree::sort(sort_params params) {
 			printf("Particle out of range !\n");
 			printf("Box\n");
 			for (int dim = 0; dim < NDIM; dim++) {
-				printf("%e %e |", box.begin[dim].to_float(), box.end[dim].to_float());
+				printf("%e %e |", box.begin[dim], box.end[dim]);
 			}
 			printf("\n");
 			printf("Particle\n");
@@ -122,7 +124,7 @@ sort_return tree::sort(sort_params params) {
 		}
 	}
 	if (failed) {
-		// abort();
+		abort();
 	}
 #endif
 #ifdef TEST_STACK
@@ -137,29 +139,37 @@ sort_return tree::sort(sort_params params) {
 		{
 			const auto size = parts.second - parts.first;
 			auto child_params = params.get_children();
-			if (params.key_end - params.key_begin == 1) {
-#ifndef TEST_TREE
-				const auto &box = params.box;
-#endif
-				int radix_depth = (int(log(double(size + 1) / MAX_BUCKET_SIZE) / log(2) + TREE_RADIX_CUSHION));
-				radix_depth = std::min(std::max(radix_depth, TREE_RADIX_MIN), TREE_RADIX_MAX) + params.depth;
-				const auto radix_begin = morton_key(box.begin, radix_depth);
-				std::array<fixed64, NDIM> tmp;
-				for (int dim = 0; dim < NDIM; dim++) {
-					tmp[dim] = box.end[dim] - fixed32::min();
-				}
-				const auto radix_end = morton_key(tmp, radix_depth) + 1;
-				auto bounds = particles->local_sort(parts.first, parts.second, radix_depth, radix_begin, radix_end);
-				assert(bounds[0] >= parts.first);
-				assert(bounds[bounds.size() - 1] <= parts.second);
-				auto bndptr = std::make_shared<decltype(bounds)>(std::move(bounds));
-				for (int ci = 0; ci < NCHILD; ci++) {
-					child_params[ci].bounds = bndptr;
-				}
-				child_params[LEFT].key_begin = 0;
-				child_params[LEFT].key_end = child_params[RIGHT].key_begin = (radix_end - radix_begin) / 2;
-				child_params[RIGHT].key_end = (radix_end - radix_begin);
-			}
+			const int xdim = params.depth % NDIM;
+			auto part_handle = particles->get_virtual_particle_set();
+			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
+			size_t pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim);
+			//		printf("Sorted %li particles at level %i xmid = %e\n", parts.second - parts.first, params.depth, xmid);
+			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
+			child_params[LEFT].parts.first = parts.first;
+			child_params[LEFT].parts.second = child_params[RIGHT].parts.first = pmid;
+			child_params[RIGHT].parts.second = parts.second;
+
+			/*	if (params.key_end - params.key_begin == 1) {
+			 const auto &box = params.box;
+			 int radix_depth = (int(log(double(size + 1) / MAX_BUCKET_SIZE) / log(2) + TREE_RADIX_CUSHION));
+			 radix_depth = std::min(std::max(radix_depth, TREE_RADIX_MIN), TREE_RADIX_MAX) + params.depth;
+			 const auto radix_begin = morton_key(box.begin, radix_depth);
+			 std::array<fixed64, NDIM> tmp;
+			 for (int dim = 0; dim < NDIM; dim++) {
+			 tmp[dim] = box.end[dim] - fixed32::min();
+			 }
+			 const auto radix_end = morton_key(tmp, radix_depth) + 1;
+			 auto bounds = particles->local_sort(parts.first, parts.second, radix_depth, radix_begin, radix_end);
+			 assert(bounds[0] >= parts.first);
+			 assert(bounds[bounds.size() - 1] <= parts.second);
+			 auto bndptr = std::make_shared<decltype(bounds)>(std::move(bounds));
+			 for (int ci = 0; ci < NCHILD; ci++) {
+			 child_params[ci].bounds = bndptr;
+			 }
+			 child_params[LEFT].key_begin = 0;
+			 child_params[LEFT].key_end = child_params[RIGHT].key_begin = (radix_end - radix_begin) / 2;
+			 child_params[RIGHT].key_end = (radix_end - radix_begin);
+			 }*/
 			for (int ci = 0; ci < NCHILD; ci++) {
 				futs[ci] = create_child(child_params[ci]);
 			}
@@ -662,7 +672,7 @@ void tree::gpu_daemon() {
 			for (int i = 0; i < NWAVE; i++) {
 				printf("Sending %li blocks to GPU\n", gpu_waves[i].size());
 				particles->prepare_kick(stream);
-		//		particles->set_preferred_gpu(gpu_waves[i].front().parts.first, gpu_waves[i].front().parts.second, stream);
+				//		particles->set_preferred_gpu(gpu_waves[i].front().parts.first, gpu_waves[i].front().parts.second, stream);
 				cuda_execute_kick_kernel(gpu_params[i], gpu_waves[i].size(), stream);
 			}
 			/*			for (int i = 0; i < NWAVE; i++) {

@@ -8,13 +8,13 @@
 #define NCORNERS (1<<NDIM)
 
 struct range {
-   std::array<fixed64,NDIM> begin;
-   std::array<fixed64,NDIM> end;
+   std::array<double,NDIM> begin;
+   std::array<double,NDIM> end;
 
    inline bool contains(std::array<fixed32,NDIM> v) const {
       bool rc = true;
       for( int dim = 0; dim < NDIM; dim++) {
-         if( fixed64(v[dim]) < begin[dim] ||fixed64( v[dim]) > end[dim]) {
+         if( v[dim].to_double() < begin[dim] || v[dim].to_double() > end[dim]) {
             rc = false;
             break;
          }
