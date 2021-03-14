@@ -28,6 +28,7 @@ set(cosmictiger_source_files
 	src/sort.cu
     src/cuda.cpp
     src/drift.cu
+     src/driver.cpp
     src/expansion.cu
     src/ewald_indices.cu
     src/global.cpp

@@ -6,7 +6,7 @@
 
 #define T0 1.0
 
-tree build_tree(particle_set& parts, double& tm) {
+tree build_tree(particle_set& parts, int min_rung, double& tm) {
 	timer time;
 	time.start();
 	tree::set_particle_set(&parts);
@@ -15,7 +15,9 @@ tree build_tree(particle_set& parts, double& tm) {
 	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
 	tree::cuda_set_kick_params(parts_ptr);
 	tree root;
-	root.sort();
+	sort_params params;
+	params.min_rung = min_rung;
+	root.sort(params);
 	time.stop();
 	tm = time.read();
 	return root;
@@ -77,7 +79,7 @@ void drive_cosmos() {
 	while (iter < max_iter) {
 		double tm = double(itime) * T0 / std::numeric_limits<time_type>::max();
 		printf("Time = %e Min Rung = %i Max Rung = %i\n", tm,  min_rung(itime), max_rung);
-		tree root = build_tree(parts, tm);
+		tree root = build_tree(parts, min_rung(itime), tm);
 		printf("Building tree took %e s\n", tm);
 		max_rung = kick(root, min_rung(itime), tm);
 		printf("Kicking took       %e s \n", tm);

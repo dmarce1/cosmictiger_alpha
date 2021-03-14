@@ -34,6 +34,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	//  }
 	tree_ptr tptr = params.tptr;
 	tree& me = *((tree*) params.tptr);
+	if( !me.active ) {
+	//	printf( "No active particles this branch\n");
+		return;
+	}
 	const int &tid = threadIdx.x;
 	auto &F = params.F;
 	auto &phi = params.Phi;

@@ -31,7 +31,7 @@ int cpu_sort_depth() {
 	while ((1 << l) < hpx::threads::hardware_concurrency()) {
 		l++;
 	}
-	return l;
+	return 5;
 }
 
 CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
@@ -65,12 +65,15 @@ hpx::future<sort_return> tree::create_child(sort_params &params) {
 	CHECK_POINTER(id.ptr);
 	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
-	if (nparts > TREE_MIN_PARTS2THREAD) {
+/*	if (nparts > TREE_MIN_PARTS2THREAD) {
 		if (++threads_used <= OVERSUBSCRIPTION * hpx::thread::hardware_concurrency()) {
 			thread = true;
 		} else {
 			threads_used--;
 		}
+	}*/
+	if( params.depth <= cpu_sort_depth()) {
+		thread = true;
 	}
 #ifdef TEST_STACK
 	thread = false;
@@ -92,7 +95,10 @@ hpx::future<sort_return> tree::create_child(sort_params &params) {
 
 sort_return tree::sort(sort_params params) {
 	const auto &opts = global().opts;
+	static std::atomic<int> gpu_searches(0);
+	active = false;
 	if (params.iamroot()) {
+		gpu_searches = 0;
 		int dummy;
 		params.set_root();
 		params.min_depth = ewald_min_level(global().opts.theta, global().opts.hsoft);
@@ -141,6 +147,7 @@ sort_return tree::sort(sort_params params) {
 		printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
 	}
 #endif
+	sort_return rc;
 	if (parts.second - parts.first > MAX_BUCKET_SIZE
 			|| (params.depth < params.min_depth && parts.second - parts.first > 0)) {
 		std::array<fast_future<sort_return>, NCHILD> futs;
@@ -152,12 +159,16 @@ sort_return tree::sort(sort_params params) {
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
 			const auto cpu_depth = cpu_sort_depth();
 			if (params.depth == 0) {
-				particles->prepare_sort(parts.first, parts.second, 0);
-			} /*else if (params.depth == cpu_depth) {
-		//		particles->prepare_sort(parts.first, parts.second, cudaCpuDeviceId);
-			}*/
-			size_t pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim,
-					params.depth < cpu_depth ? GPU_SORT : CPU_SORT);
+	//			particles->prepare_sort(parts.first, parts.second, 0);
+	//		} else if (params.depth == cpu_depth) {
+	//			particles->prepare_sort(parts.first, parts.second, cudaCpuDeviceId);
+			}
+			size_t pmid;
+		//	if( params.depth < cpu_depth) {
+		//		pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim, GPU_SORT);
+		//	} else {
+				pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim, CPU_SORT);
+		//	}
 			//		printf("Sorted %li particles at level %i xmid = %e\n", parts.second - parts.first, params.depth, xmid);
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
 			child_params[LEFT].parts.first = parts.first;
@@ -193,12 +204,14 @@ sort_return tree::sort(sort_params params) {
 		std::array<fixed32*, NCHILD> Xc;
 		std::array<float, NCHILD> Rc;
 		auto &M = (multi);
+		rc.active = false;
 		for (int ci = 0; ci < NCHILD; ci++) {
-			sort_return rc = futs[ci].get();
-			children[ci] = rc.check;
-			Mc[ci] = ((tree*) rc.check)->multi;
-			Xc[ci] = ((tree*) rc.check)->pos.data();
-			children[ci] = rc.check;
+			sort_return this_rc = futs[ci].get();
+			children[ci] = this_rc.check;
+			Mc[ci] = ((tree*) this_rc.check)->multi;
+			Xc[ci] = ((tree*) this_rc.check)->pos.data();
+			children[ci] = this_rc.check;
+			rc.active = rc.active || this_rc.active;
 		}
 		std::array<double, NDIM> com = { 0, 0, 0 };
 		const auto &MR = Mc[RIGHT];
@@ -269,8 +282,15 @@ sort_return tree::sort(sort_params params) {
 			this_radius = std::sqrt(this_radius);
 			radius = std::max(radius, (float) (this_radius));
 		}
+		rc.active = false;
+		for( size_t k = parts.first; k < parts.second; k++) {
+			if( particles->rung(k) >= params.min_rung) {
+				rc.active = true;
+				break;
+			}
+		}
 	}
-	sort_return rc;
+	active = rc.active;
 	return rc;
 }
 

@@ -45,7 +45,7 @@ CUDA_KERNEL gpu_sort_kernel(particle_set parts, size_t begin, size_t mid, size_t
 	int result = 0;
 	int tmp, my_index, index;
 	while (lo < mid || __any_sync(ALL, result)) {
-		if (__any_sync(ALL, !result) && lo < mid) {
+		while (__any_sync(ALL, !result) && lo < mid) {
 			my_index = !result;
 			for (int P = SORT_BLOCK_SIZE / 2; P >= 1; P /= 2) {
 				my_index += __shfl_down_sync(ALL, my_index, P);
@@ -72,7 +72,7 @@ CUDA_KERNEL gpu_sort_kernel(particle_set parts, size_t begin, size_t mid, size_t
 				index = lo + my_index;
 			}
 		}
-		if (__any_sync(ALL, result)) {
+		while (__any_sync(ALL, result)) {
 			my_index = result;
 			for (int P = SORT_BLOCK_SIZE / 2; P >= 1; P /= 2) {
 				my_index += __shfl_down_sync(ALL, my_index, P);
@@ -100,8 +100,9 @@ CUDA_KERNEL gpu_sort_kernel(particle_set parts, size_t begin, size_t mid, size_t
 			}
 		}
 	}
+//	if(threadIdx.x == 0 )
+//	printf( "%i\n", blockIdx.x);
 }
-
 size_t cpu_sort_kernel(particle_set parts, size_t begin, size_t end, double xmid, int xdim) {
 
 	size_t lo = begin;
@@ -121,6 +122,8 @@ size_t cpu_sort_kernel(particle_set parts, size_t begin, size_t end, double xmid
 	return hi;
 }
 
+void yield();
+
 size_t gpu_count_particles(particle_set parts, size_t begin, size_t end, double xpos, int xdim, cudaStream_t stream) {
 	const auto nparts = global().opts.nparts;
 	const auto nprocs = global().cuda.devices[0].multiProcessorCount;
@@ -129,6 +132,7 @@ size_t gpu_count_particles(particle_set parts, size_t begin, size_t end, double 
 	size_t* counts;
 	CUDA_MALLOC(counts, nchunks);
 	count_kernel<<<nchunks,COUNT_BLOCK_SIZE,0,stream>>>(parts,begin,end,xpos,xdim,counts);
+	yield();
 	CUDA_CHECK(cudaStreamSynchronize(stream));
 	size_t count = 0;
 	for (int i = 0; i < nchunks; i++) {
@@ -149,24 +153,24 @@ size_t cpu_count_particles(particle_set parts, size_t begin, size_t end, double 
 	return count;
 }
 
-void yield();
-
 size_t sort_particles(particle_set parts, size_t begin, size_t end, double xmid, int xdim, sort_type type) {
 	size_t pmid;
 	if (end == begin) {
 		pmid = end;
 	} else {
-		if (type == GPU_SORT) {
+		const auto nprocs = global().cuda.devices[0].multiProcessorCount;
+		const auto nblocks = SORT_OCCUPANCY * nprocs * (end - begin) / global().opts.nparts;
+		if (nblocks >= nprocs) {
 			auto stream = get_stream();
 			pmid = begin + gpu_count_particles(parts, begin, end, xmid, xdim, stream);
+			yield();
 			CUDA_CHECK(cudaStreamSynchronize(stream));
 			unsigned long long* indexes;
 			CUDA_MALLOC(indexes, 2);
-			const auto nprocs = global().cuda.devices[0].multiProcessorCount;
 			indexes[0] = begin;
 			indexes[1] = pmid;
 			gpu_sort_kernel<<<2*SORT_OCCUPANCY*nprocs,SORT_BLOCK_SIZE>>>(parts, begin, pmid, end, xmid, xdim, indexes + 0, indexes + 1);
-			yield();
+	///		yield();
 			CUDA_CHECK(cudaStreamSynchronize(stream));
 			cleanup_stream(stream);
 			CUDA_FREE(indexes);

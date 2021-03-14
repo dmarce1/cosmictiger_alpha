@@ -48,7 +48,7 @@ struct sort_params {
 	int8_t depth;
 	int8_t min_depth;
 	pair<size_t,size_t> parts;
-
+	int min_rung;
 	template<class A>
 	void serialization(A &&arc, unsigned) {
 		/********* ADD******/
@@ -81,6 +81,7 @@ struct sort_params {
 			child[i].allocs = allocs;
 			child[i].box = box;
 			child[i].min_depth = min_depth;
+			child[i].min_rung = min_rung;
 		}
 		return child;
 	}
@@ -182,6 +183,7 @@ struct tree_ptr {
 
 struct sort_return {
 	tree_ptr check;
+	bool active;
 	template<class A>
 	void serialization(A &&arc, unsigned) {
 		assert(false);
@@ -296,6 +298,7 @@ private:
 	multipole multi;
 	array<fixed32, NDIM> pos;
 	float radius;
+	bool active;
 	array<tree_ptr, NCHILD> children;
 	pair<size_t, size_t> parts;
 	static particle_set* particles;
