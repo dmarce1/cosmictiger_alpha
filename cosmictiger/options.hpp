@@ -15,8 +15,17 @@ struct options {
    std::string test;
    size_t parts_dim;
    size_t nparts;
-   float hsoft;
-   float theta;
+   double hsoft;
+   double theta;
+   double code_to_s;
+   double code_to_g;
+   double code_to_cm;
+   double code_to_cms;
+   double omega_m;
+   double hubble;
+   double H0;
+   double G;
+   double M;
    template<class A>
    void serialize(A&& arc, unsigned) {
       arc & config;

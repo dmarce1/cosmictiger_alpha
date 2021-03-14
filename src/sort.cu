@@ -155,7 +155,7 @@ size_t cpu_count_particles(particle_set parts, size_t begin, size_t end, double 
 
 size_t sort_particles(particle_set parts, size_t begin, size_t end, double xmid, int xdim, sort_type type) {
 	size_t pmid;
-	if (end == begin) {
+/*	if (end == begin) {
 		pmid = end;
 	} else {
 		const auto nprocs = global().cuda.devices[0].multiProcessorCount;
@@ -176,8 +176,9 @@ size_t sort_particles(particle_set parts, size_t begin, size_t end, double xmid,
 			CUDA_FREE(indexes);
 		} else {
 			pmid = cpu_sort_kernel(parts, begin, end, xmid, xdim);
-		}
-	}
+		}*/
+//	}
 //	printf("Finished Sort  %li %li %li\n", begin, pmid, end);
+	pmid = cpu_sort_kernel(parts, begin, end, xmid, xdim);
 	return pmid;
 }

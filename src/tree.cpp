@@ -65,16 +65,16 @@ hpx::future<sort_return> tree::create_child(sort_params &params) {
 	CHECK_POINTER(id.ptr);
 	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
-/*	if (nparts > TREE_MIN_PARTS2THREAD) {
+	if (nparts > TREE_MIN_PARTS2THREAD) {
 		if (++threads_used <= OVERSUBSCRIPTION * hpx::thread::hardware_concurrency()) {
 			thread = true;
 		} else {
 			threads_used--;
 		}
-	}*/
-	if( params.depth <= cpu_sort_depth()) {
-		thread = true;
 	}
+//	if( params.depth <= cpu_sort_depth()) {
+//		thread = true;
+//	}
 #ifdef TEST_STACK
 	thread = false;
 #endif
