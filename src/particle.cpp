@@ -336,6 +336,20 @@ void particle_set::load_particles(std::string filename) {
 	printf("Omega_m =       %e\n", header.Omega0);
 	printf("Omega_lambda =  %e\n", header.OmegaLambda);
 	printf("Hubble Param =  %e\n", header.HubbleParam);
+	global().opts.z0 = header.redshift;
+	global().opts.omega_m = header.Omega0;
+	global().opts.hubble = header.HubbleParam;
+	const auto Gcgs = 6.67259e-8;
+	const auto ccgs = 2.99792458e+10;
+	const auto Hcgs = 3.2407789e-18;
+	global().opts.code_to_s = global().opts.code_to_cm / global().opts.code_to_cms;
+	global().opts.H0 = Hcgs * global().opts.code_to_s;
+	global().opts.G = Gcgs / pow(global().opts.code_to_cm, 3) * global().opts.code_to_g * pow(global().opts.code_to_s, 2);
+	double m_tot = global().opts.omega_m * 3.0 * global().opts.H0 * global().opts.H0 / (8 * M_PI * global().opts.G);
+	global().opts.M = m_tot / global().opts.nparts;
+	printf("G in code units = %e\n", global().opts.G);
+	printf("M in code units = %e\n", global().opts.M);
+
 	fread(&dummy, sizeof(dummy), 1, fp);
 // printf( "%li\n", parts.size());
 	for (int i = 0; i < header.npart[1]; i++) {

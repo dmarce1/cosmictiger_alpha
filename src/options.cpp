@@ -60,17 +60,8 @@ bool process_options(int argc, char *argv[], options &opts) {
 	}
 	opts.hsoft = 1.0 / pow(opts.nparts, 1.0 / 3.0) / 50.0;
 	opts.theta = 0.7;
+	opts.G = opts.M = 1.0;
 
-	const auto Gcgs = 6.67259e-8;
-	const auto ccgs = 2.99792458e+10;
-	const auto Hcgs = 3.2407789e-18;
-	opts.code_to_s = opts.code_to_cm / opts.code_to_cms;
-	opts.H0 = Hcgs * opts.code_to_s;
-	opts.G = Gcgs / pow(opts.code_to_cm, 3) * opts.code_to_g * pow(opts.code_to_s, 2);
-	double m_tot = opts.omega_m * 3.0 * opts.H0 * opts.H0 / (8 * M_PI * opts.G);
-	opts.M = m_tot / opts.nparts;
-	printf("G in code units = %e\n", opts.G);
-	printf("M in code units = %e\n", opts.M);
 	return rc;
 }
 

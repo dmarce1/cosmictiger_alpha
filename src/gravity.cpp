@@ -158,7 +158,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			X[dim] = particles->pos(dim, i + parts.first).raw();
 		}
-		if (particles->rung(i + parts.first) >= params.rung) {
+		if (particles->rung(i + parts.first) >= params.rung || params.full_eval) {
 			array<simd_float, NDIM> f;
 			simd_float phi = 0.f;
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -239,7 +239,7 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			X[dim] = particles->pos(dim, i + parts.first).raw();
 		}
-		if (particles->rung(i + parts.first) >= params.rung) {
+		if (particles->rung(i + parts.first) >= params.rung || params.full_eval) {
 			array<simd_float, NDIM> f;
 			array<simd_float, NDIM + 1> Lacc;
 			const auto cnt1 = multis.size();

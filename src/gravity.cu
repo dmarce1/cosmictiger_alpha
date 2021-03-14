@@ -58,7 +58,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	kick_return_update_interactions_gpu(etype == DIRECT ? KR_CC : KR_EWCC, interacts, flops);
 }
 
-CUDA_DEVICE void cuda_cp_interactions( kick_params_type *params_ptr) {
+CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	particle_set *parts = params.particles;
 	const auto& parti = params.part_interactions;
@@ -139,7 +139,7 @@ CUDA_DEVICE void cuda_cp_interactions( kick_params_type *params_ptr) {
 	kick_return_update_interactions_gpu(KR_CP, interacts, flops);
 }
 
-CUDA_DEVICE void cuda_pp_interactions( kick_params_type *params_ptr) {
+CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	particle_set *parts = params.particles;
 	const auto& parti = params.part_interactions;
@@ -167,7 +167,7 @@ CUDA_DEVICE void cuda_pp_interactions( kick_params_type *params_ptr) {
 	const int nsinks = myparts.second - myparts.first;
 	for (int i = tid; i < nsinks; i += KICK_BLOCK_SIZE) {
 		rungs[i] = parts->rung(i + myparts.first);
-		if (rungs[i] >= params.rung) {
+		if (rungs[i] >= params.rung || params.full_eval) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				sinks[dim][i] = parts->pos(dim, i + myparts.first);
 			}
@@ -217,7 +217,7 @@ CUDA_DEVICE void cuda_pp_interactions( kick_params_type *params_ptr) {
 		float r3inv, r1inv;
 		__threadfence_block();
 		for (int k = 0; k < nsinks; k++) {
-			if (rungs[k] >= params.rung) {
+			if (rungs[k] >= params.rung || params.full_eval) {
 				fx = 0.f;
 				fy = 0.f;
 				fz = 0.f;
@@ -267,7 +267,7 @@ CUDA_DEVICE void cuda_pp_interactions( kick_params_type *params_ptr) {
 }
 
 CUDA_DEVICE
-void cuda_pc_interactions( kick_params_type *params_ptr) {
+void cuda_pc_interactions(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	particle_set *parts = params.particles;
 	const auto& multis = params.multi_interactions;
@@ -289,7 +289,7 @@ void cuda_pc_interactions( kick_params_type *params_ptr) {
 	auto& msrcs = shmem.msrc;
 	for (int i = tid; i < nparts; i += KICK_BLOCK_SIZE) {
 		rungs[i] = parts->rung(i + myparts.first);
-		if (rungs[i] >= params.rung) {
+		if (rungs[i] >= params.rung || params.full_eval) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				sinks[dim][i] = parts->pos(dim, myparts.first + i);
 			}
@@ -343,7 +343,7 @@ void cuda_pc_interactions( kick_params_type *params_ptr) {
 		}
 		__threadfence_block();
 		for (int k = 0; k < nparts; k++) {
-			if (rungs[k] >= params.rung) {
+			if (rungs[k] >= params.rung || params.full_eval) {
 				for (int i = 0; i < NDIM + 1; i++) {
 					Lforce[i] = 0.f;
 				}
@@ -382,10 +382,10 @@ void cuda_pc_interactions( kick_params_type *params_ptr) {
 
 #ifdef TEST_FORCE
 CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr,
-		float* pnorm);
+		float* pnorm, float GM);
 
 #ifdef __CUDA_ARCH__
-CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr, float* pnorm) {
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr, float* pnorm, float GM) {
 	const int &tid = threadIdx.x;
 	const int &bid = blockIdx.x;
 
@@ -475,11 +475,10 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 		}
 		cuda_sync();
 	}
-#ifdef PERIODIC_OFF
 	for(int dim = 0; dim < NDIM; dim++) {
-		f[dim][0] = -f[dim][0];
+		f[dim][0] =GM * f[dim][0];
 	}
-#endif
+	phi[0] = GM * phi[0];
 	const auto f_ffm = sqrt(f_x * f_x + f_y * f_y + f_z * f_z);
 	const auto f_dir = sqrt(sqr(f[0][0]) + sqr(f[1][0]) + sqr(f[2][0]));
 	if (tid == 0) {
@@ -507,7 +506,7 @@ void cuda_compare_with_direct(particle_set *parts) {
 	for (int i = 0; i < N_TEST_PARTS; i++) {
 		test_parts[i] = rand() % nparts;
 	}
-	cuda_pp_ewald_interactions<<<N_TEST_PARTS,KICK_BLOCK_SIZE>>>(parts, test_parts, ferrs, fnorms, perrs, pnorms);
+	cuda_pp_ewald_interactions<<<N_TEST_PARTS,KICK_BLOCK_SIZE>>>(parts, test_parts, ferrs, fnorms, perrs, pnorms, global().opts.G * global().opts.M);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	float favg_err = 0.0;
 	float fnorm = 0.0;

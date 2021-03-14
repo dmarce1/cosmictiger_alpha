@@ -159,16 +159,16 @@ sort_return tree::sort(sort_params params) {
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
 			const auto cpu_depth = cpu_sort_depth();
 			if (params.depth == 0) {
-	//			particles->prepare_sort(parts.first, parts.second, 0);
-	//		} else if (params.depth == cpu_depth) {
-	//			particles->prepare_sort(parts.first, parts.second, cudaCpuDeviceId);
+				//			particles->prepare_sort(parts.first, parts.second, 0);
+				//		} else if (params.depth == cpu_depth) {
+				//			particles->prepare_sort(parts.first, parts.second, cudaCpuDeviceId);
 			}
 			size_t pmid;
-		//	if( params.depth < cpu_depth) {
-		//		pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim, GPU_SORT);
-		//	} else {
-				pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim, CPU_SORT);
-		//	}
+			//	if( params.depth < cpu_depth) {
+			//		pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim, GPU_SORT);
+			//	} else {
+			pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim, CPU_SORT);
+			//	}
 			//		printf("Sorted %li particles at level %i xmid = %e\n", parts.second - parts.first, params.depth, xmid);
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
 			child_params[LEFT].parts.first = parts.first;
@@ -283,8 +283,8 @@ sort_return tree::sort(sort_params params) {
 			radius = std::max(radius, (float) (this_radius));
 		}
 		rc.active = false;
-		for( size_t k = parts.first; k < parts.second; k++) {
-			if( particles->rung(k) >= params.min_rung) {
+		for (size_t k = parts.first; k < parts.second; k++) {
+			if (particles->rung(k) >= params.min_rung) {
 				rc.active = true;
 				break;
 			}
@@ -518,7 +518,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		const auto invlog2 = 1.0f / logf(2);
 		for (int k = 0; k < parts.second - parts.first; k++) {
 			const auto this_rung = particles->rung(k + parts.first);
-			if (this_rung >= params.rung) {
+			if (this_rung >= params.rung || params.full_eval) {
 				array<float, NDIM> g;
 				float this_phi;
 				for (int dim = 0; dim < NDIM; dim++) {
@@ -533,36 +533,43 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					F[dim][k] += g[dim];
 				}
 				phi[k] += this_phi;
+				for (int dim = 0; dim < NDIM; dim++) {
+					F[dim][k] *= params.G * params.M;
+				}
+				phi[k] *= params.G * params.M;
 #ifdef TEST_FORCE
 				for (int dim = 0; dim < NDIM; dim++) {
 					particles->force(dim, k + parts.first) = F[dim][k];
 				}
 				particles->pot(k + parts.first) = phi[k];
 #endif
-				float dt = params.t0 / (1 << this_rung);
-				if (!params.t0) {
+				if (this_rung >= params.full_eval) {
+					float dt = params.t0 / (1 << this_rung);
+					if (!params.t0) {
+						for (int dim = 0; dim < NDIM; dim++) {
+							particles->vel(dim, k + parts.first) += 0.5 * dt * F[dim][k];
+						}
+					}
+					float fmag = 0.0;
+					for (int dim = 0; dim < NDIM; dim++) {
+						fmag += sqr(F[dim][k]);
+					}
+					fmag = sqrtf(fmag);
+					assert(fmag > 0.0);
+					dt = std::min(params.eta * std::sqrt(params.scale * params.hsoft / fmag), params.t0);
+					int new_rung = std::max(std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1),
+							params.rung),0);
+					dt = params.t0 / (1 << new_rung);
 					for (int dim = 0; dim < NDIM; dim++) {
 						particles->vel(dim, k + parts.first) += 0.5 * dt * F[dim][k];
 					}
+					max_rung = std::max(max_rung, new_rung);
+					particles->set_rung(new_rung, k + parts.first);
 				}
-				float fmag = 0.0;
-				for (int dim = 0; dim < NDIM; dim++) {
-					fmag += sqr(F[dim][k]);
-				}
-				fmag = sqrtf(fmag);
-				assert(fmag > 0.0);
-				dt = std::min(params.eta * std::sqrt(params.scale * params.hsoft / fmag), params.t0);
-				int new_rung = std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1),
-						params.rung);
-				dt = params.t0 / (1 << new_rung);
-				for (int dim = 0; dim < NDIM; dim++) {
-					particles->vel(dim, k + parts.first) += 0.5 * dt * F[dim][k];
-				}
-				max_rung = std::max(max_rung, new_rung);
-				particles->set_rung(new_rung, k + parts.first);
-				kick_return_update_pot_cpu(new_rung, phi[k]);
+				kick_return_update_pot_cpu(phi[k], F[0][k], F[1][k], F[2][k]);
 			}
-			kick_return_update_rung_cpu(particles->rung(k + parts.first));
+			kick_return_update_rung_cpu(particles->rung(k + parts.first), particles->vel(0, k + parts.first),
+					particles->vel(1, k + parts.first), particles->vel(2, k + parts.first));
 
 		}
 		//	rc.rung = max_rung;
@@ -586,7 +593,7 @@ void tree::gpu_daemon() {
 	static double wait_time = 5.0e-3;
 	static int min_ewald;
 	if (first_call) {
-	//	printf("Starting gpu daemon\n");
+		//	printf("Starting gpu daemon\n");
 		timer.reset();
 		timer.start();
 		first_call = false;
@@ -630,7 +637,7 @@ void tree::gpu_daemon() {
 		 }
 		 } else*/if (gpu_queue.size() == kick_block_count) {
 			kick_timer.stop();
-		//	printf("Time to GPU = %e\n", kick_timer.read());
+			//	printf("Time to GPU = %e\n", kick_timer.read());
 			using promise_type = std::vector<std::shared_ptr<hpx::lcos::local::promise<void>>>;
 			std::shared_ptr<promise_type> gpu_promises[NWAVE];
 			//		std::shared_ptr<promise_type> cpu_promises[NWAVE];
@@ -703,9 +710,9 @@ void tree::gpu_daemon() {
 			 calloc.deallocate(cpu_params[j]);
 			 });
 			 }*/
-	//		printf("Executing \n");
+			//		printf("Executing \n");
 			for (int i = 0; i < NWAVE; i++) {
-		//		printf("Sending %li blocks to GPU\n", gpu_waves[i].size());
+				//		printf("Sending %li blocks to GPU\n", gpu_waves[i].size());
 				particles->prepare_kick(stream);
 				//		particles->set_preferred_gpu(gpu_waves[i].front().parts.first, gpu_waves[i].front().parts.second, stream);
 				cuda_execute_kick_kernel(gpu_params[i], gpu_waves[i].size(), stream);
@@ -745,7 +752,7 @@ void tree::gpu_daemon() {
 							(*gpu_promises[j])[i]->set_value();
 						}
 					}
-			//		printf("Done executing\n");
+					//		printf("Done executing\n");
 					return true;
 				} else {
 					return false;

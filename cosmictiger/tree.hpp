@@ -17,7 +17,6 @@
 #include <memory>
 #include <stack>
 
-
 template<class A, class B>
 struct pair {
 	A first;
@@ -47,7 +46,7 @@ struct sort_params {
 	std::shared_ptr<tree_alloc> allocs;
 	int8_t depth;
 	int8_t min_depth;
-	pair<size_t,size_t> parts;
+	pair<size_t, size_t> parts;
 	int min_rung;
 	template<class A>
 	void serialization(A &&arc, unsigned) {
@@ -221,6 +220,7 @@ struct kick_params_type {
 	stack_vector<tree_ptr> echecks;
 	array<array<double, MAX_BUCKET_SIZE>, NDIM> F;
 	array<double, MAX_BUCKET_SIZE> Phi;
+
 	array<expansion<float>, TREE_MAX_DEPTH> L;
 	array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
 	tree_ptr tptr;
@@ -228,15 +228,16 @@ struct kick_params_type {
 	int depth;
 	int block_cutoff;
 	float theta;
+	float M;
+	float G;
 	float eta;
 	float scale;
 	float hsoft;
+	bool full_eval;
 	bool first;
 	int rung;
 	bool cpu_block;
 	float t0;
-	uintptr_t stack_top;
-	size_t flops;
 	kick_params_type& operator=(kick_params_type& other) {
 		first = other.first;
 		dchecks = other.dchecks.copy_top();
@@ -248,26 +249,29 @@ struct kick_params_type {
 		eta = other.eta;
 		scale = other.scale;
 		t0 = other.t0;
+		hsoft = other.hsoft;
 		rung = other.rung;
+		full_eval = other.full_eval;
 		block_cutoff = other.block_cutoff;
+		G = other.G;
+		M = other.M;
 		return *this;
 	}
 
-	CUDA_EXPORT
 	inline kick_params_type() {
-		THREAD;
-		if (tid == 0) {
-			depth = 0;
-			theta = 0.4;
-			eta = 0.1;
-			scale = 1.0;
-			t0 = 1.0;
-			cpu_block = false;
-			first = true;
-			rung = 0;
-			hsoft = global().opts.hsoft;
-			theta = global().opts.theta;
-		}CUDA_SYNC();
+		depth = 0;
+		theta = 0.4;
+		eta = 0.1;
+		scale = 1.0;
+		t0 = 1.0;
+		cpu_block = false;
+		first = true;
+		full_eval = false;
+		rung = 0;
+		hsoft = global().opts.hsoft;
+		theta = global().opts.theta;
+		M = global().opts.M;
+		G = global().opts.G;
 	}
 	friend class tree_ptr;
 };

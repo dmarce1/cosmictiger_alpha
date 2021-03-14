@@ -34,8 +34,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	//  }
 	tree_ptr tptr = params.tptr;
 	tree& me = *((tree*) params.tptr);
-	if( !me.active ) {
-	//	printf( "No active particles this branch\n");
+	if (!me.active && !params.full_eval) {
+		//	printf( "No active particles this branch\n");
 		return;
 	}
 	const int &tid = threadIdx.x;
@@ -205,7 +205,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			const int pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
 			for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 				rungs[k] = parts->rung(k + myparts.first);
-				if (rungs[k] >= params.rung) {
+				if (rungs[k] >= params.rung || params.full_eval) {
 					for (int dim = 0; dim < NDIM; dim++) {
 						sinks[dim][k] = parts->pos(dim, myparts.first + k);
 					}
@@ -225,7 +225,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					bool res = false;
 					for (int k = 0; k < last - first; k++) {
 						const auto this_rung = rungs[k];
-						if (this_rung >= params.rung) {
+						if (this_rung >= params.rung || params.full_eval) {
 							float dx0 = distance(other.pos[0], sinks[0][k]);
 							float dy0 = distance(other.pos[1], sinks[1][k]);
 							float dz0 = distance(other.pos[2], sinks[2][k]);
@@ -317,11 +317,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		}
 		//   printf( "%li\n", rc.flops);
 	} else {
-		auto& rungs = shmem.rungs;
 		const auto invlog2 = 1.0f / logf(2);
 		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 			const auto this_rung = parts->rung(k + myparts.first);
-			if (this_rung >= params.rung) {
+			if (this_rung >= params.rung || params.full_eval) {
 				array<float, NDIM> g;
 				float this_phi;
 				array<float, NDIM> dx;
@@ -335,35 +334,42 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					F[dim][k] += g[dim];
 				}
 				phi[k] += this_phi;
+				for (int dim = 0; dim < NDIM; dim++) {
+					F[dim][k] *= params.G * params.M;
+				}
+				phi[k] *= params.G * params.M;
 #ifdef TEST_FORCE
 				for (int dim = 0; dim < NDIM; dim++) {
 					parts->force(dim, k + myparts.first) = F[dim][k];
 				}
 				parts->pot(k + myparts.first) = phi[k];
 #endif
-				float dt = params.t0 / (1 << this_rung);
-				if (!params.first) {
+				if (this_rung >= params.rung) {
+					float dt = params.t0 / (1 << this_rung);
+					if (!params.first) {
+						for (int dim = 0; dim < NDIM; dim++) {
+							parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
+						}
+					}
+					float fmag = 0.0;
+					for (int dim = 0; dim < NDIM; dim++) {
+						fmag += sqr(F[dim][k]);
+					}
+					fmag = sqrtf(fmag);
+					//   printf( "%e\n", fmag);
+					assert(fmag > 0.0);
+					dt = fminf(params.eta * sqrt(params.scale * params.hsoft / fmag), params.t0);
+					int new_rung = fmaxf(fmaxf(fmaxf(ceil(logf(params.t0 / dt) * invlog2), this_rung - 1), params.rung),0);
+					dt = params.t0 / (1 << new_rung);
 					for (int dim = 0; dim < NDIM; dim++) {
 						parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
 					}
+					parts->set_rung(new_rung, k + myparts.first);
 				}
-				float fmag = 0.0;
-				for (int dim = 0; dim < NDIM; dim++) {
-					fmag += sqr(F[dim][k]);
-				}
-				fmag = sqrtf(fmag);
-				//   printf( "%e\n", fmag);
-				assert(fmag > 0.0);
-				dt = fminf( params.eta * sqrt(params.scale * params.hsoft / fmag), params.t0);
-				int new_rung = fmaxf(fmaxf(ceil(logf(params.t0 / dt) * invlog2), this_rung - 1), params.rung);
-				dt = params.t0 / (1 << new_rung);
-				for (int dim = 0; dim < NDIM; dim++) {
-					parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
-				}
-				parts->set_rung(new_rung, k + myparts.first);
-				kick_return_update_pot_gpu(new_rung, phi[k]);
+				kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
 			}
-			kick_return_update_rung_gpu(parts->rung(k + myparts.first));
+			kick_return_update_rung_gpu(parts->rung(k + myparts.first), parts->vel(0, k + myparts.first),
+					parts->vel(1, k + myparts.first), parts->vel(2, k + myparts.first));
 		}
 	}
 	kick_return_update_interactions_gpu(KR_OP, interacts, flops);

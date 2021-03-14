@@ -28,7 +28,9 @@ static void tree_test() {
 		timer tm;
 		tm.start();
 		tree root;
-		root.sort();
+		sort_params params;
+		params.min_rung = 0;
+		root.sort(params);
 		managed_allocator<sort_params>::cleanup();
 		tm.stop();
 		managed_allocator<multipole>::cleanup();
@@ -39,7 +41,9 @@ static void tree_test() {
 		timer tm;
 		tm.start();
 		tree root;
-		root.sort();
+		sort_params params;
+		params.min_rung = 0;
+		root.sort(params);
 		tm.stop();
 		printf("Done sorting in %e\n", tm.read());
 	}
@@ -60,7 +64,9 @@ void kick_test() {
 		tree root;
 		timer tm_sort, tm_kick, tm_cleanup;
 		tm_sort.start();
-		root.sort();
+		sort_params params;
+		params.min_rung = 0;
+		root.sort(params);
 		tm_sort.stop();
 		tm_kick.start();
 		tree_ptr root_ptr;
@@ -86,6 +92,8 @@ void kick_test() {
 		params_ptr->L[0] = L;
 		params_ptr->Lpos[0] = Lpos;
 		params_ptr->t0 = true;
+		params_ptr->full_eval = true;
+		params_ptr->rung = 0;
 		root.kick(params_ptr).get();
 		tm_kick.stop();
 		/*   tm.start();
@@ -132,7 +140,9 @@ void drift_test() {
 		tree root;
 		timer tm_sort, tm_kick, tm_cleanup;
 		tm_sort.start();
-		root.sort();
+		sort_params params;
+		params.min_rung = 0;
+		root.sort(params);
 		tm_sort.stop();
 		tm_kick.start();
 		tree_ptr root_ptr;
@@ -144,6 +154,7 @@ void drift_test() {
 		new (params_ptr) kick_params_type();
 		params_ptr->dchecks.push(root_ptr);
 		params_ptr->echecks.push(root_ptr);
+		params_ptr->full_eval = true;
 
 		// printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
 		array<fixed32, NDIM> Lpos;
@@ -213,7 +224,9 @@ void force_test() {
 	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
 	tree::cuda_set_kick_params(parts_ptr);
 	tree root;
-	root.sort();
+	sort_params params;
+	params.min_rung = 0;
+	root.sort(params);
 	tree_ptr root_ptr;
 	root_ptr.ptr = (uintptr_t) & root;
 	//  root_ptr.rank = hpx_rank();

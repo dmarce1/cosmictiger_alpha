@@ -25,6 +25,7 @@ struct options {
    double hubble;
    double H0;
    double G;
+   double z0;
    double M;
    template<class A>
    void serialize(A&& arc, unsigned) {

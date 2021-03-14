@@ -13,6 +13,10 @@ kick_return kick_return_get_gpu();
 
 void kick_return_init(int min_rung) {
 	cpu_return.min_rung = min_rung;
+	cpu_return.kin = 0.0;
+	for (int dim = 0; dim < NDIM; dim++) {
+		cpu_return.mom[dim] = 0.0;
+	}
 	for (int i = 0; i < MAX_RUNG; i++) {
 		cpu_return.rung_cnt[i] = 0;
 	}
@@ -20,8 +24,9 @@ void kick_return_init(int min_rung) {
 		cpu_return.flop[i] = 0;
 		cpu_return.count[i] = 0;
 	}
-	for( int i  = min_rung; i < MAX_RUNG; i++) {
-		cpu_return.phis[i] = 0.f;
+	cpu_return.phis = 0.f;
+	for (int dim = 0; dim < NDIM; dim++) {
+		cpu_return.forces[dim] = 0.f;
 	}
 	kick_return_init_gpu(min_rung);
 	tm.start();
@@ -29,35 +34,40 @@ void kick_return_init(int min_rung) {
 
 kick_return kick_return_get() {
 	kick_return rc = kick_return_get_gpu();
+	rc.phis += cpu_return.phis;
+	for (int dim = 0; dim < NDIM; dim++) {
+		rc.forces[dim] += cpu_return.forces[dim];
+	}
 	for (int i = 0; i < MAX_RUNG; i++) {
 		rc.rung_cnt[i] += cpu_return.rung_cnt[i];
-		rc.phis[i] += cpu_return.phis[i];
 	}
-	for( int i = 0; i < KR_COUNT; i++) {
+	for (int i = 0; i < KR_COUNT; i++) {
 		rc.count[i] += cpu_return.count[i];
 		rc.flop[i] += cpu_return.flop[i];
+	}
+	rc.kin += cpu_return.kin;
+	for (int dim = 0; dim < NDIM; dim++) {
+		rc.mom[dim] += cpu_return.mom[dim];
 	}
 	return rc;
 }
 
-
 void kick_return_update_interactions_cpu(int itype, int count, int flops) {
 	std::lock_guard<mutex_type> lock(mtx);
 	cpu_return.flop[itype] += flops;
-	cpu_return.count[itype] +=  count;
+	cpu_return.count[itype] += count;
 }
 
 int kick_return_max_rung() {
 	kick_return rc = kick_return_get();
 	int max_rung = 0;
-	for( int i = 0; i < MAX_RUNG; i++) {
-		if( rc.rung_cnt[i]) {
-			max_rung = std::max(max_rung,i);
+	for (int i = 0; i < MAX_RUNG; i++) {
+		if (rc.rung_cnt[i]) {
+			max_rung = std::max(max_rung, i);
 		}
 	}
 	return max_rung;
 }
-
 
 void kick_return_show() {
 	kick_return rc;
@@ -75,12 +85,13 @@ void kick_return_show() {
 	}
 	const auto elapsed = tm.read();
 	tm.reset();
-	printf( "\nKick took %e seconds\n\n", elapsed);
+	printf("\nKick took %e seconds\n\n", elapsed);
 	float phi_sum = 0.f;
-	for( int i = 0; i < MAX_RUNG; i++) {
-		phi_sum += rc.phis[i];
-	}
-	printf( "Potential Energy = %e\n", phi_sum);
+	const auto fac = 1.0 / global().opts.nparts;
+	printf("Potential Energy / Total Forces    = %e %e %e %e\n", rc.phis* fac, rc.forces[0] * fac, rc.forces[1] * fac,
+			rc.forces[2] * fac);
+	printf("Kinetic   Energy / Total Momentum  = %e %e %e %e\n", rc.kin * fac, rc.mom[0] * fac, rc.mom[1] * fac,
+			rc.mom[2] * fac);
 	printf("Rungs ");
 	for (int i = min_rung; i <= max_rung; i++) {
 		printf("%8i ", i);
@@ -91,37 +102,45 @@ void kick_return_show() {
 	}
 	printf("\n");
 
-	printf( "Interactions / part : GFLOP\n");
-	array<double,KR_COUNT> count_pct, flop_pct, flop_per;
+	printf("Interactions / part : GFLOP\n");
+	array<double, KR_COUNT> count_pct, flop_pct, flop_per;
 	double flop_tot = 0, count_tot = 0;
-	for( int i = 0; i < KR_COUNT; i++) {
+	for (int i = 0; i < KR_COUNT; i++) {
 		flop_per[i] = rc.flop[i] / rc.count[i];
 		rc.count[i] /= global().opts.nparts;
 		flop_tot += rc.flop[i];
 		count_tot += rc.count[i];
 	}
-	for( int i = 0; i < KR_COUNT; i++) {
+	for (int i = 0; i < KR_COUNT; i++) {
 		count_pct[i] = rc.count[i] / count_tot * 100.0;
 		flop_pct[i] = rc.flop[i] / flop_tot * 100.0;
 	}
-	const char* names[] = {"PP", "PC", "CP", "CC", "OP", "EW"} ;
-	const auto fac = 1.0 / 1024.0/1024.0/1024.0;
-	printf( "Evals per particles | FLOP | FLOP per eval\n");
-	for( int i = 0; i < 6; i++) {
-		printf( "%4s   : %8.3e (%5.2f%%)  %8.3e (%5.2f%%) %.2f\n", names[i], rc.count[i],count_pct[i], rc.flop[i]*fac, flop_pct[i], flop_per[i]);
+	const char* names[] = { "PP", "PC", "CP", "CC", "OP", "EW" };
+	const auto fac1 = 1.0 / 1024.0 / 1024.0 / 1024.0;
+	printf("Evals per particles | FLOP | FLOP per eval\n");
+	for (int i = 0; i < 6; i++) {
+		printf("%4s   : %8.3e (%5.2f%%)  %8.3e (%5.2f%%) %.2f\n", names[i], rc.count[i], count_pct[i], rc.flop[i] * fac1,
+				flop_pct[i], flop_per[i]);
 	}
-	printf( "\nTotal GFLOP  = %8.3e\n", flop_tot * fac);
-	printf( "Total GFLOPS = %8.3e\n\n", flop_tot * fac / elapsed);
+//	printf("\nTotal GFLOP  = %8.3e\n", flop_tot * fac);
+//	printf("Total GFLOPS = %8.3e\n\n", flop_tot * fac / elapsed);
 
 }
 
-void kick_return_update_pot_cpu(int rung, float phi) {
+void kick_return_update_pot_cpu(float phi, float fx, float fy, float fz) {
 	std::lock_guard<mutex_type> lock(mtx);
-	cpu_return.phis[rung] += phi;
+	cpu_return.phis += phi;
+	cpu_return.forces[0] += fx;
+	cpu_return.forces[1] += fx;
+	cpu_return.forces[2] += fx;
 }
 
-void kick_return_update_rung_cpu(int rung) {
+void kick_return_update_rung_cpu(int rung, float vx, float vy, float vz) {
 	std::lock_guard<mutex_type> lock(mtx);
 	cpu_return.rung_cnt[rung]++;
+	cpu_return.kin += 0.5 * (vx * vx + vy * vy + vz * vz);
+	cpu_return.mom[0] += vx;
+	cpu_return.mom[1] += vy;
+	cpu_return.mom[2] += vz;
 
 }

@@ -4,7 +4,15 @@
 #include <cosmictiger/time.hpp>
 #include <cosmictiger/timer.hpp>
 
-#define T0 1.0
+#define T0 1.0e+3
+
+double da_tau(double a) {
+	const auto H = global().opts.H0 * global().opts.hubble;
+	const auto omega_m = global().opts.omega_m;
+	const auto omega_r = 7e-3;
+	const auto omega_lambda = 1.0 - omega_r - omega_m;
+	return H * a * a * std::sqrt(omega_m / (a * a * a) + omega_r / (a * a * a * a) + omega_lambda);
+}
 
 tree build_tree(particle_set& parts, int min_rung, double& tm) {
 	timer time;
@@ -24,7 +32,7 @@ tree build_tree(particle_set& parts, int min_rung, double& tm) {
 
 }
 
-int kick(tree root, int min_rung, double& tm) {
+int kick(tree root, double theta, double a, int min_rung, bool full_eval, double& tm) {
 	timer time;
 	time.start();
 	static bool first_call = true;
@@ -36,6 +44,9 @@ int kick(tree root, int min_rung, double& tm) {
 	params_ptr->dchecks.push(root_ptr);
 	params_ptr->echecks.push(root_ptr);
 	params_ptr->rung = min_rung;
+	params_ptr->full_eval = full_eval;
+	params_ptr->theta = theta;
+	params_ptr->scale = a;
 	array<fixed32, NDIM> Lpos;
 	expansion<float> L;
 	for (int i = 0; i < LP; i++) {
@@ -49,20 +60,23 @@ int kick(tree root, int min_rung, double& tm) {
 	params_ptr->Lpos[0] = Lpos;
 	params_ptr->first = first_call;
 	params_ptr->t0 = T0;
+	params_ptr->scale = a;
 	root.kick(params_ptr).get();
 	tree::cleanup();
 	managed_allocator<tree>::cleanup();
-//	kick_return_show();
+	if (full_eval) {
+		//	kick_return_show();
+	}
 	first_call = false;
 	time.stop();
 	tm = time.read();
 	return kick_return_max_rung();
 }
 
-void drift(particle_set& parts, double dt, double& tm) {
+void drift(particle_set& parts, double dt, double a0, double a1, double& tm) {
 	timer time;
 	time.start();
-	drift_particles(parts.get_virtual_particle_set(), dt, 1.0, 1.0);
+	drift_particles(parts.get_virtual_particle_set(), dt, a0, a1);
 	time.stop();
 	tm = time.read();
 }
@@ -70,22 +84,55 @@ void drift(particle_set& parts, double dt, double& tm) {
 void drive_cosmos() {
 	particle_set parts(global().opts.nparts);
 	parts.load_particles("ics");
+//	printf( "Particles loaded\n");
 	int max_iter = 100;
 
 	int iter = 0;
 	int max_rung = 0;
 	time_type itime = 0;
 	double tm;
+	double a;
+	double Ka;
+	double z;
+	z = global().opts.z0;
+	a = 1.0 / (z + 1.0);
+	double cosmicK = 0.0;
+	double theta;
+	double pot;
 	while (iter < max_iter) {
-		double tm = double(itime) * T0 / std::numeric_limits<time_type>::max();
-		printf("Time = %e Min Rung = %i Max Rung = %i\n", tm,  min_rung(itime), max_rung);
-		tree root = build_tree(parts, min_rung(itime), tm);
-		printf("Building tree took %e s\n", tm);
-		max_rung = kick(root, min_rung(itime), tm);
-		printf("Kicking took       %e s \n", tm);
-		double dt = T0 / double(1 << max_rung);
-		drift(parts, dt, tm);
-		printf("Drifting took      %e s \n", tm);
+		if (iter % 25 == 0) {
+			printf("%4s %4s %4s %8s %8s %8s %8s %8s %8s %8s %8s %8s\n", "iter", "min", "max", "time", "dt", "theta", "a",
+					"z", "pot", "kin", "cosmicK", "esum");
+		}
+		if (z > 20.0) {
+			theta = 0.4;
+		} else if (z > 2.0) {
+			theta = 0.55;
+		} else {
+			theta = 0.7;
+		}
+		double time = double(itime) * T0 / double(std::numeric_limits<time_type>::max());
+		const auto min_r = min_rung(itime);
+		double tm;
+		tree root = build_tree(parts, min_r, tm);
+		const bool full_eval = (iter % 16) == 0;
+		max_rung = kick(root, theta, a, min_rung(itime), full_eval, tm);
+		kick_return kr = kick_return_get();
+		if (full_eval) {
+			pot = 0.5 * kr.phis;
+		}
+		double kin = kr.kin;
+		double sum = pot + kin + 1.0 / a * cosmicK;
+		double dt = T0 / double(size_t(1) << max_rung);
+		printf("%4i %4i %4i %8.2e %8.2e %8.2e %8.2e %8.2e %8.2e %8.2e %8.2e %8.2e\n", iter, min_r, max_rung, time, dt,
+				theta, a, z, pot, kin, cosmicK/a, sum);
+		double a0 = a;
+		double datau1 = da_tau(a);
+		double datau2 = da_tau(a + datau1 * dt);
+		a += (0.5 * datau1 + 0.5 * datau2) * dt;
+		z = 1.0 / a - 1.0;
+		cosmicK += kr.kin * (a - a0);
+		drift(parts, dt, a0, a, tm);
 		itime = inc(itime, max_rung);
 		iter++;
 	}
