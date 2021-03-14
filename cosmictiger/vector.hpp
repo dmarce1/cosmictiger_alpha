@@ -11,11 +11,13 @@
 #ifdef __CUDA_ARCH__
 #define BLOCK const int& blocksize = blockDim.x
 #define THREAD const int& tid = threadIdx.x
-#define SYNC cuda_sync()
+#define FENCE() __threadfence_block()
+#define SYNC() __syncwarp()
 #else
 #define BLOCK constexpr int blocksize = 1
 #define THREAD constexpr int tid = 0
-#define SYNC
+#define SYNC()
+#define FENCE()
 #endif
 
 #include <functional>
@@ -154,12 +156,12 @@ public:
    void reserve(int new_cap) {
       THREAD;
       BLOCK;
-      int i = 1;
-      while (i < new_cap) {
-         i *= 2;
-      }
-      new_cap = i;
       if (new_cap > cap) {
+         int i = 1;
+         while (i < new_cap) {
+            i *= 2;
+         }
+         new_cap = i;
 #ifdef __CUDA_ARCH__
 //        printf( "INcreasing capacity from %li to %li\n", cap, new_cap);
 #endif
@@ -171,11 +173,13 @@ public:
             CUDA_MALLOC(new_ptr, new_cap);
 #endif
          }
+         SYNC();
          for (int i = tid; i < sz; i += blocksize) {
             new (new_ptr + i) T();
             new_ptr[i] = std::move((*this)[i]);
          }
          destruct(0, sz);
+         SYNC();
          if (tid == 0) {
             cap = new_cap;
             if (ptr && !dontfree) {
@@ -223,7 +227,6 @@ public:
    void push_back(const T &dat) {
       THREAD;
       resize(size() + 1);
-
       if (tid == 0) {
          ptr[size() - 1] = dat;
       }
@@ -233,7 +236,6 @@ public:
    void push_back(T &&dat) {
       THREAD;
       resize(size() + 1);
-
       if (tid == 0) {
          ptr[size() - 1] = std::move(dat);
       }
@@ -249,9 +251,7 @@ public:
    CUDA_EXPORT inline ~vector() {
       //    printf( "destroying\n");
       THREAD;
-
       destruct(0, sz);
-
       if (tid == 0 && ptr && !dontfree) {
 #ifndef __CUDA_ARCH__
          unified_allocator alloc;
@@ -260,7 +260,6 @@ public:
          CUDA_FREE(ptr);
 #endif
       }
-
    }
    CUDA_EXPORT inline void pop_back() {
       assert(size());

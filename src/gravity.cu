@@ -54,7 +54,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
 		params.L[params.depth][i] += L[i];
 	}
-	__threadfence_block();
+	__syncwarp();
 	kick_return_update_interactions_gpu(etype == DIRECT ? KR_CC : KR_EWCC, interacts, flops);
 }
 
@@ -135,7 +135,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 			params.L[params.depth][i] += L[i];
 		}
 	}
-	__threadfence_block();
+	__syncwarp();
 	kick_return_update_interactions_gpu(KR_CP, interacts, flops);
 }
 
@@ -215,7 +215,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 		auto &dx1 = dx[1];
 		auto &dx2 = dx[2];
 		float r3inv, r1inv;
-		__threadfence_block();
+		__syncwarp();
 		for (int k = 0; k < nsinks; k++) {
 			if (rungs[k] >= params.rung || params.full_eval) {
 				fx = 0.f;
@@ -262,7 +262,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			}
 		}
 	}
-	__threadfence_block();
+	__syncwarp();
 	kick_return_update_interactions_gpu(KR_PP, interacts, flops);
 }
 
@@ -341,7 +341,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 				}
 			}
 		}
-		__threadfence_block();
+		__syncwarp();
 		for (int k = 0; k < nparts; k++) {
 			if (rungs[k] >= params.rung || params.full_eval) {
 				for (int i = 0; i < NDIM + 1; i++) {
@@ -376,7 +376,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 			}
 		}
 	}
-	__threadfence_block();
+	__syncwarp();
 	kick_return_update_interactions_gpu(KR_PC, interacts, flops);
 }
 

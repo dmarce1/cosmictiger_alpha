@@ -189,7 +189,8 @@ void drift_test() {
 		const int max_rung = kick_return_max_rung();
 		double dt = params_ptr->t0 / (1 << max_rung);
 		printf("Maximum rung = %i timestep = %e\n", max_rung, dt);
-		drift_particles(parts.get_virtual_particle_set(), dt, 1.0, 1.0);
+		double a, b, c, d;
+		drift_particles(parts.get_virtual_particle_set(), dt, 1.0, 1.0, &a, &b, &c, &d);
 		tm_drift.stop();
 		printf("Drift took %e seconds\n", tm_drift.read());
 

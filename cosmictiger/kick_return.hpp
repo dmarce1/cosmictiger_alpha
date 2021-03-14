@@ -36,8 +36,8 @@ struct kick_return {
 kick_return kick_return_get();
 void kick_return_update_pot_cpu( float, float, float, float);
 __device__ void kick_return_update_pot_gpu( float, float, float, float);
-void kick_return_update_rung_cpu(int rung, float vx, float vy, float vz);
-__device__ void kick_return_update_rung_gpu(int rung, float vx, float vy, float vz);
+void kick_return_update_rung_cpu(int rung);
+__device__ void kick_return_update_rung_gpu(int rung);
 __device__ void kick_return_update_interactions_gpu(int itype, int count, int flops);
 void kick_return_update_interactions_cpu(int itype, int count, int flops);
 

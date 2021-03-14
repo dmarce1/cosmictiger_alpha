@@ -13,10 +13,6 @@ kick_return kick_return_get_gpu();
 
 void kick_return_init(int min_rung) {
 	cpu_return.min_rung = min_rung;
-	cpu_return.kin = 0.0;
-	for (int dim = 0; dim < NDIM; dim++) {
-		cpu_return.mom[dim] = 0.0;
-	}
 	for (int i = 0; i < MAX_RUNG; i++) {
 		cpu_return.rung_cnt[i] = 0;
 	}
@@ -44,10 +40,6 @@ kick_return kick_return_get() {
 	for (int i = 0; i < KR_COUNT; i++) {
 		rc.count[i] += cpu_return.count[i];
 		rc.flop[i] += cpu_return.flop[i];
-	}
-	rc.kin += cpu_return.kin;
-	for (int dim = 0; dim < NDIM; dim++) {
-		rc.mom[dim] += cpu_return.mom[dim];
 	}
 	return rc;
 }
@@ -90,8 +82,6 @@ void kick_return_show() {
 	const auto fac = 1.0 / global().opts.nparts;
 	printf("Potential Energy / Total Forces    = %e %e %e %e\n", rc.phis* fac, rc.forces[0] * fac, rc.forces[1] * fac,
 			rc.forces[2] * fac);
-	printf("Kinetic   Energy / Total Momentum  = %e %e %e %e\n", rc.kin * fac, rc.mom[0] * fac, rc.mom[1] * fac,
-			rc.mom[2] * fac);
 	printf("Rungs ");
 	for (int i = min_rung; i <= max_rung; i++) {
 		printf("%8i ", i);
@@ -135,12 +125,8 @@ void kick_return_update_pot_cpu(float phi, float fx, float fy, float fz) {
 	cpu_return.forces[2] += fx;
 }
 
-void kick_return_update_rung_cpu(int rung, float vx, float vy, float vz) {
+void kick_return_update_rung_cpu(int rung) {
 	std::lock_guard<mutex_type> lock(mtx);
 	cpu_return.rung_cnt[rung]++;
-	cpu_return.kin += 0.5 * (vx * vx + vy * vy + vz * vz);
-	cpu_return.mom[0] += vx;
-	cpu_return.mom[1] += vy;
-	cpu_return.mom[2] += vz;
 
 }

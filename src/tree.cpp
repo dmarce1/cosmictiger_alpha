@@ -38,7 +38,7 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	int lev = 12;
 	while (1) {
 		int N = 1 << (lev / NDIM);
-		double dx = 0.25 * N;
+		double dx = EWALD_MIN_DIST * N;
 		double a;
 		constexpr double ffac = 1.01;
 		if (lev % NDIM == 0) {
@@ -437,7 +437,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					d2 += sqr(distance(other_pos[dim], pos[dim]));
 				}
 				if (ewald_dist) {
-					d2 = std::max(d2, EWALD_MIN_DIST2);
+					d2 = std::max(d2, (float) EWALD_MIN_DIST2);
 				}
 				const auto myradius = SINK_BIAS * (radius + params.hsoft);
 				const auto R1 = sqr(other_radius + myradius + params.hsoft);                 // 2
@@ -557,8 +557,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					fmag = sqrtf(fmag);
 					assert(fmag > 0.0);
 					dt = std::min(params.eta * std::sqrt(params.scale * params.hsoft / fmag), params.t0);
-					int new_rung = std::max(std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1),
-							params.rung),0);
+					int new_rung = std::max(
+							std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1), params.rung),
+							0);
 					dt = params.t0 / (1 << new_rung);
 					for (int dim = 0; dim < NDIM; dim++) {
 						particles->vel(dim, k + parts.first) += 0.5 * dt * F[dim][k];
@@ -568,8 +569,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				}
 				kick_return_update_pot_cpu(phi[k], F[0][k], F[1][k], F[2][k]);
 			}
-			kick_return_update_rung_cpu(particles->rung(k + parts.first), particles->vel(0, k + parts.first),
-					particles->vel(1, k + parts.first), particles->vel(2, k + parts.first));
+			kick_return_update_rung_cpu(particles->rung(k + parts.first));
 
 		}
 		//	rc.rung = max_rung;

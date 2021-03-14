@@ -45,7 +45,7 @@
 #define KICK_EWALD_GRID_SIZE 1024
 #define KICK_OCCUPANCY 8
 
-#define DRIFT_BLOCK_SIZE 64
+#define DRIFT_BLOCK_SIZE 32
 #define DRIFT_OCCUPANCY 16
 
 #define FLOP_RSQRT 4
@@ -94,7 +94,8 @@
 #define ABORT() abort()
 #endif
 
-#define EWALD_MIN_DIST2 (0.25f * 0.25f)
+#define EWALD_MIN_DIST (0.25f)
+#define EWALD_MIN_DIST2 (EWALD_MIN_DIST *EWALD_MIN_DIST)
 #define EWALD_REAL_CUTOFF2 (2.6f*2.6f)
 
 

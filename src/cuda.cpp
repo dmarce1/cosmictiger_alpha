@@ -65,16 +65,16 @@ cuda_properties cuda_init() {
       printf("Unable to set L2 fetch granularity to to %i\n", L2FETCH);
       fail = true;
    }
-   cudaFuncAttributes attrib;
-   CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&drift_kernel ));
-   printf( "Drift kernel takes %i registers\n", attrib.numRegs);
+  // cudaFuncAttributes attrib;
+  // CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&drift_kernel ));
+   //printf( "Drift kernel takes %i registers\n", attrib.numRegs);
 
-   CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&count_kernel ));
-   printf( "Count kernel takes %i registers\n", attrib.numRegs);
-   printf( "Count kernel takes %i shmem\n", attrib.sharedSizeBytes);
+  // CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&count_kernel ));
+  // printf( "Count kernel takes %i registers\n", attrib.numRegs);
+   //printf( "Count kernel takes %i shmem\n", attrib.sharedSizeBytes);
 
-   CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&gpu_sort_kernel ));
-   printf( "Sort kernel takes %i registers\n", attrib.numRegs);
+   //CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&gpu_sort_kernel ));
+   //printf( "Sort kernel takes %i registers\n", attrib.numRegs);
 
    //   value = PENDINGLAUNCHES;
 //   CUDA_CHECK(cudaDeviceSetLimit(cudaLimitDevRuntimePendingLaunchCount , value));
@@ -84,7 +84,7 @@ cuda_properties cuda_init() {
 //      fail = true;
 //   }
  //  CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&gpu_sort_kernel, cudaFuncCachePreferL1));
-   CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&count_kernel, cudaFuncCachePreferL1));
+//   CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&count_kernel, cudaFuncCachePreferL1));
     //CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
    //   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
    if (fail) {

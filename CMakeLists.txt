@@ -119,7 +119,7 @@ target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SO
 #target_include_directories(hpx_lite PUBLIC  /home/dmarce1/workspace/cosmictiger/hpx_lite)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                       --use_fast_math --gpu-architecture=compute_75;
+                       --use_fast_math -G --gpu-architecture=compute_75;
                         >)
 #target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
 #                       --maxrregcount 168 --use_fast_math --gpu-architecture=compute_75;

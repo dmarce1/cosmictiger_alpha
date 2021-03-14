@@ -28,14 +28,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-	//  printf( "%i\n", params_ptr->depth);
-	//   if( params_ptr->depth > TREE_MAX_DEPTH || params_ptr->depth < 0 ) {
-//      printf( "%li\n", params_ptr->depth);
-	//  }
 	tree_ptr tptr = params.tptr;
 	tree& me = *((tree*) params.tptr);
 	if (!me.active && !params.full_eval) {
-		//	printf( "No active particles this branch\n");
 		return;
 	}
 	const int &tid = threadIdx.x;
@@ -95,7 +90,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		for (int i = 0; i < NITERS; i++) {
 			lists[i]->resize(0);
 		}
-		__threadfence_block();
+		__syncwarp();
 		int check_count;
 		do {
 			check_count = checks.size();
@@ -161,7 +156,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					for (int i = 0; i < NITERS; i++) {
 						lists[i]->resize(count[i] + index_counts[i]);
 					}
-					__threadfence_block();
+					__syncwarp();
 					if (ci < check_count) {
 						const auto &check = checks[ci];
 						assert(count[list_index] + my_index[list_index] >= 0);
@@ -171,12 +166,12 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						count[tid] += index_counts[tid];
 					}
 				}
-				__threadfence_block();
+				__syncwarp();
 				auto& countCI = count[CI];
 				auto& countOI = count[OI];
 				check_count = 2 * countCI + countOI;
 				checks.resize(check_count);
-				__threadfence_block();
+				__syncwarp();
 				for (int i = tid; i < countCI; i += KICK_BLOCK_SIZE) {
 					const auto base = 2 * i;
 					const auto children = next_checks[i].get_children();
@@ -188,7 +183,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				for (int i = tid; i < countOI; i += KICK_BLOCK_SIZE) {
 					checks[base + i] = opened_checks[i];
 				}
-				__syncthreads();
+				__syncwarp();
 				if (tid == 0) {
 					countCI = 0;
 					countOI = 0;
@@ -212,7 +207,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 			}
 			tmp_parti.resize(0);
-			__threadfence_block();
+			__syncwarp();
 			for (int j = tid; j < pmax; j += KICK_BLOCK_SIZE) {
 				my_index[0] = 0;
 				my_index[1] = 0;
@@ -269,7 +264,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				const auto mult_cnt = multis.size();
 				tmp_parti.resize(part_cnt + index_counts[PI]);
 				multis.resize(mult_cnt + index_counts[MI]);
-				__threadfence_block();
+				__syncwarp();
 				if (list_index == PI) {
 					tmp_parti[part_cnt + my_index[PI]] = parti[j];
 				} else if (list_index == MI) {
@@ -277,7 +272,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 			}
 			parti.swap(tmp_parti);
-			__threadfence_block();
+			__syncwarp();
 		}
 		switch (type) {
 		case PC_PP_DIRECT:
@@ -300,17 +295,17 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			params.depth++;
 			params.L[params.depth] = L;
 			params.Lpos[params.depth] = me.pos;
-			params.tptr = ((tree*) tptr)->children[RIGHT];
+			params.tptr = ((tree*) tptr)->children[LEFT];
 		}
-		__threadfence_block();
+		__syncwarp();
 		cuda_kick(params_ptr);
 		if (tid == 0) {
 			params.L[params.depth] = L;
-			params.tptr = ((tree*) tptr)->children[LEFT];
+			params.tptr = ((tree*) tptr)->children[RIGHT];
 		}
 		params.dchecks.pop_top();
 		params.echecks.pop_top();
-		__threadfence_block();
+		__syncwarp();
 		cuda_kick(params_ptr);
 		if (tid == 0) {
 			params.depth--;
@@ -345,7 +340,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				parts->pot(k + myparts.first) = phi[k];
 #endif
 				if (this_rung >= params.rung) {
-					float dt = params.t0 / (1 << this_rung);
+					float dt = params.t0 / (size_t(1) << this_rung);
 					if (!params.first) {
 						for (int dim = 0; dim < NDIM; dim++) {
 							parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
@@ -360,7 +355,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					assert(fmag > 0.0);
 					dt = fminf(params.eta * sqrt(params.scale * params.hsoft / fmag), params.t0);
 					int new_rung = fmaxf(fmaxf(fmaxf(ceil(logf(params.t0 / dt) * invlog2), this_rung - 1), params.rung),0);
-					dt = params.t0 / (1 << new_rung);
+					dt = params.t0 / (size_t(1) << new_rung);
 					for (int dim = 0; dim < NDIM; dim++) {
 						parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
 					}
@@ -368,8 +363,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 				kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
 			}
-			kick_return_update_rung_gpu(parts->rung(k + myparts.first), parts->vel(0, k + myparts.first),
-					parts->vel(1, k + myparts.first), parts->vel(2, k + myparts.first));
+			kick_return_update_rung_gpu(parts->rung(k + myparts.first));
 		}
 	}
 	kick_return_update_interactions_gpu(KR_OP, interacts, flops);
