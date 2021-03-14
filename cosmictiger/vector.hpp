@@ -163,7 +163,7 @@ public:
          }
          new_cap = i;
 #ifdef __CUDA_ARCH__
-        printf( "INcreasing capacity from %i to %i\n", cap, new_cap);
+ //       printf( "INcreasing capacity from %i to %i\n", cap, new_cap);
 #endif
          if (tid == 0) {
 #ifndef __CUDA_ARCH__

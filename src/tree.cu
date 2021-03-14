@@ -214,11 +214,11 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			for (int j = tid; j < pmax; j += KICK_BLOCK_SIZE) {
 				my_index[0] = 0;
 				my_index[1] = 0;
+				list_index = -1;
 				if (j < parti.size()) {
 					const auto& other = *((tree*) parti[j]);
 					const size_t& first = myparts.first;
 					const size_t& last = myparts.second;
-					list_index = -1;
 					const auto hfac = (1.f + SINK_BIAS) * params.hsoft;
 					if (j < parti.size()) {
 						bool res = false;
@@ -270,10 +270,12 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				tmp_parti.resize(part_cnt + index_counts[PI]);
 				multis.resize(mult_cnt + index_counts[MI]);
 				__syncwarp();
-				if (list_index == PI) {
-					tmp_parti[part_cnt + my_index[PI]] = parti[j];
-				} else if (list_index == MI) {
-					multis[mult_cnt + my_index[MI]] = parti[j];
+				if (j < parti.size()) {
+					if (list_index == PI) {
+						tmp_parti[part_cnt + my_index[PI]] = parti[j];
+					} else if (list_index == MI) {
+						multis[mult_cnt + my_index[MI]] = parti[j];
+					}
 				}
 			}
 			parti.swap(tmp_parti);
