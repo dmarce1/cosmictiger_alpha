@@ -66,7 +66,7 @@ hpx::future<sort_return> tree::create_child(sort_params &params) {
 	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
 	if (nparts > TREE_MIN_PARTS2THREAD) {
-		if (++threads_used <= OVERSUBSCRIPTION * hpx::thread::hardware_concurrency()) {
+		if (++threads_used <= 2 * hpx::thread::hardware_concurrency()) {
 			thread = true;
 		} else {
 			threads_used--;
@@ -154,11 +154,17 @@ sort_return tree::sort(sort_params params) {
 			if (params.depth == 0) {
 				particles->prepare_sort(parts.first, parts.second, 0);
 			} /*else if (params.depth == cpu_depth) {
-		//		particles->prepare_sort(parts.first, parts.second, cudaCpuDeviceId);
-			}*/
-			size_t pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim,
-					params.depth < cpu_depth ? GPU_SORT : CPU_SORT);
-			//		printf("Sorted %li particles at level %i xmid = %e\n", parts.second - parts.first, params.depth, xmid);
+			 //		particles->prepare_sort(parts.first, parts.second, cudaCpuDeviceId);
+			 }*/
+			size_t pmid;
+			if (parts.second - parts.first >= 1024*1024) {
+				pmid = send_sort(particles->get_virtual_particle_set(), parts.first, parts.second, xmid, xdim).get();
+			} else {
+				pmid = cpu_sort_kernel(particles->get_virtual_particle_set(), parts.first, parts.second, xmid, xdim);
+			}
+		//	printf( "%li %li %li\n", parts.first, pmid, parts.second);
+			//				params.depth < cpu_depth ? GPU_SORT : CPU_SORT);
+		//		printf("Sorted %li particles at level %i xmid = %e\n", parts.second - parts.first, params.depth, xmid);
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
 			child_params[LEFT].parts.first = parts.first;
 			child_params[LEFT].parts.second = child_params[RIGHT].parts.first = pmid;
@@ -271,6 +277,9 @@ sort_return tree::sort(sort_params params) {
 		}
 	}
 	sort_return rc;
+	if( params.depth == 0 ) {
+		stop_sort_daemon();
+	}
 	return rc;
 }
 
@@ -566,7 +575,7 @@ void tree::gpu_daemon() {
 	static double wait_time = 5.0e-3;
 	static int min_ewald;
 	if (first_call) {
-	//	printf("Starting gpu daemon\n");
+		//	printf("Starting gpu daemon\n");
 		timer.reset();
 		timer.start();
 		first_call = false;
@@ -610,7 +619,7 @@ void tree::gpu_daemon() {
 		 }
 		 } else*/if (gpu_queue.size() == kick_block_count) {
 			kick_timer.stop();
-		//	printf("Time to GPU = %e\n", kick_timer.read());
+			//	printf("Time to GPU = %e\n", kick_timer.read());
 			using promise_type = std::vector<std::shared_ptr<hpx::lcos::local::promise<void>>>;
 			std::shared_ptr<promise_type> gpu_promises[NWAVE];
 			//		std::shared_ptr<promise_type> cpu_promises[NWAVE];
@@ -683,9 +692,9 @@ void tree::gpu_daemon() {
 			 calloc.deallocate(cpu_params[j]);
 			 });
 			 }*/
-	//		printf("Executing \n");
+			//		printf("Executing \n");
 			for (int i = 0; i < NWAVE; i++) {
-		//		printf("Sending %li blocks to GPU\n", gpu_waves[i].size());
+				//		printf("Sending %li blocks to GPU\n", gpu_waves[i].size());
 				particles->prepare_kick(stream);
 				//		particles->set_preferred_gpu(gpu_waves[i].front().parts.first, gpu_waves[i].front().parts.second, stream);
 				cuda_execute_kick_kernel(gpu_params[i], gpu_waves[i].size(), stream);
@@ -725,7 +734,7 @@ void tree::gpu_daemon() {
 							(*gpu_promises[j])[i]->set_value();
 						}
 					}
-			//		printf("Done executing\n");
+					//		printf("Done executing\n");
 					return true;
 				} else {
 					return false;

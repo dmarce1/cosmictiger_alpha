@@ -69,9 +69,9 @@ cuda_properties cuda_init() {
    CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&drift_kernel ));
    printf( "Drift kernel takes %i registers\n", attrib.numRegs);
 
-   CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&count_kernel ));
-   printf( "Count kernel takes %i registers\n", attrib.numRegs);
-   printf( "Count kernel takes %i shmem\n", attrib.sharedSizeBytes);
+  // CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&count_kernel ));
+  // printf( "Count kernel takes %i registers\n", attrib.numRegs);
+  // printf( "Count kernel takes %i shmem\n", attrib.sharedSizeBytes);
 
    CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&gpu_sort_kernel ));
    printf( "Sort kernel takes %i registers\n", attrib.numRegs);
@@ -84,7 +84,7 @@ cuda_properties cuda_init() {
 //      fail = true;
 //   }
  //  CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&gpu_sort_kernel, cudaFuncCachePreferL1));
-   CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&count_kernel, cudaFuncCachePreferL1));
+ //  CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&count_kernel, cudaFuncCachePreferL1));
     //CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
    //   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
    if (fail) {

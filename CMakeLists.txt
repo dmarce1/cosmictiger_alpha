@@ -26,7 +26,9 @@ enable_language(CUDA)
 
 set(cosmictiger_source_files
 	src/sort.cu
+    src/sort.cpp
     src/cuda.cpp
+    src/driver.cpp
     src/drift.cu
     src/expansion.cu
     src/ewald_indices.cu

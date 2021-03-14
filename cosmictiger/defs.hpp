@@ -18,8 +18,8 @@
 
 //#define PERIODIC_OFF
 
+//#define TEST_TREE
 #ifndef NDEBUG
-#define TEST_TREE
 #define TEST_RADIX
 #define TEST_BOUNDS
 #endif
@@ -41,6 +41,7 @@
 #define MAX_BUCKET_SIZE 96
 #define GROUP_SIZE MAX_BUCKET_SIZE
 #define GPU_QUEUE_SIZE (1024*1024)
+#define SORT_QUEUE_SIZE (1024*1024)
 #define KICK_GRID_SIZE 36
 #define KICK_EWALD_GRID_SIZE 1024
 #define KICK_OCCUPANCY 8

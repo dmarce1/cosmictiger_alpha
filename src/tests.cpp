@@ -263,7 +263,7 @@ static void sort() {
 	for (int i = global().opts.nparts; i >= 64; i /= 2) {
 		parts.generate_random();
 		tm1.start();
-		sort_particles(parts.get_virtual_particle_set(), 0, i, 0.5, 0, GPU_SORT);
+	//	sort_particles(parts.get_virtual_particle_set(), 0, i, 0.5, 0, GPU_SORT);
 		tm1.stop();
 		printf( "%li %e\n", i, tm1.read());
 		tm1.reset();
