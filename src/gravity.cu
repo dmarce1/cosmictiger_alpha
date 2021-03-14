@@ -87,9 +87,8 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		while (i < partsz) {
 			part_index = 0;
 			while (part_index < KICK_PP_MAX && i < partsz) {
-				const auto ip1 = i + 1;
-				const auto other_tree = ((tree*) parti[ip1]);
-				while (ip1 < partsz) {
+				while (i + 1 < partsz) {
+					const auto other_tree = ((tree*) parti[i + 1]);
 					if (these_parts.second == other_tree->parts.first) {
 						these_parts.second = other_tree->parts.second;
 						i++;
@@ -179,9 +178,8 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 	while (i < partsz) {
 		part_index = 0;
 		while (part_index < KICK_PP_MAX && i < partsz) {
-			const auto ip1 = i + 1;
-			const auto other_tree = ((tree*) parti[ip1]);
-			while (ip1 < partsz) {
+			while (i + 1 < partsz) {
+				const auto other_tree = ((tree*) parti[i + 1]);
 				if (these_parts.second == other_tree->parts.first) {
 					these_parts.second = other_tree->parts.second;
 					i++;

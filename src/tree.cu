@@ -103,6 +103,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					const auto h = params.hsoft;
 					if (ci < check_count) {
 						auto &check = checks[ci];
+						if(check.ptr == 0  ) {
+							printf( "%i\n", ci);
+						}
 						const auto &other_radius = ((const tree*) check)->radius;
 						const auto &other_pos = ((const tree*) check)->pos;
 						array<float, NDIM> dist;
