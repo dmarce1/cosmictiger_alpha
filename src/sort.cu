@@ -58,11 +58,12 @@ size_t cpu_sort_kernel(particle_set parts, size_t begin, size_t end, double xmid
 
 	size_t lo = begin;
 	size_t hi = end;
+	fixed32 x(xmid);
 	while (lo < hi) {
-		if (parts.pos(xdim, lo).to_double() >= xmid) {
+		if (parts.pos(xdim, lo) >= x) {
 			while (lo != hi) {
 				hi--;
-				if (parts.pos(xdim, hi).to_double() < xmid) {
+				if (parts.pos(xdim, hi) < x) {
 					parts.swap(lo, hi);
 					break;
 				}
