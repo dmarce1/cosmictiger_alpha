@@ -82,7 +82,7 @@ void drift(particle_set& parts, double dt, double a0, double a1, double*ekin, do
 	tm = time.read();
 }
 
-#define EVAL_FREQ 16
+#define EVAL_FREQ 100
 
 void drive_cosmos() {
 	particle_set parts(global().opts.nparts);
@@ -93,7 +93,7 @@ void drive_cosmos() {
 	int iter = 0;
 	int max_rung = 0;
 	time_type itime = 0;
-	double tm;
+	double kick_tm, drift_tm, sort_tm;
 	double a;
 	double Ka;
 	double z;
@@ -105,8 +105,8 @@ void drive_cosmos() {
 	double esum0;
 	do {
 		if (iter % 25 == 0) {
-			printf("%4s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "min", "max", "time", "dt", "theta", "a",
-					"z", "pot", "kin", "cosmicK", "esum");
+			printf("%4s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "min", "max", "time", "dt", "theta", "a",
+					"z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift");
 		}
 		if (z > 20.0) {
 			theta = 0.4;
@@ -117,10 +117,9 @@ void drive_cosmos() {
 		}
 		double time = double(itime) * T0 / double(std::numeric_limits<time_type>::max());
 		const auto min_r = min_rung(itime);
-		double tm;
-		tree root = build_tree(parts, min_r, tm);
+	tree root = build_tree(parts, min_r, sort_tm);
 		const bool full_eval = iter % EVAL_FREQ == 0;
-		max_rung = kick(root, theta, a, min_rung(itime), full_eval, tm);
+		max_rung = kick(root, theta, a, min_rung(itime), full_eval, kick_tm);
 		kick_return kr = kick_return_get();
 		if (full_eval) {
 			pot = 0.5 * kr.phis / a;
@@ -132,7 +131,7 @@ void drive_cosmos() {
 		a += (0.5 * datau1 + 0.5 * datau2) * dt;
 		z = 1.0 / a - 1.0;
 		double kin, momx, momy, momz;
-		drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, tm);
+		drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, drift_tm);
 		cosmicK += kin * (a - a0);
 		double sum = a*(pot + kin) + cosmicK;
 	//	printf( "%e %e %e %e\n", a, pot, kin, cosmicK);
@@ -142,11 +141,11 @@ void drive_cosmos() {
 		sum = (sum - esum0) / (std::abs(a*kin) + std::abs(a*pot) + std::abs(cosmicK));
 		double partfac = 1.0 / global().opts.nparts;
 		if (full_eval) {
-			printf("%4i %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n", iter, min_r, max_rung, time, dt,
-					theta, a0, z, a*pot * partfac, a*kin * partfac, cosmicK* partfac, sum);
+			printf("%4i %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n", iter, min_r, max_rung, time, dt,
+					theta, a0, z, a*pot * partfac, a*kin * partfac, cosmicK* partfac, sum, sort_tm, kick_tm, drift_tm);
 		} else {
-			printf("%4i %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s\n", iter, min_r, max_rung, time, dt,
-					theta, a0, z, "n/a", a*kin * partfac, cosmicK * partfac, "n/a");
+			printf("%4i %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e\n", iter, min_r, max_rung, time, dt,
+					theta, a0, z, "n/a", a*kin * partfac, cosmicK * partfac, "n/a", sort_tm, kick_tm, drift_tm);
 		}
 		itime = inc(itime, max_rung);
 		iter++;

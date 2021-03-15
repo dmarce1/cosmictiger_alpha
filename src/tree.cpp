@@ -31,7 +31,7 @@ int cpu_sort_depth() {
 	while ((1 << l) < hpx::threads::hardware_concurrency()) {
 		l++;
 	}
-	return 5;
+	return 1;
 }
 
 CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
@@ -159,17 +159,16 @@ sort_return tree::sort(sort_params params) {
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
 			const auto cpu_depth = cpu_sort_depth();
 			if (params.depth == 0) {
-				//			particles->prepare_sort(parts.first, parts.second, 0);
-				//		} else if (params.depth == cpu_depth) {
-				//			particles->prepare_sort(parts.first, parts.second, cudaCpuDeviceId);
+				particles->prepare_sort(parts.first, parts.second, 0);
+			} else if (params.depth == cpu_depth) {
+		//		particles->prepare_sort(parts.first, parts.second, cudaCpuDeviceId);
 			}
 			size_t pmid;
-			//	if( params.depth < cpu_depth) {
-			//		pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim, GPU_SORT);
-			//	} else {
-			pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim, CPU_SORT);
-			//	}
-			//		printf("Sorted %li particles at level %i xmid = %e\n", parts.second - parts.first, params.depth, xmid);
+			if (params.depth < cpu_depth) {
+				pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim, GPU_SORT);
+			} else {
+				pmid = sort_particles(part_handle, parts.first, parts.second, xmid, xdim, CPU_SORT);
+			}
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
 			child_params[LEFT].parts.first = parts.first;
 			child_params[LEFT].parts.second = child_params[RIGHT].parts.first = pmid;

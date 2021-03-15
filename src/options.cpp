@@ -19,7 +19,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("help", "produce help message")                                                                 //
 	("config", po::value<std::string>(&(opts.config))->default_value(""), "configuration file") //
 	("code_to_g", po::value<double>(&(opts.code_to_g))->default_value(1.99e43), "code to g") //
-	("code_to_cm", po::value<double>(&(opts.code_to_cm))->default_value(1.892e27), "code to cm") //
+	("code_to_cm", po::value<double>(&(opts.code_to_cm))->default_value(6.17e27), "code to cm") //
 	("code_to_cms", po::value<double>(&(opts.code_to_cms))->default_value(3e10), "code to cm/s") //
 	("omega_m", po::value<double>(&(opts.omega_m))->default_value(0.32), "") //
 	("hubble", po::value<double>(&(opts.hubble))->default_value(0.7), "") //

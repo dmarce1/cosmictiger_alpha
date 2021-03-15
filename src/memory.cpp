@@ -64,14 +64,14 @@ std::unordered_map<void*, int> cuda_allocator::delete_indexes;
 
 
 void* unified_allocator::allocate(size_t sz) {
-   int total_sz = 1;
+	size_t total_sz = 1;
    int index = 0;
    while (total_sz < sz) {
       total_sz *= 2;
       index++;
    }
-   int chunk_size = std::max(std::min(32,2*1024*1024/(int)total_sz),1);
-  // printf( "%li\n", sz);
+   size_t chunk_size = std::max(std::min((size_t)32,2*1024*1024/(size_t)total_sz),(size_t)1);
+ //  printf( "%li %li \n", chunk_size, total_sz);
    std::lock_guard < mutex_type > lock(mtx);
    allocated += total_sz;
    freelist.resize(std::max((int) freelist.size(),index + 1));

@@ -8,7 +8,6 @@
 #include <algorithm>
 
 void particle_set::prepare_kick(cudaStream_t stream) {
-	return;
 	for (int dim = 0; dim < NDIM; dim++) {
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, 0));
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(fixed32), cudaMemAdviseUnsetReadMostly, 0));
@@ -27,7 +26,6 @@ void particle_set::prepare_kick(cudaStream_t stream) {
 }
 
 void particle_set::prepare_drift(cudaStream_t stream) {
-	return;
 	for (int dim = 0; dim < NDIM; dim++) {
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, 0));
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
@@ -43,7 +41,6 @@ void particle_set::prepare_drift(cudaStream_t stream) {
 }
 
 void particle_set::prepare_sort(size_t begin, size_t end, int device) {
-	return;
 auto stream = get_stream();
 	for (int dim = 0; dim < NDIM; dim++) {
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim] + begin, size() * sizeof(float), cudaMemAdviseSetPreferredLocation, device));
@@ -81,7 +78,8 @@ particle_set::particle_set(size_t size, size_t offset) {
 	chunk_size += (NDIM+1) * sizeof(float);
 #endif
 	uint8_t *data;
-	CUDA_MALLOC(data, chunk_size * size);
+	unified_allocator alloc;
+	data = (uint8_t*) alloc.allocate(chunk_size*size);
 	CHECK_POINTER(data);
 	pptr_ = (particle*) data;
 	for (size_t dim = 0; dim < NDIM; dim++) {
@@ -120,7 +118,8 @@ particle_set::particle_set(size_t size, size_t offset) {
 
 particle_set::~particle_set() {
 	if (!virtual_) {
-		CUDA_FREE(pptr_);
+		unified_allocator alloc;
+		alloc.deallocate(pptr_);
 	}
 }
 
