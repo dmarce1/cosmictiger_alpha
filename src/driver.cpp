@@ -4,7 +4,7 @@
 #include <cosmictiger/time.hpp>
 #include <cosmictiger/timer.hpp>
 
-#define T0 1.0e+3
+double T0;
 
 double da_tau(double a) {
 	const auto H = global().opts.H0 * global().opts.hubble;
@@ -12,6 +12,18 @@ double da_tau(double a) {
 	const auto omega_r = 7e-3;
 	const auto omega_lambda = 1.0 - omega_r - omega_m;
 	return H * a * a * std::sqrt(omega_m / (a * a * a) + omega_r / (a * a * a * a) + omega_lambda);
+}
+
+double uni_age(double a) {
+	double dt = 1.0e-6;
+	double t = 0.0;
+	while (a < 1.0) {
+		double datau1 = da_tau(a);
+		double datau2 = da_tau(a + datau1 * dt);
+		a += (0.5 * datau1 + 0.5 * datau2) * dt;
+		t += dt;
+	}
+	return t;
 }
 
 tree build_tree(particle_set& parts, int min_rung, size_t& num_active, double& tm) {
@@ -108,6 +120,7 @@ void drive_cosmos() {
 	double time_total;
 	parts_total = 0.0;
 	time_total = 0.0;
+	T0 = uni_age(a) * 2.0;
 	timer tm;
 	tm.start();
 	do {
@@ -126,7 +139,8 @@ void drive_cosmos() {
 		const auto min_r = min_rung(itime);
 		size_t num_active;
 		tree root = build_tree(parts, min_r, num_active, sort_tm);
-		const bool full_eval = iter % EVAL_FREQ == 0;
+	//	const bool full_eval = min_r <= 7;
+		const bool full_eval = false;
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, kick_tm);
 		kick_return kr = kick_return_get();
 		if (full_eval) {
@@ -156,8 +170,8 @@ void drive_cosmos() {
 		tm.start();
 		double science_rate = parts_total / time_total;
 		if (full_eval) {
-			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n", iter,
-					act_pct, min_r, max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac,
+			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac,
 					cosmicK * partfac, sum, sort_tm, kick_tm, drift_tm, science_rate);
 		} else {
 			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e\n", iter,
@@ -165,6 +179,9 @@ void drive_cosmos() {
 					sort_tm, kick_tm, drift_tm, science_rate);
 		}
 		itime = inc(itime, max_rung);
+		if( iter >= 100 ) {
+			break;
+		}
 		iter++;
 	} while (z > 0.0);
 

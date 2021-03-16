@@ -107,6 +107,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 							printf("++++++%i\n", ci);
 						}
 						const auto &other_radius = ((const tree*) check)->radius;
+						const auto &other_parts = ((const tree*) check)->parts;
 						const auto &other_pos = ((const tree*) check)->pos;
 						array<float, NDIM> dist;
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
@@ -125,7 +126,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
 						interacts++;
 						flops += 27;
-						const bool mi = far1 || (direct && far3);
+						const bool mi = far1 || (direct && far3 && (other_parts.second - other_parts.first >= PC_MIN_PARTS));
 						const bool pi = (far2 || direct) && isleaf;
 						list_index = int(mi) * MI
 								+ (1 - int(mi)) * (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
@@ -220,7 +221,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					const size_t& first = myparts.first;
 					const size_t& last = myparts.second;
 					const auto hfac = (1.f + SINK_BIAS) * params.hsoft;
-					if (j < parti.size()) {
+					if (last - first >= PC_MIN_PARTS) {
 						bool res = false;
 						for (int k = 0; k < last - first; k++) {
 							const auto this_rung = rungs[k];

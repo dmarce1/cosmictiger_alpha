@@ -59,6 +59,7 @@
 //#define HIPRECISION
 
 #define SINK_BIAS 1.5
+#define PC_MIN_PARTS 16
 
 
 #define NCHILD 2
