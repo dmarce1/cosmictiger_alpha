@@ -311,26 +311,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 	for (int m = 0; m < mmax; m += KICK_PC_MAX) {
 		nsrc = 0;
 		for (int z = 0; z < KICK_PC_MAX; z++) {
-			bool found3 = false;
-			if ( KICK_PC_MAX - z >= 3 && m + z + 3 <= multis.size()) {
-				const auto& other_ptr1 = ((tree*) multis[m + z]);
-				const auto& other_ptr2 = ((tree*) multis[m + z + 20]);
-				const auto& other_ptr3 = ((tree*) multis[m + z + 30]);
-				const float* src1 = (float*) &other_ptr1->multi;
-				const float* src2 = (float*) &other_ptr2->multi;
-				const float* src3 = (float*) &other_ptr3->multi;
-				float* dst = (float*) &(msrcs[nsrc]);
-				if (src1 + 20 == src2 && src2 + 20 == src3) {
-					found3 = true;
-					if (tid < 30) {
-						dst[tid] = src1[tid];
-						dst[tid + 30] = src1[tid + 30];
-					}
-					nsrc += 3;
-					z += 2;
-				}
-			}
-			if (!found3 && m + z < multis.size()) {
+			if (m + z < multis.size()) {
 				const auto& other_ptr = ((tree*) multis[m + z]);
 				const float* src = (float*) &other_ptr->multi;
 				float* dst = (float*) &(msrcs[nsrc]);
