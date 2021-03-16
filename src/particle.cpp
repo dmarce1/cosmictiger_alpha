@@ -41,29 +41,29 @@ void particle_set::prepare_drift(cudaStream_t stream) {
 }
 
 void particle_set::prepare_sort(size_t begin, size_t end, int device) {
-auto stream = get_stream();
+	auto stream = get_stream();
 	for (int dim = 0; dim < NDIM; dim++) {
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim] + begin, size() * sizeof(float), cudaMemAdviseSetPreferredLocation, device));
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim] + begin, size() * sizeof(float), cudaMemAdviseUnsetReadMostly, device));
 		//	CUDA_CHECK(cudaMemAdvise(vptr_[dim] + begin, size() * sizeof(float), cudaMemAdviseSetAccessedBy, device));
-	//	if (device != cudaCpuDeviceId) {
+		//	if (device != cudaCpuDeviceId) {
 		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim] + begin, size() * sizeof(float), device, stream));
-	//	}
+		//	}
 	}
 	for (int dim = 0; dim < NDIM; dim++) {
 		CUDA_CHECK(
 				cudaMemAdvise(xptr_[dim] + begin, size() * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, device));
 		CUDA_CHECK(cudaMemAdvise(xptr_[dim] + begin, size() * sizeof(fixed32), cudaMemAdviseUnsetReadMostly, device));
 		//	CUDA_CHECK(cudaMemAdvise(xptr_[dim] + begin, size() * sizeof(fixed32), cudaMemAdviseSetAccessedBy, device));
-	//	if (device != cudaCpuDeviceId) {
-			CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim] + begin, size() * sizeof(fixed32), device, stream));
-	//	}
+		//	if (device != cudaCpuDeviceId) {
+		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim] + begin, size() * sizeof(fixed32), device, stream));
+		//	}
 	}
 	CUDA_CHECK(cudaMemAdvise(rptr_ + begin, size() * sizeof(int8_t), cudaMemAdviseSetPreferredLocation, device));
 	CUDA_CHECK(cudaMemAdvise(rptr_ + begin, size() * sizeof(int8_t), cudaMemAdviseUnsetReadMostly, device));
 //	CUDA_CHECK(cudaMemAdvise(rptr_ + begin, size() * sizeof(int8_t), cudaMemAdviseSetAccessedBy, device));
 //	if (device != cudaCpuDeviceId) {
-		CUDA_CHECK(cudaMemPrefetchAsync(rptr_ + begin, size() * sizeof(int8_t), device, stream));
+	CUDA_CHECK(cudaMemPrefetchAsync(rptr_ + begin, size() * sizeof(int8_t), device, stream));
 	//}
 	CUDA_CHECK(cudaStreamSynchronize(stream));
 	cleanup_stream(stream);
@@ -79,7 +79,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 #endif
 	uint8_t *data;
 	unified_allocator alloc;
-	data = (uint8_t*) alloc.allocate(chunk_size*size);
+	data = (uint8_t*) alloc.allocate(chunk_size * size);
 	CHECK_POINTER(data);
 	pptr_ = (particle*) data;
 	for (size_t dim = 0; dim < NDIM; dim++) {
@@ -318,6 +318,33 @@ void load_header(io_header_1 *header, std::string filename) {
 
 }
 
+size_t particle_set::sort_range(size_t begin, size_t end, double xmid_double, int xdim) {
+
+	size_t lo = begin - offset_;
+	size_t hi = end - offset_;
+	fixed32 xmid(xmid_double);
+	fixed32* x = xptr_[xdim];
+	while (lo < hi) {
+		if (x[lo] >= xmid) {
+			while (lo != hi) {
+				hi--;
+				if (x[hi] < xmid) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						std::swap(xptr_[dim][hi],xptr_[dim][lo]);
+					}
+					for (int dim = 0; dim < NDIM; dim++) {
+						std::swap(vptr_[dim][hi],vptr_[dim][lo]);
+					}
+					std::swap(rptr_[hi],rptr_[lo]);
+					break;
+				}
+			}
+		}
+		lo++;
+	}
+	return hi + offset_;
+}
+
 void particle_set::load_particles(std::string filename) {
 	int4byte dummy;
 	FILE *fp = fopen(filename.c_str(), "rb");
@@ -343,7 +370,8 @@ void particle_set::load_particles(std::string filename) {
 	const auto Hcgs = 3.2407789e-18;
 	global().opts.code_to_s = global().opts.code_to_cm / global().opts.code_to_cms;
 	global().opts.H0 = Hcgs * global().opts.code_to_s;
-	global().opts.G = Gcgs / pow(global().opts.code_to_cm, 3) * global().opts.code_to_g * pow(global().opts.code_to_s, 2);
+	global().opts.G = Gcgs / pow(global().opts.code_to_cm, 3) * global().opts.code_to_g
+			* pow(global().opts.code_to_s, 2);
 	double m_tot = global().opts.omega_m * 3.0 * global().opts.H0 * global().opts.H0 / (8 * M_PI * global().opts.G);
 	global().opts.M = m_tot / global().opts.nparts;
 	printf("G in code units = %e\n", global().opts.G);

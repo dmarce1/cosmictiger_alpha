@@ -33,7 +33,7 @@ struct particle {
 
 struct particle_set {
 	particle_set() = default;
-	CUDA_EXPORT
+/*	CUDA_EXPORT
 	inline void swap(size_t a, size_t b) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			auto tmp1 = xptr_[dim][a];
@@ -46,7 +46,7 @@ struct particle_set {
 		auto tmp3 = rptr_[a];
 		rptr_[a] = rptr_[b];
 		rptr_[b] = tmp3;
-	}
+	}*/
 	particle_set(size_t, size_t = 0);
 	void prepare_sort(size_t begin, size_t end, int device);
 	void prepare_kick(cudaStream_t stream);
@@ -58,6 +58,8 @@ struct particle_set {
 	rung_t rung(size_t index) const;
 	morton_t mid(size_t index) const;
 	void set_mid(morton_t, size_t index);CUDA_EXPORT
+	size_t sort_range(size_t begin, size_t end, double xmid, int xdim);
+	CUDA_EXPORT
 	fixed32& pos(int dim, size_t index);CUDA_EXPORT
 	float& vel(int dim, size_t index);CUDA_EXPORT
 	void set_rung(rung_t t, size_t index);

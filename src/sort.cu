@@ -2,7 +2,7 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/timer.hpp>
-
+/*
 #define COUNT_BLOCK_SIZE 1024
 #define SORT_BLOCK_SIZE 32
 #define SORT_OCCUPANCY (16)
@@ -53,7 +53,7 @@ CUDA_KERNEL gpu_sort_kernel2(particle_set parts, size_t begin, size_t end, doubl
 	}
 	__syncthreads();
 }
-*/
+
 size_t cpu_sort_kernel(particle_set parts, size_t begin, size_t end, double xmid, int xdim) {
 
 	size_t lo = begin;
@@ -104,7 +104,8 @@ size_t sort_particles(particle_set parts, size_t begin, size_t end, double xmid,
 		} else {
 			pmid = cpu_sort_kernel(parts, begin, end, xmid, xdim);
 		}
-	}*/
-//	printf("Finished Sort  %li %li %li\n", begin, pmid, end);
+	}
+	//	printf("Finished Sort  %li %li %li\n", begin, pmid, end);
 	return pmid;
 }
+*/

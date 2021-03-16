@@ -18,8 +18,8 @@
 
 //#define PERIODIC_OFF
 
+//#define TEST_TREE
 #ifndef NDEBUG
-#define TEST_TREE
 #define TEST_RADIX
 #define TEST_BOUNDS
 #endif

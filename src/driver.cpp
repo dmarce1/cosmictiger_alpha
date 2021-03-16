@@ -82,7 +82,7 @@ void drift(particle_set& parts, double dt, double a0, double a1, double*ekin, do
 	tm = time.read();
 }
 
-#define EVAL_FREQ 100
+#define EVAL_FREQ 25
 
 void drive_cosmos() {
 	particle_set parts(global().opts.nparts);
