@@ -139,7 +139,7 @@ void drive_cosmos() {
 		const auto min_r = min_rung(itime);
 		size_t num_active;
 		tree root = build_tree(parts, min_r, num_active, sort_tm);
-	//	const bool full_eval = min_r <= 7;
+//		const bool full_eval = min_r <= 7;
 		const bool full_eval = false;
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, kick_tm);
 		kick_return kr = kick_return_get();

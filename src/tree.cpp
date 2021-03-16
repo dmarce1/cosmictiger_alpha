@@ -188,7 +188,7 @@ sort_return tree::sort(sort_params params) {
 		std::array<fixed32*, NCHILD> Xc;
 		std::array<float, NCHILD> Rc;
 		auto &M = (multi);
-		rc.num_active = 0;
+		rc.num_active = 1;
 		for (int ci = 0; ci < NCHILD; ci++) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
@@ -196,6 +196,9 @@ sort_return tree::sort(sort_params params) {
 			Xc[ci] = ((tree*) this_rc.check)->pos.data();
 			children[ci] = this_rc.check;
 			rc.num_active += this_rc.num_active;
+		}
+		if( rc.num_active == 1 ) {
+			rc.num_active = 0;
 		}
 		std::array<double, NDIM> com = { 0, 0, 0 };
 		const auto &MR = Mc[RIGHT];
@@ -269,7 +272,8 @@ sort_return tree::sort(sort_params params) {
 		rc.num_active = 0;
 		for (size_t k = parts.first; k < parts.second; k++) {
 			if (particles->rung(k) >= params.min_rung) {
-				rc.num_active++;
+				rc.num_active = 1;
+				break;
 			}
 		}
 	}
@@ -295,7 +299,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
 	const auto gpu_partcnt = global().opts.nparts / (sm_count * KICK_OCCUPANCY);
 	bool use_cpu_block = false;
-	if (part_end - part_begin <= params.block_cutoff && num_active) {
+	if (num_active <= params.block_cutoff && num_active) {
 		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
 	} else if (thread) {
 		kick_params_type *new_params;
@@ -370,18 +374,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				pcnt = pcnt / 2;
 			}
 		} while (count < target_max && pcnt);
-		params.block_cutoff = std::max(pcnt * 2, MAX_BUCKET_SIZE);
+		params.block_cutoff = std::max(pcnt * 2,1);
 		kick_block_count = compute_block_count(params.block_cutoff);
-		if (params.block_cutoff <= 2 * MAX_BUCKET_SIZE) {
-			kick_block_count = 0;
-			params.block_cutoff = 0;
-		}
-		if( params.block_cutoff == 0) {
-			printf( "cpu ");
-		} else {
-			printf( "GPU ");
-		}
-//		printf("%i %i\n", (int) kick_block_count, params.block_cutoff);
+		printf("%i %i\n", (int) kick_block_count, params.block_cutoff);
 		managed_allocator<tree>::set_device(0);
 	}
 	if (children[0].ptr == 0) {
@@ -809,15 +804,15 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 
 }
 
-int tree::compute_block_count(size_t cutoff) {
+int tree::compute_block_count(size_t cutoff, bool root) {
 	if (!num_active) {
 		return 0;
 	}
-	if (parts.second - parts.first <= cutoff) {
+	if (num_active <= cutoff && !root) {
 		return 1;
 	} else if (!is_leaf()) {
-		auto left = ((tree*) children[LEFT])->compute_block_count(cutoff);
-		auto right = ((tree*) children[RIGHT])->compute_block_count(cutoff);
+		auto left = ((tree*) children[LEFT])->compute_block_count(cutoff, false);
+		auto right = ((tree*) children[RIGHT])->compute_block_count(cutoff, false);
 		return left + right;
 	} else {
 		return 0;

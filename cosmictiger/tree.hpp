@@ -336,7 +336,7 @@ public:
 	static lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> gpu_queue;
 	static lockfree_queue<gpu_ewald, GPU_QUEUE_SIZE> gpu_ewald_queue;
 #endif
-	int compute_block_count(size_t cutoff);
+	int compute_block_count(size_t cutoff, bool root = true);
 	friend class tree_ptr;
 };
 
