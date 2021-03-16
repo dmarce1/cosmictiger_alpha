@@ -583,7 +583,7 @@ void tree::gpu_daemon() {
 	static timer timer;
 	static bool skip;
 	static bool ewald_skip;
-	static double wait_time = 5.0e-3;
+	static double wait_time = 0.0e-3;
 	static int min_ewald;
 	if (first_call) {
 		//	printf("Starting gpu daemon\n");
