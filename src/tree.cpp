@@ -372,11 +372,16 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		} while (count < target_max && pcnt);
 		params.block_cutoff = std::max(pcnt * 2, MAX_BUCKET_SIZE);
 		kick_block_count = compute_block_count(params.block_cutoff);
-		if (kick_block_count < sm_count || params.block_cutoff <= MAX_BUCKET_SIZE) {
+		if (params.block_cutoff <= 2 * MAX_BUCKET_SIZE) {
 			kick_block_count = 0;
 			params.block_cutoff = 0;
 		}
-		printf("%i %i\n", (int) kick_block_count, params.block_cutoff);
+		if( params.block_cutoff == 0) {
+			printf( "cpu ");
+		} else {
+			printf( "GPU ");
+		}
+//		printf("%i %i\n", (int) kick_block_count, params.block_cutoff);
 		managed_allocator<tree>::set_device(0);
 	}
 	if (children[0].ptr == 0) {
