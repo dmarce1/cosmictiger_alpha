@@ -536,7 +536,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				}
 				particles->pot(k + parts.first) = phi[k];
 #endif
-				if (this_rung >= params.full_eval) {
+				if (this_rung >= params.rung ) {
 					float dt = params.t0 / (1 << this_rung);
 					if (!params.first) {
 						for (int dim = 0; dim < NDIM; dim++) {

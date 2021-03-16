@@ -188,7 +188,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 				const simd_float r2 = max(fma(dX[0], dX[0], fma(dX[1], dX[1], dX[2] * dX[2])), tiny);                   // 6
 				const simd_float far_flag = r2 > h2;                                                                    // 1
 				simd_float rinv1, rinv3;
-				if (far_flag.sum() != 0) {                                                                              // 7
+				if (far_flag.sum() == simd_float::size()) {                                                                              // 7
 					rinv1 = mask * simd_float(1) / sqrt(r2);                                      // 1 + FLOP_DIV + FLOP_SQRT
 					rinv3 = rinv1 * rinv1 * rinv1;                                                     // 2
 					flops += n * (2 + FLOP_DIV + FLOP_SQRT);
