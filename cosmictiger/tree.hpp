@@ -182,7 +182,7 @@ struct tree_ptr {
 
 struct sort_return {
 	tree_ptr check;
-	bool active;
+	size_t num_active;
 	template<class A>
 	void serialization(A &&arc, unsigned) {
 		assert(false);
@@ -302,7 +302,7 @@ private:
 	multipole multi;
 	array<fixed32, NDIM> pos;
 	float radius;
-	bool active;
+	size_t num_active;
 	array<tree_ptr, NCHILD> children;
 	pair<size_t, size_t> parts;
 	static particle_set* particles;

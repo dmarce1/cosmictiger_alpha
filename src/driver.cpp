@@ -14,7 +14,7 @@ double da_tau(double a) {
 	return H * a * a * std::sqrt(omega_m / (a * a * a) + omega_r / (a * a * a * a) + omega_lambda);
 }
 
-tree build_tree(particle_set& parts, int min_rung, double& tm) {
+tree build_tree(particle_set& parts, int min_rung, size_t& num_active, double& tm) {
 	timer time;
 	time.start();
 	tree::set_particle_set(&parts);
@@ -25,7 +25,8 @@ tree build_tree(particle_set& parts, int min_rung, double& tm) {
 	tree root;
 	sort_params params;
 	params.min_rung = min_rung;
-	root.sort(params);
+	sort_return rc = root.sort(params);
+	num_active = rc.num_active;
 	time.stop();
 	tm = time.read();
 	return root;
@@ -65,7 +66,7 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, double
 	tree::cleanup();
 	managed_allocator<tree>::cleanup();
 	if (full_eval) {
-			kick_return_show();
+		kick_return_show();
 	}
 	first_call = false;
 	time.stop();
@@ -103,10 +104,16 @@ void drive_cosmos() {
 	double theta;
 	double pot;
 	double esum0;
+	double parts_total;
+	double time_total;
+	parts_total = 0.0;
+	time_total = 0.0;
+	timer tm;
+	tm.start();
 	do {
 		if (iter % 25 == 0) {
-			printf("%4s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "min", "max", "time", "dt", "theta", "a",
-					"z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift");
+			printf("%4s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "actv", "min", "max",
+					"time", "dt", "theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "srate");
 		}
 		if (z > 20.0) {
 			theta = 0.4;
@@ -117,7 +124,8 @@ void drive_cosmos() {
 		}
 		double time = double(itime) * T0 / double(std::numeric_limits<time_type>::max());
 		const auto min_r = min_rung(itime);
-	tree root = build_tree(parts, min_r, sort_tm);
+		size_t num_active;
+		tree root = build_tree(parts, min_r, num_active, sort_tm);
 		const bool full_eval = iter % EVAL_FREQ == 0;
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, kick_tm);
 		kick_return kr = kick_return_get();
@@ -133,19 +141,28 @@ void drive_cosmos() {
 		double kin, momx, momy, momz;
 		drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, drift_tm);
 		cosmicK += kin * (a - a0);
-		double sum = a*(pot + kin) + cosmicK;
-	//	printf( "%e %e %e %e\n", a, pot, kin, cosmicK);
+		double sum = a * (pot + kin) + cosmicK;
+		//	printf( "%e %e %e %e\n", a, pot, kin, cosmicK);
 		if (iter == 0) {
 			esum0 = sum;
 		}
-		sum = (sum - esum0) / (std::abs(a*kin) + std::abs(a*pot) + std::abs(cosmicK));
+		sum = (sum - esum0) / (std::abs(a * kin) + std::abs(a * pot) + std::abs(cosmicK));
 		double partfac = 1.0 / global().opts.nparts;
+		parts_total += num_active;
+		double act_pct = 100.0 * (double) num_active * partfac;
+		tm.stop();
+		time_total += tm.read();
+		tm.reset();
+		tm.start();
+		double science_rate = parts_total / time_total;
 		if (full_eval) {
-			printf("%4i %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n", iter, min_r, max_rung, time, dt,
-					theta, a0, z, a*pot * partfac, a*kin * partfac, cosmicK* partfac, sum, sort_tm, kick_tm, drift_tm);
+			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n", iter,
+					act_pct, min_r, max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac,
+					cosmicK * partfac, sum, sort_tm, kick_tm, drift_tm, science_rate);
 		} else {
-			printf("%4i %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e\n", iter, min_r, max_rung, time, dt,
-					theta, a0, z, "n/a", a*kin * partfac, cosmicK * partfac, "n/a", sort_tm, kick_tm, drift_tm);
+			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e\n", iter,
+					act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac, "n/a",
+					sort_tm, kick_tm, drift_tm, science_rate);
 		}
 		itime = inc(itime, max_rung);
 		iter++;

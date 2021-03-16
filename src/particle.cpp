@@ -330,12 +330,12 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xmid_double, in
 				hi--;
 				if (x[hi] < xmid) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						std::swap(xptr_[dim][hi],xptr_[dim][lo]);
+						std::swap(xptr_[dim][hi], xptr_[dim][lo]);
 					}
 					for (int dim = 0; dim < NDIM; dim++) {
-						std::swap(vptr_[dim][hi],vptr_[dim][lo]);
+						std::swap(vptr_[dim][hi], vptr_[dim][lo]);
 					}
-					std::swap(rptr_[hi],rptr_[lo]);
+					std::swap(rptr_[hi], rptr_[lo]);
 					break;
 				}
 			}
@@ -368,12 +368,16 @@ void particle_set::load_particles(std::string filename) {
 	const auto Gcgs = 6.67259e-8;
 	const auto ccgs = 2.99792458e+10;
 	const auto Hcgs = 3.2407789e-18;
+	global().opts.code_to_cm = (header.mass[1] * global().opts.nparts * 8.0 * M_PI * Gcgs * global().opts.code_to_g);
+	global().opts.code_to_cm /= 3.0 * global().opts.omega_m * Hcgs * Hcgs;
+	global().opts.code_to_cm = std::pow(global().opts.code_to_cm, 1.0 / 3.0);
 	global().opts.code_to_s = global().opts.code_to_cm / global().opts.code_to_cms;
 	global().opts.H0 = Hcgs * global().opts.code_to_s;
 	global().opts.G = Gcgs / pow(global().opts.code_to_cm, 3) * global().opts.code_to_g
 			* pow(global().opts.code_to_s, 2);
 	double m_tot = global().opts.omega_m * 3.0 * global().opts.H0 * global().opts.H0 / (8 * M_PI * global().opts.G);
 	global().opts.M = m_tot / global().opts.nparts;
+
 	printf("G in code units = %e\n", global().opts.G);
 	printf("M in code units = %e\n", global().opts.M);
 

@@ -88,7 +88,7 @@ hpx::future<sort_return> tree::create_child(sort_params &params) {
 sort_return tree::sort(sort_params params) {
 	const auto &opts = global().opts;
 	static std::atomic<int> gpu_searches(0);
-	active = false;
+	num_active = 0;
 	if (params.iamroot()) {
 		gpu_searches = 0;
 		int dummy;
@@ -150,6 +150,9 @@ sort_return tree::sort(sort_params params) {
 			auto part_handle = particles->get_virtual_particle_set();
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
 			size_t pmid;
+			if (params.depth == 0) {
+				particles->prepare_sort(parts.first,parts.second,cudaCpuDeviceId);
+			}
 			pmid = particles->sort_range(parts.first, parts.second, xmid, xdim);
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
 			child_params[LEFT].parts.first = parts.first;
@@ -185,14 +188,14 @@ sort_return tree::sort(sort_params params) {
 		std::array<fixed32*, NCHILD> Xc;
 		std::array<float, NCHILD> Rc;
 		auto &M = (multi);
-		rc.active = false;
+		rc.num_active = 0;
 		for (int ci = 0; ci < NCHILD; ci++) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
 			Mc[ci] = ((tree*) this_rc.check)->multi;
 			Xc[ci] = ((tree*) this_rc.check)->pos.data();
 			children[ci] = this_rc.check;
-			rc.active = rc.active || this_rc.active;
+			rc.num_active += this_rc.num_active;
 		}
 		std::array<double, NDIM> com = { 0, 0, 0 };
 		const auto &MR = Mc[RIGHT];
@@ -263,15 +266,14 @@ sort_return tree::sort(sort_params params) {
 			this_radius = std::sqrt(this_radius);
 			radius = std::max(radius, (float) (this_radius));
 		}
-		rc.active = false;
+		rc.num_active = 0;
 		for (size_t k = parts.first; k < parts.second; k++) {
 			if (particles->rung(k) >= params.min_rung) {
-				rc.active = true;
-				break;
+				rc.num_active++;
 			}
 		}
 	}
-	active = rc.active;
+	num_active = rc.num_active;
 	return rc;
 }
 

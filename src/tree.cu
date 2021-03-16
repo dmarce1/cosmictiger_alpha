@@ -30,7 +30,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	tree_ptr tptr = params.tptr;
 	tree& me = *((tree*) params.tptr);
-	if (!me.active && !params.full_eval) {
+	if (!me.num_active && !params.full_eval) {
 		return;
 	}
 	const int &tid = threadIdx.x;
