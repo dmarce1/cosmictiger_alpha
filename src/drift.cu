@@ -1,5 +1,6 @@
 #include <cosmictiger/drift.hpp>
 #include <cosmictiger/global.hpp>
+
 CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, double* momx, double* momy,
 		double* momz) {
 	const int& tid = threadIdx.x;
@@ -8,8 +9,8 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 	const size_t nparts = parts.size();
 	const size_t start = bid * nparts / gsz;
 	const size_t stop = (bid + 1) * nparts / gsz;
-	const double ainv = 1.0 / a;
-	const double dteff = dt * ainv;
+	const float ainv = 1.0 / a;
+	const float dteff = dt * ainv;
 	double myekin, mymomx, mymomy, mymomz;
 	myekin = 0;
 	mymomx = 0;
@@ -20,12 +21,12 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 		double x = parts.pos(0, i).to_double();
 		double y = parts.pos(1, i).to_double();
 		double z = parts.pos(2, i).to_double();
-		const double vx = (double) parts.vel(0, i);
-		const double vy = (double) parts.vel(1, i);
-		const double vz = (double) parts.vel(2, i);
-		const double ux = vx * ainv;
-		const double uy = vy * ainv;
-		const double uz = vz * ainv;
+		const float vx = parts.vel(0, i);
+		const float vy = parts.vel(1, i);
+		const float vz = parts.vel(2, i);
+		const float ux = vx * ainv;
+		const float uy = vy * ainv;
+		const float uz = vz * ainv;
 		myekin += 0.5 * (ux * ux + uy * uy + uz * uz);
 		mymomx += ux;
 		mymomy += uy;
@@ -61,7 +62,7 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 		mymomy += __shfl_down_sync(0xFFFFFFFF, mymomy, P);
 		mymomz += __shfl_down_sync(0xFFFFFFFF, mymomz, P);
 	}
-	if (tid == 0) {
+	if (tid % warpSize == 0) {
 		atomicAdd(ekin, myekin);
 		atomicAdd(momx, mymomx);
 		atomicAdd(momy, mymomy);
@@ -80,7 +81,7 @@ void drift_particles(particle_set parts, double dt, double a0, double a1, double
 	const auto a = 1.0 / (0.5 / a0 + 0.5 / a1);
 	double* results;
 	CUDA_MALLOC(results, 4);
-	for( int i = 0; i < 4; i++) {
+	for (int i = 0; i < 4; i++) {
 		results[i] = 0.0;
 	}
 	drift_kernel<<<nblock,DRIFT_BLOCK_SIZE,0,stream>>>(parts, dt, a, results + 0, results + 1, results + 2, results + 3);

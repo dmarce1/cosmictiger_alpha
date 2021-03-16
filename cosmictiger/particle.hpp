@@ -48,8 +48,8 @@ struct particle_set {
 		rptr_[b] = tmp3;
 	}*/
 	particle_set(size_t, size_t = 0);
-	void prepare_sort(size_t begin, size_t end, int device);
-	void prepare_kick(cudaStream_t stream);
+	void prepare_sort();
+	void prepare_kick(size_t begin, size_t end, cudaStream_t stream);
 	void prepare_drift(cudaStream_t stream);
 	~particle_set();CUDA_EXPORT
 	fixed32 pos(int dim, size_t index) const;
