@@ -327,6 +327,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 						dst[tid + 30] = src1[tid + 30];
 					}
 					nsrc += 3;
+					z += 2;
 				}
 			}
 			if (!found3 && m + z < multis.size()) {
