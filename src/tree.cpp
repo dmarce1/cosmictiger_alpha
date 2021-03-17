@@ -89,7 +89,6 @@ sort_return tree::sort(sort_params params) {
 	const auto &opts = global().opts;
 	static std::atomic<int> gpu_searches(0);
 	active_parts = 0;
-	active_nodes = 0;
 	if (params.iamroot()) {
 		gpu_searches = 0;
 		int dummy;
@@ -190,7 +189,6 @@ sort_return tree::sort(sort_params params) {
 		std::array<float, NCHILD> Rc;
 		auto &M = (multi);
 		rc.active_parts = 0;
-		rc.active_nodes = 1;
 		for (int ci = 0; ci < NCHILD; ci++) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
@@ -198,10 +196,6 @@ sort_return tree::sort(sort_params params) {
 			Xc[ci] = ((tree*) this_rc.check)->pos.data();
 			children[ci] = this_rc.check;
 			rc.active_parts += this_rc.active_parts;
-			rc.active_nodes += this_rc.active_nodes;
-		}
-		if (rc.active_nodes == 1) {
-			rc.active_nodes = 0;
 		}
 		std::array<double, NDIM> com = { 0, 0, 0 };
 		const auto &MR = Mc[RIGHT];
@@ -273,16 +267,13 @@ sort_return tree::sort(sort_params params) {
 			radius = std::max(radius, (float) (this_radius));
 		}
 		rc.active_parts = 0;
-		rc.active_nodes = 0;
 		for (size_t k = parts.first; k < parts.second; k++) {
 			if (particles->rung(k) >= params.min_rung) {
 				rc.active_parts++;
-				rc.active_nodes = 1;
 			}
 		}
 	}
 	active_parts = rc.active_parts;
-	active_nodes = rc.active_nodes;
 	return rc;
 }
 
@@ -300,7 +291,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	kick_params_type &params = *params_ptr;
 	const auto part_begin = ((tree*) (*this))->parts.first;
 	const auto part_end = ((tree*) (*this))->parts.second;
-	const auto num_active = ((tree*) (*this))->active_nodes;
+	const auto num_active = ((tree*) (*this))->active_parts;
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
 	const auto gpu_partcnt = global().opts.nparts / (sm_count * KICK_OCCUPANCY);
 	bool use_cpu_block = false;
@@ -359,7 +350,7 @@ timer kick_timer;
 //int num_kicks = 0;
 hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
-	if (!active_nodes && !params.full_eval) {
+	if (!active_parts && !params.full_eval) {
 		return hpx::make_ready_future();
 	}
 	auto& F = params.F;
@@ -370,7 +361,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		const auto sm_count = global().cuda.devices[0].multiProcessorCount;
 		//	auto cpu_load = NWAVE * CPU_LOAD;
 		const int target_max = GPUOS * NWAVE * sm_count * KICK_OCCUPANCY;	// + cpu_load;
-		int pcnt = active_nodes;
+		int pcnt = active_parts;
 		int count;
 		do {
 			count = compute_block_count(pcnt, true, params.full_eval);
@@ -565,7 +556,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					max_rung = std::max(max_rung, new_rung);
 					particles->set_rung(new_rung, k + parts.first);
 				}
-				kick_return_update_pot_cpu(phi[k], F[0][k], F[1][k], F[2][k]);
+				if( params.full_eval) {
+					kick_return_update_pot_cpu(phi[k], F[0][k], F[1][k], F[2][k]);
+				}
 			}
 			kick_return_update_rung_cpu(particles->rung(k + parts.first));
 
@@ -618,9 +611,9 @@ void tree::gpu_daemon() {
 			gpu_params = (kick_params_type*) calloc.allocate(kicks.size() * sizeof(kick_params_type));
 			auto stream = get_stream();
 			std::sort(kicks.begin(), kicks.end(), [](const gpu_kick& a, const gpu_kick& b) {
-				return a.parts.first < b.parts.first;
+				return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first) ;
 			});
-			particles->prepare_kick(kicks[0].parts.first, kicks.back().parts.second, stream);
+			particles->prepare_kick(stream);
 			for (int i = 0; i < kicks.size(); i++) {
 				auto tmp = std::move(kicks[i]);
 				deleters->push_back(tmp.params->dchecks.to_device(stream));
@@ -707,10 +700,10 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 }
 
 int tree::compute_block_count(size_t cutoff, bool root, bool full_eval) {
-	if (!active_nodes && !full_eval) {
+	if (!active_parts && !full_eval) {
 		return 0;
 	}
-	if (active_nodes <= cutoff && !root) {
+	if (active_parts <= cutoff && !root) {
 		return 1;
 	} else if (!is_leaf()) {
 		auto left = ((tree*) children[LEFT])->compute_block_count(cutoff, false,full_eval);

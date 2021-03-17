@@ -22,13 +22,12 @@ struct range;
 #include <atomic>
 #include <vector>
 
-using rung_t = int8_t;
+using rung_t = int;
 
 struct particle {
 	std::array<fixed32, NDIM> x;
 	std::array<float, NDIM> v;
-	uint64_t morton_id;
-	int8_t rung;
+	rung_t rung;
 };
 
 struct particle_set {
@@ -49,22 +48,19 @@ struct particle_set {
 	}*/
 	particle_set(size_t, size_t = 0);
 	void prepare_sort();
-	void prepare_kick(size_t begin, size_t end, cudaStream_t stream);
+	void prepare_kick(cudaStream_t stream);
 	void prepare_drift(cudaStream_t stream);
 	~particle_set();CUDA_EXPORT
 	fixed32 pos(int dim, size_t index) const;
 	std::array<fixed32, NDIM> pos(size_t index) const;
 	float vel(int dim, size_t index) const;CUDA_EXPORT
 	rung_t rung(size_t index) const;
-	morton_t mid(size_t index) const;
-	void set_mid(morton_t, size_t index);CUDA_EXPORT
 	size_t sort_range(size_t begin, size_t end, double xmid, int xdim);
 	CUDA_EXPORT
 	fixed32& pos(int dim, size_t index);CUDA_EXPORT
 	float& vel(int dim, size_t index);CUDA_EXPORT
 	void set_rung(rung_t t, size_t index);
 	particle part(size_t index) const;
-	std::vector<size_t> local_sort(size_t, size_t, int64_t, morton_t key_begin, morton_t key_end);
 	void generate_random();
 	void generate_grid();CUDA_EXPORT
 	size_t size() const {
@@ -90,7 +86,7 @@ private:
 	array<float*, NDIM> gptr_;
 	float* eptr_;
 #endif
-	int8_t *rptr_;
+	rung_t *rptr_;
 	uint64_t *mptr_;
 	void *pptr_;
 	size_t size_;
@@ -118,9 +114,6 @@ public:
 	}
 }
 ;
-
-std::vector<size_t> cuda_keygen(particle_set &set, size_t start, size_t stop, int depth, morton_t, morton_t,
-		cudaStream_t);
 
 inline std::array<fixed32, NDIM> particle_set::pos(size_t index) const {
 	assert(index >= 0);
@@ -151,12 +144,6 @@ inline rung_t particle_set::rung(size_t index) const {
 	assert(index < size_);
 	return rptr_[index - offset_];
 }
-
-inline morton_t particle_set::mid(size_t index) const {
-	assert(index >= 0);
-	assert(index < size_);
-	return mptr_[index - offset_];
-}
 CUDA_EXPORT
 inline fixed32& particle_set::pos(int dim, size_t index) {
 	assert(index >= 0);
@@ -169,12 +156,6 @@ inline float& particle_set::vel(int dim, size_t index) {
 	assert(index >= 0);
 	assert(index < size_);
 	return vptr_[dim][index - offset_];
-}
-
-inline void particle_set::set_mid(morton_t t, size_t index) {
-	assert(index >= 0);
-	assert(index < size_);
-	mptr_[index - offset_] = t;
 }
 
 CUDA_EXPORT
@@ -195,7 +176,6 @@ inline particle particle_set::part(size_t index) const {
 		p.v[dim] = vel(dim, index);
 	}
 	p.rung = rung(index);
-	p.morton_id = mid(index);
 	return p;
 }
 

@@ -30,7 +30,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	tree_ptr tptr = params.tptr;
 	tree& me = *((tree*) params.tptr);
-	if (!me.active_nodes && !params.full_eval) {
+	if (!me.active_parts && !params.full_eval) {
 		return;
 	}
 	const int &tid = threadIdx.x;
@@ -132,6 +132,14 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 								+ (1 - int(mi)) * (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
 						my_index[list_index] = 1;
 					}
+					for (int i = 0; i < NITERS; i++) {
+						index_counts[i] = my_index[i];
+					}
+					for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+						for (int i = 0; i < NITERS; i++) {
+							index_counts[i] += __shfl_xor_sync(0xFFFFFFFF, index_counts[i], P);
+						}
+					}
 					array<int, NITERS> tmp;
 					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
 						for (int i = 0; i < NITERS; i++) {
@@ -142,7 +150,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						}
 					}
 					for (int i = 0; i < NITERS; i++) {
-						index_counts[i] = __shfl_sync(0xFFFFFFFF, my_index[i], KICK_BLOCK_SIZE - 1);
 						tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], 1);
 						if (tid >= 1) {
 							my_index[i] = tmp[i];
@@ -234,6 +241,14 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						my_index[list_index] = 1;
 					}
 				}
+				for (int i = 0; i < 2; i++) {
+					index_counts[i] = my_index[i];
+				}
+				for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+					for (int i = 0; i < 2; i++) {
+						index_counts[i] += __shfl_xor_sync(0xFFFFFFFF, index_counts[i], P);
+					}
+				}
 				array<int, NITERS> tmp;
 				for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
 					for (int i = 0; i < 2; i++) {
@@ -244,7 +259,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					}
 				}
 				for (int i = 0; i < 2; i++) {
-					index_counts[i] = __shfl_sync(0xFFFFFFFF, my_index[i], KICK_BLOCK_SIZE - 1);
 					tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], 1);
 					if (tid >= 1) {
 						my_index[i] = tmp[i];
@@ -355,12 +369,16 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					}
 					parts->set_rung(new_rung, k + myparts.first);
 				}
-				kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
+				if( params.full_eval) {
+					kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
+				}
 			}
 			kick_return_update_rung_gpu(parts->rung(k + myparts.first));
 		}
 	}
-	kick_return_update_interactions_gpu(KR_OP, interacts, flops);
+	if( params.full_eval) {
+		kick_return_update_interactions_gpu(KR_OP, interacts, flops);
+	}
 }
 
 CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p) {

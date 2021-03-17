@@ -55,7 +55,9 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		params.L[params.depth][i] += L[i];
 	}
 	__syncwarp();
-	kick_return_update_interactions_gpu(etype == DIRECT ? KR_CC : KR_EWCC, interacts, flops);
+	if( params.full_eval) {
+		kick_return_update_interactions_gpu(etype == DIRECT ? KR_CC : KR_EWCC, interacts, flops);
+	}
 }
 
 CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
@@ -135,7 +137,9 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		}
 	}
 	__syncwarp();
-	kick_return_update_interactions_gpu(KR_CP, interacts, flops);
+	if( params.full_eval) {
+		kick_return_update_interactions_gpu(KR_CP, interacts, flops);
+	}
 }
 
 CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
@@ -264,7 +268,9 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 		}
 	}
 	__syncwarp();
-	kick_return_update_interactions_gpu(KR_PP, interacts, flops);
+	if( params.full_eval) {
+		kick_return_update_interactions_gpu(KR_PP, interacts, flops);
+	}
 }
 
 CUDA_DEVICE
@@ -360,7 +366,9 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 		}
 	}
 	__syncwarp();
-	kick_return_update_interactions_gpu(KR_PC, interacts, flops);
+	if( params.full_eval) {
+		kick_return_update_interactions_gpu(KR_PC, interacts, flops);
+	}
 }
 
 #ifdef TEST_FORCE

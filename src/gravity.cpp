@@ -55,7 +55,9 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 			}
 		}
 	}
-	kick_return_update_interactions_cpu(KR_CC, interacts, flops);
+	if( params.full_eval) {
+		kick_return_update_interactions_cpu(KR_CC, interacts, flops);
+	}
 }
 
 void tree::cpu_cp_direct(kick_params_type *params_ptr) {
@@ -123,7 +125,9 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 			L[i] += Lacc[i][k];
 		}
 	}
-	kick_return_update_interactions_cpu(KR_CP, interacts, flops);
+	if( params.full_eval) {
+		kick_return_update_interactions_cpu(KR_CP, interacts, flops);
+	}
 }
 
 void tree::cpu_pp_direct(kick_params_type *params_ptr) {
@@ -220,7 +224,9 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 			Phi[i] += phi.sum();
 		}
 	}
-	kick_return_update_interactions_cpu(KR_PP, interacts, flops);
+	if (params.full_eval) {
+		kick_return_update_interactions_cpu(KR_PP, interacts, flops);
+	}
 }
 
 void tree::cpu_pc_direct(kick_params_type *params_ptr) {
@@ -281,7 +287,9 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 			}
 		}
 	}
-	kick_return_update_interactions_cpu(KR_PC, interacts, flops);
+	if (params.full_eval) {
+		kick_return_update_interactions_cpu(KR_PC, interacts, flops);
+	}
 }
 
 void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
@@ -342,5 +350,7 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 			}
 		}
 	}
-	kick_return_update_interactions_cpu(KR_EWCC, interacts, flops);
+	if (params.full_eval) {
+		kick_return_update_interactions_cpu(KR_EWCC, interacts, flops);
+	}
 }
