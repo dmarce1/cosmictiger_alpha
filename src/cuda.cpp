@@ -10,8 +10,6 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/sort.hpp>
 #include <cosmictiger/drift.hpp>
-CUDA_KERNEL cuda_kick_kernel(kick_params_type *params);
-
 #include <cstdlib>
 CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr);
 
@@ -84,7 +82,7 @@ cuda_properties cuda_init() {
 //      printf("Unable to set pending launch count to %li\n",  PENDINGLAUNCHES);
 //      fail = true;
 //   }
-	//  CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&cuda_kick_kernel, cudaFuncCachePreferL1));
+	//  CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&gpu_sort_kernel, cudaFuncCachePreferL1));
 //   CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&count_kernel, cudaFuncCachePreferL1));
 	//CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
 	//   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));

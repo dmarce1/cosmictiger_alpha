@@ -60,7 +60,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	}
 	const auto& myparts = ((tree*) params.tptr)->parts;
 	const auto& h = params.hsoft;
-	array<int, NITERS> count;
+	auto &count = shmem.count;
 
 	const auto theta = params.theta;
 	const auto theta2 = params.theta * params.theta;
@@ -84,8 +84,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
 		auto& checks = ewald_dist ? params.echecks : params.dchecks;
 		const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
-		for (int i = 0; i < NITERS; i++) {
-			count[i] = 0;
+		if (tid < NITERS) {
+			count[tid] = 0;
 		}
 		for (int i = 0; i < NITERS; i++) {
 			lists[i]->resize(0);
@@ -104,15 +104,12 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					const auto h = params.hsoft;
 					if (ci < check_count) {
 						auto &check = checks[ci];
-						float other_radius;
-						//		pair<size_t, size_t> other_parts;
-						array<fixed32, NDIM> other_pos;
-						other_radius = __ldg(&((const tree*) check)->radius);
-						//			other_parts.first = __ldg(&((const tree*) check)->parts.first);
-						//			other_parts.second = __ldg(&((const tree*) check)->parts.second);
-						for (int dim = 0; dim < NDIM; dim++) {
-							other_pos[dim].from_int(__ldg(((const tree*) check)->pos[dim].int_addr()));
+						if (check.ptr == 0) {
+							printf("++++++%i\n", ci);
 						}
+						const auto &other_radius = ((const tree*) check)->radius;
+						const auto &other_parts = ((const tree*) check)->parts;
+						const auto &other_pos = ((const tree*) check)->pos;
 						array<float, NDIM> dist;
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
 							dist[dim] = distance(other_pos[dim], mypos[dim]);
@@ -127,11 +124,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const bool far1 = R1 < theta2d2;                 // 1
 						const bool far2 = R2 < theta2d2;                 // 1
 						const bool far3 = R3 < theta2d2;                 // 1
-						const bool isleaf = __ldg(&((const tree*) check)->children[0].ptr) == 0;
+						const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
 						interacts++;
 						flops += 27;
-						const bool mi = far1
-								|| (direct && far3 /*&& (other_parts.second - other_parts.first >= PC_MIN_PARTS)*/);
+						const bool mi = far1 || (direct && far3 && (other_parts.second - other_parts.first >= PC_MIN_PARTS));
 						const bool pi = (far2 || direct) && isleaf;
 						list_index = int(mi) * MI
 								+ (1 - int(mi)) * (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
@@ -163,8 +159,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						assert(count[list_index] + my_index[list_index] >= 0);
 						(*lists[list_index])[count[list_index] + my_index[list_index]] = check;
 					}
-					for (int i = 0; i < NITERS; i++) {
-						count[i] += index_counts[i];
+					if (tid < NITERS) {
+						count[tid] += index_counts[tid];
 					}
 				}
 				__syncwarp();
@@ -185,15 +181,16 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					checks[base + i] = opened_checks[i];
 				}
 				__syncwarp();
-				countCI = 0;
-				countOI = 0;
+				if (tid == 0) {
+					countCI = 0;
+					countOI = 0;
+				}
 				next_checks.resize(0);
 				opened_checks.resize(0);
 			}
 		} while (direct && check_count);
 		auto &tmp_parti = params.tmp;
 		auto tm = clock64();
-		const auto hfac = (1.f + SINK_BIAS) * params.hsoft;
 		if (type == PC_PP_DIRECT) {
 			auto &rungs = shmem.rungs;
 			auto &sinks = shmem.sink;
@@ -214,26 +211,28 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				list_index = -1;
 				if (j < parti.size()) {
 					const auto& other = *((tree*) parti[j]);
-					const size_t sz = myparts.second - myparts.first;
-					//			if (last - first >= PC_MIN_PARTS) {
-					bool res = false;
-					for (int k = 0; k < sz; k++) {
-						//				const auto this_rung = rungs[k];
-						//				if (this_rung >= params.rung || params.full_eval) {
-						const float dx0 = distance(other.pos[0], sinks[0][k]);
-						const float dy0 = distance(other.pos[1], sinks[1][k]);
-						const float dz0 = distance(other.pos[2], sinks[2][k]);
-						const float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-						res = sqr(other.radius + hfac) > d2 * theta2;
-						flops += 15;
-						if (res) {
-							break;
+					const size_t& first = myparts.first;
+					const size_t& last = myparts.second;
+					const auto hfac = (1.f + SINK_BIAS) * params.hsoft;
+					if (last - first >= PC_MIN_PARTS) {
+						bool res = false;
+						for (int k = 0; k < last - first; k++) {
+							const auto this_rung = rungs[k];
+							if (this_rung >= params.rung || params.full_eval) {
+								float dx0 = distance(other.pos[0], sinks[0][k]);
+								float dy0 = distance(other.pos[1], sinks[1][k]);
+								float dz0 = distance(other.pos[2], sinks[2][k]);
+								float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
+								res = sqr(other.radius + hfac) > d2 * theta2;
+								flops += 15;
+								if (res) {
+									break;
+								}
+							}
 						}
+						list_index = res ? PI : MI;
+						my_index[list_index] = 1;
 					}
-					//		}
-					list_index = res ? PI : MI;
-					my_index[list_index] = 1;
-					//			}
 				}
 				for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
 					for (int i = 0; i < 2; i++) {
@@ -307,19 +306,15 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		//   printf( "%li\n", rc.flops);
 	} else {
 		const auto invlog2 = 1.0f / logf(2);
-		const auto GM = params.G * params.M;
-		const auto inva = 1.0f / params.scale;
-		const auto time_factor = params.eta * pow(params.scale, 1.5) * sqrt(params.hsoft);
 		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
-			const size_t index = k + myparts.first;
-			const auto this_rung = parts->rung(index);
+			const auto this_rung = parts->rung(k + myparts.first);
 			if (this_rung >= params.rung || params.full_eval) {
 				array<float, NDIM> g;
 				float this_phi;
 				array<float, NDIM> dx;
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto x2 = me.pos[dim];
-					const auto x1 = parts->pos(dim, index);
+					const auto x1 = parts->pos(dim, k + myparts.first);
 					dx[dim] = distance(x1, x2);
 				}
 				shift_expansion(L, g, this_phi, dx);
@@ -328,21 +323,20 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 				phi[k] += this_phi;
 				for (int dim = 0; dim < NDIM; dim++) {
-					F[dim][k] *= GM;
+					F[dim][k] *= params.G * params.M;
 				}
-				phi[k] *= GM;
+				phi[k] *= params.G * params.M;
 #ifdef TEST_FORCE
 				for (int dim = 0; dim < NDIM; dim++) {
-					parts->force(dim, index) = F[dim][k];
+					parts->force(dim, k + myparts.first) = F[dim][k];
 				}
-				parts->pot(index) = phi[k];
+				parts->pot(k + myparts.first) = phi[k];
 #endif
 				if (this_rung >= params.rung) {
 					float dt = params.t0 / (size_t(1) << this_rung);
 					if (!params.first) {
 						for (int dim = 0; dim < NDIM; dim++) {
-							auto& vel = parts->vel(dim, index);
-							vel = fmaf(0.5f * dt, F[dim][k] * inva, vel);
+							parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
 						}
 					}
 					float fmag = 0.0;
@@ -352,20 +346,19 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					fmag = sqrtf(fmag);
 					//   printf( "%e\n", fmag);
 					assert(fmag > 0.0);
-					dt = fminf(time_factor * rsqrtf(fmag), params.t0);
+					dt = fminf(params.eta * sqrt(params.scale * params.hsoft / fmag), params.t0);
 					int new_rung = fmaxf(fmaxf(fmaxf(ceil(logf(params.t0 / dt) * invlog2), this_rung - 1), params.rung), 0);
 					dt = params.t0 / (size_t(1) << new_rung);
 					for (int dim = 0; dim < NDIM; dim++) {
-						auto& vel = parts->vel(dim, index);
-						vel = fmaf(0.5f * dt, F[dim][k] * inva, vel);
+						parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
 					}
-					parts->set_rung(new_rung, index);
+					parts->set_rung(new_rung, k + myparts.first);
 				}
 				if (params.full_eval) {
 					kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
 				}
 			}
-			kick_return_update_rung_gpu(parts->rung(index));
+			kick_return_update_rung_gpu(parts->rung(k + myparts.first));
 		}
 	}
 	if (params.full_eval) {

@@ -21,8 +21,8 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	if (multis.size() == 0) {
 		return;
 	}
-	expansion<float> L; // = shmem.expanse2[tid];
-	expansion<float> D; // = shmem.expanse1[tid];
+	expansion<float> L;// = shmem.expanse2[tid];
+	expansion<float> D;// = shmem.expanse1[tid];
 	int flops = 0;
 	int interacts = 0;
 	for (int i = 0; i < LP; i++) {
@@ -31,7 +31,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	const auto &pos = ((tree*) params.tptr)->pos;
 	const int sz = multis.size();
 	for (int i = tid; i < sz; i += KICK_BLOCK_SIZE) {
-		multipole mpole;
+		const multipole mpole = ((tree*) multis[i])->multi;
 		array<float, NDIM> fpos;
 		for (int dim = 0; dim < NDIM; dim++) {
 			fpos[dim] = distance(pos[dim], ((tree*) multis[i])->pos[dim]);
@@ -55,7 +55,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		params.L[params.depth][i] += L[i];
 	}
 	__syncwarp();
-	if (params.full_eval) {
+	if( params.full_eval) {
 		kick_return_update_interactions_gpu(etype == DIRECT ? KR_CC : KR_EWCC, interacts, flops);
 	}
 }
@@ -103,7 +103,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				const int sz = imax - imin;
 				for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						sources[dim][part_index + j].from_int(__ldg(parts->pos(dim, j + imin).int_addr()));
+						sources[dim][part_index + j] = parts->pos(dim, j + imin);
 					}
 				}
 				these_parts.first += sz;
@@ -137,7 +137,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		}
 	}
 	__syncwarp();
-	if (params.full_eval) {
+	if( params.full_eval) {
 		kick_return_update_interactions_gpu(KR_CP, interacts, flops);
 	}
 }
@@ -172,7 +172,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 		rungs[i] = parts->rung(i + myparts.first);
 		if (rungs[i] >= params.rung || params.full_eval) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				sinks[dim][i].from_int(__ldg(parts->pos(dim, myparts.first + i).int_addr()));
+				sinks[dim][i] = parts->pos(dim, i + myparts.first);
 			}
 		}
 	}
@@ -196,7 +196,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			const int sz = imax - imin;
 			for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
 				for (int dim = 0; dim < NDIM; dim++) {
-					sources[dim][part_index + j].from_int(__ldg(parts->pos(dim, j + imin).int_addr()));
+					sources[dim][part_index + j] = parts->pos(dim, j + imin);
 				}
 			}
 			these_parts.first += sz;
@@ -268,7 +268,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 		}
 	}
 	__syncwarp();
-	if (params.full_eval) {
+	if( params.full_eval) {
 		kick_return_update_interactions_gpu(KR_PP, interacts, flops);
 	}
 }
@@ -298,7 +298,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 		rungs[i] = parts->rung(i + myparts.first);
 		if (rungs[i] >= params.rung || params.full_eval) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				sinks[dim][i].from_int(__ldg(parts->pos(dim, myparts.first + i).int_addr()));
+				sinks[dim][i] = parts->pos(dim, myparts.first + i);
 			}
 		}
 	}
@@ -326,7 +326,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 				float* dst = (float*) &(msrcs[nsrc]);
 				nsrc++;
 				if (tid < msize) {
-					dst[tid] = __ldg(src + tid);
+					dst[tid] = src[tid];
 				}
 			}
 		}
@@ -366,7 +366,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 		}
 	}
 	__syncwarp();
-	if (params.full_eval) {
+	if( params.full_eval) {
 		kick_return_update_interactions_gpu(KR_PC, interacts, flops);
 	}
 }

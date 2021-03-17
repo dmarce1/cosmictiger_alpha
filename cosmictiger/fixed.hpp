@@ -54,14 +54,6 @@ public:
 		return num;
 	}
 
-	CUDA_EXPORT inline const T* int_addr() const {
-		return &i;
-	}
-
-	CUDA_EXPORT inline void from_int(T j) {
-		i = j;
-	}
-
 	CUDA_EXPORT
 	constexpr inline fixed<T>() :
 			i(0) {

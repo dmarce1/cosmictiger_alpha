@@ -297,15 +297,27 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	bool use_cpu_block = false;
 	if (num_active <= params.block_cutoff && num_active) {
 		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
+	} else if (thread) {
+		kick_params_type *new_params;
+		new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
+		new (new_params) kick_params_type;
+		*new_params = *params_ptr;
+		auto func = [this, new_params]() {
+			int dummy;
+			auto rc = ((tree*) ptr)->kick(new_params);
+			new_params->kick_params_type::~kick_params_type();
+			kick_params_alloc.deallocate(new_params);
+			return rc;
+		};
+		auto fut = hpx::async(std::move(func));
+		return std::move(fut);
 	} else {
-		static std::atomic<int> used_threads(0);
-		if (thread) {
-			const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
-			if (used_threads++ > max_threads) {
-				used_threads--;
-				thread = false;
-			}
-		}
+		//	const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
+		//	static std::atomic<int> used_threads(0);
+		//	if (used_threads++ > max_threads) {
+		//		used_threads--;
+		//		thread = false;
+		//	}
 		if (thread) {
 			kick_params_type *new_params;
 			new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
@@ -313,11 +325,11 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 			*new_params = *params_ptr;
 			auto func = [this, new_params]() {
 				auto rc = ((tree*) ptr)->kick(new_params);
-				used_threads--;
-				new_params->kick_params_type::~kick_params_type();
-				kick_params_alloc.deallocate(new_params);
-				return rc;
-			};
+				//		used_threads--;
+					new_params->kick_params_type::~kick_params_type();
+					kick_params_alloc.deallocate(new_params);
+					return rc;
+				};
 			auto fut = hpx::async(std::move(func));
 			return std::move(fut);
 		} else {
@@ -524,7 +536,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					float dt = params.t0 / (1 << this_rung);
 					if (!params.first) {
 						for (int dim = 0; dim < NDIM; dim++) {
-							particles->vel(dim, k + parts.first) += 0.5 * dt * F[dim][k] / params.scale;
+							particles->vel(dim, k + parts.first) += 0.5 * dt * F[dim][k];
 						}
 					}
 					float fmag = 0.0;
@@ -533,18 +545,18 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					}
 					fmag = sqrtf(fmag);
 					assert(fmag > 0.0);
-					dt = std::min(params.eta * std::pow(params.scale,1.5) * std::sqrt(params.hsoft / fmag), (double) params.t0);
+					dt = std::min(params.eta * std::sqrt(params.scale * params.hsoft / fmag), params.t0);
 					int new_rung = std::max(
 							std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1), params.rung),
 							0);
 					dt = params.t0 / (1 << new_rung);
 					for (int dim = 0; dim < NDIM; dim++) {
-						particles->vel(dim, k + parts.first) += 0.5 * dt * F[dim][k] / params.scale;
+						particles->vel(dim, k + parts.first) += 0.5 * dt * F[dim][k];
 					}
 					max_rung = std::max(max_rung, new_rung);
 					particles->set_rung(new_rung, k + parts.first);
 				}
-				if (params.full_eval) {
+				if( params.full_eval) {
 					kick_return_update_pot_cpu(phi[k], F[0][k], F[1][k], F[2][k]);
 				}
 			}
@@ -599,7 +611,7 @@ void tree::gpu_daemon() {
 			gpu_params = (kick_params_type*) calloc.allocate(kicks.size() * sizeof(kick_params_type));
 			auto stream = get_stream();
 			std::sort(kicks.begin(), kicks.end(), [](const gpu_kick& a, const gpu_kick& b) {
-				return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first);
+				return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first) ;
 			});
 			particles->prepare_kick(stream);
 			for (int i = 0; i < kicks.size(); i++) {
@@ -694,8 +706,8 @@ int tree::compute_block_count(size_t cutoff, bool root, bool full_eval) {
 	if (active_parts <= cutoff && !root) {
 		return 1;
 	} else if (!is_leaf()) {
-		auto left = ((tree*) children[LEFT])->compute_block_count(cutoff, false, full_eval);
-		auto right = ((tree*) children[RIGHT])->compute_block_count(cutoff, false, full_eval);
+		auto left = ((tree*) children[LEFT])->compute_block_count(cutoff, false,full_eval);
+		auto right = ((tree*) children[RIGHT])->compute_block_count(cutoff, false,full_eval);
 		return left + right;
 	} else {
 		return 0;
