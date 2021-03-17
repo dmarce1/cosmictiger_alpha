@@ -179,11 +179,6 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 	int i = 0;
 	auto these_parts = ((tree*) parti[0])->parts;
 	const auto partsz = parti.size();
-	float fx;
-	float fy;
-	float fz;
-	float phi;
-	float dx0, dx1, dx2;
 	while (i < partsz) {
 		part_index = 0;
 		while (part_index < KICK_PP_MAX && i < partsz) {
@@ -214,6 +209,13 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			}
 		}
 		array<float, NDIM> dx;
+		float fx;
+		float fy;
+		float fz;
+		float phi;
+		auto &dx0 = dx[0];
+		auto &dx1 = dx[1];
+		auto &dx2 = dx[2];
 		float r3inv, r1inv;
 		__syncwarp();
 		for (int k = 0; k < nsinks; k++) {
