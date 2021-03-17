@@ -21,8 +21,8 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	if (multis.size() == 0) {
 		return;
 	}
-	expansion<float> L = shmem.expanse2[tid];
-	expansion<float> D = shmem.expanse1[tid];
+	expansion<float> L;// = shmem.expanse2[tid];
+	expansion<float> D;// = shmem.expanse1[tid];
 	int flops = 0;
 	int interacts = 0;
 	for (int i = 0; i < LP; i++) {

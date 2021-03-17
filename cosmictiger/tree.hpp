@@ -202,12 +202,10 @@ struct cuda_kick_shmem {
 	union {
 		array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
 		array<multipole_pos, KICK_PC_MAX> msrc;
-		array<expansion<float>, KICK_BLOCK_SIZE> expanse1;
-		array<expansion<float>, KICK_BLOCK_SIZE> expanse2;
 	};
 	array<int16_t, NITERS> count; // 8
 	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 768
-	array<int, MAX_BUCKET_SIZE> rungs; // 256
+	array<rung_t, MAX_BUCKET_SIZE> rungs; // 256
 };
 
 struct kick_params_type {
@@ -218,8 +216,8 @@ struct kick_params_type {
 	vector<tree_ptr> opened_checks;
 	stack_vector<tree_ptr> dchecks;
 	stack_vector<tree_ptr> echecks;
-	array<array<double, MAX_BUCKET_SIZE>, NDIM> F;
-	array<double, MAX_BUCKET_SIZE> Phi;
+	array<array<float, MAX_BUCKET_SIZE>, NDIM> F;
+	array<float, MAX_BUCKET_SIZE> Phi;
 
 	array<expansion<float>, TREE_MAX_DEPTH> L;
 	array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;

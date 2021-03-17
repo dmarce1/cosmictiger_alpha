@@ -22,7 +22,7 @@ struct range;
 #include <atomic>
 #include <vector>
 
-using rung_t = int;
+using rung_t = int8_t;
 
 struct particle {
 	std::array<fixed32, NDIM> x;
