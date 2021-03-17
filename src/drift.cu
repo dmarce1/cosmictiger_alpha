@@ -10,7 +10,7 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 	const size_t start = bid * nparts / gsz;
 	const size_t stop = (bid + 1) * nparts / gsz;
 	const float ainv = 1.0 / a;
-	const float dteff = dt * ainv;
+	const float dteff = dt * ainv * ainv;
 	double myekin, mymomx, mymomy, mymomz;
 	myekin = 0;
 	mymomx = 0;
@@ -78,7 +78,7 @@ void drift_particles(particle_set parts, double dt, double a0, double a1, double
 	const int nblock = DRIFT_OCCUPANCY * 2 * global().cuda.devices[0].multiProcessorCount;
 	auto stream = get_stream();
 	parts.prepare_drift(stream);
-	const auto a = 1.0 / (0.5 / a0 + 0.5 / a1);
+	const auto a = std::sqrt(1.0 / (0.5 / (a0*a0) + 0.5 / (a1*a1)));
 	double* results;
 	CUDA_MALLOC(results, 4);
 	for (int i = 0; i < 4; i++) {

@@ -11,7 +11,7 @@ double da_tau(double a) {
 	const auto omega_m = global().opts.omega_m;
 	const auto omega_r = 7e-3;
 	const auto omega_lambda = 1.0 - omega_r - omega_m;
-	return H * a * a * std::sqrt(omega_m / (a * a * a) + omega_r / (a * a * a * a) + omega_lambda);
+	return H * a *  std::sqrt(omega_m / (a * a * a) + omega_r / (a * a * a * a) + omega_lambda);
 }
 
 double uni_age(double a) {
@@ -185,7 +185,7 @@ void drive_cosmos() {
 		}
 		itime = inc(itime, max_rung);
 		if (iter >= 100) {
-	//		break;
+	break;
 		}
 		iter++;
 	} while (z > 0.0);
