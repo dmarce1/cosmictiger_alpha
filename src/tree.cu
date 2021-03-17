@@ -104,9 +104,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					const auto h = params.hsoft;
 					if (ci < check_count) {
 						auto &check = checks[ci];
-						if (check.ptr == 0) {
-							printf("++++++%i\n", ci);
-						}
 						const auto &other_radius = ((const tree*) check)->radius;
 						const auto &other_parts = ((const tree*) check)->parts;
 						const auto &other_pos = ((const tree*) check)->pos;
@@ -282,24 +279,42 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		}
 	}
 	if (!(((tree*) tptr)->children[0].ptr == 0)) {
-		params.dchecks.push_top();
-		params.echecks.push_top();
+		tree* left = ((tree*) tptr)->children[LEFT];
+		tree* right = ((tree*) tptr)->children[RIGHT];
 		if (tid == 0) {
 			params.depth++;
 			params.L[params.depth] = L;
 			params.Lpos[params.depth] = me.pos;
-			params.tptr = ((tree*) tptr)->children[LEFT];
 		}
-		__syncwarp();
-		cuda_kick(params_ptr);
-		if (tid == 0) {
-			params.L[params.depth] = L;
-			params.tptr = ((tree*) tptr)->children[RIGHT];
+		if (left->active_parts && right->active_parts) {
+			params.dchecks.push_top();
+			params.echecks.push_top();
+			if (tid == 0) {
+				params.tptr = ((tree*) tptr)->children[LEFT];
+			}
+			__syncwarp();
+			cuda_kick(params_ptr);
+			if (tid == 0) {
+				params.L[params.depth] = L;
+				params.tptr = ((tree*) tptr)->children[RIGHT];
+			}
+			params.dchecks.pop_top();
+			params.echecks.pop_top();
+			__syncwarp();
+			cuda_kick(params_ptr);
+		} else if (left->active_parts) {
+			if (tid == 0) {
+				params.tptr = ((tree*) tptr)->children[LEFT];
+			}
+			__syncwarp();
+			cuda_kick(params_ptr);
+		} else if (right->active_parts) {
+			if (tid == 0) {
+				params.tptr = ((tree*) tptr)->children[RIGHT];
+			}
+			__syncwarp();
+			cuda_kick(params_ptr);
 		}
-		params.dchecks.pop_top();
-		params.echecks.pop_top();
-		__syncwarp();
-		cuda_kick(params_ptr);
 		if (tid == 0) {
 			params.depth--;
 		}

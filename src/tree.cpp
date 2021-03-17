@@ -372,6 +372,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		} while (count < target_max && pcnt);
 		params.block_cutoff = std::max(pcnt * 2, 16);
 		kick_block_count = compute_block_count(params.block_cutoff, true, params.full_eval);
+		if( params.block_cutoff == 16 ) {
+			params.block_cutoff = 0;
+			kick_block_count = 0;
+		}
 		//	printf("%i %i\n", (int) kick_block_count, params.block_cutoff);
 		managed_allocator<tree>::set_device(0);
 	}
