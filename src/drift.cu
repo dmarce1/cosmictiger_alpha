@@ -62,7 +62,7 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 		mymomy += __shfl_down_sync(0xFFFFFFFF, mymomy, P);
 		mymomz += __shfl_down_sync(0xFFFFFFFF, mymomz, P);
 	}
-	if (tid % warpSize == 0) {
+	if (tid  == 0) {
 		atomicAdd(ekin, myekin);
 		atomicAdd(momx, mymomx);
 		atomicAdd(momy, mymomy);

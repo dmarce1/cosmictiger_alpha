@@ -230,12 +230,15 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 						r3inv = r1inv * r1inv * r1inv;                        // 2
 						flops += 2 + FLOP_RSQRT;
 					} else {
-						const float r1overh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
-						const float r2overh2 = r1overh1 * r1overh1;           // 1
-						const float r3overh3 = r1overh1 * r2overh2;           // 1
-						const float r5overh5 = r3overh3 * r2overh2;           // 1
-						r1inv = fmaf(-0.3125f, r5overh5, 1.3125f * r3overh3 - fmaf(2.1875f, r1overh1, 2.1875f)); // 7
-						r3inv = fmaf(r2overh2, (5.25f - 1.875f * r2overh2), PHI0); // 5
+						const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
+						const float r2oh2 = r1oh1 * r1oh1;           // 1
+						r3inv = +15.0f / 8.0f;
+						r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
+						r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
+						r1inv = -5.0f / 16.0f;
+						r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
+						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
+						r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
 						flops += FLOP_SQRT + 16;
 					}
 					fx = fmaf(dx[0], r3inv, fx); // 2

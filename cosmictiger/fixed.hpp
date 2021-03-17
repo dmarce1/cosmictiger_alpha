@@ -238,7 +238,26 @@ public:
 
 	friend fixed32 rand_fixed32();
 
+
 };
+
+template<class T>
+inline fixed<T> max(const fixed<T>& a, const fixed<T>& b) {
+	if( a > b ) {
+		return a;
+	} else {
+		return b;
+	}
+}
+
+template<class T>
+inline fixed<T> min(const fixed<T>& a, const fixed<T>& b) {
+	if( a < b ) {
+		return a;
+	} else {
+		return b;
+	}
+}
 
 //Morton encoding adopted from https://www.forceflow.be/2013/10/07/morton-encodingdecoding-through-bit-interleaving-implementations/
 CUDA_EXPORT

@@ -53,8 +53,8 @@ void particle_set::prepare_sort() {
 //		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), device, stream));
 	}
 	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseSetPreferredLocation, device));
-	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseUnsetReadMostly, device));
-	//CUDA_CHECK(cudaMemPrefetchAsync(rptr_, size() * sizeof(int8_t), device, stream));
+//	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(int8_t), cudaMemAdviseUnsetReadMostly, device));
+//	CUDA_CHECK(cudaMemPrefetchAsync(rptr_, size() * sizeof(int8_t), device, stream));
 //	CUDA_CHECK(cudaStreamSynchronize(stream));
 //	cleanup_stream(stream);
 }
@@ -65,7 +65,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 	virtual_ = false;
 	size_t chunk_size = NDIM * (sizeof(fixed32) + sizeof(float)) + sizeof(uint8_t) + sizeof(uint64_t);
 #ifdef TEST_FORCE
-	chunk_size += (NDIM+1) * sizeof(float);
+	chunk_size += (NDIM + 1) * sizeof(float);
 #endif
 	uint8_t *data;
 	unified_allocator alloc;
@@ -87,7 +87,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 //	CUDA_CHECK(cudaMemAdvise(mptr_, size * sizeof(uint64_t), cudaMemAdviseSetAccessedBy, 0));
 #ifdef TEST_FORCE
 	const auto offset1 = size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(int8_t) * size
-	+ size * sizeof(uint64_t);
+			+ size * sizeof(uint64_t);
 	for (size_t dim = 0; dim < NDIM; dim++) {
 		gptr_[dim] = (float*) (data + offset1 + dim * size * sizeof(float));
 	}
@@ -308,11 +308,11 @@ void load_header(io_header_1 *header, std::string filename) {
 
 }
 
-size_t particle_set::sort_range(size_t begin, size_t end, double xmid_double, int xdim) {
+size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 
 	size_t lo = begin - offset_;
 	size_t hi = end - offset_;
-	fixed32 xmid(xmid_double);
+	fixed32 xmid(xm);
 	fixed32* x = xptr_[xdim];
 	while (lo < hi) {
 		if (x[lo] >= xmid) {

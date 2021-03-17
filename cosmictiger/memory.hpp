@@ -146,16 +146,16 @@ public:
 		return current_alloc + current_index++;
 	}
 	static void set_device(int device) {
-	//	auto stream = get_stream();
+		auto stream = get_stream();
 //		printf("Sending trees to GPU %li\n", allocs.size());
 		for (auto& alloc : allocs) {		//
 //			CUDA_CHECK(cudaMemAdvise(alloc, sizeof(T) * page_size, cudaMemAdviseSetPreferredLocation, device));
 //			CUDA_CHECK(cudaMemAdvise(alloc, sizeof(T) * page_size, cudaMemAdviseSetAccessedBy, device));
-//			CUDA_CHECK(cudaMemPrefetchAsync(alloc, sizeof(T) * page_size, device, stream));
+			CUDA_CHECK(cudaMemPrefetchAsync(alloc, sizeof(T) * page_size, device, stream));
 		}
-//		CUDA_CHECK(cudaStreamSynchronize(stream));
+		CUDA_CHECK(cudaStreamSynchronize(stream));
 //		printf("Done sending trees to GPU\n");
-	//	cleanup_stream(stream);
+		cleanup_stream(stream);
 	}
 	managed_allocator(managed_allocator&&) = default;
 	managed_allocator& operator=(managed_allocator&&) = default;

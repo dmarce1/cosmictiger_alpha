@@ -188,7 +188,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 				const simd_float r2 = max(fma(dX[0], dX[0], fma(dX[1], dX[1], dX[2] * dX[2])), tiny);                   // 6
 				const simd_float far_flag = r2 > h2;                                                                    // 1
 				simd_float rinv1, rinv3;
-				if (far_flag.sum() == simd_float::size()) {                                                                              // 7
+				if (far_flag.sum() == simd_float::size()) {                                                             // 7
 					rinv1 = mask * simd_float(1) / sqrt(r2);                                      // 1 + FLOP_DIV + FLOP_SQRT
 					rinv3 = rinv1 * rinv1 * rinv1;                                                     // 2
 					flops += n * (2 + FLOP_DIV + FLOP_SQRT);
@@ -196,14 +196,16 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 					const simd_float rinv1_far = mask * simd_float(1) / sqrt(r2);                 // 1 + FLOP_DIV + FLOP_SQRT
 					const simd_float rinv3_far = rinv1_far * rinv1_far * rinv1_far;                                      // 2
 					const simd_float r1overh1 = sqrt(r2) * hinv;                                             // FLOP_SQRT + 1
-					const simd_float r2overh2 = r1overh1 * r1overh1;                                                     // 1
-					const simd_float r3overh3 = r1overh1 * r2overh2;                                                     // 1
-					const simd_float r5overh5 = r3overh3 * r2overh2;                                                     // 1
-					const simd_float rinv1_near = mask
-							* fma(-0.3125f, r5overh5, 1.3125f * r3overh3 - fma(2.1875f, r1overh1, 2.1875f)); // 8
-					const simd_float rinv3_near = mask * fma(r2overh2, (simd_float(5.25f) - 1.875f * r2overh2), PHI0);   // 5
-					rinv1 = far_flag * rinv1_far + (simd_float(1) - far_flag) * rinv1_near;                            // 4
-					rinv3 = far_flag * rinv3_far + (simd_float(1) - far_flag) * rinv3_near;                            // 4
+					const simd_float r2oh2 = r1overh1 * r1overh1;                                                     // 1
+					simd_float rinv3_near = +15.0f / 8.0f;
+					rinv3_near = fma(rinv3_near, r2oh2, simd_float(-21.0f / 4.0f));
+					rinv3_near = fma(rinv3_near, r2oh2, simd_float(+35.0f / 8.0f));
+					simd_float rinv1_near = -5.0f / 16.0f;
+					rinv1_near = fma(rinv1_near, r2oh2, simd_float(21.0f / 16.0f));
+					rinv1_near = fma(rinv1_near, r2oh2, simd_float(-35.0f / 16.0f));
+					rinv1_near = fma(rinv1_near, r2oh2, simd_float(35.0f / 16.0f));
+					rinv1_near = far_flag * rinv1_far + (simd_float(1) - far_flag) * rinv1_near * mask;                  // 4
+					rinv3_near = far_flag * rinv3_far + (simd_float(1) - far_flag) * rinv3_near * mask;                  // 4
 					flops += n * (28 + FLOP_DIV + 2 * FLOP_SQRT);
 				}
 				for (int dim = 0; dim < NDIM; dim++) {

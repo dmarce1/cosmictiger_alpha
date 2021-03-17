@@ -38,7 +38,7 @@ tree build_tree(particle_set& parts, int min_rung, size_t& num_active, double& t
 	sort_params params;
 	params.min_rung = min_rung;
 	sort_return rc = root.sort(params);
-	num_active = rc.num_active;
+	num_active = rc.active_parts;
 	time.stop();
 	tm = time.read();
 	return root;
@@ -107,6 +107,8 @@ void drive_cosmos() {
 	int max_rung = 0;
 	time_type itime = 0;
 	double kick_tm, drift_tm, sort_tm;
+	double kick_total, drift_total, sort_total;
+	kick_total = drift_total = sort_total = 0.0;
 	double a;
 	double Ka;
 	double z;
@@ -139,7 +141,7 @@ void drive_cosmos() {
 		const auto min_r = min_rung(itime);
 		size_t num_active;
 		tree root = build_tree(parts, min_r, num_active, sort_tm);
-//		const bool full_eval = min_r <= 7;
+	//	const bool full_eval = min_r <= 7;
 		const bool full_eval = false;
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, kick_tm);
 		kick_return kr = kick_return_get();
@@ -169,6 +171,9 @@ void drive_cosmos() {
 		tm.reset();
 		tm.start();
 		double science_rate = parts_total / time_total;
+		drift_total += drift_tm;
+		sort_total += sort_tm;
+		kick_total += kick_tm;
 		if (full_eval) {
 			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac,
@@ -179,10 +184,13 @@ void drive_cosmos() {
 					sort_tm, kick_tm, drift_tm, science_rate);
 		}
 		itime = inc(itime, max_rung);
-		if( iter >= 100 ) {
+		if (iter >= 100) {
 			break;
 		}
 		iter++;
 	} while (z > 0.0);
-
+	double total_time = drift_total + sort_total + kick_total;
+	printf("Sort  time = %e (%.2f) %%\n", sort_total, sort_total / total_time * 100.0);
+	printf("Kick  time = %e (%.2f) %%\n", kick_total, kick_total / total_time * 100.0);
+	printf("Drift time = %e (%.2f) %%\n", drift_total, drift_total / total_time * 100.0);
 }
