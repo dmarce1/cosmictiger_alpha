@@ -208,8 +208,8 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 					rinv1_near = fma(rinv1_near, r2oh2, simd_float(21.0f / 16.0f));
 					rinv1_near = fma(rinv1_near, r2oh2, simd_float(-35.0f / 16.0f));
 					rinv1_near = fma(rinv1_near, r2oh2, simd_float(35.0f / 16.0f));
-					rinv1_near = far_flag * rinv1_far + (simd_float(1) - far_flag) * rinv1_near * mask;                  // 4
-					rinv3_near = far_flag * rinv3_far + (simd_float(1) - far_flag) * rinv3_near * mask;                  // 4
+					rinv1 = far_flag * rinv1_far + (simd_float(1) - far_flag) * rinv1_near * mask;                  // 4
+					rinv3 = far_flag * rinv3_far + (simd_float(1) - far_flag) * rinv3_near * mask;                  // 4
 					flops += n * (28 + FLOP_DIV + 2 * FLOP_SQRT);
 				}
 				for (int dim = 0; dim < NDIM; dim++) {

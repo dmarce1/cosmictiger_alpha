@@ -8,7 +8,7 @@
 #include <algorithm>
 
 void particle_set::prepare_kick( cudaStream_t stream) {
-//	return;
+	return;
 	size_t begin = 0;
 	for (int dim = 0; dim < NDIM; dim++) {
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim] + begin, size() * sizeof(float), cudaMemAdviseSetPreferredLocation, 0));
@@ -25,7 +25,7 @@ void particle_set::prepare_kick( cudaStream_t stream) {
 }
 
 void particle_set::prepare_drift(cudaStream_t stream) {
-//	return;
+	return;
 	for (int dim = 0; dim < NDIM; dim++) {
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, 0));
 		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetReadMostly, 0));
@@ -39,7 +39,7 @@ void particle_set::prepare_drift(cudaStream_t stream) {
 }
 
 void particle_set::prepare_sort() {
-//	return;
+	return;
 	int device = cudaCpuDeviceId;
 	auto stream = get_stream();
 	for (int dim = 0; dim < NDIM; dim++) {

@@ -1,6 +1,7 @@
 #include <cosmictiger/drift.hpp>
 #include <cosmictiger/global.hpp>
 
+
 CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, double* momx, double* momy,
 		double* momz) {
 	const int& tid = threadIdx.x;
@@ -56,13 +57,13 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 		parts.pos(1, i) = y;
 		parts.pos(2, i) = z;
 	}
-	for (int P = DRIFT_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+	for (int P = warpSize / 2; P >= 1; P /= 2) {
 		myekin += __shfl_down_sync(0xFFFFFFFF, myekin, P);
 		mymomx += __shfl_down_sync(0xFFFFFFFF, mymomx, P);
 		mymomy += __shfl_down_sync(0xFFFFFFFF, mymomy, P);
 		mymomz += __shfl_down_sync(0xFFFFFFFF, mymomz, P);
 	}
-	if (tid  == 0) {
+	if (tid % warpSize == 0) {
 		atomicAdd(ekin, myekin);
 		atomicAdd(momx, mymomx);
 		atomicAdd(momy, mymomy);

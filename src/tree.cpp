@@ -297,27 +297,15 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	bool use_cpu_block = false;
 	if (num_active <= params.block_cutoff && num_active) {
 		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
-	} else if (thread) {
-		kick_params_type *new_params;
-		new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
-		new (new_params) kick_params_type;
-		*new_params = *params_ptr;
-		auto func = [this, new_params]() {
-			int dummy;
-			auto rc = ((tree*) ptr)->kick(new_params);
-			new_params->kick_params_type::~kick_params_type();
-			kick_params_alloc.deallocate(new_params);
-			return rc;
-		};
-		auto fut = hpx::async(std::move(func));
-		return std::move(fut);
 	} else {
-		//	const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
-		//	static std::atomic<int> used_threads(0);
-		//	if (used_threads++ > max_threads) {
-		//		used_threads--;
-		//		thread = false;
-		//	}
+		static std::atomic<int> used_threads(0);
+		if (thread) {
+			const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
+			if (used_threads++ > max_threads) {
+				used_threads--;
+				thread = false;
+			}
+		}
 		if (thread) {
 			kick_params_type *new_params;
 			new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
@@ -325,11 +313,11 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 			*new_params = *params_ptr;
 			auto func = [this, new_params]() {
 				auto rc = ((tree*) ptr)->kick(new_params);
-				//		used_threads--;
-					new_params->kick_params_type::~kick_params_type();
-					kick_params_alloc.deallocate(new_params);
-					return rc;
-				};
+				used_threads--;
+				new_params->kick_params_type::~kick_params_type();
+				kick_params_alloc.deallocate(new_params);
+				return rc;
+			};
 			auto fut = hpx::async(std::move(func));
 			return std::move(fut);
 		} else {
@@ -347,6 +335,8 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 
 timer kick_timer;
 
+#define MIN_WORK 1024
+
 //int num_kicks = 0;
 hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
@@ -358,26 +348,30 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	if (params.depth == 0) {
 		kick_timer.start();
 		tmp_tm.start();
-		const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-		//	auto cpu_load = NWAVE * CPU_LOAD;
-		const int target_max = GPUOS * NWAVE * sm_count * KICK_OCCUPANCY;	// + cpu_load;
-		int pcnt = active_parts;
-		int count;
-		do {
-			count = compute_block_count(pcnt, true, params.full_eval);
-			//	printf("%i\n", count);
-			if (count < target_max) {
-				pcnt = pcnt / 2;
-			}
-		} while (count < target_max && pcnt);
-		params.block_cutoff = std::max(pcnt * 2, 16);
-		kick_block_count = compute_block_count(params.block_cutoff, true, params.full_eval);
-		if( params.block_cutoff == 16 ) {
+		if (active_parts > MIN_WORK) {
+			const auto sm_count = global().cuda.devices[0].multiProcessorCount;
+			//	auto cpu_load = NWAVE * CPU_LOAD;
+			const int target_max = GPUOS * NWAVE * sm_count * KICK_OCCUPANCY;	// + cpu_load;
+			int pcnt = active_parts;
+			int count;
+			do {
+				count = compute_block_count(pcnt, true, params.full_eval);
+				//	printf("%i\n", count);
+				if (count < target_max) {
+					pcnt = pcnt / 2;
+				}
+			} while (count < target_max && pcnt >= 1);
+			params.block_cutoff = std::max(pcnt * 2, 16);
+			kick_block_count = compute_block_count(params.block_cutoff, true, params.full_eval);
+			//	printf("%i %i\n", (int) kick_block_count, params.block_cutoff);
+			managed_allocator<tree>::set_device(0);
+			printf("gpu ");
+		} else {
+			printf("cpu ");
 			params.block_cutoff = 0;
 			kick_block_count = 0;
 		}
-		//	printf("%i %i\n", (int) kick_block_count, params.block_cutoff);
-		managed_allocator<tree>::set_device(0);
+		printf("%i\n", (int) kick_block_count);
 	}
 	if (children[0].ptr == 0) {
 		for (int i = 0; i < parts.second - parts.first; i++) {
@@ -482,25 +476,38 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	if (!is_leaf()) {
 // printf("4\n");
 		const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
-		int depth0 = params.depth;
-		params.depth++;
-		params.dchecks.push_top();
-		params.echecks.push_top();
-		params.L[params.depth] = L;
-		params.Lpos[params.depth] = pos;
 		array<hpx::future<void>, NCHILD> futs;
-		futs[LEFT] = children[LEFT].kick(params_ptr, try_thread);
-
-//  printf("5\n");
-		params.dchecks.pop_top();
-		params.echecks.pop_top();
-		params.L[params.depth] = L;
-		futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
-		params.depth--;
-		if (params.depth != depth0) {
-			printf("error\n");
-			abort();
+		futs[LEFT] = hpx::make_ready_future();
+		futs[RIGHT] = hpx::make_ready_future();
+		if (((tree*) children[LEFT])->active_parts && ((tree*) children[RIGHT])->active_parts) {
+			int depth0 = params.depth;
+			params.depth++;
+			params.dchecks.push_top();
+			params.echecks.push_top();
+			params.L[params.depth] = L;
+			params.Lpos[params.depth] = pos;
+			futs[LEFT] = children[LEFT].kick(params_ptr, try_thread);
+			params.dchecks.pop_top();
+			params.echecks.pop_top();
+			params.L[params.depth] = L;
+			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
+			params.depth--;
+		} else if (((tree*) children[LEFT])->active_parts) {
+			int depth0 = params.depth;
+			params.depth++;
+			params.L[params.depth] = L;
+			params.Lpos[params.depth] = pos;
+			futs[LEFT] = children[LEFT].kick(params_ptr, false);
+			params.depth--;
+		} else if (((tree*) children[RIGHT])->active_parts) {
+			int depth0 = params.depth;
+			params.depth++;
+			params.L[params.depth] = L;
+			params.Lpos[params.depth] = pos;
+			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
+			params.depth--;
 		}
+
 		return hpx::when_all(futs.begin(), futs.end()).then([](hpx::future<std::vector<hpx::future<void>>> futfut) {
 			auto futs = futfut.get();
 			futs[LEFT].get();
@@ -560,7 +567,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					max_rung = std::max(max_rung, new_rung);
 					particles->set_rung(new_rung, k + parts.first);
 				}
-				if( params.full_eval) {
+				if (params.full_eval) {
 					kick_return_update_pot_cpu(phi[k], F[0][k], F[1][k], F[2][k]);
 				}
 			}
@@ -615,7 +622,7 @@ void tree::gpu_daemon() {
 			gpu_params = (kick_params_type*) calloc.allocate(kicks.size() * sizeof(kick_params_type));
 			auto stream = get_stream();
 			std::sort(kicks.begin(), kicks.end(), [](const gpu_kick& a, const gpu_kick& b) {
-				return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first) ;
+				return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first);
 			});
 			particles->prepare_kick(stream);
 			for (int i = 0; i < kicks.size(); i++) {
@@ -710,8 +717,8 @@ int tree::compute_block_count(size_t cutoff, bool root, bool full_eval) {
 	if (active_parts <= cutoff && !root) {
 		return 1;
 	} else if (!is_leaf()) {
-		auto left = ((tree*) children[LEFT])->compute_block_count(cutoff, false,full_eval);
-		auto right = ((tree*) children[RIGHT])->compute_block_count(cutoff, false,full_eval);
+		auto left = ((tree*) children[LEFT])->compute_block_count(cutoff, false, full_eval);
+		auto right = ((tree*) children[RIGHT])->compute_block_count(cutoff, false, full_eval);
 		return left + right;
 	} else {
 		return 0;

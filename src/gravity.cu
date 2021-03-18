@@ -208,14 +208,11 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 				}
 			}
 		}
-		array<float, NDIM> dx;
 		float fx;
 		float fy;
 		float fz;
 		float phi;
-		auto &dx0 = dx[0];
-		auto &dx1 = dx[1];
-		auto &dx2 = dx[2];
+		float dx0, dx1, dx2;
 		float r3inv, r1inv;
 		__syncwarp();
 		for (int k = 0; k < nsinks; k++) {
@@ -245,9 +242,9 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 						r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
 						flops += FLOP_SQRT + 16;
 					}
-					fx = fmaf(dx[0], r3inv, fx); // 2
-					fy = fmaf(dx[1], r3inv, fy); // 2
-					fz = fmaf(dx[2], r3inv, fz); // 2
+					fx = fmaf(dx0, r3inv, fx); // 2
+					fy = fmaf(dx1, r3inv, fy); // 2
+					fz = fmaf(dx2, r3inv, fz); // 2
 					phi -= r1inv; // 1
 					flops += 15;
 					interacts++;

@@ -1,15 +1,13 @@
 #pragma once
 
-
 #include <cosmictiger/cuda.hpp>
 #include <cosmictiger/math.hpp>
 #include <cosmictiger/ewald_indices.hpp>
 #include <cosmictiger/expansion.hpp>
 
-
 template<class T>
-CUDA_EXPORT  int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3,
-		const T &d4, const array<T, NDIM> &dx) {
+CUDA_EXPORT int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3, const T &d4,
+		const array<T, NDIM> &dx) {
 	T threedxadxb;
 	T dxadxbdxc;
 	const auto dx0dx0 = dx[0] * dx[0]; // 1
@@ -115,17 +113,15 @@ CUDA_EXPORT  int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, co
 	return 169;
 }
 
-static float __constant__ __device__  rmin = 1.0e-2;
-static float __constant__ __device__  fouroversqrtpi(2.256758334);
-static float __constant__ __device__  nthree(-3.0);
-static float __constant__ __device__  nfive(-5.0);
-static float __constant__ __device__  nseven(-7.0);
-static float __constant__ __device__  neight(-8.0);
-
-
+static float __constant__ __device__ rmin = 1.0e-2;
+static float __constant__ __device__ fouroversqrtpi(2.256758334);
+static float __constant__ __device__ nthree(-3.0);
+static float __constant__ __device__ nfive(-5.0);
+static float __constant__ __device__ nseven(-7.0);
+static float __constant__ __device__ neight(-8.0);
 
 template<class T>
-CUDA_EXPORT  int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
+CUDA_EXPORT int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 	ewald_const econst;
 #ifndef __CUDA_ARCH__
 	const T rmin = 1.0e-2;
@@ -151,27 +147,27 @@ CUDA_EXPORT  int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 		flops += 9;
 #ifdef __CUDA_ARCH__
 		if (r2 < (EWALD_REAL_CUTOFF2)) {                                        // 1
+#else
+		if ((r2 < (EWALD_REAL_CUTOFF2)).sum()) {
 #endif
-		const T r = SQRT(r2);                                                         // FLOP_SQRT
-		const T rinv = 1.f / r;                                           // 1 + FLOP_DIV
-		const T r2inv = rinv * rinv;                                                  // 1
-		const T r3inv = r2inv * rinv;                                                 // 1
-		T exp0;
-		T erfc0 = erfcexp(2.f * r, &exp0);                                            // 18 + FLOP_DIV + FLOP_EXP
-		const T expfactor = fouroversqrtpi * r * exp0;                                // 2
-		const T e1 = expfactor * r3inv;                                               // 1
-		const T e2 = neight * e1;                                                     // 1
-		const T e3 = neight * e2;                                                     // 1
-		const T e4 = neight * e3;                                                     // 1
-		const T d0 = -erfc0 * rinv;                                                   // 2
-		const T d1 = FMA(-d0, r2inv, e1);                                             // 3
-		const T d2 = FMA(nthree * d1, r2inv, e2);                                     // 3
-		const T d3 = FMA(nfive * d2, r2inv, e3);                                      // 3
-		const T d4 = FMA(nseven * d3, r2inv, e4);                                     // 3
-		flops += 51 + 2 * FLOP_DIV + FLOP_SQRT + FLOP_EXP + green_deriv_ewald(D, d0, d1, d2, d3, d4, dx);
-#ifdef __CUDA_ARCH__
-	}
-#endif
+			const T r = SQRT(r2);                                                         // FLOP_SQRT
+			const T rinv = 1.f / r;                                           // 1 + FLOP_DIV
+			const T r2inv = rinv * rinv;                                                  // 1
+			const T r3inv = r2inv * rinv;                                                 // 1
+			T exp0;
+			T erfc0 = erfcexp(2.f * r, &exp0);                                            // 18 + FLOP_DIV + FLOP_EXP
+			const T expfactor = fouroversqrtpi * r * exp0;                                // 2
+			const T e1 = expfactor * r3inv;                                               // 1
+			const T e2 = neight * e1;                                                     // 1
+			const T e3 = neight * e2;                                                     // 1
+			const T e4 = neight * e3;                                                     // 1
+			const T d0 = -erfc0 * rinv;                                                   // 2
+			const T d1 = FMA(-d0, r2inv, e1);                                             // 3
+			const T d2 = FMA(nthree * d1, r2inv, e2);                                     // 3
+			const T d3 = FMA(nfive * d2, r2inv, e3);                                      // 3
+			const T d4 = FMA(nseven * d3, r2inv, e4);                                     // 3
+			flops += 51 + 2 * FLOP_DIV + FLOP_SQRT + FLOP_EXP + green_deriv_ewald(D, d0, d1, d2, d3, d4, dx);
+		}
 	}
 	const T twopi = 2.0 * M_PI;
 
@@ -182,7 +178,7 @@ CUDA_EXPORT  int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 		const T hdotx = FMA(h[0], X[0], FMA(h[1], X[1], h[2] * X[2]));                           // 5
 		T co;
 		T so;
-		SINCOS(twopi * hdotx, &so, &co);                         // FLOP_SINCOS
+		SINCOS(twopi * hdotx, &so, &co);                           // FLOP_SINCOS
 		D[0] = FMA(hpart[0], co, D[0]);                           // 2
 		D[1] = FMA(hpart[1], so, D[1]);                           // 2
 		D[2] = FMA(hpart[2], so, D[2]);                           // 2
@@ -226,9 +222,9 @@ CUDA_EXPORT  int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 	for (int i = 0; i < LP; i++) {                     // 70
 		D[i] -= D1[i];
 	}
-/**** Account for r == 0 case ****/
+	/**** Account for r == 0 case ****/
 	const T zero_mask = (r < 2 * rmin);
-	for( int i = 0; i < LP; i++) {
+	for (int i = 0; i < LP; i++) {
 		D[i] *= (T(1) - zero_mask);
 	}
 	D[0] = 2.837291e+00 * zero_mask + D[0] * (T(1) - zero_mask);
