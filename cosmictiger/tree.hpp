@@ -200,12 +200,14 @@ struct multipole_pos {
 
 struct cuda_kick_shmem {
 	union {
-		array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
+		array<pos_type, KICK_PP_MAX> src;  // 3072
 		array<multipole_pos, KICK_PC_MAX> msrc;
 	};
 	array<int16_t, NITERS> count; // 8
-	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 768
+	array<pos_type, MAX_BUCKET_SIZE> sink;  // 768
 	array<rung_t, MAX_BUCKET_SIZE> rungs; // 256
+	array<int8_t, MAX_BUCKET_SIZE> act_map;
+	array<int8_t, MAX_BUCKET_SIZE> act_unmap;
 };
 
 struct kick_params_type {

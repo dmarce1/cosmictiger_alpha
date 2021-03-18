@@ -195,9 +195,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 				rungs[k] = parts->rung(k + myparts.first);
 				if (rungs[k] >= params.rung || params.full_eval) {
-					for (int dim = 0; dim < NDIM; dim++) {
-						sinks[dim][k] = parts->pos(dim, myparts.first + k);
-					}
+					sinks[k] = parts->pos(myparts.first + k);
 				}
 			}
 			tmp_parti.resize(0);
@@ -213,9 +211,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					for (int k = 0; k < myparts.second - myparts.first; k++) {
 						const auto this_rung = rungs[k];
 						if (this_rung >= params.rung || params.full_eval) {
-							float dx0 = distance(other.pos[0], sinks[0][k]);
-							float dy0 = distance(other.pos[1], sinks[1][k]);
-							float dz0 = distance(other.pos[2], sinks[2][k]);
+							float dx0 = distance(other.pos[0], sinks[k].p.x);
+							float dy0 = distance(other.pos[1], sinks[k].p.y);
+							float dz0 = distance(other.pos[2], sinks[k].p.z);
 							float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
 							res = sqr(other.radius + hfac) > d2 * theta2;
 							flops += 15;
@@ -325,7 +323,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				array<float, NDIM> dx;
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto x2 = me.pos[dim];
-					const auto x1 = parts->pos(dim, k + myparts.first);
+					const auto x1 = parts->pos(k + myparts.first).a[dim];
 					dx[dim] = distance(x1, x2);
 				}
 				shift_expansion(L, g, this_phi, dx);
@@ -346,9 +344,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				if (this_rung >= params.rung) {
 					float dt = params.t0 / (size_t(1) << this_rung);
 					if (!params.first) {
-						for (int dim = 0; dim < NDIM; dim++) {
-							parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
-						}
+						parts->vel(k + myparts.first).p.x += 0.5 * dt * F[0][k];
+						parts->vel(k + myparts.first).p.y += 0.5 * dt * F[1][k];
+						parts->vel(k + myparts.first).p.z += 0.5 * dt * F[2][k];
 					}
 					float fmag = 0.0;
 					for (int dim = 0; dim < NDIM; dim++) {
@@ -360,9 +358,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					dt = fminf(params.eta * sqrtf(params.scale * params.hsoft / fmag), params.t0);
 					int new_rung = fmaxf(fmaxf(fmaxf(ceil(logf(params.t0 / dt) * invlog2), this_rung - 1), params.rung), 0);
 					dt = params.t0 / (size_t(1) << new_rung);
-					for (int dim = 0; dim < NDIM; dim++) {
-						parts->vel(dim, k + myparts.first) += 0.5 * dt * F[dim][k];
-					}
+					parts->vel(k + myparts.first).p.x += 0.5 * dt * F[0][k];
+					parts->vel(k + myparts.first).p.y += 0.5 * dt * F[1][k];
+					parts->vel(k + myparts.first).p.z += 0.5 * dt * F[2][k];
 					parts->set_rung(new_rung, k + myparts.first);
 				}
 				if (params.full_eval) {

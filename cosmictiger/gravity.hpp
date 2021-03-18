@@ -18,6 +18,7 @@ enum eval_type {
 	DIRECT, EWALD
 };
 
+
 CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type);
 CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr);
 CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr);

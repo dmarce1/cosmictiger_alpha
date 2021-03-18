@@ -7,56 +7,16 @@
 #include <unordered_map>
 #include <algorithm>
 
-void particle_set::prepare_kick( cudaStream_t stream) {
+void particle_set::prepare_kick(cudaStream_t stream) {
 	return;
-	size_t begin = 0;
-	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(vptr_[dim] + begin, size() * sizeof(float), cudaMemAdviseSetPreferredLocation, 0));
-		CUDA_CHECK(cudaMemAdvise(vptr_[dim] + begin, size() * sizeof(float), cudaMemAdviseUnsetReadMostly, 0));
-		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim] + begin, size() * sizeof(float), 0, stream));
-	}
-	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim] + begin, size() * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, 0));
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim] + begin, size() * sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
-		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim] + begin, size() * sizeof(fixed32), 0, stream));
-	}
-	CUDA_CHECK(cudaMemAdvise(rptr_ + begin, size() * sizeof(rung_t), cudaMemAdviseSetPreferredLocation, 0));
-	CUDA_CHECK(cudaMemPrefetchAsync(rptr_ + begin, size() * sizeof(rung_t), 0, stream));
 }
 
 void particle_set::prepare_drift(cudaStream_t stream) {
 	return;
-	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, 0));
-		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetReadMostly, 0));
-		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim], size() * sizeof(float), 0, stream));
-	}
-	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, 0));
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseUnsetReadMostly, 0));
-		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), 0, stream));
-	}
 }
 
 void particle_set::prepare_sort() {
 	return;
-	int device = cudaCpuDeviceId;
-	auto stream = get_stream();
-	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseSetPreferredLocation, device));
-		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size() * sizeof(float), cudaMemAdviseUnsetReadMostly, device));
-		CUDA_CHECK(cudaMemPrefetchAsync(vptr_[dim], size() * sizeof(float), device, stream));
-	}
-	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseSetPreferredLocation, device));
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size() * sizeof(fixed32), cudaMemAdviseUnsetReadMostly, device));
-		CUDA_CHECK(cudaMemPrefetchAsync(xptr_[dim], size() * sizeof(fixed32), device, stream));
-	}
-	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(rung_t), cudaMemAdviseSetPreferredLocation, device));
-//	CUDA_CHECK(cudaMemAdvise(rptr_, size() * sizeof(rung_t), cudaMemAdviseUnsetReadMostly, device));
-//	CUDA_CHECK(cudaMemPrefetchAsync(rptr_, size() * sizeof(rung_t), device, stream));
-	CUDA_CHECK(cudaStreamSynchronize(stream));
-	cleanup_stream(stream);
 }
 
 particle_set::particle_set(size_t size, size_t offset) {
@@ -71,24 +31,17 @@ particle_set::particle_set(size_t size, size_t offset) {
 	unified_allocator alloc;
 	data = (uint8_t*) alloc.allocate(chunk_size * size);
 	CHECK_POINTER(data);
-	pptr_ = (particle*) data;
-	for (size_t dim = 0; dim < NDIM; dim++) {
-		xptr_[dim] = (fixed32*) (data + dim * size * sizeof(fixed32));
-//		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size * sizeof(fixed32), cudaMemAdviseSetReadMostly, 0));
-//		CUDA_CHECK(cudaMemAdvise(xptr_[dim], size * sizeof(fixed32), cudaMemAdviseSetAccessedBy, 0));
-	}
-	for (size_t dim = 0; dim < NDIM; dim++) {
-		vptr_[dim] = (float*) (data + size_t(NDIM) * size * sizeof(fixed32) + dim * size * sizeof(float));
-//		CUDA_CHECK(cudaMemAdvise(vptr_[dim], size * sizeof(float), cudaMemAdviseSetAccessedBy, 0));
-	}
-	rptr_ = (rung_t*) (data + size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size);
+	base_ = (void*) data;
+	pptr_ = (pos_type*) (data);
+	uptr_ = (vel_type*) (data + size * sizeof(pos_type));
+	rptr_ = (rung_t*) (data + (sizeof(vel_type) + sizeof(pos_type)) * size);
 //	CUDA_CHECK(cudaMemAdvise(rptr_, size * sizeof(int8_t), cudaMemAdviseSetAccessedBy, 0));
 #ifdef TEST_FORCE
-	const auto offset1 = size_t(NDIM) * (sizeof(float) + sizeof(fixed32)) * size + sizeof(rung_t) * size;
+	const auto offset1 = sizeof(vel_type) * size + size * sizeof(pos_type) + sizeof(rung_t) * size;
 	for (size_t dim = 0; dim < NDIM; dim++) {
-		gptr_[dim] = (float*) (data + offset1 + dim * size * sizeof(float));
+		gptr_[dim] = (float*) (data + offset1 + size * sizeof(vel_type));
 	}
-	eptr_ = (float*) (data + offset1 + NDIM * size * sizeof(float));
+	eptr_ = (float*) (data + offset1 + size * sizeof(vel_type));
 #endif
 	for (int i = 0; i < size; i++) {
 		rptr_[i] = 0;
@@ -106,15 +59,19 @@ particle_set::particle_set(size_t size, size_t offset) {
 particle_set::~particle_set() {
 	if (!virtual_) {
 		unified_allocator alloc;
-		alloc.deallocate(pptr_);
+		alloc.deallocate(base_);
 	}
 }
 
 void particle_set::generate_random() {
 	for (int i = 0; i < size_; i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			pos(dim, i) = rand_fixed32();
-			vel(dim, i) = 0.f;
+			pos(i).p.x = rand_fixed32();
+			pos(i).p.y = rand_fixed32();
+			pos(i).p.z = rand_fixed32();
+			vel(i).p.x = 0.f;
+			vel(i).p.y = 0.f;
+			vel(i).p.z = 0.f;
 		}
 		set_rung(0, i);
 	}
@@ -126,12 +83,12 @@ void particle_set::generate_grid() {
 		for (size_t j = 0; j < dim; j++) {
 			for (size_t k = 0; k < dim; k++) {
 				const size_t iii = i * dim * dim + j * dim + k;
-				pos(2, iii) = (i + 0.5) / dim;
-				pos(1, iii) = (j + 0.5) / dim;
-				pos(0, iii) = (k + 0.5) / dim;
-				for (int dim = 0; dim < NDIM; dim++) {
-					vel(dim, iii) = 0.f;
-				}
+				pos(iii).p.z = (i + 0.5) / dim;
+				pos(iii).p.y = (j + 0.5) / dim;
+				pos(iii).p.x = (k + 0.5) / dim;
+				vel(i).p.x = 0.f;
+				vel(i).p.y = 0.f;
+				vel(i).p.z = 0.f;
 				set_rung(0, i);
 			}
 		}
@@ -165,7 +122,6 @@ struct io_header_1 {
 };
 
 void load_header(io_header_1* header, std::string filename);
-std::vector<particle> load_particles(std::string filename);
 
 void load_header(io_header_1 *header, std::string filename) {
 	int4byte dummy;
@@ -192,25 +148,54 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 
 	size_t lo = begin - offset_;
 	size_t hi = end - offset_;
-	fixed32 xmid(xm);
-	fixed32* x = xptr_[xdim];
-	while (lo < hi) {
-		if (x[lo] >= xmid) {
-			while (lo != hi) {
-				hi--;
-				if (x[hi] < xmid) {
-					for (int dim = 0; dim < NDIM; dim++) {
-						std::swap(xptr_[dim][hi], xptr_[dim][lo]);
+	if (xdim == 0) {
+		fixed32 xmid(xm);
+		while (lo < hi) {
+			if (pptr_[lo].p.x >= xmid) {
+				while (lo != hi) {
+					hi--;
+					if (pptr_[hi].p.x < xmid) {
+						std::swap(pptr_[hi], pptr_[lo]);
+						std::swap(uptr_[hi], uptr_[lo]);
+						std::swap(rptr_[hi], rptr_[lo]);
+						break;
 					}
-					for (int dim = 0; dim < NDIM; dim++) {
-						std::swap(vptr_[dim][hi], vptr_[dim][lo]);
-					}
-					std::swap(rptr_[hi], rptr_[lo]);
-					break;
 				}
 			}
+			lo++;
 		}
-		lo++;
+	} else if (xdim == 1) {
+		fixed32 xmid(xm);
+		while (lo < hi) {
+			if (pptr_[lo].p.y >= xmid) {
+				while (lo != hi) {
+					hi--;
+					if (pptr_[hi].p.y < xmid) {
+						std::swap(pptr_[hi], pptr_[lo]);
+						std::swap(uptr_[hi], uptr_[lo]);
+						std::swap(rptr_[hi], rptr_[lo]);
+						break;
+					}
+				}
+			}
+			lo++;
+		}
+	} else {
+		fixed32 xmid(xm);
+		while (lo < hi) {
+			if (pptr_[lo].p.z >= xmid) {
+				while (lo != hi) {
+					hi--;
+					if (pptr_[hi].p.z < xmid) {
+						std::swap(pptr_[hi], pptr_[lo]);
+						std::swap(uptr_[hi], uptr_[lo]);
+						std::swap(rptr_[hi], rptr_[lo]);
+						break;
+					}
+				}
+			}
+			lo++;
+		}
 	}
 	return hi + offset_;
 }
@@ -271,9 +256,9 @@ void particle_set::load_particles(std::string filename) {
 		while (z > 1.0) {
 			z -= 1.0;
 		}
-		pos(0, i) = x;
-		pos(1, i) = y;
-		pos(2, i) = z;
+		pos(i).p.x = x;
+		pos(i).p.y = y;
+		pos(i).p.z = z;
 //    printf( "%e %e %e\n", x, y, z);
 	}
 	fread(&dummy, sizeof(dummy), 1, fp);
@@ -284,9 +269,9 @@ void particle_set::load_particles(std::string filename) {
 		fread(&vx, sizeof(float), 1, fp);
 		fread(&vy, sizeof(float), 1, fp);
 		fread(&vz, sizeof(float), 1, fp);
-		vel(0, i) = vx * std::pow(c0, 1.5);
-		vel(1, i) = vy * std::pow(c0, 1.5);
-		vel(2, i) = vz * std::pow(c0, 1.5);
+		vel(i).p.x = vx * std::pow(c0, 1.5);
+		vel(i).p.y = vy * std::pow(c0, 1.5);
+		vel(i).p.z = vz * std::pow(c0, 1.5);
 		set_rung(0, i);
 	}
 	fread(&dummy, sizeof(dummy), 1, fp);

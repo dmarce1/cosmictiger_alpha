@@ -21,8 +21,8 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	if (multis.size() == 0) {
 		return;
 	}
-	expansion<float> L;// = shmem.expanse2[tid];
-	expansion<float> D;// = shmem.expanse1[tid];
+	expansion<float> L; // = shmem.expanse2[tid];
+	expansion<float> D; // = shmem.expanse1[tid];
 	int flops = 0;
 	int interacts = 0;
 	for (int i = 0; i < LP; i++) {
@@ -42,7 +42,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		} else {
 			flops += green_ewald(D, fpos);
 		}
-		flops += multipole_interaction(L, mpole, D);
+		flops += multipole_interaction(L, mpole, D, params.full_eval);
 		interacts++;
 	}
 
@@ -55,7 +55,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		params.L[params.depth][i] += L[i];
 	}
 	__syncwarp();
-	if( params.full_eval) {
+	if (params.full_eval) {
 		kick_return_update_interactions_gpu(etype == DIRECT ? KR_CC : KR_EWCC, interacts, flops);
 	}
 }
@@ -102,9 +102,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
 				const int sz = imax - imin;
 				for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
-					for (int dim = 0; dim < NDIM; dim++) {
-						sources[dim][part_index + j] = parts->pos(dim, j + imin);
-					}
+					sources[part_index + j] = parts->pos(j + imin);
 				}
 				these_parts.first += sz;
 				part_index += sz;
@@ -117,9 +115,9 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 			}
 			for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
 				array<float, NDIM> dx;
-				for (int dim = 0; dim < NDIM; dim++) {
-					dx[dim] = distance(pos[dim], sources[dim][j]);
-				}
+				dx[0] = distance(pos[0], sources[j].p.x);
+				dx[1] = distance(pos[1], sources[j].p.y);
+				dx[2] = distance(pos[2], sources[j].p.z);
 				expansion<float> D;
 				flops += 3;
 				flops += green_direct(D, dx);
@@ -137,7 +135,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		}
 	}
 	__syncwarp();
-	if( params.full_eval) {
+	if (params.full_eval) {
 		kick_return_update_interactions_gpu(KR_CP, interacts, flops);
 	}
 }
@@ -161,6 +159,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 	const auto hinv = 1.0f / h;
 	int flops = 0;
 	int interacts = 0;
+	const bool full_eval = params.full_eval;
 	int part_index;
 	if (parti.size() == 0) {
 		return;
@@ -171,9 +170,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 	for (int i = tid; i < nsinks; i += KICK_BLOCK_SIZE) {
 		rungs[i] = parts->rung(i + myparts.first);
 		if (rungs[i] >= params.rung || params.full_eval) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				sinks[dim][i] = parts->pos(dim, i + myparts.first);
-			}
+			sinks[i] = parts->pos(i + myparts.first);
 		}
 	}
 	int i = 0;
@@ -195,9 +192,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
 			const int sz = imax - imin;
 			for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					sources[dim][part_index + j] = parts->pos(dim, j + imin);
-				}
+				sources[part_index + j] = parts->pos(j + imin);
 			}
 			these_parts.first += sz;
 			part_index += sz;
@@ -222,9 +217,9 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 				fz = 0.f;
 				phi = 0.f;
 				for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
-					dx0 = distance(sinks[0][k], sources[0][j]);
-					dx1 = distance(sinks[1][k], sources[1][j]);
-					dx2 = distance(sinks[2][k], sources[2][j]);               // 3
+					dx0 = distance(sinks[k].p.x, sources[j].p.x);
+					dx1 = distance(sinks[k].p.y, sources[j].p.y);
+					dx2 = distance(sinks[k].p.z, sources[j].p.z);               // 3
 					const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 5
 					if (r2 >= h2) {
 						r1inv = rsqrt(r2);                                    // FLOP_RSQRT
@@ -236,10 +231,12 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 						r3inv = +15.0f / 8.0f;
 						r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
 						r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
-						r1inv = -5.0f / 16.0f;
-						r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
-						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
-						r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
+						if (full_eval) {
+							r1inv = -5.0f / 16.0f;
+							r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
+							r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
+							r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
+						}
 						flops += FLOP_SQRT + 16;
 					}
 					fx = fmaf(dx0, r3inv, fx); // 2
@@ -253,19 +250,23 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 					fx += __shfl_down_sync(0xffffffff, fx, P);
 					fy += __shfl_down_sync(0xffffffff, fy, P);
 					fz += __shfl_down_sync(0xffffffff, fz, P);
-					phi += __shfl_down_sync(0xffffffff, phi, P);
+					if (full_eval) {
+						phi += __shfl_down_sync(0xffffffff, phi, P);
+					}
 				}
 				if (tid == 0) {
 					F[0][k] -= fx;
 					F[1][k] -= fy;
 					F[2][k] -= fz;
-					Phi[k] += phi;
+					if (full_eval) {
+						Phi[k] += phi;
+					}
 				}
 			}
 		}
 	}
 	__syncwarp();
-	if( params.full_eval) {
+	if (full_eval) {
 		kick_return_update_interactions_gpu(KR_PP, interacts, flops);
 	}
 }
@@ -294,11 +295,10 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 	for (int i = tid; i < nparts; i += KICK_BLOCK_SIZE) {
 		rungs[i] = parts->rung(i + myparts.first);
 		if (rungs[i] >= params.rung || params.full_eval) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				sinks[dim][i] = parts->pos(dim, myparts.first + i);
-			}
+			sinks[i] = parts->pos(i + myparts.first);
 		}
 	}
+	const bool full_eval = params.full_eval;
 	int interacts = 0;
 	int flops = 0;
 	array<float, NDIM> dx;
@@ -335,12 +335,12 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 				}
 				for (int i = tid; i < nsrc; i += KICK_BLOCK_SIZE) {
 					const auto &source = msrcs[i].pos;
-					dx0 = distance(sinks[0][k], source[0]);
-					dx1 = distance(sinks[1][k], source[1]);
-					dx2 = distance(sinks[2][k], source[2]);
+					dx0 = distance(sinks[k].p.x, source[0]);
+					dx1 = distance(sinks[k].p.y, source[1]);
+					dx2 = distance(sinks[k].p.z, source[2]);
 					flops += 6;
 					flops += green_direct(D, dx);
-					flops += multipole_interaction(Lforce, msrcs[i].multi, D);
+					flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
 					interacts++;
 				}
 				phi = Lforce[0];
@@ -351,19 +351,23 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 					fx += __shfl_down_sync(0xffffffff, fx, P);
 					fy += __shfl_down_sync(0xffffffff, fy, P);
 					fz += __shfl_down_sync(0xffffffff, fz, P);
-					phi += __shfl_down_sync(0xffffffff, phi, P);
+					if (full_eval) {
+						phi += __shfl_down_sync(0xffffffff, phi, P);
+					}
 				}
 				if (tid == 0) {
 					F[0][k] -= fx;
 					F[1][k] -= fy;
 					F[2][k] -= fz;
-					Phi[k] += phi;
+					if (full_eval) {
+						Phi[k] += phi;
+					}
 				}
 			}
 		}
 	}
 	__syncwarp();
-	if( params.full_eval) {
+	if (params.full_eval) {
 		kick_return_update_interactions_gpu(KR_PC, interacts, flops);
 	}
 }
@@ -378,10 +382,8 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 	const int &bid = blockIdx.x;
 
 	const auto index = test_parts[bid];
-	array<fixed32, NDIM> sink;
-	for (int dim = 0; dim < NDIM; dim++) {
-		sink[dim] = parts->pos(dim, index);
-	}
+	pos_type sink;
+	sink = parts->pos(index);
 	const auto f_x = parts->force(0, index);
 	const auto f_y = parts->force(1, index);
 	const auto f_z = parts->force(2, index);
@@ -400,8 +402,8 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 		if (source != index) {
 			array<float, NDIM> X;
 			for (int dim = 0; dim < NDIM; dim++) {
-				const auto a = sink[dim];
-				const auto b = parts->pos(dim, source);
+				const auto a = sink.a[dim];
+				const auto b = parts->pos(source).a[dim];
 				X[dim] = distance(a, b);
 			}
 #ifdef PERIODIC_OFF

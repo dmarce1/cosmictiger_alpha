@@ -47,7 +47,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 			}
 			flops += n * 6;
 			flops += n * green_direct(D, dX);
-			flops += n * multipole_interaction(Lacc, M, D);
+			flops += n * multipole_interaction(Lacc, M, D, params.full_eval);
 		}
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {
@@ -76,7 +76,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 		const auto& other_parts = ((tree*) partis[k])->parts;
 		for (size_t l = other_parts.first; l < other_parts.second; l++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				sources[dim].push_back(particles->pos(dim, l));
+				sources[dim].push_back(particles->pos(l).a[dim]);
 			}
 		}
 	}
@@ -151,7 +151,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 		const auto& other_parts = ((tree*) partis[k])->parts;
 		for (size_t l = other_parts.first; l < other_parts.second; l++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				sources[dim].push_back(particles->pos(dim, l));
+				sources[dim].push_back(particles->pos(l).a[dim]);
 			}
 		}
 	}
@@ -160,7 +160,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	array<simd_int, NDIM> Y;
 	for (int i = 0; i < nparts; i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			X[dim] = particles->pos(dim, i + parts.first).raw();
+			X[dim] = particles->pos(i + parts.first).a[dim].raw();
 		}
 		if (particles->rung(i + parts.first) >= params.rung || params.full_eval) {
 			array<simd_float, NDIM> f;
@@ -245,7 +245,7 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 	int interacts = 0;
 	for (int i = 0; i < nparts; i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			X[dim] = particles->pos(dim, i + parts.first).raw();
+			X[dim] = particles->pos(i + parts.first).a[dim].raw();
 		}
 		if (particles->rung(i + parts.first) >= params.rung || params.full_eval) {
 			array<simd_float, NDIM> f;
@@ -280,7 +280,7 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 				}
 				flops += n * 6;
 				flops += n * green_direct(D, dX);
-				flops += n * multipole_interaction(Lacc, M, D);
+				flops += n * multipole_interaction(Lacc, M, D, params.full_eval);
 			}
 			for (int dim = 0; dim < NDIM; dim++) {
 				F[dim][i] -= Lacc[1 + dim].sum();
@@ -342,7 +342,7 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 			}
 			flops += n * 6;
 			flops += n * green_ewald(D, dX);
-			flops += n * multipole_interaction(Lacc, M, D);
+			flops += n * multipole_interaction(Lacc, M, D, params.full_eval);
 		}
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {
