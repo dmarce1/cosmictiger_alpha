@@ -112,8 +112,8 @@ void kick_return_show() {
 		printf("%4s   : %8.3e (%5.2f%%)  %8.3e (%5.2f%%) %.2f\n", names[i], rc.count[i], count_pct[i], rc.flop[i] * fac1,
 				flop_pct[i], flop_per[i]);
 	}
-//	printf("\nTotal GFLOP  = %8.3e\n", flop_tot * fac);
-//	printf("Total GFLOPS = %8.3e\n\n", flop_tot * fac / elapsed);
+	printf("\nTotal GFLOP  = %8.3e\n", flop_tot * fac);
+	printf("Total GFLOPS = %8.3e\n\n", flop_tot * fac / elapsed);
 
 }
 
