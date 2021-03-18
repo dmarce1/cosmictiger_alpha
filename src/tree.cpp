@@ -415,6 +415,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 #ifdef TEST_CHECKLIST_TIME
 			tm.start();
 #endif
+			const auto th = params.theta * params.hsoft;
 			for (int ci = 0; ci < checks.size(); ci++) {
 				const auto other_radius = checks[ci].get_radius();
 				const auto other_parts = ((tree*) checks[ci])->parts;
@@ -426,10 +427,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				if (ewald_dist) {
 					d2 = std::max(d2, (float) EWALD_MIN_DIST2);
 				}
-				const auto myradius = SINK_BIAS * (radius + params.hsoft);
-				const auto R1 = sqr(other_radius + myradius + params.hsoft);                 // 2
-				const auto R2 = sqr(other_radius * params.theta + myradius + params.hsoft);
-				const auto R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + params.hsoft);
+				const auto myradius = SINK_BIAS * (radius);
+				const auto R1 = sqr(other_radius + myradius + th);                 // 2
+				const auto R2 = sqr(other_radius * params.theta + myradius + th);
+				const auto R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + th);
 				const bool far1 = R1 < theta2 * d2;
 				const bool far2 = R2 < theta2 * d2;
 				const bool far3 = R3 < theta2 * d2;

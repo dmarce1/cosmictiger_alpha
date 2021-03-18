@@ -75,7 +75,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	lists[OI] = &opened_checks;
 	int my_index[NITERS];
 	int index_counts[NITERS];
-	const auto myradius1 = me.radius + h;
+	const auto myradius1 = me.radius;// + h;
 	const auto myradius2 = SINK_BIAS * myradius1;
 	const auto &mypos = me.pos;
 	const bool iamleaf = me.children[0].ptr == 0;
@@ -102,6 +102,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						my_index[i] = 0;
 					}
 					const auto h = params.hsoft;
+					const auto th = params.theta * h;
 					if (ci < check_count) {
 						auto &check = checks[ci];
 						const auto &other_radius = ((const tree*) check)->radius;
@@ -113,10 +114,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						}
 						float d2 = fmaf(dist[0], dist[0], fmaf(dist[1], dist[1], sqr(dist[2]))); // 5
 						d2 = (1 - int(ewald_dist)) * d2 + int(ewald_dist) * fmaxf(d2, EWALD_MIN_DIST2); // 5
-						const auto other_radius_ph = other_radius + h; // 2
-						const auto R1 = sqr(other_radius_ph + myradius2);                 // 2
-						const auto R2 = sqr(other_radius_ph * theta + myradius2); // 3
-						const auto R3 = sqr(other_radius_ph + myradius1 * theta); // 3
+						const auto R1 = sqr(other_radius + myradius2 + th);                 // 2
+						const auto R2 = sqr(other_radius * theta + myradius2 + th); // 3
+						const auto R3 = sqr(other_radius + myradius1 * theta + th); // 3
 						const auto theta2d2 = theta2 * d2; // 1
 						const bool far1 = R1 < theta2d2;                 // 1
 						const bool far2 = R2 < theta2d2;                 // 1
