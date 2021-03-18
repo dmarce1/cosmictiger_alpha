@@ -155,7 +155,6 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 	auto &sources = shmem.src;
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
-	auto& act_unmap = shmem.act_unmap;
 	const auto h = params.hsoft;
 	const auto h2 = h * h;
 	const auto hinv = 1.0f / h;
@@ -169,7 +168,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 //   printf( "%i\n", parti.size());
 	const auto &myparts = ((tree*) params.tptr)->parts;
 	const int nsinks = myparts.second - myparts.first;
-	const int nsinks_max = max(((nsinks - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE,0);
+	const int nsinks_max = max(((nsinks - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
 
 	int my_index;
 	bool found;
@@ -189,7 +188,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			}
 		}
 		int tmp;
-		for (int P = 1; P < KICK_BLOCK_SIZE; P*=2) {
+		for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
 			tmp = __shfl_up_sync(0xFFFFFFFF, my_index, P);
 			if (tid >= P) {
 				my_index += tmp;
@@ -203,9 +202,8 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			my_index = 0;
 		}
 		if (found) {
-			act_unmap[i] = base + my_index;
 			act_map[base + my_index] = i;
-	//		printf( "%i %i\n", base+my_index, i);
+			//		printf( "%i %i\n", base+my_index, i);
 		}
 		base += total;
 	}
@@ -252,7 +250,59 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 		float dx0, dx1, dx2;
 		float r3inv, r1inv;
 		__syncwarp();
-		for (int k = 0; k < nactive; k++) {
+		int kmid;
+		if( (nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 2) {
+			kmid = nactive - (nactive % KICK_BLOCK_SIZE);
+		} else {
+			kmid = nactive;
+		}
+		for (int k = tid; k < kmid; k += KICK_BLOCK_SIZE) {
+			const auto sink = sinks[k];
+			fx = 0.f;
+			fy = 0.f;
+			fz = 0.f;
+			phi = 0.f;
+			for (int j = 0; j < part_index; j++) {
+				const auto source = sources[j];
+				dx0 = distance(sink.p.x, source.p.x);
+				dx1 = distance(sink.p.y, source.p.y);
+				dx2 = distance(sink.p.z, source.p.z);               // 3
+				const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 5
+				if (r2 >= h2) {
+					r1inv = rsqrt(r2);                                    // FLOP_RSQRT
+					r3inv = r1inv * r1inv * r1inv;                        // 2
+					flops += 2 + FLOP_RSQRT;
+				} else {
+					const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
+					const float r2oh2 = r1oh1 * r1oh1;           // 1
+					r3inv = +15.0f / 8.0f;
+					r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
+					r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
+					if (full_eval) {
+						r1inv = -5.0f / 16.0f;
+						r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
+						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
+						r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
+					}
+					flops += FLOP_SQRT + 16;
+				}
+				fx = fmaf(dx0, r3inv, fx); // 2
+				fy = fmaf(dx1, r3inv, fy); // 2
+				fz = fmaf(dx2, r3inv, fz); // 2
+				phi -= r1inv; // 1
+				flops += 15;
+				interacts++;
+			}
+			const auto l = act_map[k];
+			F[0][l] -= fx;
+			F[1][l] -= fy;
+			F[2][l] -= fz;
+			if (full_eval) {
+				Phi[l] += phi;
+			}
+//			}
+		}
+		for (int k = kmid; k < nactive; k++) {
 			fx = 0.f;
 			fy = 0.f;
 			fz = 0.f;
@@ -296,11 +346,12 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 				}
 			}
 			if (tid == 0) {
-				F[0][act_map[k]] -= fx;
-				F[1][act_map[k]] -= fy;
-				F[2][act_map[k]] -= fz;
+				const auto l = act_map[k];
+				F[0][l] -= fx;
+				F[1][l] -= fy;
+				F[2][l] -= fz;
 				if (full_eval) {
-					Phi[act_map[k]] += phi;
+					Phi[l] += phi;
 				}
 			}
 		}

@@ -207,7 +207,6 @@ struct cuda_kick_shmem {
 	array<pos_type, MAX_BUCKET_SIZE> sink;  // 768
 	array<rung_t, MAX_BUCKET_SIZE> rungs; // 256
 	array<int8_t, MAX_BUCKET_SIZE> act_map;
-	array<int8_t, MAX_BUCKET_SIZE> act_unmap;
 };
 
 struct kick_params_type {
