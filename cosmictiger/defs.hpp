@@ -36,7 +36,7 @@
 #define TREE_SORT_MULTITHREAD
 #define TREE_MIN_PARTS2THREAD (16*1024)
 #define KICK_BLOCK_SIZE 32
-#define KICK_PP_MAX size_t(17*32)
+#define KICK_PP_MAX size_t(16*32)
 #define KICK_PC_MAX (2*32)
 #define MAX_BUCKET_SIZE 96
 #define GROUP_SIZE MAX_BUCKET_SIZE
