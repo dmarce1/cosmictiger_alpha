@@ -39,9 +39,9 @@ particle_set::particle_set(size_t size, size_t offset) {
 #ifdef TEST_FORCE
 	const auto offset1 = sizeof(vel_type) * size + size * sizeof(pos_type) + sizeof(rung_t) * size;
 	for (size_t dim = 0; dim < NDIM; dim++) {
-		gptr_[dim] = (float*) (data + offset1 + size * sizeof(vel_type));
+		gptr_[dim] = (float*) (data + offset1 + dim * size * sizeof(float));
 	}
-	eptr_ = (float*) (data + offset1 + size * sizeof(vel_type));
+	eptr_ = (float*) (data + offset1 + size * NDIM * sizeof(float));
 #endif
 	for (int i = 0; i < size; i++) {
 		rptr_[i] = 0;

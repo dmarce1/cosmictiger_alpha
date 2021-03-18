@@ -250,6 +250,7 @@ void force_test() {
 	params_ptr->L[0] = L;
 	params_ptr->Lpos[0] = Lpos;
 	params_ptr->t0 = true;
+	params_ptr->full_eval = true;
 	kick_return_init(0);
 	root.kick(params_ptr).get();
 	kick_return_show();
