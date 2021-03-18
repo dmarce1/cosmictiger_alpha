@@ -251,7 +251,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 		float r3inv, r1inv;
 		__syncwarp();
 		int kmid;
-		if( (nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 2) {
+		if ((nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 4) {
 			kmid = nactive - (nactive % KICK_BLOCK_SIZE);
 		} else {
 			kmid = nactive;
@@ -302,6 +302,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			}
 //			}
 		}
+		__syncwarp();
 		for (int k = kmid; k < nactive; k++) {
 			fx = 0.f;
 			fy = 0.f;
@@ -376,19 +377,60 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 	auto &F = params.F;
 	auto &Phi = params.Phi;
 	const auto &myparts = ((tree*) params.tptr)->parts;
-	const int nparts = myparts.second - myparts.first;
 	if (multis.size() == 0) {
 		return;
 	}
 	auto &rungs = shmem.rungs;
 	auto &sinks = shmem.sink;
 	auto& msrcs = shmem.msrc;
-	for (int i = tid; i < nparts; i += KICK_BLOCK_SIZE) {
-		rungs[i] = parts->rung(i + myparts.first);
-		if (rungs[i] >= params.rung || params.full_eval) {
-			sinks[i] = parts->pos(i + myparts.first);
+	const int nsinks = myparts.second - myparts.first;
+	const int nsinks_max = max(((nsinks - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
+	auto& act_map = shmem.act_map;
+
+	int my_index;
+	bool found;
+	int base = 0;
+	int nactive = 0;
+	int total;
+
+	for (int i = tid; i < nsinks_max; i += KICK_BLOCK_SIZE) {
+		my_index = 0;
+		found = false;
+		if (i < nsinks) {
+			rungs[i] = parts->rung(i + myparts.first);
+			if (rungs[i] >= params.rung || params.full_eval) {
+				found = true;
+				my_index = 1;
+				nactive++;
+			}
 		}
+		int tmp;
+		for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
+			tmp = __shfl_up_sync(0xFFFFFFFF, my_index, P);
+			if (tid >= P) {
+				my_index += tmp;
+			}
+		}
+		total = __shfl_sync(0xFFFFFFFF, my_index, KICK_BLOCK_SIZE - 1);
+		tmp = __shfl_up_sync(0xFFFFFFFF, my_index, 1);
+		if (tid > 0) {
+			my_index = tmp;
+		} else {
+			my_index = 0;
+		}
+		if (found) {
+			act_map[base + my_index] = i;
+			//		printf( "%i %i\n", base+my_index, i);
+		}
+		base += total;
 	}
+	for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+		nactive += __shfl_xor_sync(0xFFFFFFFF, nactive, P);
+	}
+	for (int i = tid; i < nactive; i += KICK_BLOCK_SIZE) {
+		sinks[i] = parts->pos(act_map[i] + myparts.first);
+	}
+
 	const bool full_eval = params.full_eval;
 	int interacts = 0;
 	int flops = 0;
@@ -419,40 +461,72 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 			}
 		}
 		__syncwarp();
-		for (int k = 0; k < nparts; k++) {
-			if (rungs[k] >= params.rung || params.full_eval) {
-				for (int i = 0; i < NDIM + 1; i++) {
-					Lforce[i] = 0.f;
+		int kmid;
+		if ((nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 4) {
+			kmid = nactive - (nactive % KICK_BLOCK_SIZE);
+		} else {
+			kmid = nactive;
+		}
+		for (int k = tid; k < kmid; k += KICK_BLOCK_SIZE) {
+			for (int i = 0; i < NDIM + 1; i++) {
+				Lforce[i] = 0.f;
+			}
+			for (int i = 0; i < nsrc; i++) {
+				const auto &source = msrcs[i].pos;
+				dx0 = distance(sinks[k].p.x, source[0]);
+				dx1 = distance(sinks[k].p.y, source[1]);
+				dx2 = distance(sinks[k].p.z, source[2]);
+				flops += 6;
+				flops += green_direct(D, dx);
+				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
+				interacts++;
+			}
+			phi = Lforce[0];
+			fx = Lforce[1];
+			fy = Lforce[2];
+			fz = Lforce[3];
+			const int l = act_map[k];
+			F[0][l] -= fx;
+			F[1][l] -= fy;
+			F[2][l] -= fz;
+			if (full_eval) {
+				Phi[l] += phi;
+			}
+		}
+		__syncwarp();
+		for (int k = kmid; k < nactive; k++) {
+			for (int i = 0; i < NDIM + 1; i++) {
+				Lforce[i] = 0.f;
+			}
+			for (int i = tid; i < nsrc; i += KICK_BLOCK_SIZE) {
+				const auto &source = msrcs[i].pos;
+				dx0 = distance(sinks[k].p.x, source[0]);
+				dx1 = distance(sinks[k].p.y, source[1]);
+				dx2 = distance(sinks[k].p.z, source[2]);
+				flops += 6;
+				flops += green_direct(D, dx);
+				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
+				interacts++;
+			}
+			phi = Lforce[0];
+			fx = Lforce[1];
+			fy = Lforce[2];
+			fz = Lforce[3];
+			for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+				fx += __shfl_down_sync(0xffffffff, fx, P);
+				fy += __shfl_down_sync(0xffffffff, fy, P);
+				fz += __shfl_down_sync(0xffffffff, fz, P);
+				if (full_eval) {
+					phi += __shfl_down_sync(0xffffffff, phi, P);
 				}
-				for (int i = tid; i < nsrc; i += KICK_BLOCK_SIZE) {
-					const auto &source = msrcs[i].pos;
-					dx0 = distance(sinks[k].p.x, source[0]);
-					dx1 = distance(sinks[k].p.y, source[1]);
-					dx2 = distance(sinks[k].p.z, source[2]);
-					flops += 6;
-					flops += green_direct(D, dx);
-					flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
-					interacts++;
-				}
-				phi = Lforce[0];
-				fx = Lforce[1];
-				fy = Lforce[2];
-				fz = Lforce[3];
-				for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-					fx += __shfl_down_sync(0xffffffff, fx, P);
-					fy += __shfl_down_sync(0xffffffff, fy, P);
-					fz += __shfl_down_sync(0xffffffff, fz, P);
-					if (full_eval) {
-						phi += __shfl_down_sync(0xffffffff, phi, P);
-					}
-				}
-				if (tid == 0) {
-					F[0][k] -= fx;
-					F[1][k] -= fy;
-					F[2][k] -= fz;
-					if (full_eval) {
-						Phi[k] += phi;
-					}
+			}
+			if (tid == 0) {
+				const int l = act_map[k];
+				F[0][l] -= fx;
+				F[1][l] -= fy;
+				F[2][l] -= fz;
+				if (full_eval) {
+					Phi[l] += phi;
 				}
 			}
 		}
