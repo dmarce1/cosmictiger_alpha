@@ -204,7 +204,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				list_index = -1;
 				if (j < parti.size()) {
 					const auto& other = *((tree*) parti[j]);
-					const auto hfac = (1.f + SINK_BIAS) * params.hsoft;
+					const auto hfac = params.theta *  params.hsoft;
 					bool res = false;
 					for (int k = 0; k < myparts.second - myparts.first; k++) {
 						const auto this_rung =  parts->rung(k + myparts.first);
