@@ -435,7 +435,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				const bool far2 = R2 < theta2 * d2;
 				const bool far3 = R3 < theta2 * d2;
 				const bool isleaf = checks[ci].is_leaf();
-				if (far1 || (direct && far3 && (other_parts.second - other_parts.first >= PC_MIN_PARTS))) {
+				if (far1 || (direct && far3)) {
 					multis.push_back(checks[ci]);
 				} else if ((far2 || direct) && isleaf) {
 					parti.push_back(checks[ci]);
