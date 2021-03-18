@@ -151,7 +151,6 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 //	auto &f = shmem.f;
 	auto &F = params.F;
 	auto &Phi = params.Phi;
-	auto &rungs = shmem.rungs;
 	auto &sources = shmem.src;
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
@@ -180,8 +179,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 		my_index = 0;
 		found = false;
 		if (i < nsinks) {
-			rungs[i] = parts->rung(i + myparts.first);
-			if (rungs[i] >= params.rung || params.full_eval) {
+			if (parts->rung(i + myparts.first) >= params.rung || params.full_eval) {
 				found = true;
 				my_index = 1;
 				nactive++;
@@ -380,7 +378,6 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 	if (multis.size() == 0) {
 		return;
 	}
-	auto &rungs = shmem.rungs;
 	auto &sinks = shmem.sink;
 	auto& msrcs = shmem.msrc;
 	const int nsinks = myparts.second - myparts.first;
@@ -397,8 +394,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 		my_index = 0;
 		found = false;
 		if (i < nsinks) {
-			rungs[i] = parts->rung(i + myparts.first);
-			if (rungs[i] >= params.rung || params.full_eval) {
+			if (parts->rung(i + myparts.first) >= params.rung || params.full_eval) {
 				found = true;
 				my_index = 1;
 				nactive++;

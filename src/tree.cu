@@ -189,12 +189,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		auto &tmp_parti = params.tmp;
 		auto tm = clock64();
 		if (type == PC_PP_DIRECT) {
-			auto &rungs = shmem.rungs;
 			auto &sinks = shmem.sink;
 			const int pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
 			for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
-				rungs[k] = parts->rung(k + myparts.first);
-				if (rungs[k] >= params.rung || params.full_eval) {
+				if ( parts->rung(k + myparts.first) >= params.rung || params.full_eval) {
 					sinks[k] = parts->pos(myparts.first + k);
 				}
 			}
@@ -209,7 +207,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					const auto hfac = (1.f + SINK_BIAS) * params.hsoft;
 					bool res = false;
 					for (int k = 0; k < myparts.second - myparts.first; k++) {
-						const auto this_rung = rungs[k];
+						const auto this_rung =  parts->rung(k + myparts.first);
 						if (this_rung >= params.rung || params.full_eval) {
 							float dx0 = distance(other.pos[0], sinks[k].p.x);
 							float dy0 = distance(other.pos[1], sinks[k].p.y);
