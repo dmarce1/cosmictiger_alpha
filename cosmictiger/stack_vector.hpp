@@ -63,6 +63,7 @@ public:
       for (int i = tid; i < size(); i += blocksize) {
          res[i] = (*this)[i];
       }
+      SYNC();
       return res;
    }
    CUDA_EXPORT inline void push_top() {
@@ -74,6 +75,7 @@ public:
       for (int i = begin() + tid; i < end(); i += blocksize) {
          data[i] = data[i - sz];
       }
+      SYNC();
    }
    CUDA_EXPORT inline void pop_top() {
       assert(bounds.size() >= 2);
