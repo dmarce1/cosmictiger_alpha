@@ -59,7 +59,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		}
 	}
 	const auto& myparts = ((tree*) params.tptr)->parts;
-	const auto& h = params.hsoft;
 	auto &count = shmem.count;
 
 	const auto theta = params.theta;
@@ -75,9 +74,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	lists[OI] = &opened_checks;
 	int my_index[NITERS];
 	int index_counts[NITERS];
-	const auto myradius1 = me.radius;// + h;
+	const auto myradius1 = me.radius; // + h;
 	const auto myradius2 = SINK_BIAS * myradius1;
-	const auto &mypos = me.pos;
+	const auto mypos = me.pos;
 	const bool iamleaf = me.children[0].ptr == 0;
 	int ninteractions = iamleaf ? 3 : 2;
 	for (int type = 0; type < ninteractions; type++) {
@@ -93,6 +92,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		__syncwarp();
 		int check_count;
 		array<int, NITERS> tmp;
+		const auto h = params.hsoft;
+		const auto th = params.theta * h;
 		do {
 			check_count = checks.size();
 			if (check_count) {
@@ -101,19 +102,18 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					for (int i = 0; i < NITERS; i++) {
 						my_index[i] = 0;
 					}
-					const auto h = params.hsoft;
-					const auto th = params.theta * h;
 					if (ci < check_count) {
-						auto &check = checks[ci];
-						const auto &other_radius = ((const tree*) check)->radius;
-						//			const auto &other_parts = ((const tree*) check)->parts;
-						const auto &other_pos = ((const tree*) check)->pos;
+						const auto check = checks[ci];
+						const auto other_pos = ((const tree*) check)->pos;
+						const auto other_radius = ((const tree*) check)->radius;
 						array<float, NDIM> dist;
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
 							dist[dim] = distance(other_pos[dim], mypos[dim]);
 						}
 						float d2 = fmaf(dist[0], dist[0], fmaf(dist[1], dist[1], sqr(dist[2]))); // 5
-						d2 = (1 - int(ewald_dist)) * d2 + int(ewald_dist) * fmaxf(d2, EWALD_MIN_DIST2); // 5
+						if( ewald_dist ) {
+							d2 = fmaxf(d2, EWALD_MIN_DIST2); // 5
+						}
 						const auto R1 = sqr(other_radius + myradius2 + th);                 // 2
 						const auto R2 = sqr(other_radius * theta + myradius2 + th); // 3
 						const auto R3 = sqr(other_radius + myradius1 * theta + th); // 3
@@ -192,8 +192,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			auto &sinks = shmem.sink;
 			const int pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
 			for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
-				if ( parts->rung(k + myparts.first) >= params.rung || params.full_eval) {
-					sinks[k] = parts->pos(myparts.first + k);
+				const auto index = k + myparts.first;
+				if (parts->rung(index) >= params.rung || params.full_eval) {
+					sinks[k] = parts->pos(index);
 				}
 			}
 			tmp_parti.resize(0);
@@ -204,14 +205,16 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				list_index = -1;
 				if (j < parti.size()) {
 					const auto& other = *((tree*) parti[j]);
-					const auto hfac = params.theta *  params.hsoft;
+					const auto hfac = params.theta * params.hsoft;
 					bool res = false;
-					for (int k = 0; k < myparts.second - myparts.first; k++) {
-						const auto this_rung =  parts->rung(k + myparts.first);
+					const int sz = myparts.second - myparts.first;
+					for (int k = 0; k < sz; k++) {
+						const auto this_rung = parts->rung(k + myparts.first);
+						const auto sink = sinks[k];
 						if (this_rung >= params.rung || params.full_eval) {
-							float dx0 = distance(other.pos[0], sinks[k].p.x);
-							float dy0 = distance(other.pos[1], sinks[k].p.y);
-							float dz0 = distance(other.pos[2], sinks[k].p.z);
+							float dx0 = distance(other.pos[0], sink.p.x);
+							float dy0 = distance(other.pos[1], sink.p.y);
+							float dz0 = distance(other.pos[2], sink.p.z);
 							float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
 							res = sqr(other.radius + hfac) > d2 * theta2;
 							flops += 15;
@@ -246,11 +249,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				multis.resize(mult_cnt + index_counts[MI]);
 				__syncwarp();
 				if (j < parti.size()) {
-					if (list_index == PI) {
-						tmp_parti[part_cnt + my_index[PI]] = parti[j];
-					} else if (list_index == MI) {
-						multis[mult_cnt + my_index[MI]] = parti[j];
-					}
+					(list_index == PI ? tmp_parti[part_cnt + my_index[PI]] : multis[mult_cnt + my_index[MI]]) = parti[j];
 				}
 			}
 			parti.swap(tmp_parti);
