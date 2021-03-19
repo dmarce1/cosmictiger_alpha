@@ -38,7 +38,6 @@ class vector {
       for (int i = b + tid; i < e; i += blocksize) {
          (*this)[i].T::~T();
       }
-      SYNC();
    }
    CUDA_EXPORT
    inline
@@ -48,7 +47,6 @@ class vector {
       for (int i = b + tid; i < e; i += blocksize) {
          new (ptr + i) T();
       }
-      SYNC();
    }
 public:
 #ifndef __CUDACC__
@@ -105,7 +103,6 @@ public:
       for (int i = tid; i < other.sz; i += blocksize) {
          (*this)[i] = other[i];
       }
-      SYNC();
    }
    CUDA_EXPORT
    inline vector& operator=(const vector &other) {
@@ -116,7 +113,6 @@ public:
       for (int i = tid; i < other.size(); i += blocksize) {
          (*this)[i] = other[i];
       }
-      SYNC();
       return *this;
    }
    CUDA_EXPORT
@@ -182,7 +178,6 @@ public:
             new (new_ptr + i) T();
             new_ptr[i] = std::move((*this)[i]);
          }
-         SYNC();
          destruct(0, sz);
          SYNC();
          if (tid == 0) {

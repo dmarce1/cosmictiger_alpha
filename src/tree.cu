@@ -58,7 +58,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			phi[k] = -PHI0;
 		}
 	}
-	__syncwarp();
 	const auto& myparts = ((tree*) params.tptr)->parts;
 	auto &count = shmem.count;
 
@@ -174,7 +173,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						checks[base + j] = children[j];
 					}
 				}
-				__syncwarp();
 				const auto base = 2 * countCI;
 				for (int i = tid; i < countOI; i += KICK_BLOCK_SIZE) {
 					checks[base + i] = opened_checks[i];
@@ -254,7 +252,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					(list_index == PI ? tmp_parti[part_cnt + my_index[PI]] : multis[mult_cnt + my_index[MI]]) = parti[j];
 				}
 			}
-			__syncwarp();
 			parti.swap(tmp_parti);
 			__syncwarp();
 		}
@@ -369,7 +366,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			}
 			kick_return_update_rung_gpu(parts->rung(k + myparts.first));
 		}
-		__syncwarp();
 	}
 	if (params.full_eval) {
 		kick_return_update_interactions_gpu(KR_OP, interacts, flops);

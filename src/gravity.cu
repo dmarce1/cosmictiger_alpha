@@ -45,7 +45,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		flops += multipole_interaction(L, mpole, D, params.full_eval);
 		interacts++;
 	}
-	__syncwarp();
+
 	for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
 		for (int i = 0; i < LP; i++) {
 			L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
@@ -79,66 +79,62 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	int interacts = 0;
 	expansion<float> L;
 	if (parti.size() > 0) {
-		return;
-	}
-	for (int j = 0; j < LP; j++) {
-		L[j] = 0.0;
-	}
-	auto these_parts = ((tree*) parti[0])->parts;
-	int i = 0;
-	const auto &pos = ((tree*) params.tptr)->pos;
-	const auto partsz = parti.size();
-	while (i < partsz) {
-		part_index = 0;
-		while (part_index < KICK_PP_MAX && i < partsz) {
-			while (i + 1 < partsz) {
-				const auto other_tree = ((tree*) parti[i + 1]);
-				if (these_parts.second == other_tree->parts.first) {
-					these_parts.second = other_tree->parts.second;
+		for (int j = 0; j < LP; j++) {
+			L[j] = 0.0;
+		}
+		auto these_parts = ((tree*) parti[0])->parts;
+		int i = 0;
+		const auto &pos = ((tree*) params.tptr)->pos;
+		const auto partsz = parti.size();
+		while (i < partsz) {
+			part_index = 0;
+			while (part_index < KICK_PP_MAX && i < partsz) {
+				while (i + 1 < partsz) {
+					const auto other_tree = ((tree*) parti[i + 1]);
+					if (these_parts.second == other_tree->parts.first) {
+						these_parts.second = other_tree->parts.second;
+						i++;
+					} else {
+						break;
+					}
+				}
+				const size_t imin = these_parts.first;
+				const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
+				const int sz = imax - imin;
+				for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
+					sources[part_index + j] = parts->pos(j + imin);
+				}
+				these_parts.first += sz;
+				part_index += sz;
+				if (these_parts.first == these_parts.second) {
 					i++;
-				} else {
-					break;
+					if (i < parti.size()) {
+						these_parts = ((tree*) parti[i])->parts;
+					}
 				}
 			}
-			const size_t imin = these_parts.first;
-			const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
-			const int sz = imax - imin;
-			for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
-				sources[part_index + j] = parts->pos(j + imin);
-			}
-			__syncwarp();
-			these_parts.first += sz;
-			part_index += sz;
-			if (these_parts.first == these_parts.second) {
-				i++;
-				if (i < parti.size()) {
-					these_parts = ((tree*) parti[i])->parts;
-				}
+			for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
+				array<float, NDIM> dx;
+				dx[0] = distance(pos[0], sources[j].p.x);
+				dx[1] = distance(pos[1], sources[j].p.y);
+				dx[2] = distance(pos[2], sources[j].p.z);
+				expansion<float> D;
+				flops += 3;
+				flops += green_direct(D, dx);
+				flops += multipole_interaction(L, D);
+				interacts++;
 			}
 		}
-		for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
-			array<float, NDIM> dx;
-			dx[0] = distance(pos[0], sources[j].p.x);
-			dx[1] = distance(pos[1], sources[j].p.y);
-			dx[2] = distance(pos[2], sources[j].p.z);
-			expansion<float> D;
-			flops += 3;
-			flops += green_direct(D, dx);
-			flops += multipole_interaction(L, D);
-			interacts++;
+		for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+			for (int i = 0; i < LP; i++) {
+				L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
+			}
 		}
-		__syncwarp();
-	}
-	for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-		for (int i = 0; i < LP; i++) {
-			L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
+		for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
+			params.L[params.depth][i] += L[i];
 		}
-	}
-	for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
-		params.L[params.depth][i] += L[i];
 	}
 	__syncwarp();
-
 	if (params.full_eval) {
 		kick_return_update_interactions_gpu(KR_CP, interacts, flops);
 	}
@@ -215,7 +211,6 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 	for (int i = tid; i < nactive; i += KICK_BLOCK_SIZE) {
 		sinks[i] = parts->pos(act_map[i] + myparts.first);
 	}
-	__syncwarp();
 	int i = 0;
 	auto these_parts = ((tree*) parti[0])->parts;
 	const auto partsz = parti.size();
@@ -237,7 +232,6 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
 				sources[part_index + j] = parts->pos(j + imin);
 			}
-			__syncwarp();
 			these_parts.first += sz;
 			part_index += sz;
 			if (these_parts.first == these_parts.second) {
@@ -360,8 +354,8 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 				}
 			}
 		}
-		__syncwarp();
 	}
+	__syncwarp();
 	if (full_eval) {
 		kick_return_update_interactions_gpu(KR_PP, interacts, flops);
 	}
@@ -426,14 +420,13 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 		}
 		base += total;
 	}
-	__syncwarp();
 	for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
 		nactive += __shfl_xor_sync(0xFFFFFFFF, nactive, P);
 	}
 	for (int i = tid; i < nactive; i += KICK_BLOCK_SIZE) {
 		sinks[i] = parts->pos(act_map[i] + myparts.first);
 	}
-	__syncwarp();
+
 	const bool full_eval = params.full_eval;
 	int interacts = 0;
 	int flops = 0;
