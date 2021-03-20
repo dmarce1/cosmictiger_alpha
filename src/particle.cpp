@@ -7,16 +7,21 @@
 #include <unordered_map>
 #include <algorithm>
 
-void particle_set::prepare_kick(cudaStream_t stream) {
-	return;
+void particle_set::prepare_kick() {
+	CUDA_CHECK(cudaMemAdvise(pptr_, sizeof(pos_type)*size(), cudaMemAdviseSetReadMostly, 0));
+	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type)*size(), cudaMemAdviseUnsetReadMostly, 0));
+	CUDA_CHECK(cudaMemAdvise(eptr_, sizeof(rung_t)*size(), cudaMemAdviseUnsetReadMostly, 0));
 }
 
-void particle_set::prepare_drift(cudaStream_t stream) {
-	return;
+void particle_set::prepare_drift() {
+	CUDA_CHECK(cudaMemAdvise(pptr_, sizeof(pos_type)*size(), cudaMemAdviseUnsetReadMostly, 0));
+	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type)*size(), cudaMemAdviseSetReadMostly, 0));
 }
 
 void particle_set::prepare_sort() {
-	return;
+	CUDA_CHECK(cudaMemAdvise(pptr_, sizeof(pos_type)*size(), cudaMemAdviseUnsetReadMostly, 0));
+	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type)*size(), cudaMemAdviseUnsetReadMostly, 0));
+	CUDA_CHECK(cudaMemAdvise(eptr_, sizeof(rung_t)*size(), cudaMemAdviseUnsetReadMostly, 0));
 }
 
 particle_set::particle_set(size_t size, size_t offset) {

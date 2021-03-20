@@ -51,8 +51,8 @@ struct particle_set {
 	particle_set() = default;
 	particle_set(size_t, size_t = 0);
 	void prepare_sort();
-	void prepare_kick(cudaStream_t stream);
-	void prepare_drift(cudaStream_t stream);
+	void prepare_kick();
+	void prepare_drift();
 	~particle_set();CUDA_EXPORT
 	pos_type pos(size_t index) const;
 	vel_type vel(size_t index) const;CUDA_EXPORT

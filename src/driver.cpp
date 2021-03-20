@@ -122,7 +122,7 @@ void drive_cosmos() {
 	double time_total;
 	parts_total = 0.0;
 	time_total = 0.0;
-	T0 = uni_age(a) * 2.0;
+	T0 = uni_age(a);
 	timer tm;
 	tm.start();
 	do {
@@ -185,7 +185,7 @@ void drive_cosmos() {
 		}
 		itime = inc(itime, max_rung);
 		if (iter >= 100) {
-	//		break;
+			break;
 		}
 		iter++;
 	} while (z > 0.0);

@@ -183,6 +183,7 @@ struct tree_ptr {
 struct sort_return {
 	tree_ptr check;
 	size_t active_parts;
+	size_t active_nodes;
 	template<class A>
 	void serialization(A &&arc, unsigned) {
 		assert(false);
@@ -224,7 +225,7 @@ struct kick_params_type {
 	tree_ptr tptr;
 	particle_set* particles;
 	int depth;
-	int block_cutoff;
+	size_t block_cutoff;
 	float theta;
 	float M;
 	float G;
@@ -301,6 +302,7 @@ private:
 	array<fixed32, NDIM> pos;
 	float radius;
 	size_t active_parts;
+	size_t active_nodes;
 	array<tree_ptr, NCHILD> children;
 	pair<size_t, size_t> parts;
 	static particle_set* particles;
@@ -316,7 +318,6 @@ public:
 	static hpx::lcos::local::mutex mtx;
 	static hpx::lcos::local::mutex gpu_mtx;
 	hpx::future<void> send_kick_to_gpu(kick_params_type *params);
-	hpx::future<int32_t> send_ewald_to_gpu(kick_params_type *params);
 	static void gpu_daemon();
 	inline bool is_leaf() const {
 		return children[0] == tree_ptr();
@@ -334,7 +335,6 @@ public:
 	static lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> gpu_queue;
 	static lockfree_queue<gpu_ewald, GPU_QUEUE_SIZE> gpu_ewald_queue;
 #endif
-	int compute_block_count(size_t cutoff, bool root, bool full_eval);
 	friend class tree_ptr;
 };
 

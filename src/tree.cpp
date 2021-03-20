@@ -18,7 +18,7 @@ static unified_allocator kick_params_alloc;
 timer tmp_tm;
 
 #define NWAVE 1
-#define GPUOS 4
+#define GPUOS 2
 
 void tree::set_particle_set(particle_set *parts) {
 	particles = parts;
@@ -89,6 +89,7 @@ sort_return tree::sort(sort_params params) {
 	const auto &opts = global().opts;
 	static std::atomic<int> gpu_searches(0);
 	active_parts = 0;
+	active_nodes = 0;
 	if (params.iamroot()) {
 		gpu_searches = 0;
 		int dummy;
@@ -159,27 +160,6 @@ sort_return tree::sort(sort_params params) {
 			child_params[LEFT].parts.second = child_params[RIGHT].parts.first = pmid;
 			child_params[RIGHT].parts.second = parts.second;
 
-			/*	if (params.key_end - params.key_begin == 1) {
-			 const auto &box = params.box;
-			 int radix_depth = (int(log(double(size + 1) / MAX_BUCKET_SIZE) / log(2) + TREE_RADIX_CUSHION));
-			 radix_depth = std::min(std::max(radix_depth, TREE_RADIX_MIN), TREE_RADIX_MAX) + params.depth;
-			 const auto radix_begin = morton_key(box.begin, radix_depth);
-			 std::array<fixed64, NDIM> tmp;
-			 for (int dim = 0; dim < NDIM; dim++) {
-			 tmp[dim] = box.end[dim] - fixed32::min();
-			 }
-			 const auto radix_end = morton_key(tmp, radix_depth) + 1;
-			 auto bounds = particles->local_sort(parts.first, parts.second, radix_depth, radix_begin, radix_end);
-			 assert(bounds[0] >= parts.first);
-			 assert(bounds[bounds.size() - 1] <= parts.second);
-			 auto bndptr = std::make_shared<decltype(bounds)>(std::move(bounds));
-			 for (int ci = 0; ci < NCHILD; ci++) {
-			 child_params[ci].bounds = bndptr;
-			 }
-			 child_params[LEFT].key_begin = 0;
-			 child_params[LEFT].key_end = child_params[RIGHT].key_begin = (radix_end - radix_begin) / 2;
-			 child_params[RIGHT].key_end = (radix_end - radix_begin);
-			 }*/
 			for (int ci = 0; ci < NCHILD; ci++) {
 				futs[ci] = create_child(child_params[ci]);
 			}
@@ -189,6 +169,7 @@ sort_return tree::sort(sort_params params) {
 		std::array<float, NCHILD> Rc;
 		auto &M = (multi);
 		rc.active_parts = 0;
+		rc.active_nodes = 1;
 		for (int ci = 0; ci < NCHILD; ci++) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
@@ -196,6 +177,10 @@ sort_return tree::sort(sort_params params) {
 			Xc[ci] = ((tree*) this_rc.check)->pos.data();
 			children[ci] = this_rc.check;
 			rc.active_parts += this_rc.active_parts;
+			rc.active_nodes += this_rc.active_nodes;
+		}
+		if (rc.active_nodes == 1) {
+			rc.active_nodes = 0;
 		}
 		std::array<double, NDIM> com = { 0, 0, 0 };
 		const auto &MR = Mc[RIGHT];
@@ -267,13 +252,16 @@ sort_return tree::sort(sort_params params) {
 			radius = std::max(radius, (float) (this_radius));
 		}
 		rc.active_parts = 0;
+		rc.active_nodes = 0;
 		for (size_t k = parts.first; k < parts.second; k++) {
 			if (particles->rung(k) >= params.min_rung) {
 				rc.active_parts++;
+				rc.active_nodes = 1;
 			}
 		}
 	}
 	active_parts = rc.active_parts;
+	active_nodes = rc.active_nodes;
 	return rc;
 }
 
@@ -291,7 +279,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	kick_params_type &params = *params_ptr;
 	const auto part_begin = ((tree*) (*this))->parts.first;
 	const auto part_end = ((tree*) (*this))->parts.second;
-	const auto num_active = ((tree*) (*this))->active_parts;
+	const auto num_active = ((tree*) (*this))->active_nodes;
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
 	const auto gpu_partcnt = global().opts.nparts / (sm_count * KICK_OCCUPANCY);
 	bool use_cpu_block = false;
@@ -335,7 +323,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 
 timer kick_timer;
 
-#define MIN_WORK 1024
+#define MIN_WORK 0
 
 //int num_kicks = 0;
 hpx::future<void> tree::kick(kick_params_type * params_ptr) {
@@ -348,30 +336,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	if (params.depth == 0) {
 		kick_timer.start();
 		tmp_tm.start();
-		if (active_parts > MIN_WORK) {
-			const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-			//	auto cpu_load = NWAVE * CPU_LOAD;
-			const int target_max = GPUOS * NWAVE * sm_count * KICK_OCCUPANCY;	// + cpu_load;
-			int pcnt = active_parts;
-			int count;
-			do {
-				count = compute_block_count(pcnt, true, params.full_eval);
-				//	printf("%i\n", count);
-				if (count < target_max) {
-					pcnt = pcnt / 2;
-				}
-			} while (count < target_max && pcnt >= 1);
-			params.block_cutoff = std::max(pcnt * 2, 16);
-			kick_block_count = compute_block_count(params.block_cutoff, true, params.full_eval);
-			//	printf("%i %i\n", (int) kick_block_count, params.block_cutoff);
-			managed_allocator<tree>::set_device(0);
-			printf("gpu ");
-		} else {
-			printf("cpu ");
-			params.block_cutoff = 0;
-			kick_block_count = 0;
-		}
-		printf("%i\n", (int) kick_block_count);
+		const int block_count = GPUOS * KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
+		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
+		managed_allocator<multipole>::set_read_only();
+		particles->prepare_kick();
 	}
 	if (children[0].ptr == 0) {
 		for (int i = 0; i < parts.second - parts.first; i++) {
@@ -508,11 +476,14 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
 			params.depth--;
 		}
-
-		return hpx::when_all(futs.begin(), futs.end()).then([](hpx::future<std::vector<hpx::future<void>>> futfut) {
+		int depth = params.depth;
+		return hpx::when_all(futs.begin(), futs.end()).then([depth](hpx::future<std::vector<hpx::future<void>>> futfut) {
 			auto futs = futfut.get();
 			futs[LEFT].get();
 			futs[RIGHT].get();
+			if( depth == 0 ) {
+				managed_allocator<multipole>::unset_read_only();
+			}
 		});
 	} else {
 		int max_rung = 0;
@@ -593,73 +564,82 @@ void tree::gpu_daemon() {
 	static timer timer;
 	static bool skip;
 	static bool ewald_skip;
-	static double wait_time = 0.0e-3;
-	static int min_ewald;
+	static double wait_time = 1.0e-2;
+	static double max_wait = 1.0e-1;
+	static double min_wait = 1.0e-4;
 	if (first_call) {
 		//	printf("Starting gpu daemon\n");
 		timer.reset();
 		timer.start();
 		first_call = false;
-		min_ewald = 1;
+		wait_time = 1.0e-2;
 	}
 	timer.stop();
 	if (timer.read() > wait_time) {
 		timer.reset();
 		timer.start();
-		if (gpu_queue.size() == kick_block_count) {
-			kick_timer.stop();
-			//	printf("Time to GPU = %e\n", kick_timer.read());
-			using promise_type = std::vector<std::shared_ptr<hpx::lcos::local::promise<void>>>;
-			std::shared_ptr<promise_type> gpu_promises;
-			//		std::shared_ptr<promise_type> cpu_promises[NWAVE];
-			gpu_promises = std::make_shared<promise_type>();
-			auto deleters = std::make_shared<std::vector<std::function<void()>> >();
-			unified_allocator calloc;
-			kick_params_type* gpu_params;
-			std::vector<gpu_kick> kicks;
-			while (gpu_queue.size()) {
-				kicks.push_back(gpu_queue.pop());
-			}
-			gpu_params = (kick_params_type*) calloc.allocate(kicks.size() * sizeof(kick_params_type));
-			auto stream = get_stream();
-			std::sort(kicks.begin(), kicks.end(), [](const gpu_kick& a, const gpu_kick& b) {
-				return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first);
-			});
-			particles->prepare_kick(stream);
-			for (int i = 0; i < kicks.size(); i++) {
-				auto tmp = std::move(kicks[i]);
-				deleters->push_back(tmp.params->dchecks.to_device(stream));
-				deleters->push_back(tmp.params->echecks.to_device(stream));
-				memcpy(gpu_params + i, tmp.params, sizeof(kick_params_type));
-				auto tmpparams = tmp.params;
-				deleters->push_back([tmpparams]() {
-					kick_params_alloc.deallocate(tmpparams);
-				});
-				gpu_promises->push_back(std::move(tmp.promise));
-			}
-			deleters->push_back([calloc, gpu_params]() {
+		if (gpu_queue.size() < KICK_GRID_SIZE) {
+			wait_time *= 2;
+		} else if (gpu_queue.size() >= 2 * KICK_GRID_SIZE) {
+			wait_time /= 2;
+		}
+		wait_time = std::max(wait_time, min_wait);
+		wait_time = std::min(wait_time, max_wait);
+		if (gpu_queue.size()) {
+			int min_grids = std::min(gpu_queue.size(), (size_t) KICK_GRID_SIZE);
+			while (gpu_queue.size() >= min_grids) {
+				kick_timer.stop();
+				//	printf("Time to GPU = %e\n", kick_timer.read());
+				using promise_type = std::vector<std::shared_ptr<hpx::lcos::local::promise<void>>>;
+				std::shared_ptr<promise_type> gpu_promises;
+				//		std::shared_ptr<promise_type> cpu_promises[NWAVE];
+				gpu_promises = std::make_shared<promise_type>();
+				auto deleters = std::make_shared<std::vector<std::function<void()>> >();
 				unified_allocator calloc;
-				calloc.deallocate(gpu_params);
-			});
-			cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
-			completions.push_back(std::function<bool()>([=]() {
-				if( cudaStreamQuery(stream) == cudaSuccess) {
-					CUDA_CHECK(cudaStreamSynchronize(stream));
-					cleanup_stream(stream);
-					for (auto &d : *deleters) {
-						d();
-					}
-					for (int i = 0; i < kicks.size(); i++) {
-						(*gpu_promises)[i]->set_value();
-					}
-					//		printf("Done executing\n");
-					return true;
-				} else {
-					return false;
+				kick_params_type* gpu_params;
+				std::vector<gpu_kick> kicks;
+				while (kicks.size() < min_grids && gpu_queue.size()) {
+					kicks.push_back(gpu_queue.pop());
 				}
-			}));
-		} else {
-			min_ewald = std::max(min_ewald / 2, 1);
+				gpu_params = (kick_params_type*) calloc.allocate(kicks.size() * sizeof(kick_params_type));
+				auto stream = get_stream();
+				std::sort(kicks.begin(), kicks.end(), [](const gpu_kick& a, const gpu_kick& b) {
+					return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first);
+				});
+				for (int i = 0; i < kicks.size(); i++) {
+					auto tmp = std::move(kicks[i]);
+					deleters->push_back(tmp.params->dchecks.to_device(stream));
+					deleters->push_back(tmp.params->echecks.to_device(stream));
+					memcpy(gpu_params + i, tmp.params, sizeof(kick_params_type));
+					auto tmpparams = tmp.params;
+					deleters->push_back([tmpparams]() {
+						kick_params_alloc.deallocate(tmpparams);
+					});
+					gpu_promises->push_back(std::move(tmp.promise));
+				}
+				deleters->push_back([calloc, gpu_params]() {
+					unified_allocator calloc;
+					calloc.deallocate(gpu_params);
+				});
+				printf("Sending %i blocks %e\n", kicks.size(), wait_time);
+				cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
+				completions.push_back(std::function<bool()>([=]() {
+					if( cudaStreamQuery(stream) == cudaSuccess) {
+						CUDA_CHECK(cudaStreamSynchronize(stream));
+						cleanup_stream(stream);
+						for (auto &d : *deleters) {
+							d();
+						}
+						for (int i = 0; i < kicks.size(); i++) {
+							(*gpu_promises)[i]->set_value();
+						}
+						//		printf("Done executing\n");
+						return true;
+					} else {
+						return false;
+					}
+				}));
+			}
 		}
 	} else {
 		timer.start();
@@ -710,43 +690,3 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 	return std::move(fut);
 
 }
-
-int tree::compute_block_count(size_t cutoff, bool root, bool full_eval) {
-	if (!active_parts && !full_eval) {
-		return 0;
-	}
-	if (active_parts <= cutoff && !root) {
-		return 1;
-	} else if (!is_leaf()) {
-		auto left = ((tree*) children[LEFT])->compute_block_count(cutoff, false, full_eval);
-		auto right = ((tree*) children[RIGHT])->compute_block_count(cutoff, false, full_eval);
-		return left + right;
-	} else {
-		return 0;
-	}
-}
-
-hpx::future<int32_t> tree::send_ewald_to_gpu(kick_params_type * params) {
-	if (!daemon_running) {
-		std::lock_guard<hpx::lcos::local::mutex> lock(gpu_mtx);
-		if (!daemon_running) {
-			shutdown_daemon = false;
-			daemon_running = true;
-			hpx::async([]() {
-				gpu_daemon();
-			});
-		}
-	}
-	gpu_ewald gpu;
-	tree_ptr me;
-	me.ptr = (uintptr_t) (this);
-//  me.rank = hpx_rank();
-	params->tptr = me;
-	gpu.params = params;
-	auto fut = gpu.promise.get_future();
-	gpu_ewald_queue.push(std::move(gpu));
-
-	return std::move(fut);
-
-}
-
