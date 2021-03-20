@@ -23,6 +23,11 @@ CUDA_DEVICE particle_set *parts;
 #define CI 2
 #define OI 3
 
+__managed__ double timer1;
+__managed__ double timer2;
+__managed__ double timer3;
+__managed__ double timer4;
+
 CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
 	__shared__
@@ -94,6 +99,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		array<int, NITERS> tmp;
 		const auto h = params.hsoft;
 		const auto th = params.theta * h;
+		int64_t tm, tm1 = 0, tm2 = 0, tm3 = 0, tm4 = 0;
 		do {
 			check_count = checks.size();
 			if (check_count) {
@@ -103,15 +109,18 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						my_index[i] = 0;
 					}
 					if (ci < check_count) {
+						tm = clock64();
 						const auto check = checks[ci];
 						const auto other_pos = ((const tree*) check)->pos;
 						const auto other_radius = ((const tree*) check)->radius;
+						tm1 += clock64() - tm;
+						tm = clock64();
 						array<float, NDIM> dist;
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
 							dist[dim] = distance(other_pos[dim], mypos[dim]);
 						}
 						float d2 = fmaf(dist[0], dist[0], fmaf(dist[1], dist[1], sqr(dist[2]))); // 5
-						if( ewald_dist ) {
+						if (ewald_dist) {
 							d2 = fmaxf(d2, EWALD_MIN_DIST2); // 5
 						}
 						const auto R1 = sqr(other_radius + myradius2 + th);                 // 2
@@ -121,7 +130,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const bool far1 = R1 < theta2d2;                 // 1
 						const bool far2 = R2 < theta2d2;                 // 1
 						const bool far3 = R3 < theta2d2;                 // 1
-						const bool isleaf = ((const tree*) check)->children[0].ptr == 0;
+						const bool isleaf = (((const tree*) check)->children[0].ptr == 0);
 						interacts++;
 						flops += 27;
 						const bool mi = far1 || (direct && far3);
@@ -129,6 +138,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						list_index = int(mi) * MI
 								+ (1 - int(mi)) * (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
 						my_index[list_index] = 1;
+						tm2 += clock64() - tm;
 					}
 					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
 						for (int i = 0; i < NITERS; i++) {
@@ -147,9 +157,11 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 							my_index[i] = 0;
 						}
 					}
+					tm = clock64();
 					for (int i = 0; i < NITERS; i++) {
 						lists[i]->resize(count[i] + index_counts[i]);
 					}
+					tm3 += clock64() - tm;
 					__syncwarp();
 					if (ci < check_count) {
 						const auto &check = checks[ci];
@@ -160,6 +172,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						count[tid] += index_counts[tid];
 					}
 				}
+				tm = clock64();
 				__syncwarp();
 				auto& countCI = count[CI];
 				auto& countOI = count[OI];
@@ -184,10 +197,14 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 				next_checks.resize(0);
 				opened_checks.resize(0);
+				tm4 += clock64() - tm;
 			}
 		} while (direct && check_count);
+		atomicAdd(&timer1, tm1);
+		atomicAdd(&timer2, tm2);
+		atomicAdd(&timer3, tm3);
+		atomicAdd(&timer4, tm4);
 		auto &tmp_parti = params.tmp;
-		auto tm = clock64();
 		if (type == PC_PP_DIRECT) {
 			auto &sinks = shmem.sink;
 			const int pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
@@ -376,19 +393,20 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p) {
 	if (threadIdx.x == 0) {
 		parts = p;
 		expansion_init();
-
+		timer1 = timer2 = timer3 = timer4 = 0;
 	}
 }
+
+void tree::show_timings() {
+	double tot = timer1 + timer2 + timer3 + timer4;
+	printf("%e %e %e %e\n", timer1 / tot, timer2 / tot, timer3 / tot, timer4 / tot);
+}
+
 void tree::cuda_set_kick_params(particle_set *p) {
 	cuda_set_kick_params_kernel<<<1,1>>>(p);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	expansion_init_cpu();
 }
-
-#ifdef TIMINGS
-extern __managed__ double pp_crit1_time;
-extern __managed__ double pp_crit2_time;
-#endif
 
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 	const int &bid = blockIdx.x;

@@ -617,8 +617,12 @@ void tree::gpu_daemon() {
 					});
 					gpu_promises->push_back(std::move(tmp.promise));
 				}
-				deleters->push_back([calloc, gpu_params]() {
+				const auto sz = kicks.size();
+				deleters->push_back([calloc, gpu_params, sz]() {
 					unified_allocator calloc;
+					for( int i = 0; i < sz; i++) {
+						gpu_params[i].kick_params_type::~kick_params_type();
+					}
 					calloc.deallocate(gpu_params);
 				});
 				printf("Sending %i blocks %e\n", kicks.size(), wait_time);

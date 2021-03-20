@@ -120,6 +120,7 @@ void kick_test() {
 		printf("Total   = %e s\n", total);
 		//  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
 		// printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
+		tree::show_timings();
 	}
 	parts_ptr->particle_set::~particle_set();
 	CUDA_FREE(parts_ptr);

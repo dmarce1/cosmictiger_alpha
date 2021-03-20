@@ -199,6 +199,12 @@ struct multipole_pos {
 	array<fixed32, NDIM> pos;
 };
 
+struct check_data {
+	array<fixed32, NDIM> pos;
+	float radius;
+	bool isleaf;
+};
+
 struct cuda_kick_shmem {
 	union {
 		array<pos_type, KICK_PP_MAX> src;  // 3072
@@ -212,14 +218,13 @@ struct cuda_kick_shmem {
 struct kick_params_type {
 	vector<tree_ptr> multi_interactions;
 	vector<tree_ptr> part_interactions;
-	vector<tree_ptr> tmp;
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> opened_checks;
+	vector<tree_ptr> tmp;
 	stack_vector<tree_ptr> dchecks;
 	stack_vector<tree_ptr> echecks;
 	array<array<float, MAX_BUCKET_SIZE>, NDIM> F;
 	array<float, MAX_BUCKET_SIZE> Phi;
-
 	array<expansion<float>, TREE_MAX_DEPTH> L;
 	array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
 	tree_ptr tptr;
@@ -311,6 +316,7 @@ public:
 	static std::atomic<int> cpu_node_count;
 	static void set_cuda_particle_set(particle_set*);
 	static void cuda_set_kick_params(particle_set *p);
+	static void show_timings();
 #ifndef __CUDACC__
 	static void set_particle_set(particle_set*);
 	inline static hpx::future<sort_return> create_child(sort_params&);
