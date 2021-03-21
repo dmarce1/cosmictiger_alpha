@@ -5,6 +5,7 @@
  *      Author: dmarce1
  */
 
+#include <cosmictiger/defs.hpp>
 #include <cosmictiger/options.hpp>
 #include <cosmictiger/hpx.hpp>
 #include <fstream>
@@ -18,6 +19,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	command_opts.add_options()                                                                       //
 	("help", "produce help message")                                                                 //
 	("config", po::value<std::string>(&(opts.config))->default_value(""), "configuration file") //
+	("bucket_size", po::value<int>(&(opts.bucket_size))->default_value(MAX_BUCKET_SIZE), "bucket size") //
 	("code_to_g", po::value<double>(&(opts.code_to_g))->default_value(1.99e33), "code to g") //
 	("code_to_cm", po::value<double>(&(opts.code_to_cm))->default_value(6.17e27), "code to cm") //
 	("code_to_cms", po::value<double>(&(opts.code_to_cms))->default_value(3e10), "code to cm/s") //
@@ -61,7 +63,10 @@ bool process_options(int argc, char *argv[], options &opts) {
 	opts.hsoft = 1.0 / pow(opts.nparts, 1.0 / 3.0) / 25.0;
 	opts.theta = 0.7;
 	opts.G = opts.M = 1.0;
-
+	if( opts.bucket_size > MAX_BUCKET_SIZE) {
+		printf( "Bucket size of %i exceeds max of %i\n", opts.bucket_size, MAX_BUCKET_SIZE);
+		abort();
+	}
 	return rc;
 }
 

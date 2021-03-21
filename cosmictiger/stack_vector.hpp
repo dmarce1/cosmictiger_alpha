@@ -21,7 +21,7 @@ public:
    CUDA_EXPORT inline stack_vector() {
       THREAD;
       bounds.reserve(TREE_MAX_DEPTH + 1);
-      bounds.resize(2);
+      bounds.resize(2,vectorPOD);
       if (tid == 0) {
          bounds[0] = 0;
          bounds[1] = 0;
@@ -42,7 +42,7 @@ public:
    CUDA_EXPORT inline void resize(int sz) {
       THREAD;
       assert(bounds.size() >= 2);
-      data.resize(begin() + sz);
+      data.resize(begin() + sz, vectorPOD);
       if (tid == 0) {
          bounds.back() = data.size();
       }
@@ -70,14 +70,14 @@ public:
       BLOCK;
       const auto sz = size();
       bounds.push_back(end() + sz);
-      data.resize(data.size() + sz);
+      data.resize(data.size() + sz, vectorPOD);
       for (int i = begin() + tid; i < end(); i += blocksize) {
          data[i] = data[i - sz];
       }
    }
    CUDA_EXPORT inline void pop_top() {
       assert(bounds.size() >= 2);
-      data.resize(begin());
+      data.resize(begin(),vectorPOD);
       bounds.pop_back();
    }
 #ifndef __CUDACC__

@@ -50,17 +50,23 @@ static void tree_test() {
 }
 
 void kick_test() {
+#define NKICKS 10
 	printf("Doing kick test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
 	parts.load_particles("ics");
 	// parts.generate_grid();
+//	parts.generate_random();
 	tree::set_particle_set(&parts);
 	particle_set *parts_ptr;
 	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
 	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
 	tree::cuda_set_kick_params(parts_ptr);
-	for (int i = 0; i < 2; i++) {
+	timer ttime;
+	for (int i = 0; i < NKICKS; i++) {
+		if (i == 1) {
+			ttime.start();
+		}
 		tree root;
 		timer tm_sort, tm_kick, tm_cleanup;
 		tm_sort.start();
@@ -121,7 +127,14 @@ void kick_test() {
 		//  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
 		// printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
 		tree::show_timings();
+		if (i == 1) {
+			FILE* fp = fopen("timings.dat", "at");
+			fprintf(fp, "%i %e\n", global().opts.bucket_size, tm_sort.read() + tm_kick.read());
+			fclose(fp);
+		}
 	}
+	ttime.stop();
+	printf("Time per kick = %e\n", ttime.read() / (NKICKS - 1.0));
 	parts_ptr->particle_set::~particle_set();
 	CUDA_FREE(parts_ptr);
 }
@@ -230,7 +243,7 @@ void force_test() {
 	params.min_rung = 0;
 	root.sort(params);
 	tree_ptr root_ptr;
-	root_ptr.ptr = (uintptr_t) & root;
+	root_ptr.ptr = (uintptr_t) &root;
 	//  root_ptr.rank = hpx_rank();
 	// printf( "%li", size_t(WORKSPACE_SIZE));
 	kick_params_type *params_ptr;
@@ -260,10 +273,10 @@ void force_test() {
 	params_ptr->kick_params_type::~kick_params_type();
 	timer tm;
 	tm.start();
-	printf( "Doing comparison\n");
+	printf("Doing comparison\n");
 	cuda_compare_with_direct(parts_ptr);
 	tm.stop();
-	printf( "Comparison took %e s\n", tm.read());
+	printf("Comparison took %e s\n", tm.read());
 	// printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
 	CUDA_FREE(params_ptr);
 	CUDA_FREE(parts_ptr);
@@ -279,9 +292,9 @@ static void sort() {
 	for (int i = global().opts.nparts; i >= 64; i /= 2) {
 		parts.generate_random();
 		tm1.start();
-	//	parts.sort_range(0, i, 0.5, 0);
+		//	parts.sort_range(0, i, 0.5, 0);
 		tm1.stop();
-		printf( "%li %e\n", i, tm1.read());
+		printf("%li %e\n", i, tm1.read());
 		tm1.reset();
 	}
 

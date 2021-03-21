@@ -15,6 +15,7 @@ struct options {
    std::string test;
    size_t parts_dim;
    size_t nparts;
+   int bucket_size;
    double hsoft;
    double theta;
    double code_to_s;

@@ -276,6 +276,11 @@ struct kick_params_type {
 		theta = global().opts.theta;
 		M = global().opts.M;
 		G = global().opts.G;
+		multi_interactions.reserve(512);
+		part_interactions.reserve(512);
+		opened_checks.reserve(512);
+		tmp.reserve(512);
+		next_checks.reserve(512);
 	}
 	friend class tree_ptr;
 };

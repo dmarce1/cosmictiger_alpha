@@ -141,7 +141,7 @@ sort_return tree::sort(sort_params params) {
 	}
 #endif
 	sort_return rc;
-	if (parts.second - parts.first > MAX_BUCKET_SIZE
+	if (parts.second - parts.first > global().opts.bucket_size
 			|| (params.depth < params.min_depth && parts.second - parts.first > 0)) {
 		std::array<fast_future<sort_return>, NCHILD> futs;
 		{
@@ -338,7 +338,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		tmp_tm.start();
 		const int block_count = GPUOS * KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
-		managed_allocator<multipole>::set_read_only();
+		managed_allocator<tree>::set_read_only();
 		particles->prepare_kick();
 	}
 	if (children[0].ptr == 0) {
@@ -482,7 +482,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[LEFT].get();
 			futs[RIGHT].get();
 			if( depth == 0 ) {
-				managed_allocator<multipole>::unset_read_only();
+				managed_allocator<tree>::unset_read_only();
 			}
 		});
 	} else {
@@ -610,6 +610,11 @@ void tree::gpu_daemon() {
 					auto tmp = std::move(kicks[i]);
 					deleters->push_back(tmp.params->dchecks.to_device(stream));
 					deleters->push_back(tmp.params->echecks.to_device(stream));
+					deleters->push_back(tmp.params->multi_interactions.to_device(stream));
+					deleters->push_back(tmp.params->part_interactions.to_device(stream));
+					deleters->push_back(tmp.params->tmp.to_device(stream));
+					deleters->push_back(tmp.params->opened_checks.to_device(stream));
+					deleters->push_back(tmp.params->next_checks.to_device(stream));
 					memcpy(gpu_params + i, tmp.params, sizeof(kick_params_type));
 					auto tmpparams = tmp.params;
 					deleters->push_back([tmpparams]() {

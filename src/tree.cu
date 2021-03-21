@@ -92,7 +92,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			count[tid] = 0;
 		}
 		for (int i = 0; i < NITERS; i++) {
-			lists[i]->resize(0);
+			lists[i]->resize(0, vectorPOD);
 		}
 		__syncwarp();
 		int check_count;
@@ -116,14 +116,14 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						tm1 += clock64() - tm;
 						tm = clock64();
 						array<float, NDIM> dist;
-						for (int dim = 0; dim < NDIM; dim++) {                         // 3
+						for (int dim = 0; dim < NDIM; dim++) {              // 3
 							dist[dim] = distance(other_pos[dim], mypos[dim]);
 						}
 						float d2 = fmaf(dist[0], dist[0], fmaf(dist[1], dist[1], sqr(dist[2]))); // 5
 						if (ewald_dist) {
 							d2 = fmaxf(d2, EWALD_MIN_DIST2); // 5
 						}
-						const auto R1 = sqr(other_radius + myradius2 + th);                 // 2
+						const auto R1 = sqr(other_radius + myradius2 + th); // 2
 						const auto R2 = sqr(other_radius * theta + myradius2 + th); // 3
 						const auto R3 = sqr(other_radius + myradius1 * theta + th); // 3
 						const auto theta2d2 = theta2 * d2; // 1
@@ -140,6 +140,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						my_index[list_index] = 1;
 						tm2 += clock64() - tm;
 					}
+					tm = clock64();
 					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
 						for (int i = 0; i < NITERS; i++) {
 							tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], P);
@@ -149,7 +150,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						}
 					}
 					for (int i = 0; i < NITERS; i++) {
-						index_counts[i] = __shfl_sync(0xFFFFFFFF, my_index[i], KICK_BLOCK_SIZE - 1);
+						index_counts[i] = __shfl_sync(0xFFFFFFFF, my_index[i],
+						KICK_BLOCK_SIZE - 1);
 						tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], 1);
 						if (tid >= 1) {
 							my_index[i] = tmp[i];
@@ -157,11 +159,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 							my_index[i] = 0;
 						}
 					}
-					tm = clock64();
 					for (int i = 0; i < NITERS; i++) {
-						lists[i]->resize(count[i] + index_counts[i]);
+						lists[i]->resize(count[i] + index_counts[i], vectorPOD);
 					}
-					tm3 += clock64() - tm;
 					__syncwarp();
 					if (ci < check_count) {
 						const auto &check = checks[ci];
@@ -171,6 +171,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					if (tid < NITERS) {
 						count[tid] += index_counts[tid];
 					}
+					tm3 += clock64() - tm;
 				}
 				tm = clock64();
 				__syncwarp();
@@ -195,26 +196,29 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					countCI = 0;
 					countOI = 0;
 				}
-				next_checks.resize(0);
-				opened_checks.resize(0);
+				next_checks.resize(0, vectorPOD);
+				opened_checks.resize(0, vectorPOD);
 				tm4 += clock64() - tm;
 			}
 		} while (direct && check_count);
-		atomicAdd(&timer1, tm1);
-		atomicAdd(&timer2, tm2);
-		atomicAdd(&timer3, tm3);
-		atomicAdd(&timer4, tm4);
+		if (tid == 0) {
+			atomicAdd(&timer1, tm1);
+			atomicAdd(&timer2, tm2);
+			atomicAdd(&timer3, tm3);
+			atomicAdd(&timer4, tm4);
+		}
 		auto &tmp_parti = params.tmp;
 		if (type == PC_PP_DIRECT) {
 			auto &sinks = shmem.sink;
 			const int pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
-			for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
+			for (int k = tid; k < myparts.second - myparts.first; k +=
+			KICK_BLOCK_SIZE) {
 				const auto index = k + myparts.first;
 				if (parts->rung(index) >= params.rung || params.full_eval) {
 					sinks[k] = parts->pos(index);
 				}
 			}
-			tmp_parti.resize(0);
+			tmp_parti.resize(0, vectorPOD);
 			__syncwarp();
 			for (int j = tid; j < pmax; j += KICK_BLOCK_SIZE) {
 				my_index[0] = 0;
@@ -252,7 +256,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					}
 				}
 				for (int i = 0; i < 2; i++) {
-					index_counts[i] = __shfl_sync(0xFFFFFFFF, my_index[i], KICK_BLOCK_SIZE - 1);
+					index_counts[i] = __shfl_sync(0xFFFFFFFF, my_index[i],
+					KICK_BLOCK_SIZE - 1);
 					tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], 1);
 					if (tid >= 1) {
 						my_index[i] = tmp[i];
@@ -262,8 +267,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 				const auto part_cnt = tmp_parti.size();
 				const auto mult_cnt = multis.size();
-				tmp_parti.resize(part_cnt + index_counts[PI]);
-				multis.resize(mult_cnt + index_counts[MI]);
+				tmp_parti.resize(part_cnt + index_counts[PI], vectorPOD);
+				multis.resize(mult_cnt + index_counts[MI], vectorPOD);
 				__syncwarp();
 				if (j < parti.size()) {
 					(list_index == PI ? tmp_parti[part_cnt + my_index[PI]] : multis[mult_cnt + my_index[MI]]) = parti[j];
@@ -329,7 +334,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		//   printf( "%li\n", rc.flops);
 	} else {
 		const auto invlog2 = 1.0f / logf(2);
-		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
+		for (int k = tid; k < myparts.second - myparts.first; k +=
+		KICK_BLOCK_SIZE) {
 			const auto this_rung = parts->rung(k + myparts.first);
 			if (this_rung >= params.rung || params.full_eval) {
 				array<float, NDIM> g;
@@ -403,7 +409,7 @@ void tree::show_timings() {
 }
 
 void tree::cuda_set_kick_params(particle_set *p) {
-	cuda_set_kick_params_kernel<<<1,1>>>(p);
+	cuda_set_kick_params_kernel<<<1, 1>>>(p);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	expansion_init_cpu();
 }
@@ -438,7 +444,8 @@ void cleanup_stream(cudaStream_t s) {
 void cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStream_t stream) {
 	const size_t shmemsize = sizeof(cuda_kick_shmem);
 	/***************************************************************************************************************************************************/
-	/**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(params);/**/
+	/**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(
+			params);/**/
 	/***************************************************************************************************************************************************/
 
 }
