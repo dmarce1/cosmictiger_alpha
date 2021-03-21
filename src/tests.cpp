@@ -127,16 +127,15 @@ void kick_test() {
 		//  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
 		// printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
 		tree::show_timings();
-		if (i == 1) {
-			FILE* fp = fopen("timings.dat", "at");
-			fprintf(fp, "%i %e\n", global().opts.bucket_size, tm_sort.read() + tm_kick.read());
-			fclose(fp);
-		}
 	}
 	ttime.stop();
-	printf("Time per kick = %e\n", ttime.read() / (NKICKS - 1.0));
+	const auto res = ttime.read() / (NKICKS - 1.0);
+	printf("Time per kick = %e\n", res);
 	parts_ptr->particle_set::~particle_set();
 	CUDA_FREE(parts_ptr);
+	FILE* fp = fopen("timings.dat", "at");
+	fprintf(fp, "%i %e\n", global().opts.bucket_size, res);
+	fclose(fp);
 }
 
 void drift_test() {
