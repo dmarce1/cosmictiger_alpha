@@ -215,6 +215,18 @@ struct cuda_kick_shmem {
 	array<int8_t, MAX_BUCKET_SIZE> act_map;
 };
 
+struct list_sizes_t {
+	int mult;
+	int part;
+	int open;
+	int next;
+	int tmp;
+	int dcheck;
+	int echeck;
+};
+
+list_sizes_t get_list_sizes();
+
 struct kick_params_type {
 	vector<tree_ptr> multi_interactions;
 	vector<tree_ptr> part_interactions;
@@ -276,11 +288,16 @@ struct kick_params_type {
 		theta = global().opts.theta;
 		M = global().opts.M;
 		G = global().opts.G;
-		multi_interactions.reserve(512);
-		part_interactions.reserve(512);
-		opened_checks.reserve(512);
-		tmp.reserve(512);
-		next_checks.reserve(512);
+		const auto sizes = get_list_sizes();
+//		printf("%i %i %i %i %i %i %i\n", sizes.mult, sizes.part, sizes.open, sizes.next, sizes.tmp, sizes.dcheck,
+//				sizes.echeck);
+		multi_interactions.reserve(sizes.mult);
+		part_interactions.reserve(sizes.part);
+		opened_checks.reserve(sizes.open);
+		tmp.reserve(sizes.tmp);
+		next_checks.reserve(sizes.next);
+//		dchecks.reserve_data(sizes.dcheck);
+//		echecks.reserve_data(sizes.echeck);
 	}
 	friend class tree_ptr;
 };

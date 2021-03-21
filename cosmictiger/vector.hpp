@@ -50,12 +50,15 @@ class vector {
 		}
 	}
 public:
+	CUDA_EXPORT
+	inline int capacity() const {
+		return cap;
+	}
 #ifndef __CUDACC__
 	std::function<void()> to_device(cudaStream_t stream) {
 		assert(cap);
 		dontfree = true;
 		if (ptr) {
-			//      CUDA_CHECK(cudaMemPrefetchAsync(ptr, sizeof(T) * sz, 0, stream));
 			auto *dptr = ptr;
 			auto sz_ = sz;
 			auto func = [dptr, sz_]() {

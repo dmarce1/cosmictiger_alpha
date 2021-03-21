@@ -27,6 +27,7 @@ __managed__ double timer1;
 __managed__ double timer2;
 __managed__ double timer3;
 __managed__ double timer4;
+__managed__ list_sizes_t list_sizes;
 
 CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
@@ -400,6 +401,8 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p) {
 		parts = p;
 		expansion_init();
 		timer1 = timer2 = timer3 = timer4 = 0;
+		list_sizes.mult = list_sizes.part = list_sizes.open = list_sizes.tmp = list_sizes.next = list_sizes.dcheck =
+				list_sizes.echeck = 0;
 	}
 }
 
@@ -414,11 +417,22 @@ void tree::cuda_set_kick_params(particle_set *p) {
 	expansion_init_cpu();
 }
 
+list_sizes_t get_list_sizes() {
+	return list_sizes;
+}
+
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 	const int &bid = blockIdx.x;
 	params[bid].particles = parts;
 	cuda_kick(params + bid);
 	if (threadIdx.x == 0) {
+		atomicMax(&list_sizes.mult, params[bid].multi_interactions.capacity());
+		atomicMax(&list_sizes.part, params[bid].part_interactions.capacity());
+		atomicMax(&list_sizes.next, params[bid].next_checks.capacity());
+		atomicMax(&list_sizes.open, params[bid].opened_checks.capacity());
+		atomicMax(&list_sizes.tmp, params[bid].tmp.capacity());
+		atomicMax(&list_sizes.dcheck, params[bid].dchecks.data_capacity());
+		atomicMax(&list_sizes.echeck, params[bid].echecks.data_capacity());
 		params[bid].kick_params_type::~kick_params_type();
 	}
 
