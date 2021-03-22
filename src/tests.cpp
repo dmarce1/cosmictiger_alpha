@@ -126,7 +126,7 @@ void kick_test() {
 		printf("Total   = %e s\n", total);
 		//  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
 		// printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
-		tree::show_timings();
+	//	tree::show_timings();
 	}
 	ttime.stop();
 	const auto res = ttime.read() / (NKICKS - 1.0);
