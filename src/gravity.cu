@@ -209,7 +209,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 	}
 	for (int i = tid; i < nactive; i += KICK_BLOCK_SIZE) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			sinks[i].a[dim] = parts->pos(dim, act_map[i] + myparts.first);
+			sinks[dim][i] = parts->pos(dim, act_map[i] + myparts.first);
 		}
 	}
 	int i = 0;
@@ -258,15 +258,14 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			kmid = nactive;
 		}
 		for (int k = tid; k < kmid; k += KICK_BLOCK_SIZE) {
-			const auto sink = sinks[k];
 			fx = 0.f;
 			fy = 0.f;
 			fz = 0.f;
 			phi = 0.f;
 			for (int j = 0; j < part_index; j++) {
-				dx0 = distance(sink.p.x, sources[0][j]);
-				dx1 = distance(sink.p.y, sources[1][j]);
-				dx2 = distance(sink.p.z, sources[2][j]);               // 3
+				dx0 = distance(sinks[0][k], sources[0][j]);
+				dx1 = distance(sinks[1][k], sources[1][j]);
+				dx2 = distance(sinks[2][k], sources[2][j]);               // 3
 				const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 5
 				if (r2 >= h2) {
 					r1inv = rsqrt(r2);                                    // FLOP_RSQRT
@@ -310,9 +309,9 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			phi = 0.f;
 			for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
 				const auto sink = sinks[k];
-				dx0 = distance(sink.p.x, sources[0][j]);
-				dx1 = distance(sink.p.y, sources[1][j]);
-				dx2 = distance(sink.p.z, sources[2][j]);               // 3
+				dx0 = distance(sinks[0][k], sources[0][j]);
+				dx1 = distance(sinks[1][k], sources[1][j]);
+				dx2 = distance(sinks[2][k], sources[2][j]);               // 3
 				const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 5
 				if (r2 >= h2) {
 					r1inv = rsqrt(r2);                                    // FLOP_RSQRT
@@ -428,7 +427,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 	}
 	for (int i = tid; i < nactive; i += KICK_BLOCK_SIZE) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			sinks[i].a[dim] = parts->pos(dim, act_map[i] + myparts.first);
+			sinks[dim][i] = parts->pos(dim, act_map[i] + myparts.first);
 		}
 	}
 
@@ -474,9 +473,9 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 			}
 			for (int i = 0; i < nsrc; i++) {
 				const auto &source = msrcs[i].pos;
-				dx0 = distance(sinks[k].p.x, source[0]);
-				dx1 = distance(sinks[k].p.y, source[1]);
-				dx2 = distance(sinks[k].p.z, source[2]);
+				dx0 = distance(sinks[0][k], source[0]);
+				dx1 = distance(sinks[1][k], source[1]);
+				dx2 = distance(sinks[2][k], source[2]);
 				flops += 6;
 				flops += green_direct(D, dx);
 				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
@@ -501,9 +500,9 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 			}
 			for (int i = tid; i < nsrc; i += KICK_BLOCK_SIZE) {
 				const auto &source = msrcs[i].pos;
-				dx0 = distance(sinks[k].p.x, source[0]);
-				dx1 = distance(sinks[k].p.y, source[1]);
-				dx2 = distance(sinks[k].p.z, source[2]);
+				dx0 = distance(sinks[0][k], source[0]);
+				dx1 = distance(sinks[1][k], source[1]);
+				dx2 = distance(sinks[2][k], source[2]);
 				flops += 6;
 				flops += green_direct(D, dx);
 				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);

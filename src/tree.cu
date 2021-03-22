@@ -212,7 +212,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				const auto index = k + myparts.first;
 				if (parts->rung(index) >= params.rung || params.full_eval) {
 					for( int dim = 0; dim < NDIM; dim++) {
-						sinks[k].a[dim] = parts->pos(dim,index);
+						sinks[dim][k] = parts->pos(dim,index);
 					}
 				}
 			}
@@ -229,11 +229,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					const int sz = myparts.second - myparts.first;
 					for (int k = 0; k < sz; k++) {
 						const auto this_rung = parts->rung(k + myparts.first);
-						const auto sink = sinks[k];
 						if (this_rung >= params.rung || params.full_eval) {
-							float dx0 = distance(other.pos[0], sink.p.x);
-							float dy0 = distance(other.pos[1], sink.p.y);
-							float dz0 = distance(other.pos[2], sink.p.z);
+							float dx0 = distance(other.pos[0], sinks[0][k]);
+							float dy0 = distance(other.pos[1], sinks[1][k]);
+							float dz0 = distance(other.pos[2], sinks[2][k]);
 							float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
 							res = sqr(other.radius + hfac) > d2 * theta2;
 							flops += 15;

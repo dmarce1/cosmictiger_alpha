@@ -211,7 +211,7 @@ struct cuda_kick_shmem {
 		array<multipole_pos, KICK_PC_MAX> msrc;
 	};
 	array<int16_t, NITERS> count; // 8
-	array<pos_type, MAX_BUCKET_SIZE> sink;  // 768
+	array<array<fixed32, MAX_BUCKET_SIZE>,NDIM> sink;  // 3072
 	array<uint8_t, MAX_BUCKET_SIZE> act_map;
 };
 
