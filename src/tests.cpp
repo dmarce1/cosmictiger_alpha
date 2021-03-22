@@ -50,7 +50,7 @@ static void tree_test() {
 }
 
 void kick_test() {
-#define NKICKS 10
+#define NKICKS 50
 	printf("Doing kick test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
@@ -63,10 +63,10 @@ void kick_test() {
 	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
 	tree::cuda_set_kick_params(parts_ptr);
 	timer ttime;
-	for (int i = 0; i < NKICKS; i++) {
-		if (i == 1) {
-			ttime.start();
-		}
+	std::vector<double> timings;
+	for (int i = 0; i < NKICKS+1; i++) {
+		printf( "Kick %i\n", i);
+		ttime.start();
 		tree root;
 		timer tm_sort, tm_kick, tm_cleanup;
 		tm_sort.start();
@@ -127,14 +127,26 @@ void kick_test() {
 		//  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
 		// printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
 	//	tree::show_timings();
+		ttime.stop();
+		if( i > 0 ) {
+			timings.push_back(ttime.read());
+		}
+		ttime.reset();
 	}
-	ttime.stop();
-	const auto res = ttime.read() / (NKICKS - 1.0);
-	printf("Time per kick = %e\n", res);
+	double avg = 0.0, dev = 0.0;
+	for( int i = 0; i < NKICKS; i++) {
+		avg += timings[i];
+	}
+	avg /= NKICKS;
+	for( int i = 0; i < NKICKS; i++) {
+		dev += sqr(avg-timings[i]);
+	}
+	dev = std::sqrt(dev/NKICKS);
+	printf("Time per kick = %e +/- %e\n", avg, dev);
 	parts_ptr->particle_set::~particle_set();
 	CUDA_FREE(parts_ptr);
 	FILE* fp = fopen("timings.dat", "at");
-	fprintf(fp, "%i %e\n", global().opts.bucket_size, res);
+	fprintf(fp, "%i %e %e\n", global().opts.bucket_size, avg, dev);
 	fclose(fp);
 }
 
