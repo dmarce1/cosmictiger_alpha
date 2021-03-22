@@ -207,7 +207,7 @@ struct check_data {
 
 struct cuda_kick_shmem {
 	union {
-		array<pos_type, KICK_PP_MAX> src;  // 3072
+		array<array<fixed32, KICK_PP_MAX>,NDIM> src;  // 3072
 		array<multipole_pos, KICK_PC_MAX> msrc;
 	};
 	array<int16_t, NITERS> count; // 8
