@@ -54,7 +54,7 @@ struct particle_set {
 	void prepare_kick();
 	void prepare_drift();
 	~particle_set();CUDA_EXPORT
-	pos_type pos(size_t index) const;
+	fixed32 pos(int, size_t index) const;
 	vel_type vel(size_t index) const;CUDA_EXPORT
 	rung_t rung(size_t index) const;
 	size_t sort_range(size_t begin, size_t end, double xmid, int xdim);CUDA_EXPORT
@@ -112,14 +112,10 @@ public:
 ;
 
 CUDA_EXPORT
-inline pos_type particle_set::pos(size_t index) const {
+inline fixed32 particle_set::pos(int dim, size_t index) const {
 	assert(index >= 0);
 	assert(index < size_);
-	pos_type p;
-	p.p.x = xptr_[0][index - offset_];
-	p.p.y = xptr_[1][index - offset_];
-	p.p.z = xptr_[2][index - offset_];
-	return p;
+	return xptr_[dim][index - offset_];
 }
 
 inline vel_type particle_set::vel(size_t index) const {

@@ -14,9 +14,6 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	kick_params_type &params = *params_ptr;
 	const auto& multis = params.multi_interactions;
 	const int &tid = threadIdx.x;
-	__shared__
-	extern int shmem_ptr[];
-	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 //	auto &Lreduce = shmem.Lreduce;
 	if (multis.size() == 0) {
 		return;
@@ -102,7 +99,9 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
 				const int sz = imax - imin;
 				for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
-					sources[part_index + j] = parts->pos(j + imin);
+					for (int dim = 0; dim < NDIM; dim++) {
+						sources[part_index + j].a[dim] = parts->pos(dim, j + imin);
+					}
 				}
 				these_parts.first += sz;
 				part_index += sz;
@@ -209,7 +208,9 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 		nactive += __shfl_xor_sync(0xFFFFFFFF, nactive, P);
 	}
 	for (int i = tid; i < nactive; i += KICK_BLOCK_SIZE) {
-		sinks[i] = parts->pos(act_map[i] + myparts.first);
+		for (int dim = 0; dim < NDIM; dim++) {
+			sinks[i].a[dim] = parts->pos(dim, act_map[i] + myparts.first);
+		}
 	}
 	int i = 0;
 	auto these_parts = ((tree*) parti[0])->parts;
@@ -230,7 +231,9 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
 			const int sz = imax - imin;
 			for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
-				sources[part_index + j] = parts->pos(j + imin);
+				for (int dim = 0; dim < NDIM; dim++) {
+					sources[part_index + j].a[dim] = parts->pos(dim, j + imin);
+				}
 			}
 			these_parts.first += sz;
 			part_index += sz;
@@ -424,7 +427,9 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 		nactive += __shfl_xor_sync(0xFFFFFFFF, nactive, P);
 	}
 	for (int i = tid; i < nactive; i += KICK_BLOCK_SIZE) {
-		sinks[i] = parts->pos(act_map[i] + myparts.first);
+		for (int dim = 0; dim < NDIM; dim++) {
+			sinks[i].a[dim] = parts->pos(dim, act_map[i] + myparts.first);
+		}
 	}
 
 	const bool full_eval = params.full_eval;
@@ -544,7 +549,9 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 
 	const auto index = test_parts[bid];
 	pos_type sink;
-	sink = parts->pos(index);
+	sink.a[0] = parts->pos(0,index);
+	sink.a[1] = parts->pos(1,index);
+	sink.a[2] = parts->pos(2,index);
 	const auto f_x = parts->force(0, index);
 	const auto f_y = parts->force(1, index);
 	const auto f_z = parts->force(2, index);
@@ -564,7 +571,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 			array<float, NDIM> X;
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto a = sink.a[dim];
-				const auto b = parts->pos(source).a[dim];
+				const auto b = parts->pos(dim, source);
 				X[dim] = distance(a, b);
 			}
 #ifdef PERIODIC_OFF

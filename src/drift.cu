@@ -19,9 +19,9 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 	mymomz = 0;
 	for (size_t i = start + tid; i < stop; i += DRIFT_BLOCK_SIZE) {
 		//	printf( "%li %li %li\n", i - start, start-start, stop-start);
-		double x = parts.pos(i).p.x.to_double();
-		double y = parts.pos(i).p.y.to_double();
-		double z = parts.pos(i).p.z.to_double();
+		double x = parts.pos(0,i).to_double();
+		double y = parts.pos(1,i).to_double();
+		double z = parts.pos(2,i).to_double();
 		const float vx = parts.vel(i).p.x;
 		const float vy = parts.vel(i).p.y;
 		const float vz = parts.vel(i).p.z;
@@ -53,9 +53,9 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 		while (z < 0.0) {
 			z += 1.0;
 		}
-		parts.pos(i).p.x = x;
-		parts.pos(i).p.y = y;
-		parts.pos(i).p.z = z;
+		parts.pos(0,i) = x;
+		parts.pos(1,i) = y;
+		parts.pos(2,i) = z;
 	}
 	for (int P = warpSize / 2; P >= 1; P /= 2) {
 		myekin += __shfl_down_sync(0xFFFFFFFF, myekin, P);

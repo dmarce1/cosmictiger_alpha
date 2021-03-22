@@ -55,7 +55,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 			}
 		}
 	}
-	if( params.full_eval) {
+	if (params.full_eval) {
 		kick_return_update_interactions_cpu(KR_CC, interacts, flops);
 	}
 }
@@ -76,7 +76,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 		const auto& other_parts = ((tree*) partis[k])->parts;
 		for (size_t l = other_parts.first; l < other_parts.second; l++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				sources[dim].push_back(particles->pos(l).a[dim]);
+				sources[dim].push_back(particles->pos(dim, l));
 			}
 		}
 	}
@@ -125,7 +125,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 			L[i] += Lacc[i][k];
 		}
 	}
-	if( params.full_eval) {
+	if (params.full_eval) {
 		kick_return_update_interactions_cpu(KR_CP, interacts, flops);
 	}
 }
@@ -151,7 +151,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 		const auto& other_parts = ((tree*) partis[k])->parts;
 		for (size_t l = other_parts.first; l < other_parts.second; l++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				sources[dim].push_back(particles->pos(l).a[dim]);
+				sources[dim].push_back(particles->pos(dim, l));
 			}
 		}
 	}
@@ -160,7 +160,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	array<simd_int, NDIM> Y;
 	for (int i = 0; i < nparts; i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			X[dim] = particles->pos(i + parts.first).a[dim].raw();
+			X[dim] = particles->pos(dim, i + parts.first).raw();
 		}
 		if (particles->rung(i + parts.first) >= params.rung || params.full_eval) {
 			array<simd_float, NDIM> f;
@@ -245,7 +245,7 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 	int interacts = 0;
 	for (int i = 0; i < nparts; i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			X[dim] = particles->pos(i + parts.first).a[dim].raw();
+			X[dim] = particles->pos(dim, i + parts.first).raw();
 		}
 		if (particles->rung(i + parts.first) >= params.rung || params.full_eval) {
 			array<simd_float, NDIM> f;

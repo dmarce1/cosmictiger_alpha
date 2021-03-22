@@ -221,7 +221,7 @@ sort_return tree::sort(sort_params params) {
 		std::array<double, NDIM> com = { 0, 0, 0 };
 		for (auto i = parts.first; i < parts.second; i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				com[dim] += particles->pos(i).a[dim].to_double();
+				com[dim] += particles->pos(dim, i).to_double();
 			}
 		}
 		for (int dim = 0; dim < NDIM; dim++) {
@@ -236,14 +236,14 @@ sort_return tree::sort(sort_params params) {
 			double this_radius = 0.0;
 			M() += 1.0;
 			for (int n = 0; n < NDIM; n++) {
-				const auto xn = particles->pos(i).a[n].to_double() - com[n];
+				const auto xn = particles->pos(n,i).to_double() - com[n];
 				this_radius += xn * xn;
 				for (int m = n; m < NDIM; m++) {
-					const auto xm = particles->pos(i).a[m].to_double() - com[m];
+					const auto xm = particles->pos(m,i).to_double() - com[m];
 					const auto xnm = xn * xm;
 					M(n, m) += xnm;
 					for (int l = m; l > NDIM; l++) {
-						const auto xl = particles->pos(i).a[l].to_double() - com[l];
+						const auto xl = particles->pos(l,i).to_double() - com[l];
 						M(n, m, l) -= xnm * xl;
 					}
 				}
@@ -495,7 +495,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				float this_phi;
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto x2 = pos[dim];
-					const auto x1 = particles->pos(k + parts.first).a[dim];
+					const auto x1 = particles->pos(dim,k + parts.first);
 					dx[dim] = distance(x1, x2);
 				}
 				shift_expansion(L, g, this_phi, dx);

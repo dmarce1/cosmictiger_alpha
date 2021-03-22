@@ -211,7 +211,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 				const auto index = k + myparts.first;
 				if (parts->rung(index) >= params.rung || params.full_eval) {
-					sinks[k] = parts->pos(index);
+					for( int dim = 0; dim < NDIM; dim++) {
+						sinks[k].a[dim] = parts->pos(dim,index);
+					}
 				}
 			}
 			tmp_parti.resize(0);
@@ -337,7 +339,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				array<float, NDIM> dx;
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto x2 = me.pos[dim];
-					const auto x1 = parts->pos(k + myparts.first).a[dim];
+					const auto x1 = parts->pos(dim,k + myparts.first);
 					dx[dim] = distance(x1, x2);
 				}
 				shift_expansion(L, g, this_phi, dx);
