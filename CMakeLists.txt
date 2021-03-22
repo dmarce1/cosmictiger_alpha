@@ -18,7 +18,6 @@ project(cosmictiger CXX C)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 find_package(HPX REQUIRED NO_CMAKE_PACKAGE_REGISTRY)
-find_package(Silo REQUIRED)
 find_package(Boost REQUIRED)
 enable_language(CUDA)
 
@@ -87,7 +86,7 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    Silo::silo Boost::boost
+    Boost::boost
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
@@ -119,7 +118,7 @@ target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SO
 #target_include_directories(hpx_lite PUBLIC  /home/dmarce1/workspace/cosmictiger/hpx_lite)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                       --use_fast_math --maxrregcount 168 -Xptxas -O3,-v --gpu-architecture=compute_75;
+                       --use_fast_math --maxrregcount 168 --gpu-architecture=compute_75;
                         >)
 #target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
 #                       --maxrregcount 168 --use_fast_math --gpu-architecture=compute_75;
