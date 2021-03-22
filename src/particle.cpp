@@ -8,20 +8,24 @@
 #include <algorithm>
 
 void particle_set::prepare_kick() {
-	CUDA_CHECK(cudaMemAdvise(pptr_, sizeof(pos_type)*size(), cudaMemAdviseSetReadMostly, 0));
-	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type)*size(), cudaMemAdviseUnsetReadMostly, 0));
-	CUDA_CHECK(cudaMemAdvise(eptr_, sizeof(rung_t)*size(), cudaMemAdviseUnsetReadMostly, 0));
+	for (int dim = 0; dim < NDIM; dim++) {
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseSetReadMostly, 0));
+	}
+	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseUnsetReadMostly, 0));
 }
 
 void particle_set::prepare_drift() {
-	CUDA_CHECK(cudaMemAdvise(pptr_, sizeof(pos_type)*size(), cudaMemAdviseUnsetReadMostly, 0));
-	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type)*size(), cudaMemAdviseSetReadMostly, 0));
+	for (int dim = 0; dim < NDIM; dim++) {
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetReadMostly, 0));
+	}
+	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseSetReadMostly, 0));
 }
 
 void particle_set::prepare_sort() {
-	CUDA_CHECK(cudaMemAdvise(pptr_, sizeof(pos_type)*size(), cudaMemAdviseUnsetReadMostly, 0));
-	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type)*size(), cudaMemAdviseUnsetReadMostly, 0));
-	CUDA_CHECK(cudaMemAdvise(eptr_, sizeof(rung_t)*size(), cudaMemAdviseUnsetReadMostly, 0));
+	for (int dim = 0; dim < NDIM; dim++) {
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetReadMostly, 0));
+	}
+	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseUnsetReadMostly, 0));
 }
 
 particle_set::particle_set(size_t size, size_t offset) {
@@ -37,7 +41,9 @@ particle_set::particle_set(size_t size, size_t offset) {
 	data = (uint8_t*) alloc.allocate(chunk_size * size);
 	CHECK_POINTER(data);
 	base_ = (void*) data;
-	pptr_ = (pos_type*) (data);
+	for (int dim = 0; dim < NDIM; dim++) {
+		xptr_[dim] = (fixed32*) (data + dim * sizeof(fixed32) * size);
+	}
 	uptr_ = (vel_type*) (data + size * sizeof(pos_type));
 	rptr_ = (rung_t*) (data + (sizeof(vel_type) + sizeof(pos_type)) * size);
 //	CUDA_CHECK(cudaMemAdvise(rptr_, size * sizeof(int8_t), cudaMemAdviseSetAccessedBy, 0));
@@ -71,9 +77,9 @@ particle_set::~particle_set() {
 void particle_set::generate_random() {
 	for (int i = 0; i < size_; i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			pos(i).p.x = rand_fixed32();
-			pos(i).p.y = rand_fixed32();
-			pos(i).p.z = rand_fixed32();
+			pos(0, i) = rand_fixed32();
+			pos(1, i) = rand_fixed32();
+			pos(2, i) = rand_fixed32();
 			vel(i).p.x = 0.f;
 			vel(i).p.y = 0.f;
 			vel(i).p.z = 0.f;
@@ -88,9 +94,9 @@ void particle_set::generate_grid() {
 		for (size_t j = 0; j < dim; j++) {
 			for (size_t k = 0; k < dim; k++) {
 				const size_t iii = i * dim * dim + j * dim + k;
-				pos(iii).p.z = (i + 0.5) / dim;
-				pos(iii).p.y = (j + 0.5) / dim;
-				pos(iii).p.x = (k + 0.5) / dim;
+				pos(0, iii) = (i + 0.5) / dim;
+				pos(1, iii) = (j + 0.5) / dim;
+				pos(2, iii) = (k + 0.5) / dim;
 				vel(i).p.x = 0.f;
 				vel(i).p.y = 0.f;
 				vel(i).p.z = 0.f;
@@ -153,54 +159,22 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 
 	size_t lo = begin - offset_;
 	size_t hi = end - offset_;
-	if (xdim == 0) {
-		fixed32 xmid(xm);
-		while (lo < hi) {
-			if (pptr_[lo].p.x >= xmid) {
-				while (lo != hi) {
-					hi--;
-					if (pptr_[hi].p.x < xmid) {
-						std::swap(pptr_[hi], pptr_[lo]);
-						std::swap(uptr_[hi], uptr_[lo]);
-						std::swap(rptr_[hi], rptr_[lo]);
-						break;
-					}
+	fixed32 xmid(xm);
+	while (lo < hi) {
+		if (xptr_[xdim][lo] >= xmid) {
+			while (lo != hi) {
+				hi--;
+				if (xptr_[xdim][hi] < xmid) {
+					std::swap(xptr_[0][hi], xptr_[0][lo]);
+					std::swap(xptr_[1][hi], xptr_[1][lo]);
+					std::swap(xptr_[2][hi], xptr_[2][lo]);
+					std::swap(uptr_[hi], uptr_[lo]);
+					std::swap(rptr_[hi], rptr_[lo]);
+					break;
 				}
 			}
-			lo++;
 		}
-	} else if (xdim == 1) {
-		fixed32 xmid(xm);
-		while (lo < hi) {
-			if (pptr_[lo].p.y >= xmid) {
-				while (lo != hi) {
-					hi--;
-					if (pptr_[hi].p.y < xmid) {
-						std::swap(pptr_[hi], pptr_[lo]);
-						std::swap(uptr_[hi], uptr_[lo]);
-						std::swap(rptr_[hi], rptr_[lo]);
-						break;
-					}
-				}
-			}
-			lo++;
-		}
-	} else {
-		fixed32 xmid(xm);
-		while (lo < hi) {
-			if (pptr_[lo].p.z >= xmid) {
-				while (lo != hi) {
-					hi--;
-					if (pptr_[hi].p.z < xmid) {
-						std::swap(pptr_[hi], pptr_[lo]);
-						std::swap(uptr_[hi], uptr_[lo]);
-						std::swap(rptr_[hi], rptr_[lo]);
-						break;
-					}
-				}
-			}
-			lo++;
-		}
+		lo++;
 	}
 	return hi + offset_;
 }
@@ -261,9 +235,9 @@ void particle_set::load_particles(std::string filename) {
 		while (z > 1.0) {
 			z -= 1.0;
 		}
-		pos(i).p.x = x;
-		pos(i).p.y = y;
-		pos(i).p.z = z;
+		pos(0, i) = x;
+		pos(1, i) = y;
+		pos(2, i) = z;
 //    printf( "%e %e %e\n", x, y, z);
 	}
 	fread(&dummy, sizeof(dummy), 1, fp);

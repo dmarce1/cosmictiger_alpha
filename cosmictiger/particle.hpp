@@ -58,7 +58,7 @@ struct particle_set {
 	vel_type vel(size_t index) const;CUDA_EXPORT
 	rung_t rung(size_t index) const;
 	size_t sort_range(size_t begin, size_t end, double xmid, int xdim);CUDA_EXPORT
-	pos_type& pos(size_t index);CUDA_EXPORT
+	fixed32& pos(int dim, size_t index);CUDA_EXPORT
 	vel_type& vel(size_t index);CUDA_EXPORT
 	void set_rung(rung_t t, size_t index);
 	void generate_random();
@@ -77,7 +77,7 @@ struct particle_set {
 #ifndef __CUDACC__
 private:
 #endif
-	pos_type* pptr_;
+	array<fixed32*,NDIM> xptr_;
 	vel_type* uptr_;
 #ifdef TEST_FORCE
 	array<float*, NDIM> gptr_;
@@ -94,7 +94,9 @@ public:
 	particle_set get_virtual_particle_set() const {
 		particle_set v;
 		v.uptr_ = uptr_;
-		v.pptr_ = pptr_;
+		for( int dim = 0; dim < NDIM; dim++) {
+			v.xptr_[dim] = xptr_[dim];
+		}
 		v.rptr_ = rptr_;
 		v.base_ = base_;
 #ifdef TEST_FORCE
@@ -113,7 +115,11 @@ CUDA_EXPORT
 inline pos_type particle_set::pos(size_t index) const {
 	assert(index >= 0);
 	assert(index < size_);
-	return pptr_[index - offset_];
+	pos_type p;
+	p.p.x = xptr_[0][index - offset_];
+	p.p.y = xptr_[1][index - offset_];
+	p.p.z = xptr_[2][index - offset_];
+	return p;
 }
 
 inline vel_type particle_set::vel(size_t index) const {
@@ -129,10 +135,10 @@ inline rung_t particle_set::rung(size_t index) const {
 	return rptr_[index - offset_];
 }
 CUDA_EXPORT
-inline pos_type& particle_set::pos(size_t index) {
+inline fixed32& particle_set::pos(int dim, size_t index) {
 	assert(index >= 0);
 	assert(index < size_);
-	return pptr_[index - offset_];
+	return xptr_[dim][index - offset_];
 }
 
 CUDA_EXPORT
