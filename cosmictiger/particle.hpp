@@ -35,8 +35,10 @@ union vel_type {
 		float x;
 		float y;
 		float z;
+		int8_t r;
 	} p;
-	array<fixed32, NDIM> a;CUDA_EXPORT
+	array<float, NDIM> a;
+	CUDA_EXPORT
 	vel_type() {
 	}
 };
@@ -83,7 +85,7 @@ private:
 	array<float*, NDIM> gptr_;
 	float* eptr_;
 #endif
-	rung_t *rptr_;
+//	rung_t *rptr_;
 	void *base_;
 	size_t size_;
 	size_t offset_;
@@ -97,7 +99,7 @@ public:
 		for( int dim = 0; dim < NDIM; dim++) {
 			v.xptr_[dim] = xptr_[dim];
 		}
-		v.rptr_ = rptr_;
+//		v.rptr_ = rptr_;
 		v.base_ = base_;
 #ifdef TEST_FORCE
 		v.gptr_ = gptr_;
@@ -128,7 +130,7 @@ CUDA_EXPORT
 inline rung_t particle_set::rung(size_t index) const {
 	assert(index >= 0);
 	assert(index < size_);
-	return rptr_[index - offset_];
+	return uptr_[index - offset_].p.r;
 }
 CUDA_EXPORT
 inline fixed32& particle_set::pos(int dim, size_t index) {
@@ -148,7 +150,7 @@ CUDA_EXPORT
 inline void particle_set::set_rung(rung_t t, size_t index) {
 	assert(index >= 0);
 	assert(index < size_);
-	rptr_[index - offset_] = t;
+	uptr_[index - offset_].p.r = t;
 }
 
 void drift(particle_set *parts, double a1, double a2, double dtau);
