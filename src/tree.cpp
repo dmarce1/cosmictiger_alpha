@@ -625,7 +625,7 @@ void tree::gpu_daemon() {
 					}
 					calloc.deallocate(gpu_params);
 				});
-				printf("Sending %i blocks %e\n", kicks.size(), wait_time);
+//				printf("Sending %i blocks %e\n", kicks.size(), wait_time);
 				cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
 				completions.push_back(std::function<bool()>([=]() {
 					if( cudaStreamQuery(stream) == cudaSuccess) {

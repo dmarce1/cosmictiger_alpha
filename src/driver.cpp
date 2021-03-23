@@ -126,9 +126,9 @@ void drive_cosmos() {
 	timer tm;
 	tm.start();
 	do {
-		if (iter % 25 == 0) {
-			printf("%4s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "actv", "min", "max",
-					"time", "dt", "theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "srate");
+		if (iter % 10 == 0) {
+			printf("%4s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "actv", "min", "max",
+					"time", "dt", "theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
 		}
 		if (z > 20.0) {
 			theta = 0.4;
@@ -141,8 +141,8 @@ void drive_cosmos() {
 		const auto min_r = min_rung(itime);
 		size_t num_active;
 		tree root = build_tree(parts, min_r, num_active, sort_tm);
-	//	const bool full_eval = min_r <= 7;
-		const bool full_eval = false;
+		const bool full_eval = min_r <= 7;
+	//	const bool full_eval = false;
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, kick_tm);
 		kick_return kr = kick_return_get();
 		if (full_eval) {
@@ -174,14 +174,15 @@ void drive_cosmos() {
 		drift_total += drift_tm;
 		sort_total += sort_tm;
 		kick_total += kick_tm;
+		double total_time = drift_tm + sort_tm + kick_tm;
 		if (full_eval) {
-			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac,
-					cosmicK * partfac, sum, sort_tm, kick_tm, drift_tm, science_rate);
+					cosmicK * partfac, sum, sort_tm, kick_tm, drift_tm, total_time, science_rate);
 		} else {
-			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e\n", iter,
+			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n", iter,
 					act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac, "n/a",
-					sort_tm, kick_tm, drift_tm, science_rate);
+					sort_tm, kick_tm, drift_tm, total_time, science_rate);
 		}
 		itime = inc(itime, max_rung);
 		if (iter >= 100) {

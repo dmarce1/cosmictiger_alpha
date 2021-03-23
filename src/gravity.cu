@@ -252,7 +252,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 		float r3inv, r1inv;
 		__syncwarp();
 		int kmid;
-		if ((nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 4) {
+		if ((nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 2) {
 			kmid = nactive - (nactive % KICK_BLOCK_SIZE);
 		} else {
 			kmid = nactive;
@@ -462,7 +462,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 		}
 		__syncwarp();
 		int kmid;
-		if ((nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 4) {
+		if ((nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 2) {
 			kmid = nactive - (nactive % KICK_BLOCK_SIZE);
 		} else {
 			kmid = nactive;
