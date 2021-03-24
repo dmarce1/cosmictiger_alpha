@@ -29,11 +29,6 @@ CUDA_EXPORT  int green_direct(expansion<T> &D, array<T, NDIM> dX, T rmin = 0.f) 
 	NAN_TEST(d1);
 	NAN_TEST(d2);
 	NAN_TEST(d3);
-	if( isinf(d4) ) {
-		printf( "Found infinity with r = %e\n", SQRT(r2));
-		assert(false);
-		ABORT();
-	}
 	NAN_TEST(d4);
 	int flops = 21 + FLOP_RSQRT + green_deriv_direct(D, d0, d1, d2, d3, d4, dX);
 	constexpr auto DSCALE2 = DSCALE * DSCALE;
