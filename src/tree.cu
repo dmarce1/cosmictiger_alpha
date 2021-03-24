@@ -66,8 +66,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	const auto& myparts = ((tree*) params.tptr)->parts;
 	auto &count = shmem.count;
 
-	const auto theta = params.theta;
-	const auto theta2 = params.theta * params.theta;
+	const float theta = params.theta;
+	const float theta2 = params.theta * params.theta;
 	array<vector<tree_ptr>*, NITERS> lists;
 	auto &multis = params.multi_interactions;
 	auto &parti = params.part_interactions;
@@ -79,8 +79,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	lists[OI] = &opened_checks;
 	int my_index[NITERS];
 	int index_counts[NITERS];
-	const auto myradius1 = me.radius; // + h;
-	const auto myradius2 = SINK_BIAS * myradius1;
+	const float myradius1 = me.radius; // + h;
+	const float myradius2 = SINK_BIAS * myradius1;
 	const auto mypos = me.pos;
 	const bool iamleaf = me.children[0].ptr == 0;
 	int ninteractions = iamleaf ? 3 : 2;
@@ -97,8 +97,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		__syncwarp();
 		int check_count;
 		array<int, NITERS> tmp;
-		const auto h = params.hsoft;
-		const auto th = params.theta * h;
+		const float h = params.hsoft;
+		const float th = params.theta * h;
 		int64_t tm, tm1 = 0, tm2 = 0, tm3 = 0, tm4 = 0;
 		do {
 			check_count = checks.size();
@@ -112,7 +112,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						tm = clock64();
 						const auto check = checks[ci];
 						const auto other_pos = ((const tree*) check)->pos;
-						const auto other_radius = ((const tree*) check)->radius;
+						const float other_radius = ((const tree*) check)->radius;
 						tm1 += clock64() - tm;
 						tm = clock64();
 						array<float, NDIM> dist;
@@ -123,10 +123,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						if (ewald_dist) {
 							d2 = fmaxf(d2, EWALD_MIN_DIST2); // 5
 						}
-						const auto R1 = sqr(other_radius + myradius2 + th);                 // 2
-						const auto R2 = sqr(other_radius * theta + myradius2 + th); // 3
-						const auto R3 = sqr(other_radius + myradius1 * theta + th); // 3
-						const auto theta2d2 = theta2 * d2; // 1
+						const float R1 = sqr(max(other_radius + myradius2 + th,MIN_DX));                 // 2
+						const float R2 = sqr(max(other_radius * theta + myradius2 + th,MIN_DX)); // 3
+						const float R3 = sqr(max(other_radius + myradius1 * theta + th,MIN_DX)); // 3
+						const float theta2d2 = theta2 * d2; // 1
 						const bool far1 = R1 < theta2d2;                 // 1
 						const bool far2 = R2 < theta2d2;                 // 1
 						const bool far3 = R3 < theta2d2;                 // 1
@@ -200,10 +200,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				tm4 += clock64() - tm;
 			}
 		} while (direct && check_count);
-		atomicAdd(&timer1, tm1);
-		atomicAdd(&timer2, tm2);
-		atomicAdd(&timer3, tm3);
-		atomicAdd(&timer4, tm4);
+		//atomicAdd(&timer1, tm1);
+		//atomicAdd(&timer2, tm2);
+		//atomicAdd(&timer3, tm3);
+		//atomicAdd(&timer4, tm4);
 		auto &tmp_parti = params.tmp;
 		if (type == PC_PP_DIRECT) {
 			auto &sinks = shmem.sink;
@@ -224,7 +224,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				list_index = -1;
 				if (j < parti.size()) {
 					const auto& other = *((tree*) parti[j]);
-					const auto hfac = params.theta * params.hsoft;
+					const float hfac = params.theta * params.hsoft;
 					bool res = false;
 					const int sz = myparts.second - myparts.first;
 					for (int k = 0; k < sz; k++) {
@@ -234,7 +234,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 							float dy0 = distance(other.pos[1], sinks[1][k]);
 							float dz0 = distance(other.pos[2], sinks[2][k]);
 							float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-							res = sqr(other.radius + hfac) > d2 * theta2;
+							res = sqr(max(other.radius + hfac, MIN_DX)) > d2 * theta2;
 							flops += 15;
 							if (res) {
 								break;
@@ -329,7 +329,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		}
 		//   printf( "%li\n", rc.flops);
 	} else {
-		const auto invlog2 = 1.0f / logf(2);
+		const float invlog2 = 1.0f / logf(2);
 		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 			const auto this_rung = parts->rung(k + myparts.first);
 			if (this_rung >= params.rung || params.full_eval) {

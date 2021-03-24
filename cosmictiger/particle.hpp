@@ -65,6 +65,8 @@ struct particle_set {
 	void set_rung(rung_t t, size_t index);
 	void generate_random();
 	void load_particles(std::string filename);
+	void load_from_file(FILE* fp);
+	void save_to_file(FILE* fp);
 	void generate_grid();CUDA_EXPORT
 	size_t size() const {
 		return size_;

@@ -219,15 +219,21 @@ sort_return tree::sort(sort_params params) {
 		// printf("radius = %e\n", radius);
 	} else {
 		std::array<double, NDIM> com = { 0, 0, 0 };
-		for (auto i = parts.first; i < parts.second; i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				com[dim] += particles->pos(dim, i).to_double();
+		if (parts.second - parts.first != 0) {
+			for (auto i = parts.first; i < parts.second; i++) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					com[dim] += particles->pos(dim, i).to_double();
+				}
 			}
-		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			com[dim] /= (parts.second - parts.first);
-			pos[dim] = com[dim];
+			for (int dim = 0; dim < NDIM; dim++) {
+				com[dim] /= (parts.second - parts.first);
+				pos[dim] = com[dim];
 
+			}
+		} else {
+			for (int dim = 0; dim < NDIM; dim++) {
+				com[dim] = (box.begin[dim] + box.end[dim]) * 0.5;
+			}
 		}
 		auto &M = (multi);
 		M = 0.0;
@@ -236,14 +242,14 @@ sort_return tree::sort(sort_params params) {
 			double this_radius = 0.0;
 			M() += 1.0;
 			for (int n = 0; n < NDIM; n++) {
-				const auto xn = particles->pos(n,i).to_double() - com[n];
+				const auto xn = particles->pos(n, i).to_double() - com[n];
 				this_radius += xn * xn;
 				for (int m = n; m < NDIM; m++) {
-					const auto xm = particles->pos(m,i).to_double() - com[m];
+					const auto xm = particles->pos(m, i).to_double() - com[m];
 					const auto xnm = xn * xm;
 					M(n, m) += xnm;
 					for (int l = m; l > NDIM; l++) {
-						const auto xl = particles->pos(l,i).to_double() - com[l];
+						const auto xl = particles->pos(l, i).to_double() - com[l];
 						M(n, m, l) -= xnm * xl;
 					}
 				}
@@ -395,10 +401,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				if (ewald_dist) {
 					d2 = std::max(d2, (float) EWALD_MIN_DIST2);
 				}
-				const auto myradius = SINK_BIAS * (radius);
-				const auto R1 = sqr(other_radius + myradius + th);                 // 2
-				const auto R2 = sqr(other_radius * params.theta + myradius + th);
-				const auto R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + th);
+				const float myradius = SINK_BIAS * (radius);
+				const auto R1 = sqr(std::max(other_radius + myradius + th, MIN_DX));                 // 2
+				const auto R2 = sqr(std::max(other_radius * params.theta + myradius + th, MIN_DX));
+				const auto R3 = sqr(std::max(other_radius + (myradius * params.theta / SINK_BIAS) + th, MIN_DX));
 				const bool far1 = R1 < theta2 * d2;
 				const bool far2 = R2 < theta2 * d2;
 				const bool far3 = R3 < theta2 * d2;
@@ -495,7 +501,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				float this_phi;
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto x2 = pos[dim];
-					const auto x1 = particles->pos(dim,k + parts.first);
+					const auto x1 = particles->pos(dim, k + parts.first);
 					dx[dim] = distance(x1, x2);
 				}
 				shift_expansion(L, g, this_phi, dx);

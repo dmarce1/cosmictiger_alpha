@@ -142,7 +142,8 @@ public:
 	inline float operator[](std::size_t i) const {
 		return floats[i];
 	}
-
+	friend bool isinf(const simd_float&);
+	friend bool isnan(const simd_float&);
 	friend simd_float copysign(const simd_float&, const simd_float&);
 	friend simd_float sqrt(const simd_float&);
 	friend simd_float rsqrt(const simd_float&);
@@ -379,7 +380,6 @@ inline simd_float copysign(const simd_float &y, const simd_float &x) {
 	return v;
 }
 
-
 inline simd_float abs(const simd_float &a) {
 	return max(a, -a);
 }
@@ -388,6 +388,24 @@ inline simd_float max(const simd_float &a, const simd_float &b) {
 	simd_float r;
 	r.v = _mmx_max_ps(a.v, b.v);
 	return r;
+}
+
+inline bool isinf(const simd_float& f) {
+	for (int i = 0; i < simd_float::size(); i++) {
+		if (std::isinf(f[i])) {
+			return true;
+		}
+	}
+	return false;
+}
+
+inline bool isnan(const simd_float& f) {
+	for (int i = 0; i < simd_float::size(); i++) {
+		if (std::isnan(f[i])) {
+			return true;
+		}
+	}
+	return false;
 }
 
 #endif /* COSMICTIGER_SIMD_HPP_ */

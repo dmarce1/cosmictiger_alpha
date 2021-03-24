@@ -24,6 +24,7 @@
 #define TEST_BOUNDS
 #endif
 
+//#define USE_NAN_TEST
 #define TEST_FORCE
 //#define TEST_STACK
 #define N_TEST_PARTS (6*46)
@@ -45,6 +46,7 @@
 #define KICK_GRID_SIZE (256)
 #define KICK_OCCUPANCY 12
 
+#define MIN_DX (0.0001f)
 #define MIN_RUNG 1
 
 #define DRIFT_BLOCK_SIZE 1024
@@ -60,7 +62,7 @@
 
 //#define HIPRECISION
 
-#define SINK_BIAS 1.5
+#define SINK_BIAS 1.5f
 #define PC_MIN_PARTS 16
 
 
@@ -100,6 +102,5 @@
 #define EWALD_MIN_DIST (0.25f)
 #define EWALD_MIN_DIST2 (EWALD_MIN_DIST *EWALD_MIN_DIST)
 #define EWALD_REAL_CUTOFF2 (2.6f*2.6f)
-
 
 #endif /* COSMICTIGER_DEFS_HPP_ */

@@ -64,6 +64,40 @@ particle_set::particle_set(size_t size, size_t offset) {
 		uptr_[i].p.r = 0;
 	}
 }
+
+void particle_set::load_from_file(FILE* fp) {
+	fread(&global().opts.z0, sizeof(global().opts.z0), 1, fp);
+	fread(&global().opts.omega_m, sizeof(global().opts.omega_m), 1, fp);
+	fread(&global().opts.hubble, sizeof(global().opts.hubble), 1, fp);
+	fread(&global().opts.code_to_cm, sizeof(global().opts.code_to_cm), 1, fp);
+	fread(&global().opts.code_to_g, sizeof(global().opts.code_to_g), 1, fp);
+	fread(&global().opts.code_to_s, sizeof(global().opts.code_to_s), 1, fp);
+	fread(&global().opts.H0, sizeof(global().opts.H0), 1, fp);
+	fread(&global().opts.G, sizeof(global().opts.G), 1, fp);
+	fread(&global().opts.M, sizeof(global().opts.M), 1, fp);
+	for( int dim = 0; dim < NDIM; dim++) {
+		fread(xptr_[dim], sizeof(fixed32), size(), fp);
+	}
+	fread(uptr_, sizeof(vel_type), size(), fp);
+}
+
+void particle_set::save_to_file(FILE* fp) {
+	fwrite(&global().opts.z0, sizeof(global().opts.z0), 1, fp);
+	fwrite(&global().opts.omega_m, sizeof(global().opts.omega_m), 1, fp);
+	fwrite(&global().opts.hubble, sizeof(global().opts.hubble), 1, fp);
+	fwrite(&global().opts.code_to_cm, sizeof(global().opts.code_to_cm), 1, fp);
+	fwrite(&global().opts.code_to_g, sizeof(global().opts.code_to_g), 1, fp);
+	fwrite(&global().opts.code_to_s, sizeof(global().opts.code_to_s), 1, fp);
+	fwrite(&global().opts.H0, sizeof(global().opts.H0), 1, fp);
+	fwrite(&global().opts.G, sizeof(global().opts.G), 1, fp);
+	fwrite(&global().opts.M, sizeof(global().opts.M), 1, fp);
+	for( int dim = 0; dim < NDIM; dim++) {
+		fwrite(xptr_[dim], sizeof(fixed32), size(), fp);
+	}
+	fwrite(uptr_, sizeof(vel_type), size(), fp);
+}
+
+
 //
 //void particle_set::prefetch(size_t b, size_t e, cudaStream_t stream) {
 //   for (int dim = 0; dim < NDIM; dim++) {

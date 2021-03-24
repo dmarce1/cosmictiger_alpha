@@ -51,6 +51,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 		}
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {
+				NAN_TEST(Lacc[i][k]);
 				L[i] += Lacc[i][k];
 			}
 		}

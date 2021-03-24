@@ -152,6 +152,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 #endif
 			const T r = SQRT(r2);                                                         // FLOP_SQRT
 			const T rinv = 1.f / r;                                           // 1 + FLOP_DIV
+			NAN_TEST(rinv);
 			const T r2inv = rinv * rinv;                                                  // 1
 			const T r3inv = r2inv * rinv;                                                 // 1
 			T exp0;
@@ -166,6 +167,11 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 			const T d2 = FMA(nthree * d1, r2inv, e2);                                     // 3
 			const T d3 = FMA(nfive * d2, r2inv, e3);                                      // 3
 			const T d4 = FMA(nseven * d3, r2inv, e4);                                     // 3
+			NAN_TEST(d0);
+			NAN_TEST(d1);
+			NAN_TEST(d2);
+			NAN_TEST(d3);
+			NAN_TEST(d4);
 			flops += 51 + 2 * FLOP_DIV + FLOP_SQRT + FLOP_EXP + green_deriv_ewald(D, d0, d1, d2, d3, d4, dx);
 		}
 	}

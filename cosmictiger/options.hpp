@@ -28,6 +28,8 @@ struct options {
    double G;
    double z0;
    double M;
+   int checkpt_freq;
+   std::string checkpt_file;
    template<class A>
    void serialize(A&& arc, unsigned) {
       arc & config;

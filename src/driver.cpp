@@ -27,10 +27,9 @@ tree build_tree(particle_set& parts, int min_rung, size_t& num_active, double& t
 
 }
 
-int kick(tree root, double theta, double a, int min_rung, bool full_eval, double& tm) {
+int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool first_call, double& tm) {
 	timer time;
 	time.start();
-	static bool first_call = true;
 	tree_ptr root_ptr;
 	root_ptr.ptr = (uintptr_t) &root;
 	kick_params_type *params_ptr;
@@ -80,10 +79,47 @@ void drift(particle_set& parts, double dt, double a0, double a1, double*ekin, do
 
 #define EVAL_FREQ 25
 
+void save_to_file(particle_set& parts, int step, time_type itime, double a, double cosmicK) {
+	std::string filename = std::string("checkpoint.") + std::to_string(step) + std::string(".dat");
+	printf("Saving %s...", filename.c_str());
+	fflush(stdout);
+	FILE* fp = fopen(filename.c_str(), "wb");
+	if (!fp) {
+		printf("Unable to open %s\n", filename.c_str());
+		abort();
+	}
+	fwrite(&step, sizeof(int), 1, fp);
+	fwrite(&itime, sizeof(time_type), 1, fp);
+	fwrite(&a, sizeof(double), 1, fp);
+	fwrite(&cosmicK, sizeof(double), 1, fp);
+	parts.save_to_file(fp);
+	fclose(fp);
+	printf(" done\n");
+}
+
+void load_from_file(particle_set& parts, int& step, time_type& itime, double& a, double& cosmicK) {
+	std::string filename = global().opts.checkpt_file;
+	printf("Loading %s...", filename.c_str());
+	FILE* fp = fopen(filename.c_str(), "rb");
+	if (!fp) {
+		printf("Unable to open %s\n", filename.c_str());
+		abort();
+	}
+	fread(&step, sizeof(int), 1, fp);
+	fread(&itime, sizeof(time_type), 1, fp);
+	fread(&a, sizeof(double), 1, fp);
+	fread(&cosmicK, sizeof(double), 1, fp);
+	parts.load_from_file(fp);
+	fclose(fp);
+	printf(" done\n");
+
+}
+
 void drive_cosmos() {
+
+	bool have_checkpoint = global().opts.checkpt_file != "";
+
 	particle_set parts(global().opts.nparts);
-	parts.load_particles("ics");
-//	printf( "Particles loaded\n");
 	int max_iter = 100;
 
 	int iter = 0;
@@ -95,8 +131,6 @@ void drive_cosmos() {
 	double a;
 	double Ka;
 	double z;
-	z = global().opts.z0;
-	a = 1.0 / (z + 1.0);
 	double cosmicK = 0.0;
 	double theta;
 	double pot;
@@ -104,16 +138,31 @@ void drive_cosmos() {
 	double parts_total;
 	double time_total;
 	static double last_theta = 0.0;
+	if (!have_checkpoint) {
+		parts.load_particles("ics");
+		itime = 0;
+		iter = 0;
+		z = global().opts.z0;
+		a = 1.0 / (z + 1.0);
+	} else {
+		load_from_file(parts, iter, itime, a, cosmicK);
+		z = 1.0 / a - 1.0;
+	}
 	parts_total = 0.0;
 	time_total = 0.0;
 	T0 = cosmos_conformal_age(a);
 	timer tm;
 	tm.start();
 	double kin, momx, momy, momz;
-	drift(parts, 0.0, a, a, &kin, &momx, &momy, &momz, drift_tm);
 	double partfac = 1.0 / global().opts.nparts;
-	printf("Starting ekin = %e\n", a * kin * partfac);
+	if (!have_checkpoint) {
+		drift(parts, 0.0, a, a, &kin, &momx, &momy, &momz, drift_tm);
+		printf("Starting ekin = %e\n", a * kin * partfac);
+	}
 	do {
+		if (iter % global().opts.checkpt_freq == 0) {
+			save_to_file(parts, iter, itime, a, cosmicK);
+		}
 		if (iter % 10 == 0) {
 			printf("%4s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "actv", "min",
 					"max", "time", "dt", "theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot",
@@ -132,12 +181,12 @@ void drive_cosmos() {
 		tree root = build_tree(parts, min_r, num_active, sort_tm);
 		const bool full_eval = min_r <= 7;
 		//	const bool full_eval = false;
-		max_rung = kick(root, theta, a, min_rung(itime), full_eval, kick_tm);
+		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, kick_tm);
 
 //		if (last_theta != theta) {
-			//cuda_compare_with_direct(&parts);
+		//cuda_compare_with_direct(&parts);
 //			last_theta = theta;
-	//	}
+		//	}
 		kick_return kr = kick_return_get();
 		if (full_eval) {
 			pot = 0.5 * kr.phis / a;

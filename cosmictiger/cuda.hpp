@@ -90,4 +90,39 @@ __device__ inline void cuda_sync() {
 }
 #endif
 
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+template<class T>
+inline CUDA_EXPORT void nan_test(T a, const char* file, int line ) {
+		if( isnan(a)) {
+			printf( "NaN found %s %i\n", file, line);
+	#ifdef __CUDA_ARCH__
+			asm("trap;");
+	#else
+			abort();
+	#endif
+
+		}
+		if( isinf(a)) {
+			printf( "inf found %s %i\n", file, line);
+	#ifdef __CUDA_ARCH__
+			asm("trap;");
+	#else
+			abort();
+	#endif
+
+		}
+}
+
+
+#ifdef USE_NAN_TEST
+#define NAN_TEST(a) nan_test(a,__FILE__,__LINE__)
+#else
+#define NAN_TEST(a)
+#endif
+
+
 #endif /* COSMICTIGER_CUDA_HPP_ */
