@@ -137,7 +137,6 @@ void drive_cosmos() {
 	double esum0;
 	double parts_total;
 	double time_total;
-	static double last_theta = 0.0;
 	if (!have_checkpoint) {
 		parts.load_particles("ics");
 		itime = 0;
@@ -150,7 +149,7 @@ void drive_cosmos() {
 	}
 	parts_total = 0.0;
 	time_total = 0.0;
-	T0 = cosmos_conformal_age(a);
+	T0 = cosmos_conformal_age(1.0 / (1.0 + global().opts.z0));
 	timer tm;
 	tm.start();
 	double kin, momx, momy, momz;
