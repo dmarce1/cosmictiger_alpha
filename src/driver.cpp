@@ -3,28 +3,10 @@
 #include <cosmictiger/drift.hpp>
 #include <cosmictiger/time.hpp>
 #include <cosmictiger/timer.hpp>
+#include <cosmictiger/cosmos.hpp>
+#include <cosmictiger/gravity.hpp>
 
 double T0;
-
-double da_tau(double a) {
-	const auto H = global().opts.H0 * global().opts.hubble;
-	const auto omega_m = global().opts.omega_m;
-	const auto omega_r = 7e-3;
-	const auto omega_lambda = 1.0 - omega_r - omega_m;
-	return H * a * a * std::sqrt(omega_m / (a * a * a) + omega_r / (a * a * a * a) + omega_lambda);
-}
-
-double uni_age(double a) {
-	double dt = 1.0e-6;
-	double t = 0.0;
-	while (a < 1.0) {
-		double datau1 = da_tau(a);
-		double datau2 = da_tau(a + datau1 * dt);
-		a += (0.5 * datau1 + 0.5 * datau2) * dt;
-		t += dt;
-	}
-	return t;
-}
 
 tree build_tree(particle_set& parts, int min_rung, size_t& num_active, double& tm) {
 	timer time;
@@ -75,6 +57,7 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, double
 	params_ptr->t0 = T0;
 	params_ptr->scale = a;
 	root.kick(params_ptr).get();
+
 	tree::cleanup();
 	managed_allocator<tree>::cleanup();
 	if (full_eval) {
@@ -120,15 +103,21 @@ void drive_cosmos() {
 	double esum0;
 	double parts_total;
 	double time_total;
+	static double last_theta = 0.0;
 	parts_total = 0.0;
 	time_total = 0.0;
-	T0 = uni_age(a);
+	T0 = cosmos_conformal_age(a);
 	timer tm;
 	tm.start();
+	double kin, momx, momy, momz;
+	drift(parts, 0.0, a, a, &kin, &momx, &momy, &momz, drift_tm);
+	double partfac = 1.0 / global().opts.nparts;
+	printf("Starting ekin = %e\n", a * kin * partfac);
 	do {
 		if (iter % 10 == 0) {
-			printf("%4s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "actv", "min", "max",
-					"time", "dt", "theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
+			printf("%4s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "actv", "min",
+					"max", "time", "dt", "theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot",
+					"srate");
 		}
 		if (z > 20.0) {
 			theta = 0.4;
@@ -137,24 +126,28 @@ void drive_cosmos() {
 		} else {
 			theta = 0.7;
 		}
-		double time = double(itime) * T0 / double(std::numeric_limits<time_type>::max());
+		double time = double(itime) / double(std::numeric_limits<time_type>::max());
 		const auto min_r = min_rung(itime);
 		size_t num_active;
 		tree root = build_tree(parts, min_r, num_active, sort_tm);
 		const bool full_eval = min_r <= 7;
-	//	const bool full_eval = false;
+		//	const bool full_eval = false;
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, kick_tm);
+
+//		if (last_theta != theta) {
+			//cuda_compare_with_direct(&parts);
+//			last_theta = theta;
+	//	}
 		kick_return kr = kick_return_get();
 		if (full_eval) {
 			pot = 0.5 * kr.phis / a;
 		}
 		double dt = T0 / double(size_t(1) << max_rung);
 		double a0 = a;
-		double datau1 = da_tau(a);
-		double datau2 = da_tau(a + datau1 * dt);
+		double datau1 = cosmos_dadtau(a);
+		double datau2 = cosmos_dadtau(a + datau1 * dt);
 		a += (0.5 * datau1 + 0.5 * datau2) * dt;
 		z = 1.0 / a - 1.0;
-		double kin, momx, momy, momz;
 		drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, drift_tm);
 		cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;
@@ -163,7 +156,6 @@ void drive_cosmos() {
 			esum0 = sum;
 		}
 		sum = (sum - esum0) / (std::abs(a * kin) + std::abs(a * pot) + std::abs(cosmicK));
-		double partfac = 1.0 / global().opts.nparts;
 		parts_total += num_active;
 		double act_pct = 100.0 * (double) num_active * partfac;
 		tm.stop();
@@ -176,17 +168,18 @@ void drive_cosmos() {
 		kick_total += kick_tm;
 		double total_time = drift_tm + sort_tm + kick_tm;
 		if (full_eval) {
-			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+			printf(
+					"%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac,
 					cosmicK * partfac, sum, sort_tm, kick_tm, drift_tm, total_time, science_rate);
 		} else {
-			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n", iter,
-					act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac, "n/a",
-					sort_tm, kick_tm, drift_tm, total_time, science_rate);
+			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac,
+					"n/a", sort_tm, kick_tm, drift_tm, total_time, science_rate);
 		}
 		itime = inc(itime, max_rung);
 		if (iter >= 100) {
-			break;
+			//		break;
 		}
 		iter++;
 	} while (z > 0.0);

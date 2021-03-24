@@ -531,7 +531,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					dt = std::min(params.eta * std::sqrt(params.scale * params.hsoft / fmag), params.t0);
 					int new_rung = std::max(
 							std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1), params.rung),
-							0);
+							MIN_RUNG);
 					dt = params.t0 / (1 << new_rung);
 					particles->vel(k + parts.first).p.x += 0.5 * dt * F[0][k];
 					particles->vel(k + parts.first).p.y += 0.5 * dt * F[1][k];

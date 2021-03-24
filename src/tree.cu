@@ -371,7 +371,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					//   printf( "%e\n", fmag);
 					assert(fmag > 0.0);
 					dt = fminf(params.eta * sqrtf(params.scale * params.hsoft / fmag), params.t0);
-					int new_rung = fmaxf(fmaxf(fmaxf(ceil(logf(params.t0 / dt) * invlog2), this_rung - 1), params.rung), 0);
+					int new_rung = fmaxf(fmaxf(fmaxf(ceil(logf(params.t0 / dt) * invlog2), this_rung - 1), params.rung), MIN_RUNG);
 					dt = params.t0 / (size_t(1) << new_rung);
 					parts->vel(k + myparts.first).p.x += 0.5 * dt * F[0][k];
 					parts->vel(k + myparts.first).p.y += 0.5 * dt * F[1][k];

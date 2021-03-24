@@ -242,8 +242,8 @@ void force_test() {
 	printf("Doing force test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
-	// parts.load_particles("ics");
-	parts.generate_random();
+	 parts.load_particles("ics");
+//	parts.generate_random();
 	tree::set_particle_set(&parts);
 	particle_set *parts_ptr;
 	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
@@ -277,6 +277,7 @@ void force_test() {
 	params_ptr->t0 = true;
 	params_ptr->full_eval = true;
 	kick_return_init(0);
+	params_ptr->theta = 0.4;
 	root.kick(params_ptr).get();
 	kick_return_show();
 	tree::cleanup();

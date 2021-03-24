@@ -25,6 +25,7 @@ enable_language(CUDA)
 
 set(cosmictiger_source_files
 	src/sort.cu
+    src/cosmos.cpp
     src/cuda.cpp
     src/drift.cu
     src/drift.cpp
@@ -48,6 +49,7 @@ set(cosmictiger_source_files
     src/kick_return.cpp
 )
 set(cosmictiger_header_files
+	cosmictiger/cosmos.hpp
 	cosmictiger/sort.hpp
 	cosmictiger/drift.hpp
 	cosmictiger/ewald_indices.hpp

@@ -1,5 +1,6 @@
 #include <cosmictiger/drift.hpp>
 #include <cosmictiger/global.hpp>
+#include <cosmictiger/cosmos.hpp>
 
 
 CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, double* momx, double* momy,
@@ -83,6 +84,9 @@ void drift_particles(particle_set parts, double dt, double a0, double a1, double
 	auto stream = get_stream();
 	parts.prepare_drift();
 	const auto a = 1.0 / (0.5 / a0 + 0.5 / a1);
+//	const auto ddt = cosmos_drift_dtau(a0,dt);
+//	const auto a = 1.0 / ddt;
+//	printf( "%e %e\n", a, 1.0/ddt);
 	double* results;
 	CUDA_MALLOC(results, 4);
 	for (int i = 0; i < 4; i++) {
