@@ -46,7 +46,7 @@
 #define KICK_GRID_SIZE (256)
 #define KICK_OCCUPANCY 12
 
-#define MIN_DX (0.0001f)
+#define MIN_DX (0.00000001f)
 #define MIN_RUNG 1
 
 #define DRIFT_BLOCK_SIZE 1024

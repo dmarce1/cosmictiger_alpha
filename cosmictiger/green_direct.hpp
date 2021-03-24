@@ -5,8 +5,15 @@
 #include <cosmictiger/math.hpp>
 #include <cosmictiger/expansion.hpp>
 
+#define DSCALE 1e4
+
+
 template<class T>
-CUDA_EXPORT  int green_direct(expansion<T> &D, const array<T, NDIM> &dX, T rmin = 0.f) {
+CUDA_EXPORT  int green_direct(expansion<T> &D, array<T, NDIM> dX, T rmin = 0.f) {
+	for( int dim = 0; dim < NDIM; dim++) {
+		dX[dim] *= DSCALE; // 3
+	}
+	rmin *= DSCALE;
 	const T nthree(-3.0f);
 	const T nfive(-5.0f);
 	const T nseven(-7.0f);
@@ -24,10 +31,51 @@ CUDA_EXPORT  int green_direct(expansion<T> &D, const array<T, NDIM> &dX, T rmin 
 	NAN_TEST(d3);
 	if( isinf(d4) ) {
 		printf( "Found infinity with r = %e\n", SQRT(r2));
+		assert(false);
 		ABORT();
 	}
 	NAN_TEST(d4);
-	return 18 + FLOP_RSQRT + green_deriv_direct(D, d0, d1, d2, d3, d4, dX);
+	int flops = 21 + FLOP_RSQRT + green_deriv_direct(D, d0, d1, d2, d3, d4, dX);
+	constexpr auto DSCALE2 = DSCALE * DSCALE;
+	constexpr auto DSCALE3 = DSCALE2 * DSCALE;
+	constexpr auto DSCALE4 = DSCALE3 * DSCALE;
+	constexpr auto DSCALE5 = DSCALE4 * DSCALE;
+	D[0] *= T(DSCALE);
+	D[1] *= T(DSCALE2);
+	D[2] *= T(DSCALE2);
+	D[3] *= T(DSCALE2);
+	D[4] *= T(DSCALE3);
+	D[5] *= T(DSCALE3);
+	D[6] *= T(DSCALE3);
+	D[7] *= T(DSCALE3);
+	D[8] *= T(DSCALE3);
+	D[9] *= T(DSCALE3);
+	D[10] *= T(DSCALE4);
+	D[11] *= T(DSCALE4);
+	D[12] *= T(DSCALE4);
+	D[13] *= T(DSCALE4);
+	D[14] *= T(DSCALE4);
+	D[15] *= T(DSCALE4);
+	D[16] *= T(DSCALE4);
+	D[17] *= T(DSCALE4);
+	D[18] *= T(DSCALE4);
+	D[19] *= T(DSCALE4);
+	D[20] *= T(DSCALE5);
+	D[21] *= T(DSCALE5);
+	D[22] *= T(DSCALE5);
+	D[23] *= T(DSCALE5);
+	D[24] *= T(DSCALE5);
+	D[25] *= T(DSCALE5);
+	D[26] *= T(DSCALE5);
+	D[27] *= T(DSCALE5);
+	D[28] *= T(DSCALE5);
+	D[29] *= T(DSCALE5);
+	D[30] *= T(DSCALE5);
+	D[31] *= T(DSCALE5);
+	D[32] *= T(DSCALE5);
+	D[33] *= T(DSCALE5);
+	D[34] *= T(DSCALE5);
+	return flops + 35;
 }
 
 

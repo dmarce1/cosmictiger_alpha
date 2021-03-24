@@ -389,7 +389,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 #ifdef TEST_CHECKLIST_TIME
 			tm.start();
 #endif
-			const auto th = params.theta * params.hsoft;
+			const auto th = params.theta * std::max(params.hsoft, MIN_DX);
 			for (int ci = 0; ci < checks.size(); ci++) {
 				const auto other_radius = checks[ci].get_radius();
 				const auto other_parts = ((tree*) checks[ci])->parts;
@@ -616,6 +616,11 @@ void tree::gpu_daemon() {
 					auto tmp = std::move(kicks[i]);
 					deleters->push_back(tmp.params->dchecks.to_device(stream));
 					deleters->push_back(tmp.params->echecks.to_device(stream));
+					deleters->push_back(tmp.params->multi_interactions.to_device(stream));
+					deleters->push_back(tmp.params->part_interactions.to_device(stream));
+					deleters->push_back(tmp.params->next_checks.to_device(stream));
+					deleters->push_back(tmp.params->opened_checks.to_device(stream));
+					deleters->push_back(tmp.params->tmp.to_device(stream));
 					memcpy(gpu_params + i, tmp.params, sizeof(kick_params_type));
 					auto tmpparams = tmp.params;
 					deleters->push_back([tmpparams]() {

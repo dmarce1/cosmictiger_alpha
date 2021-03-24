@@ -48,6 +48,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 			L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
 		}
 	}
+	L.scale_back();
 	for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
 		NAN_TEST(L[i]);
 		params.L[params.depth][i] += L[i];
@@ -130,6 +131,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
 			}
 		}
+		L.scale_back();
 		for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
 			NAN_TEST(L[i]);
 			params.L[params.depth][i] += L[i];
@@ -290,9 +292,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 				fx = fmaf(dx0, r3inv, fx); // 2
 				fy = fmaf(dx1, r3inv, fy); // 2
 				fz = fmaf(dx2, r3inv, fz); // 2
-				NAN_TEST(fx);
-				NAN_TEST(fy);
-				NAN_TEST(fz);
+				NAN_TEST(fx); NAN_TEST(fy); NAN_TEST(fz);
 				phi -= r1inv; // 1
 				flops += 15;
 				interacts++;
@@ -338,9 +338,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 				fx = fmaf(dx0, r3inv, fx); // 2
 				fy = fmaf(dx1, r3inv, fy); // 2
 				fz = fmaf(dx2, r3inv, fz); // 2
-				NAN_TEST(fx);
-				NAN_TEST(fy);
-				NAN_TEST(fz);
+				NAN_TEST(fx); NAN_TEST(fy); NAN_TEST(fz);
 				phi -= r1inv; // 1
 				flops += 15;
 				interacts++;
@@ -488,13 +486,11 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
 				interacts++;
 			}
-			phi = Lforce[0];
-			fx = Lforce[1];
-			fy = Lforce[2];
-			fz = Lforce[3];
-			NAN_TEST(fx);
-			NAN_TEST(fy);
-			NAN_TEST(fz);
+			phi = Lforce[0];// * DSCALE;
+			fx = Lforce[1];// * (DSCALE * DSCALE);
+			fy = Lforce[2];// * (DSCALE * DSCALE);
+			fz = Lforce[3];// * (DSCALE * DSCALE);
+			NAN_TEST(fx); NAN_TEST(fy); NAN_TEST(fz);
 			const int l = act_map[k];
 			F[0][l] -= fx;
 			F[1][l] -= fy;
@@ -518,13 +514,11 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
 				interacts++;
 			}
-			phi = Lforce[0];
-			fx = Lforce[1];
-			fy = Lforce[2];
-			fz = Lforce[3];
-			NAN_TEST(fx);
-			NAN_TEST(fy);
-			NAN_TEST(fz);
+			phi = Lforce[0];// * DSCALE;
+			fx = Lforce[1];// * (DSCALE * DSCALE);
+			fy = Lforce[2];// * (DSCALE * DSCALE);
+			fz = Lforce[3];// * (DSCALE * DSCALE);
+			NAN_TEST(fx); NAN_TEST(fy); NAN_TEST(fz);
 			for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
 				fx += __shfl_down_sync(0xffffffff, fx, P);
 				fy += __shfl_down_sync(0xffffffff, fy, P);

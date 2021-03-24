@@ -51,9 +51,9 @@ class vector {
 public:
 #ifndef __CUDACC__
    std::function<void()> to_device(cudaStream_t stream) {
-//      assert(cap);
+      assert(cap);
       dontfree = true;
-      if (cap && ptr) {
+      if (ptr) {
    //      CUDA_CHECK(cudaMemPrefetchAsync(ptr, sizeof(T) * sz, 0, stream));
          auto *dptr = ptr;
          auto sz_ = sz;
@@ -83,6 +83,7 @@ public:
          cap = 0;
          sz = 0;
       }
+      reserve(1);
    }
    CUDA_EXPORT inline vector(const vector &other) {
       THREAD;

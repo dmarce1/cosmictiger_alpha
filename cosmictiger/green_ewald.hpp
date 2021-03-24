@@ -121,7 +121,7 @@ static float __constant__ __device__ nseven(-7.0);
 static float __constant__ __device__ neight(-8.0);
 
 template<class T>
-CUDA_EXPORT int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
+CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 	ewald_const econst;
 #ifndef __CUDA_ARCH__
 	const T rmin = 1.0e-2;
@@ -224,6 +224,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, const array<T, NDIM> &X) {
 	}
 	expansion<T> D1;
 	flops += green_direct(D1, X, T(rmin));
+	D1.scale_back();
 	D() = T(M_PI / 4.0) + D();                          // 1
 	for (int i = 0; i < LP; i++) {                     // 70
 		D[i] -= D1[i];

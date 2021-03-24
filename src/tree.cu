@@ -98,7 +98,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		int check_count;
 		array<int, NITERS> tmp;
 		const float h = params.hsoft;
-		const float th = params.theta * h;
+		const float th = params.theta * fmaxf(h,MIN_DX);
 		int64_t tm, tm1 = 0, tm2 = 0, tm3 = 0, tm4 = 0;
 		do {
 			check_count = checks.size();
@@ -123,9 +123,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						if (ewald_dist) {
 							d2 = fmaxf(d2, EWALD_MIN_DIST2); // 5
 						}
-						const float R1 = sqr(max(other_radius + myradius2 + th,MIN_DX));                 // 2
-						const float R2 = sqr(max(other_radius * theta + myradius2 + th,MIN_DX)); // 3
-						const float R3 = sqr(max(other_radius + myradius1 * theta + th,MIN_DX)); // 3
+						const float R1 = sqr(other_radius + myradius2 + th);                 // 2
+						const float R2 = sqr(other_radius * theta + myradius2 + th); // 3
+						const float R3 = sqr(other_radius + myradius1 * theta + th); // 3
 						const float theta2d2 = theta2 * d2; // 1
 						const bool far1 = R1 < theta2d2;                 // 1
 						const bool far2 = R2 < theta2d2;                 // 1
@@ -224,7 +224,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				list_index = -1;
 				if (j < parti.size()) {
 					const auto& other = *((tree*) parti[j]);
-					const float hfac = params.theta * params.hsoft;
+					const float hfac = params.theta * fmaxf(params.hsoft, MIN_DX);
 					bool res = false;
 					const int sz = myparts.second - myparts.first;
 					for (int k = 0; k < sz; k++) {
@@ -234,7 +234,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 							float dy0 = distance(other.pos[1], sinks[1][k]);
 							float dz0 = distance(other.pos[2], sinks[2][k]);
 							float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-							res = sqr(max(other.radius + hfac, MIN_DX)) > d2 * theta2;
+							res = sqr(other.radius + hfac) > d2 * theta2;
 							flops += 15;
 							if (res) {
 								break;
