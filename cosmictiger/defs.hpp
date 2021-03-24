@@ -24,6 +24,7 @@
 #define TEST_BOUNDS
 #endif
 
+#define USE_READMOSTLY
 //#define USE_NAN_TEST
 #define TEST_FORCE
 //#define TEST_STACK

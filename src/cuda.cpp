@@ -32,14 +32,8 @@ cuda_properties cuda_init() {
 	printf("Detected %i CUDA devices.\n", props.num_devices);
 	printf("Multi-processor counts: \n");
 	for (int i = 0; i < props.num_devices; i++) {
-		printf("\t %s: %i\n", props.devices[i].name, props.devices[i].multiProcessorCount);
-		printf("%i\n", props.devices[i].concurrentManagedAccess);
-		printf("%i\n", props.devices[i].pageableMemoryAccess);
-		printf("%i\n", props.devices[i].pageableMemoryAccessUsesHostPageTables);
+		printf("\t %s: Multiprocessor Count: %i\n", props.devices[i].name, props.devices[i].multiProcessorCount);
 	}
-	printf("%i\n", cpu_props.concurrentManagedAccess);
-	printf("%i\n", cpu_props.pageableMemoryAccess);
-	printf("%i\n", cpu_props.pageableMemoryAccessUsesHostPageTables);
 	printf("Resetting Device\n");
 	CUDA_CHECK(cudaDeviceReset());
 	printf(" Done resetting\n");

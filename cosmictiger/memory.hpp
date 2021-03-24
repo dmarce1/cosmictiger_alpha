@@ -146,14 +146,18 @@ public:
 		return current_alloc + current_index++;
 	}
 	static void set_read_only() {
+#ifdef USE_READMOSTLY
 		for (auto& alloc : allocs) {		//
 			CUDA_CHECK(cudaMemAdvise(alloc, sizeof(T) * page_size, cudaMemAdviseSetReadMostly, 0));
 		}
+#endif
 	}
 	static void unset_read_only() {
+#ifdef USE_READMOSTLY
 		for (auto& alloc : allocs) {		//
 			CUDA_CHECK(cudaMemAdvise(alloc, sizeof(T) * page_size, cudaMemAdviseUnsetReadMostly, 0));
 		}
+#endif
 	}
 	managed_allocator(managed_allocator&&) = default;
 	managed_allocator& operator=(managed_allocator&&) = default;

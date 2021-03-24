@@ -7,31 +7,31 @@
 #include <unordered_map>
 #include <algorithm>
 
-
 void particle_set::prepare_sort() {
+#ifdef USE_READMOSTLY
 	for (int dim = 0; dim < NDIM; dim++) {
-//		CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetReadMostly, 0));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetReadMostly, 0));
 	}
-	//CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseUnsetReadMostly, 0));
+	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseUnsetReadMostly, 0));
+#endif
 }
 
-
 void particle_set::prepare_kick() {
+#ifdef USE_READMOSTLY
 	for (int dim = 0; dim < NDIM; dim++) {
-		//CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetAccessedBy, 0));
-		//CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetPreferredLocation, 0));
-		//CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseSetReadMostly, 0));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseSetReadMostly, 0));
 	}
-//	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseUnsetReadMostly, 0));
+	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseUnsetReadMostly, 0));
+#endif
 }
 
 void particle_set::prepare_drift() {
+#ifdef USE_READMOSTLY
 	for (int dim = 0; dim < NDIM; dim++) {
-		//CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId));
-		//CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
-		//CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetReadMostly, 0));
+		CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetReadMostly, 0));
 	}
-	//CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseSetReadMostly, 0));
+	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseSetReadMostly, 0));
+#endif
 }
 
 particle_set::particle_set(size_t size, size_t offset) {
@@ -75,7 +75,7 @@ void particle_set::load_from_file(FILE* fp) {
 	fread(&global().opts.H0, sizeof(global().opts.H0), 1, fp);
 	fread(&global().opts.G, sizeof(global().opts.G), 1, fp);
 	fread(&global().opts.M, sizeof(global().opts.M), 1, fp);
-	for( int dim = 0; dim < NDIM; dim++) {
+	for (int dim = 0; dim < NDIM; dim++) {
 		fread(xptr_[dim], sizeof(fixed32), size(), fp);
 	}
 	fread(uptr_, sizeof(vel_type), size(), fp);
@@ -91,12 +91,11 @@ void particle_set::save_to_file(FILE* fp) {
 	fwrite(&global().opts.H0, sizeof(global().opts.H0), 1, fp);
 	fwrite(&global().opts.G, sizeof(global().opts.G), 1, fp);
 	fwrite(&global().opts.M, sizeof(global().opts.M), 1, fp);
-	for( int dim = 0; dim < NDIM; dim++) {
+	for (int dim = 0; dim < NDIM; dim++) {
 		fwrite(xptr_[dim], sizeof(fixed32), size(), fp);
 	}
 	fwrite(uptr_, sizeof(vel_type), size(), fp);
 }
-
 
 //
 //void particle_set::prefetch(size_t b, size_t e, cudaStream_t stream) {
