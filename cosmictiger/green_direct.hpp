@@ -22,10 +22,10 @@ CUDA_EXPORT  int green_direct(expansion<T> &D, const array<T, NDIM> &dX, T rmin 
 	NAN_TEST(d1);
 	NAN_TEST(d2);
 	NAN_TEST(d3);
-//	if( isinf(d4) ) {
-//		printf( "Found infinity with r = %e\n", SQRT(r2));
-//		ABORT();
-//	}
+	if( isinf(d4) ) {
+		printf( "Found infinity with r = %e\n", SQRT(r2));
+		ABORT();
+	}
 	NAN_TEST(d4);
 	return 18 + FLOP_RSQRT + green_deriv_direct(D, d0, d1, d2, d3, d4, dX);
 }

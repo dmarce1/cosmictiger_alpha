@@ -313,7 +313,6 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			fz = 0.f;
 			phi = 0.f;
 			for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
-				const auto sink = sinks[k];
 				dx0 = distance(sinks[0][k], sources[0][j]);
 				dx1 = distance(sinks[1][k], sources[1][j]);
 				dx2 = distance(sinks[2][k], sources[2][j]);               // 3
