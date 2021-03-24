@@ -83,9 +83,9 @@ void drift_particles(particle_set parts, double dt, double a0, double a1, double
 	const int nblock = DRIFT_OCCUPANCY * 2 * global().cuda.devices[0].multiProcessorCount;
 	auto stream = get_stream();
 	parts.prepare_drift();
-	const auto a = 1.0 / (0.5 / a0 + 0.5 / a1);
+//	const auto a = 1.0 / (0.5 / a0 + 0.5 / a1);
 //	const auto ddt = cosmos_drift_dtau(a0,dt);
-//	const auto a = 1.0 / ddt;
+	const auto a = 1.0 / ddt;
 //	printf( "%e %e\n", a, 1.0/ddt);
 	double* results;
 	CUDA_MALLOC(results, 4);
