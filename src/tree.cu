@@ -325,7 +325,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					const auto x1 = parts->pos(dim,k + myparts.first);
 					dx[dim] = distance(x1, x2);
 				}
-				shift_expansion(L, g, this_phi, dx);
+				shift_expansion(L, g, this_phi, dx, params.full_eval);
 				for (int dim = 0; dim < NDIM; dim++) {
 					F[dim][k] += g[dim];
 				}

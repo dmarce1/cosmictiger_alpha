@@ -369,7 +369,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		const auto x2 = Lpos[dim];
 		dx[dim] = distance(x1, x2);
 	}
-	L <<= dx;
+	shift_expansion(L, dx, params.full_eval);
 
 	const auto theta2 = sqr(params.theta);
 	array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
@@ -504,7 +504,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					const auto x1 = particles->pos(dim, k + parts.first);
 					dx[dim] = distance(x1, x2);
 				}
-				shift_expansion(L, g, this_phi, dx);
+				shift_expansion(L, g, this_phi, dx, params.full_eval);
 				//		int dummy;
 				//		printf( "%li\n", params.stack_top - (uintptr_t)(&dummy));
 				for (int dim = 0; dim < NDIM; dim++) {
