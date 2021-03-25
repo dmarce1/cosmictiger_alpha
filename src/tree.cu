@@ -257,12 +257,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			parti.swap(tmp_parti);
 			__syncwarp();
 		}
-		int nactive;
 		switch (type) {
 		case PC_PP_DIRECT:
-			nactive = compress_sinks(params_ptr);
-			cuda_pc_interactions(params_ptr, nactive);
-			cuda_pp_interactions(params_ptr, nactive);
+			cuda_pc_interactions(params_ptr);
+			cuda_pp_interactions(params_ptr);
 			break;
 		case CC_CP_DIRECT:
 			cuda_cc_interactions(params_ptr, DIRECT);

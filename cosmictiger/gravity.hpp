@@ -21,10 +21,8 @@ enum eval_type {
 
 CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type);
 CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr);
-CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int);
-CUDA_DEVICE void cuda_pc_interactions(kick_params_type *params_ptr, int);
-CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr);
-
+CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr);
+CUDA_DEVICE void cuda_pc_interactions(kick_params_type *params_ptr);
 
 #ifdef TEST_FORCE
 void cuda_compare_with_direct(particle_set *parts);
