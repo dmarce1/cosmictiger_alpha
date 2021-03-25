@@ -230,6 +230,13 @@ public:
 	inline int operator[](std::size_t i) const {
 		return ints[i];
 	}
+	inline int sum() const {
+		int sum = 0;
+		for (int i = 0; i < simd_int::size(); i++) {
+			sum += ints[i];
+		}
+		return sum;
+	}
 	friend class simd_float;
 
 }SIMDALIGN;
