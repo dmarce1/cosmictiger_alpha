@@ -30,6 +30,34 @@
 //#define TEST_STACK
 #define N_TEST_PARTS (100)
 
+#define KICK_PP_MAX size_t(6*32)
+#define MAX_BUCKET_SIZE 118
+#define KICK_OCCUPANCY 16
+
+
+//#define KICK_PP_MAX size_t(11*32)
+//#define MAX_BUCKET_SIZE 88
+//#define KICK_OCCUPANCY 12
+
+
+//#define KICK_PP_MAX size_t(10*32)
+//#define MAX_BUCKET_SIZE 118
+//#define KICK_OCCUPANCY 12
+
+
+//#define KICK_PP_MAX size_t(9*32)
+//#define MAX_BUCKET_SIZE 147
+//#define KICK_OCCUPANCY 12
+
+//#define KICK_PP_MAX size_t(8*32)
+//#define MAX_BUCKET_SIZE 176
+//#define KICK_OCCUPANCY 12
+
+//#define KICK_PP_MAX size_t(7*32)
+//#define MAX_BUCKET_SIZE 205
+//#define KICK_OCCUPANCY 12
+
+
 #define MIN_ACTIVE_PER_BLOCK 16
 #define MAX_RUNG 63
 #define TREE_MAX_DEPTH 54
@@ -39,13 +67,10 @@
 #define TREE_SORT_MULTITHREAD
 #define TREE_MIN_PARTS2THREAD (16*1024)
 #define KICK_BLOCK_SIZE 32
-#define KICK_PP_MAX size_t(8*32)
 #define KICK_PC_MAX (1*32)
-#define MAX_BUCKET_SIZE 160
 #define GROUP_SIZE MAX_BUCKET_SIZE
 #define GPU_QUEUE_SIZE (1024*1024)
 #define KICK_GRID_SIZE (256)
-#define KICK_OCCUPANCY 12
 #define MIN_GPU_PARTS 1024
 
 #define MIN_DX (0.00000001f)
