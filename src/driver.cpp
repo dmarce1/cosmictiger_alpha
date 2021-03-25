@@ -232,7 +232,7 @@ void drive_cosmos() {
 		}
 		itime = inc(itime, max_rung);
 		if (iter >= 100) {
-				break;
+	//			break;
 		}
 		iter++;
 	} while (z > 0.0);
