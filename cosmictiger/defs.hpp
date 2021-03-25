@@ -46,9 +46,10 @@
 #define GPU_QUEUE_SIZE (1024*1024)
 #define KICK_GRID_SIZE (256)
 #define KICK_OCCUPANCY 12
+#define MIN_GPU_PARTS 1024
 
 #define MIN_DX (0.00000001f)
-#define MIN_RUNG 1
+#define MIN_RUNG 7
 
 #define DRIFT_BLOCK_SIZE 1024
 #define DRIFT_OCCUPANCY 1

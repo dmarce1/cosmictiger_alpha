@@ -344,6 +344,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		tmp_tm.start();
 		const int block_count = GPUOS * KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
+		if( active_parts < MIN_GPU_PARTS ) {
+			params.block_cutoff = 0;
+	//		printf( "CPU ONLY\n");
+		}
 		managed_allocator<multipole>::set_read_only();
 		particles->prepare_kick();
 	}
