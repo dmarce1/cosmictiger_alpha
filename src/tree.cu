@@ -48,7 +48,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			const auto x2 = Lpos[dim];
 			dx[dim] = distance(x1, x2);
 		}
-		shift_expansion(L, dx);
+		shift_expansion(L, dx, params.full_eval);
 	}
 	int flops = 0;
 	int interacts = 0;

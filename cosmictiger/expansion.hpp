@@ -324,8 +324,8 @@ CUDA_EXPORT inline void expansion<T>::translate_L2(array<T, NDIM>& g, T& phi, co
 	}
 }
 
-CUDA_EXPORT expansion<float>& shift_expansion(expansion<float> &me, const array<float, NDIM> &dX);
-CUDA_EXPORT void shift_expansion(expansion<float> &me, array<float, NDIM> &g, float &phi, const array<float, NDIM> &dX);
+CUDA_EXPORT expansion<float>& shift_expansion(expansion<float>& L, const array<float, NDIM> &dX, bool do_phi);
+CUDA_EXPORT void shift_expansion(const expansion<float> &L, array<float, NDIM> &g, float &phi, const array<float, NDIM> &dX);
 CUDA_DEVICE void expansion_init();
 __host__ void expansion_init_cpu();
 
