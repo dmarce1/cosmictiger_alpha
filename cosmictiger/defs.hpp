@@ -26,7 +26,7 @@
 
 //#define USE_READMOSTLY
 //#define USE_NAN_TEST
-#define TEST_FORCE
+//#define TEST_FORCE
 //#define TEST_STACK
 #define N_TEST_PARTS (100)
 
@@ -39,9 +39,9 @@
 #define TREE_SORT_MULTITHREAD
 #define TREE_MIN_PARTS2THREAD (16*1024)
 #define KICK_BLOCK_SIZE 32
-#define KICK_PP_MAX size_t(9*32)
+#define KICK_PP_MAX size_t(8*32)
 #define KICK_PC_MAX (1*32)
-#define MAX_BUCKET_SIZE 128
+#define MAX_BUCKET_SIZE 160
 #define GROUP_SIZE MAX_BUCKET_SIZE
 #define GPU_QUEUE_SIZE (1024*1024)
 #define KICK_GRID_SIZE (256)
