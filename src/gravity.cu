@@ -143,31 +143,16 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	}
 }
 
-CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
+CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
-	particle_set *parts = params.particles;
-	const auto& parti = params.part_interactions;
 	const int &tid = threadIdx.x;
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-//	auto &f = shmem.f;
-	auto &F = params.F;
-	auto &Phi = params.Phi;
-	auto &sources = shmem.src;
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
-	const auto h = params.hsoft;
-	const auto h2 = h * h;
-	const auto hinv = 1.0f / h;
-	int flops = 0;
-	int interacts = 0;
-	const bool full_eval = params.full_eval;
-	int part_index;
-	if (parti.size() == 0) {
-		return;
-	}
-//   printf( "%i\n", parti.size());
+	particle_set *parts = params.particles;
+
 	const auto &myparts = ((tree*) params.tptr)->parts;
 	const int nsinks = myparts.second - myparts.first;
 	const int nsinks_max = max(((nsinks - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
@@ -216,6 +201,34 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 			sinks[dim][i] = parts->pos(dim, act_map[i] + myparts.first);
 		}
 	}
+	return nactive;
+}
+
+CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive) {
+	kick_params_type &params = *params_ptr;
+	particle_set *parts = params.particles;
+	const auto& parti = params.part_interactions;
+	const int &tid = threadIdx.x;
+	__shared__
+	extern int shmem_ptr[];
+	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
+	auto &F = params.F;
+	auto &Phi = params.Phi;
+	auto &sources = shmem.src;
+	auto &sinks = shmem.sink;
+	auto& act_map = shmem.act_map;
+	const auto h = params.hsoft;
+	const auto h2 = h * h;
+	const auto hinv = 1.0f / h;
+	int flops = 0;
+	int interacts = 0;
+	const bool full_eval = params.full_eval;
+	int part_index;
+	if (parti.size() == 0) {
+		return;
+	}
+//   printf( "%i\n", parti.size());
+	const auto &myparts = ((tree*) params.tptr)->parts;
 	int i = 0;
 	auto these_parts = ((tree*) parti[0])->parts;
 	const auto partsz = parti.size();
@@ -369,9 +382,8 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr) {
 }
 
 CUDA_DEVICE
-void cuda_pc_interactions(kick_params_type *params_ptr) {
+void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	kick_params_type &params = *params_ptr;
-	particle_set *parts = params.particles;
 	const auto& multis = params.multi_interactions;
 	const int &tid = threadIdx.x;
 
@@ -380,6 +392,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	//auto &f = shmem.f;
 	auto &F = params.F;
+	auto& act_map = shmem.act_map;
 	auto &Phi = params.Phi;
 	const auto &myparts = ((tree*) params.tptr)->parts;
 	if (multis.size() == 0) {
@@ -387,54 +400,6 @@ void cuda_pc_interactions(kick_params_type *params_ptr) {
 	}
 	auto &sinks = shmem.sink;
 	auto& msrcs = shmem.msrc;
-	const int nsinks = myparts.second - myparts.first;
-	const int nsinks_max = max(((nsinks - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
-	auto& act_map = shmem.act_map;
-
-	int my_index;
-	bool found;
-	int base = 0;
-	int nactive = 0;
-	int total;
-
-	for (int i = tid; i < nsinks_max; i += KICK_BLOCK_SIZE) {
-		my_index = 0;
-		found = false;
-		if (i < nsinks) {
-			if (parts->rung(i + myparts.first) >= params.rung || params.full_eval) {
-				found = true;
-				my_index = 1;
-				nactive++;
-			}
-		}
-		int tmp;
-		for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
-			tmp = __shfl_up_sync(0xFFFFFFFF, my_index, P);
-			if (tid >= P) {
-				my_index += tmp;
-			}
-		}
-		total = __shfl_sync(0xFFFFFFFF, my_index, KICK_BLOCK_SIZE - 1);
-		tmp = __shfl_up_sync(0xFFFFFFFF, my_index, 1);
-		if (tid > 0) {
-			my_index = tmp;
-		} else {
-			my_index = 0;
-		}
-		if (found) {
-			act_map[base + my_index] = i;
-			//		printf( "%i %i\n", base+my_index, i);
-		}
-		base += total;
-	}
-	for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
-		nactive += __shfl_xor_sync(0xFFFFFFFF, nactive, P);
-	}
-	for (int i = tid; i < nactive; i += KICK_BLOCK_SIZE) {
-		for (int dim = 0; dim < NDIM; dim++) {
-			sinks[dim][i] = parts->pos(dim, act_map[i] + myparts.first);
-		}
-	}
 
 	const bool full_eval = params.full_eval;
 	int interacts = 0;
