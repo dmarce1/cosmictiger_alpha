@@ -18,15 +18,12 @@
 
 CUDA_DEVICE particle_set *parts;
 
+__managed__ list_sizes_t list_sizes {0,0,0,0,0};
+
 #define MI 0
 #define PI 1
 #define CI 2
 #define OI 3
-
-__managed__ double timer1;
-__managed__ double timer2;
-__managed__ double timer3;
-__managed__ double timer4;
 
 CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
@@ -92,14 +89,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			count[tid] = 0;
 		}
 		for (int i = 0; i < NITERS; i++) {
-			lists[i]->resize(0);
+			lists[i]->resize(0,vectorPOD);
 		}
 		__syncwarp();
 		int check_count;
 		array<int, NITERS> tmp;
 		const float h = params.hsoft;
 		const float th = params.theta * fmaxf(h,MIN_DX);
-		int64_t tm, tm1 = 0, tm2 = 0, tm3 = 0, tm4 = 0;
 		do {
 			check_count = checks.size();
 			if (check_count) {
@@ -109,12 +105,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						my_index[i] = 0;
 					}
 					if (ci < check_count) {
-						tm = clock64();
 						const auto check = checks[ci];
 						const auto other_pos = ((const tree*) check)->pos;
 						const float other_radius = ((const tree*) check)->radius;
-						tm1 += clock64() - tm;
-						tm = clock64();
 						array<float, NDIM> dist;
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
 							dist[dim] = distance(other_pos[dim], mypos[dim]);
@@ -138,7 +131,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						list_index = int(mi) * MI
 								+ (1 - int(mi)) * (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
 						my_index[list_index] = 1;
-						tm2 += clock64() - tm;
 					}
 					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
 						for (int i = 0; i < NITERS; i++) {
@@ -157,11 +149,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 							my_index[i] = 0;
 						}
 					}
-					tm = clock64();
 					for (int i = 0; i < NITERS; i++) {
-						lists[i]->resize(count[i] + index_counts[i]);
+						lists[i]->resize(count[i] + index_counts[i],vectorPOD);
 					}
-					tm3 += clock64() - tm;
 					__syncwarp();
 					if (ci < check_count) {
 						const auto &check = checks[ci];
@@ -172,7 +162,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						count[tid] += index_counts[tid];
 					}
 				}
-				tm = clock64();
 				__syncwarp();
 				auto& countCI = count[CI];
 				auto& countOI = count[OI];
@@ -195,15 +184,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					countCI = 0;
 					countOI = 0;
 				}
-				next_checks.resize(0);
-				opened_checks.resize(0);
-				tm4 += clock64() - tm;
+				next_checks.resize(0,vectorPOD);
+				opened_checks.resize(0),vectorPOD;
 			}
 		} while (direct && check_count);
-		//atomicAdd(&timer1, tm1);
-		//atomicAdd(&timer2, tm2);
-		//atomicAdd(&timer3, tm3);
-		//atomicAdd(&timer4, tm4);
 		auto &tmp_parti = params.tmp;
 		if (type == PC_PP_DIRECT) {
 			auto &sinks = shmem.sink;
@@ -216,7 +200,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					}
 				}
 			}
-			tmp_parti.resize(0);
+			tmp_parti.resize(0,vectorPOD);
 			__syncwarp();
 			for (int j = tid; j < pmax; j += KICK_BLOCK_SIZE) {
 				my_index[0] = 0;
@@ -263,8 +247,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 				const auto part_cnt = tmp_parti.size();
 				const auto mult_cnt = multis.size();
-				tmp_parti.resize(part_cnt + index_counts[PI]);
-				multis.resize(mult_cnt + index_counts[MI]);
+				tmp_parti.resize(part_cnt + index_counts[PI],vectorPOD);
+				multis.resize(mult_cnt + index_counts[MI]),vectorPOD;
 				__syncwarp();
 				if (j < parti.size()) {
 					(list_index == PI ? tmp_parti[part_cnt + my_index[PI]] : multis[mult_cnt + my_index[MI]]) = parti[j];
@@ -394,13 +378,10 @@ CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p) {
 	if (threadIdx.x == 0) {
 		parts = p;
 		expansion_init();
-		timer1 = timer2 = timer3 = timer4 = 0;
 	}
 }
 
 void tree::show_timings() {
-	double tot = timer1 + timer2 + timer3 + timer4;
-	printf("%e %e %e %e\n", timer1 / tot, timer2 / tot, timer3 / tot, timer4 / tot);
 }
 
 void tree::cuda_set_kick_params(particle_set *p) {
@@ -414,9 +395,22 @@ CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 	params[bid].particles = parts;
 	cuda_kick(params + bid);
 	if (threadIdx.x == 0) {
+		atomicMax(&list_sizes.tmp,params[bid].tmp.capacity());
+		atomicMax(&list_sizes.multi,params[bid].multi_interactions.capacity());
+		atomicMax(&list_sizes.part,params[bid].part_interactions.capacity());
+		atomicMax(&list_sizes.next,params[bid].next_checks.capacity());
+		atomicMax(&list_sizes.open,params[bid].opened_checks.capacity());
 		params[bid].kick_params_type::~kick_params_type();
 	}
 
+}
+
+list_sizes_t get_list_sizes() {
+	return list_sizes;
+}
+
+void reset_list_sizes() {
+	list_sizes.tmp = list_sizes.multi = list_sizes.part = list_sizes.open = list_sizes.next = 0;
 }
 
 thread_local static std::stack<cudaStream_t> streams;

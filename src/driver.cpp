@@ -167,12 +167,17 @@ void drive_cosmos() {
 					"max", "time", "dt", "theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot",
 					"srate");
 		}
+		static double last_theta = -1.0;
 		if (z > 20.0) {
 			theta = 0.4;
 		} else if (z > 2.0) {
 			theta = 0.55;
 		} else {
 			theta = 0.7;
+		}
+		if( theta != last_theta) {
+			reset_list_sizes();
+			last_theta = theta;
 		}
 		double time = double(itime) / double(std::numeric_limits<time_type>::max());
 		const auto min_r = min_rung(itime);
@@ -227,7 +232,7 @@ void drive_cosmos() {
 		}
 		itime = inc(itime, max_rung);
 		if (iter >= 100) {
-		//		break;
+				break;
 		}
 		iter++;
 	} while (z > 0.0);

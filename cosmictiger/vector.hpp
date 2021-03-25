@@ -8,6 +8,8 @@
 #ifndef COSMICTIGER_VECTOR_HPP_
 #define COSMICTIGER_VECTOR_HPP_
 
+#define vectorPOD 1
+
 #ifdef __CUDA_ARCH__
 #define BLOCK const int& blocksize = blockDim.x
 #define THREAD const int& tid = threadIdx.x
@@ -75,6 +77,9 @@ public:
       }
    }
 #endif
+   CUDA_EXPORT inline int capacity() const {
+   	return cap;
+   }
    CUDA_EXPORT inline vector() {
       THREAD;
       if (tid == 0) {
@@ -198,15 +203,19 @@ public:
    }
    CUDA_EXPORT
    inline
-   void resize(int new_size) {
+   void resize(int new_size, int pod = 0) {
       THREAD;
       reserve(new_size);
       auto oldsz = sz;
-      destruct(new_size, oldsz);
+      if( !pod ) {
+      	destruct(new_size, oldsz);
+      }
       if (tid == 0) {
          sz = new_size;
       }
-      construct(oldsz, new_size);
+      if(!pod) {
+      	construct(oldsz, new_size);
+      }
 
    }
    CUDA_EXPORT

@@ -98,15 +98,17 @@ struct tree_ptr {
 #ifndef NDEBUG
 	int constructed;
 #endif
+#ifndef NDEBUG
 	CUDA_EXPORT
 	inline tree_ptr() {
 		//   rank = -1;
 		ptr = 0;
 //		opened = false;
-#ifndef NDEBUG
 		constructed = 1234;
-#endif
 	}
+#else
+	tree_ptr() = default;
+#endif
 	CUDA_EXPORT
 	inline tree_ptr(tree_ptr &&other) {
 		//  rank = other.rank;
@@ -214,6 +216,17 @@ struct cuda_kick_shmem {
 	array<array<fixed32, MAX_BUCKET_SIZE>,NDIM> sink;  // 3072
 	array<uint8_t, MAX_BUCKET_SIZE> act_map;
 };
+struct list_sizes_t {
+	int multi;
+	int part;
+	int tmp;
+	int open;
+	int next;
+};
+
+list_sizes_t get_list_sizes();
+void reset_list_sizes();
+
 
 struct kick_params_type {
 	vector<tree_ptr> multi_interactions;
@@ -276,6 +289,13 @@ struct kick_params_type {
 		theta = global().opts.theta;
 		M = global().opts.M;
 		G = global().opts.G;
+		const auto s = get_list_sizes();
+	//	printf( "%i %i %i %i %i\n", s.part, s.multi, s.next, s.open, s.tmp);
+		part_interactions.reserve(s.part);
+		multi_interactions.reserve(s.multi);
+		next_checks.reserve(s.next);
+		opened_checks.reserve(s.open);
+		tmp.reserve(s.tmp);
 	}
 	friend class tree_ptr;
 };
@@ -312,6 +332,10 @@ private:
 	pair<size_t, size_t> parts;
 	static particle_set* particles;
 public:
+	tree() {
+		children[LEFT].ptr = 0;
+		children[RIGHT].ptr = 0;
+	}
 	static std::atomic<int> cuda_node_count;
 	static std::atomic<int> cpu_node_count;
 	static void set_cuda_particle_set(particle_set*);
@@ -382,3 +406,5 @@ inline bool tree_ptr::is_leaf() const {
 }
 
 void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);
+
+

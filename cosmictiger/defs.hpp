@@ -26,9 +26,9 @@
 
 //#define USE_READMOSTLY
 //#define USE_NAN_TEST
-#define TEST_FORCE
+//#define TEST_FORCE
 //#define TEST_STACK
-#define N_TEST_PARTS (6*46)
+#define N_TEST_PARTS (100)
 
 #define MIN_ACTIVE_PER_BLOCK 16
 #define MAX_RUNG 63
@@ -41,7 +41,7 @@
 #define KICK_BLOCK_SIZE 32
 #define KICK_PP_MAX size_t(6*32)
 #define KICK_PC_MAX (1*32)
-#define MAX_BUCKET_SIZE 180
+#define MAX_BUCKET_SIZE 190
 #define GROUP_SIZE MAX_BUCKET_SIZE
 #define GPU_QUEUE_SIZE (1024*1024)
 #define KICK_GRID_SIZE (256)
