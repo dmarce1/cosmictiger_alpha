@@ -97,8 +97,8 @@ void kick_test() {
 		kick_return_init(0);
 		params_ptr->L[0] = L;
 		params_ptr->Lpos[0] = Lpos;
-		params_ptr->t0 = true;
-		params_ptr->full_eval = true;
+		params_ptr->t0 = 1;
+		params_ptr->full_eval = false;
 		params_ptr->rung = 0;
 		root.kick(params_ptr).get();
 		tm_kick.stop();
