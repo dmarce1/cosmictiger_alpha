@@ -30,9 +30,15 @@
 //#define TEST_STACK
 #define N_TEST_PARTS (100)
 
-#define KICK_PP_MAX size_t(6*32)
-#define MAX_BUCKET_SIZE 118
+
+//#define KICK_PP_MAX size_t(6*32)
+//#define MAX_BUCKET_SIZE 118
+//#define KICK_OCCUPANCY 16
+
+#define KICK_PP_MAX size_t(7*32)
+#define MAX_BUCKET_SIZE 108
 #define KICK_OCCUPANCY 16
+
 
 
 //#define KICK_PP_MAX size_t(11*32)
