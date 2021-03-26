@@ -31,9 +31,9 @@
 #define N_TEST_PARTS (100)
 
 
-//#define KICK_PP_MAX size_t(6*32)
-//#define MAX_BUCKET_SIZE 118
-//#define KICK_OCCUPANCY 16
+#define KICK_PP_MAX size_t(6*32)
+#define MAX_BUCKET_SIZE 118
+#define KICK_OCCUPANCY 16
 
 //#define KICK_PP_MAX size_t(7*32)
 //#define MAX_BUCKET_SIZE 108
@@ -55,9 +55,9 @@
 //#define MAX_BUCKET_SIZE 147
 //#define KICK_OCCUPANCY 12
 
-#define KICK_PP_MAX size_t(8*32)
-#define MAX_BUCKET_SIZE 176
-#define KICK_OCCUPANCY 12
+//#define KICK_PP_MAX size_t(8*32)
+//#define MAX_BUCKET_SIZE 176
+//#define KICK_OCCUPANCY 12
 
 //#define KICK_PP_MAX size_t(7*32)
 //#define MAX_BUCKET_SIZE 205

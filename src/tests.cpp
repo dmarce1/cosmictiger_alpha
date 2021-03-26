@@ -64,8 +64,8 @@ void kick_test() {
 	tree::cuda_set_kick_params(parts_ptr);
 	timer ttime;
 	std::vector<double> timings;
-	for (int i = 0; i < NKICKS+1; i++) {
-		printf( "Kick %i\n", i);
+	for (int i = 0; i < NKICKS + 1; i++) {
+		printf("Kick %i\n", i);
 		ttime.start();
 		tree root;
 		timer tm_sort, tm_kick, tm_cleanup;
@@ -114,35 +114,35 @@ void kick_test() {
 		params_ptr->kick_params_type::~kick_params_type();
 		CUDA_FREE(params_ptr);
 		tm_cleanup.stop();
-		const auto total = tm_sort.read() + tm_kick.read() + tm_cleanup.read();
+		const auto total = 2.0 * tm_sort.read() + tm_kick.read() + tm_cleanup.read();
 		kick_return_show();
 		/*   printf("PP/part = %f\n", get_pp_inters());
 		 printf("PC/part = %f\n", get_pc_inters());
 		 printf("CP/part = %f\n", get_cp_inters());
 		 printf("CC/part = %f\n", get_cc_inters());*/
-		printf("Sort    = %e s\n", tm_sort.read());
-		printf("Kick    = %e s\n", tm_kick.read());
-		printf("Cleanup = %e s\n", tm_cleanup.read());
-		printf("Total   = %e s\n", total);
+		printf("Sort         = %e s\n", tm_sort.read());
+		printf("Kick         = %e s\n", tm_kick.read());
+		printf("Cleanup      = %e s\n", tm_cleanup.read());
+		printf("Total Score  = %e s\n", total);
 		//  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
 		// printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
-	//	tree::show_timings();
+		//	tree::show_timings();
 		ttime.stop();
-		if( i > 0 ) {
-			timings.push_back(ttime.read());
+		if (i > 0) {
+			timings.push_back(tm_kick.read() + 2 * tm_sort.read());
 		}
 		ttime.reset();
 	}
 	double avg = 0.0, dev = 0.0;
-	for( int i = 0; i < NKICKS; i++) {
+	for (int i = 0; i < NKICKS; i++) {
 		avg += timings[i];
 	}
 	avg /= NKICKS;
-	for( int i = 0; i < NKICKS; i++) {
-		dev += sqr(avg-timings[i]);
+	for (int i = 0; i < NKICKS; i++) {
+		dev += sqr(avg - timings[i]);
 	}
-	dev = std::sqrt(dev/NKICKS);
-	printf("Time per kick = %e +/- %e\n", avg, dev);
+	dev = std::sqrt(dev / NKICKS);
+	printf("Score = %e +/- %e\n", avg, dev);
 	parts_ptr->particle_set::~particle_set();
 	CUDA_FREE(parts_ptr);
 	FILE* fp = fopen("timings.dat", "at");
