@@ -19,6 +19,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 find_package(HPX REQUIRED NO_CMAKE_PACKAGE_REGISTRY)
 find_package(Boost REQUIRED)
+find_package(Silo REQUIRED)
 enable_language(CUDA)
 
 #set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -ffast-math -march=native")
@@ -91,7 +92,7 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    Boost::boost
+    Boost::boost Silo::silo
   SOURCES
     ${cosmictiger_source_files}
   HEADERS

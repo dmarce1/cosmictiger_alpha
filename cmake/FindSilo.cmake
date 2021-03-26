@@ -86,11 +86,6 @@ if(NOT MSVC)
     /usr/local
     ${Silo_DIR}
     PATH_SUFFIXES lib lib64)
-
-  find_program(Silo_BROWSER NAMES browser
-    PATHS /usr/bin
-    /usr/local/bin
-    ${Silo_DIR}/bin)
 else()
   find_path(Silo_H_INCLUDE_DIR silo.h
     PATHS ${Silo_DIR}/SiloWindows/include)
@@ -104,8 +99,6 @@ else()
   find_library(Silo_LIBRARY NAMES silohdf5
     PATHS ${Silo_DIR}/SiloWindows/MSVC2012/x64/Release)
     
-  find_program(Silo_BROWSER NAMES browser
-    PATHS ${Silo_DIR}/SiloWindows/MSVC2012/x64/Release)
 endif()
 
 set(Silo_FOUND OFF)
@@ -124,13 +117,13 @@ endif()
 mark_as_advanced(
   Silo_INCLUDE_DIR
   Silo_LIBRARY
-  Silo_BROWSER)
+  )
 
 # Handle the QUIETLY and REQUIRED arguments and set Silo_FOUND to TRUE if
 # all listed variables are TRUE
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Silo DEFAULT_MSG
-  Silo_LIBRARY Silo_INCLUDE_DIR Silo_BROWSER)
+  Silo_LIBRARY Silo_INCLUDE_DIR )
 
 if(Silo_FOUND AND NOT TARGET Silo::silo)
   add_library(Silo::silo INTERFACE IMPORTED)
