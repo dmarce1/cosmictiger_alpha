@@ -1,15 +1,15 @@
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/particle.hpp>
+#include <cosmictiger/map.hpp>
 
-void cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, double* momx, double* momy, double* momz) {
+void cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, double* momx, double* momy, double* momz, double tau, double tau_max) {
 	const int gsz = 2 * hpx::threads::hardware_concurrency();
 
 	static mutex_type mtx;
 	std::vector<hpx::future<void>> futs;
-
 	for (int bid = 0; bid < gsz; bid++) {
-		auto func = [bid, gsz, &parts, dt,a,ekin, momx, momy, momz]() {
+		auto func = [bid, gsz, &parts, dt,a,ekin, momx, momy, momz, tau, tau_max]() {
 			const size_t nparts = parts.size();
 			const size_t start = bid * nparts / gsz;
 			const size_t stop = (bid + 1) * nparts / gsz;
@@ -20,10 +20,14 @@ void cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, dou
 			mymomx = 0;
 			mymomy = 0;
 			mymomz = 0;
+			array<double,NDIM> x0, x1;
 			for (size_t i = start; i < stop; i++) {
 				double x = parts.pos(0, i).to_double();
 				double y = parts.pos(1, i).to_double();
 				double z = parts.pos(2, i).to_double();
+				x0[0] = x;
+				x0[1] = y;
+				x0[2] = z;
 				const float vx = parts.vel(i).p.x;
 				const float vy = parts.vel(i).p.y;
 				const float vz = parts.vel(i).p.z;
@@ -37,6 +41,10 @@ void cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, dou
 				x += vx * dteff;
 				y += vy * dteff;
 				z += vz * dteff;
+				x1[0] = x;
+				x1[1] = y;
+				x1[2] = z;
+				map_add_part(x0, x1, tau, dt, tau_max);
 				while (x >= 1.0) {
 					x -= 1.0;
 				}

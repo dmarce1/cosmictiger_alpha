@@ -26,6 +26,7 @@ enable_language(CUDA)
 set(cosmictiger_source_files
 	src/sort.cu
     src/cosmos.cpp
+    src/map.cpp
     src/cuda.cpp
     src/drift.cu
     src/drift.cpp
@@ -82,6 +83,7 @@ set(cosmictiger_header_files
 	cosmictiger/range.hpp
 	cosmictiger/timer.hpp
 	cosmictiger/tests.hpp
+	cosmictiger/map.hpp
 	cosmictiger/tree.hpp
 )
 

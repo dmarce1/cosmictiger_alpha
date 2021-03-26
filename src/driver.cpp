@@ -69,10 +69,10 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool f
 }
 
 void drift(particle_set& parts, double dt, double a0, double a1, double*ekin, double*momx, double*momy, double*momz,
-		double& tm) {
+		double tau, double tau_max, double& tm) {
 	timer time;
 	time.start();
-	drift_particles(parts.get_virtual_particle_set(), dt, a0, a1, ekin, momx, momy, momz);
+	drift_particles(parts.get_virtual_particle_set(), dt, a0, a1, ekin, momx, momy, momz, tau, tau_max);
 	time.stop();
 	tm = time.read();
 }
@@ -155,7 +155,7 @@ void drive_cosmos() {
 	double kin, momx, momy, momz;
 	double partfac = 1.0 / global().opts.nparts;
 	if (!have_checkpoint) {
-		drift(parts, 0.0, a, a, &kin, &momx, &momy, &momz, drift_tm);
+		drift(parts, 0.0, a, a, &kin, &momx, &momy, &momz, 0.0, T0, drift_tm);
 		printf("Starting ekin = %e\n", a * kin * partfac);
 	}
 	do {
@@ -175,7 +175,7 @@ void drive_cosmos() {
 		} else {
 			theta = 0.7;
 		}
-		if( theta != last_theta) {
+		if (theta != last_theta) {
 			reset_list_sizes();
 			last_theta = theta;
 		}
@@ -201,7 +201,7 @@ void drive_cosmos() {
 		double datau2 = cosmos_dadtau(a + datau1 * dt);
 		a += (0.5 * datau1 + 0.5 * datau2) * dt;
 		z = 1.0 / a - 1.0;
-		drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, drift_tm);
+		drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, T0, drift_tm);
 		cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;
 		//	printf( "%e %e %e %e\n", a, pot, kin, cosmicK);
@@ -232,7 +232,7 @@ void drive_cosmos() {
 		}
 		itime = inc(itime, max_rung);
 		if (iter >= 1100) {
-	//			break;
+			//			break;
 		}
 		iter++;
 	} while (z > 0.0);

@@ -74,11 +74,11 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 //	printf( "Block %i stop\n", bid);
 }
 
-void cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, double* momx, double* momy, double* momz);
+void cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, double* momx, double* momy, double* momz, double tau, double tau_max);
 
 
 void drift_particles(particle_set parts, double dt, double a0, double a1, double* ekin, double* momx, double* momy,
-		double* momz) {
+		double* momz, double tau, double tau_max) {
 //	drift_cpu( parts,dt, a0,a1);
 	const int nblock = DRIFT_OCCUPANCY * 2 * global().cuda.devices[0].multiProcessorCount;
 	auto stream = get_stream();
@@ -94,7 +94,7 @@ void drift_particles(particle_set parts, double dt, double a0, double a1, double
 	}
 //	drift_kernel<<<nblock,DRIFT_BLOCK_SIZE,0,stream>>>(parts, dt, a, results + 0, results + 1, results + 2, results + 3);
 //	CUDA_CHECK(cudaStreamSynchronize(stream));
-	cpu_drift_kernel(parts, dt, a, results + 0, results + 1, results + 2, results + 3);
+	cpu_drift_kernel(parts, dt, a, results + 0, results + 1, results + 2, results + 3, tau, tau_max);
 	cleanup_stream(stream);
 	*ekin = results[0];
 	*momx = results[1];
