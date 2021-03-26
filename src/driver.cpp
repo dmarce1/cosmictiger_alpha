@@ -5,6 +5,7 @@
 #include <cosmictiger/timer.hpp>
 #include <cosmictiger/cosmos.hpp>
 #include <cosmictiger/gravity.hpp>
+#include <cosmictiger/map.hpp>
 
 double T0;
 
@@ -68,13 +69,14 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool f
 	return kick_return_max_rung();
 }
 
-void drift(particle_set& parts, double dt, double a0, double a1, double*ekin, double*momx, double*momy, double*momz,
+int drift(particle_set& parts, double dt, double a0, double a1, double*ekin, double*momx, double*momy, double*momz,
 		double tau, double tau_max, double& tm) {
 	timer time;
 	time.start();
-	drift_particles(parts.get_virtual_particle_set(), dt, a0, a1, ekin, momx, momy, momz, tau, tau_max);
+	int rc = drift_particles(parts.get_virtual_particle_set(), dt, a0, a1, ekin, momx, momy, momz, tau, tau_max);
 	time.stop();
 	tm = time.read();
+	return rc;
 }
 
 #define EVAL_FREQ 25
@@ -180,6 +182,7 @@ void drive_cosmos() {
 			last_theta = theta;
 		}
 		double time = double(itime) / double(std::numeric_limits<time_type>::max());
+		load_and_save_maps(time*T0,T0);
 		const auto min_r = min_rung(itime);
 		size_t num_active;
 		tree root = build_tree(parts, min_r, num_active, sort_tm);
@@ -201,7 +204,10 @@ void drive_cosmos() {
 		double datau2 = cosmos_dadtau(a + datau1 * dt);
 		a += (0.5 * datau1 + 0.5 * datau2) * dt;
 		z = 1.0 / a - 1.0;
-		drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, T0, drift_tm);
+		int rc = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, T0, drift_tm);
+		if( rc ) {
+			printf( "Mapped %i particles\n", rc);
+		}
 		cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;
 		//	printf( "%e %e %e %e\n", a, pot, kin, cosmicK);

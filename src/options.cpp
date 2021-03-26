@@ -28,7 +28,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("omega_m", po::value<double>(&(opts.omega_m))->default_value(0.32), "") //
 	("hubble", po::value<double>(&(opts.hubble))->default_value(0.7), "") //
 	("map_size", po::value<int>(&(opts.map_size))->default_value(-1), "smallest dimension of Mollweide map (-1 = off)") //
-	("map_freq", po::value<double>(&(opts.map_freq))->default_value(0.1), "Map frequency, conformal time, 1 = age of universe") //
+	("map_freq", po::value<double>(&(opts.map_freq))->default_value(1./128.), "Map frequency, conformal time, 1 = age of universe") //
 	("parts_dim", po::value<size_t>(&(opts.parts_dim))->default_value(16), "number of particles = parts_dim^3") //
 	("test", po::value<std::string>(&(opts.test))->default_value(""), "test problem") //
 			;

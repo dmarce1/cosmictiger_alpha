@@ -12,6 +12,8 @@
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/array.hpp>
 
-void map_add_part(array<double, NDIM> Y0, array<double, NDIM> Y1, double tau, double dtau, double tau_max);
+int map_add_part(array<double, NDIM> Y0, array<double, NDIM> Y1, double tau, double dtau, double tau_max);
+void load_and_save_maps(double tau, double tau_max);
+
 
 #endif /* MAP_HPP_ */

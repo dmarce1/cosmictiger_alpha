@@ -2,19 +2,24 @@
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/map.hpp>
+#include <cosmictiger/global.hpp>
 
-void cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, double* momx, double* momy, double* momz, double tau, double tau_max) {
+int cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, double* momx, double* momy, double* momz,
+		double tau, double tau_max) {
 	const int gsz = 2 * hpx::threads::hardware_concurrency();
-
 	static mutex_type mtx;
 	std::vector<hpx::future<void>> futs;
+	static std::atomic<int> rc(0);
+	rc = 0;
 	for (int bid = 0; bid < gsz; bid++) {
 		auto func = [bid, gsz, &parts, dt,a,ekin, momx, momy, momz, tau, tau_max]() {
+			const bool map = global().opts.map_size > 0;
 			const size_t nparts = parts.size();
 			const size_t start = bid * nparts / gsz;
 			const size_t stop = (bid + 1) * nparts / gsz;
 			const float ainv = 1.0 / a;
 			const float dteff = dt * ainv;
+			int myrc = 0;
 			double myekin, mymomx, mymomy, mymomz;
 			myekin = 0;
 			mymomx = 0;
@@ -44,7 +49,9 @@ void cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, dou
 				x1[0] = x;
 				x1[1] = y;
 				x1[2] = z;
-				map_add_part(x0, x1, tau, dt, tau_max);
+				if( map ) {
+					myrc +=map_add_part(x0, x1, tau, dt, tau_max);
+				}
 				while (x >= 1.0) {
 					x -= 1.0;
 				}
@@ -72,10 +79,11 @@ void cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, dou
 			*momx += mymomx;
 			*momy += mymomy;
 			*momz += mymomz;
+			rc += myrc;
 		};
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-
+	return int(rc);
 }
 
