@@ -38,7 +38,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 	offset_ = offset;
 	size_ = size;
 	virtual_ = false;
-	size_t chunk_size = NDIM * (sizeof(fixed32) + sizeof(float));
+	size_t chunk_size = NDIM * sizeof(fixed32) + sizeof(vel_type);
 #ifdef TEST_FORCE
 	chunk_size += (NDIM + 1) * sizeof(float);
 #endif
@@ -50,9 +50,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 	for (int dim = 0; dim < NDIM; dim++) {
 		xptr_[dim] = (fixed32*) (data + dim * sizeof(fixed32) * size);
 	}
-	uptr_ = (vel_type*) (data + size * sizeof(pos_type));
-//	rptr_ = (rung_t*) (data + (sizeof(vel_type) + sizeof(pos_type)) * size);
-//	CUDA_CHECK(cudaMemAdvise(rptr_, size * sizeof(int8_t), cudaMemAdviseSetAccessedBy, 0));
+	uptr_ = (vel_type*) (data + size * NDIM * sizeof(fixed32));
 #ifdef TEST_FORCE
 	const auto offset1 = sizeof(vel_type) * size + size * sizeof(pos_type);
 	for (size_t dim = 0; dim < NDIM; dim++) {

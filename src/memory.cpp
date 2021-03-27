@@ -63,10 +63,14 @@ void unified_allocator::show_allocs() {
 			printf("%i %i\n", i->second, i->first);
 		}
 	}
-	printf("\n");
+	printf("%i MB in use\n", allocated / 1024 / 1024);
 }
 
 void* unified_allocator::allocate(size_t sz) {
+	/*uint8_t* ptr;
+	CUDA_MALLOC(ptr,sz);
+	return ptr;*/
+
 	size_t total_sz = 1;
 	int index = 0;
 	while (total_sz < sz) {
@@ -77,7 +81,7 @@ void* unified_allocator::allocate(size_t sz) {
 	if (alloc_counts.find(total_sz) == alloc_counts.end()) {
 		alloc_counts[total_sz] = 0;
 	}
-	size_t chunk_size = std::max(std::min((size_t) 32, 2 * 1024 * 1024 / (size_t) total_sz), (size_t) 1);
+	size_t chunk_size = std::max(std::min((size_t) 32, 64 * 1024 * 1024 / (size_t) total_sz), (size_t) 1);
 	freelist.resize(std::max((int) freelist.size(), index + 1));
 	void *ptr;
 	char* cptr;
@@ -87,6 +91,7 @@ void* unified_allocator::allocate(size_t sz) {
 		for (int i = 0; i < chunk_size; i++) {
 			freelist[index].push(ptr + i * total_sz);
 		}
+		allocated += chunk_size * total_sz;
 	}
 	ptr = freelist[index].top();
 	delete_indexes[ptr] = index;
@@ -96,15 +101,16 @@ void* unified_allocator::allocate(size_t sz) {
 }
 
 void unified_allocator::deallocate(void *ptr) {
+	//CUDA_FREE(ptr);
 	std::lock_guard<mutex_type> lock(mtx);
-	if( delete_indexes.find(ptr) == delete_indexes.end() ) {
-		printf( "attempted to free invalid unified pointer\n");
+	if (delete_indexes.find(ptr) == delete_indexes.end()) {
+		printf("attempted to free invalid unified pointer\n");
 		abort();
 	}
 	const auto index = delete_indexes[ptr];
 	alloc_counts[1 << index]--;
 	freelist[index].push(ptr);
-}
+	}
 
 std::vector<std::stack<void*>> unified_allocator::freelist;
 mutex_type unified_allocator::mtx;

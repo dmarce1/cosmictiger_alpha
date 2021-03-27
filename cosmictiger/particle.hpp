@@ -19,16 +19,6 @@
 
 struct range;
 
-union pos_type {
-	struct {
-		fixed32 x;
-		fixed32 y;
-		fixed32 z;
-	} p;
-	array<fixed32, NDIM> a;CUDA_EXPORT
-	pos_type() {
-	}
-};
 
 union vel_type {
 	struct {
