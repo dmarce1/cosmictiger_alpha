@@ -94,7 +94,7 @@ sort_return tree::sort(sort_params params) {
 		gpu_searches = 0;
 		int dummy;
 		params.set_root();
-		params.min_depth = ewald_min_level(global().opts.theta, global().opts.hsoft);
+		params.min_depth = ewald_min_level(params.theta, global().opts.hsoft);
 //		printf("min ewald = %i\n", params.min_depth);
 	}
 	{
@@ -170,6 +170,11 @@ sort_return tree::sort(sort_params params) {
 		auto &M = (multi);
 		rc.active_parts = 0;
 		rc.active_nodes = 1;
+		rc.stats.nparts = 0;
+		rc.stats.max_depth = 0;
+		rc.stats.min_depth = TREE_MAX_DEPTH;
+		rc.stats.nnodes = 1;
+		rc.stats.nleaves = 0;
 		for (int ci = 0; ci < NCHILD; ci++) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
@@ -178,6 +183,11 @@ sort_return tree::sort(sort_params params) {
 			children[ci] = this_rc.check;
 			rc.active_parts += this_rc.active_parts;
 			rc.active_nodes += this_rc.active_nodes;
+			rc.stats.nparts += this_rc.stats.nparts;
+			rc.stats.nleaves += this_rc.stats.nleaves;
+			rc.stats.nnodes += this_rc.stats.nnodes;
+			rc.stats.max_depth = std::max(rc.stats.max_depth, this_rc.stats.max_depth);
+			rc.stats.min_depth = std::min(rc.stats.min_depth, this_rc.stats.min_depth);
 		}
 		if (rc.active_nodes == 1) {
 			rc.active_nodes = 0;
@@ -213,6 +223,7 @@ sort_return tree::sort(sort_params params) {
 			rmax = std::max((float) std::sqrt(d), rmax);
 		}
 		radius = std::min(radius, rmax);
+
 		//    printf("x      = %e\n", pos[0].to_float());
 		//   printf("y      = %e\n", pos[1].to_float());
 		//  printf("z      = %e\n", pos[2].to_float());
@@ -265,9 +276,14 @@ sort_return tree::sort(sort_params params) {
 				rc.active_nodes = 1;
 			}
 		}
+		rc.stats.nparts = parts.second - parts.first;
+		rc.stats.max_depth = rc.stats.min_depth = params.depth;
+		rc.stats.nnodes = 1;
+		rc.stats.nleaves = 1;
 	}
 	active_parts = rc.active_parts;
 	active_nodes = rc.active_nodes;
+	rc.stats.e_depth = params.min_depth;
 	return rc;
 }
 
@@ -344,9 +360,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		tmp_tm.start();
 		const int block_count = GPUOS * KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
-		if( active_parts < MIN_GPU_PARTS ) {
+		if (active_parts < MIN_GPU_PARTS) {
 			params.block_cutoff = 0;
-	//		printf( "CPU ONLY\n");
+			//		printf( "CPU ONLY\n");
 		}
 		managed_allocator<tree_ptr>::set_read_only();
 		particles->prepare_kick();

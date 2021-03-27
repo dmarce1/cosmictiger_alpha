@@ -33,10 +33,20 @@ class tree;
 struct sort_params;
 struct tree_ptr;
 
+struct tree_stats {
+	int max_depth;
+	int min_depth;
+	int e_depth;
+	size_t nparts;
+	size_t nleaves;
+	size_t nnodes;
+};
+
 #ifndef __CUDACC__
 struct tree_alloc {
 	managed_allocator<tree> tree_alloc;
 };
+
 
 struct sort_params {
 #ifdef TEST_STACK
@@ -46,6 +56,7 @@ struct sort_params {
 	std::shared_ptr<tree_alloc> allocs;
 	int8_t depth;
 	int8_t min_depth;
+	double theta;
 	pair<size_t, size_t> parts;
 	int min_rung;
 	template<class A>
@@ -183,6 +194,7 @@ struct tree_ptr {
 };
 
 struct sort_return {
+	tree_stats stats;
 	tree_ptr check;
 	size_t active_parts;
 	size_t active_nodes;

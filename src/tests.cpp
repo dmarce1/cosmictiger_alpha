@@ -30,6 +30,7 @@ static void tree_test() {
 		tree root;
 		sort_params params;
 		params.min_rung = 0;
+		params.theta = global().opts.theta;
 		root.sort(params);
 		managed_allocator<sort_params>::cleanup();
 		tm.stop();
@@ -43,6 +44,7 @@ static void tree_test() {
 		tree root;
 		sort_params params;
 		params.min_rung = 0;
+		params.theta = global().opts.theta;
 		root.sort(params);
 		tm.stop();
 		printf("Done sorting in %e\n", tm.read());
@@ -71,6 +73,7 @@ void kick_test() {
 		timer tm_sort, tm_kick, tm_cleanup;
 		tm_sort.start();
 		sort_params params;
+		params.theta = global().opts.theta;
 		params.min_rung = 0;
 		root.sort(params);
 		tm_sort.stop();
@@ -166,6 +169,7 @@ void drift_test() {
 		timer tm_sort, tm_kick, tm_cleanup;
 		tm_sort.start();
 		sort_params params;
+		params.theta = global().opts.theta;
 		params.min_rung = 0;
 		root.sort(params);
 		tm_sort.stop();
@@ -251,6 +255,7 @@ void force_test() {
 	tree::cuda_set_kick_params(parts_ptr);
 	tree root;
 	sort_params params;
+	params.theta = global().opts.theta;
 	params.min_rung = 0;
 	root.sort(params);
 	tree_ptr root_ptr;

@@ -43,8 +43,9 @@ particle_set::particle_set(size_t size, size_t offset) {
 	chunk_size += (NDIM + 1) * sizeof(float);
 #endif
 	uint8_t *data;
-	unified_allocator alloc;
-	data = (uint8_t*) alloc.allocate(chunk_size * size);
+	//unified_allocator alloc;
+	//data = (uint8_t*) alloc.allocate(chunk_size * size);
+	CUDA_MALLOC(data,chunk_size*size);
 	CHECK_POINTER(data);
 	base_ = (void*) data;
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -106,8 +107,9 @@ void particle_set::save_to_file(FILE* fp) {
 
 particle_set::~particle_set() {
 	if (!virtual_) {
-		unified_allocator alloc;
-		alloc.deallocate(base_);
+//		unified_allocator alloc;
+//		alloc.deallocate(base_);
+		CUDA_FREE(base_);
 	}
 }
 

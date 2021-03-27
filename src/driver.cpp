@@ -9,12 +9,12 @@
 
 double T0;
 
-tree build_tree(particle_set& parts, int min_rung, size_t& num_active, double& tm) {
+tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm) {
 	timer time;
 	time.start();
 	tree::set_particle_set(&parts);
 	static particle_set *parts_ptr = nullptr;
-	if( parts_ptr == nullptr) {
+	if (parts_ptr == nullptr) {
 		CUDA_MALLOC(parts_ptr, sizeof(particle_set));
 		new (parts_ptr) particle_set(parts.get_virtual_particle_set());
 		tree::cuda_set_kick_params(parts_ptr);
@@ -22,10 +22,12 @@ tree build_tree(particle_set& parts, int min_rung, size_t& num_active, double& t
 	tree root;
 	sort_params params;
 	params.min_rung = min_rung;
+	params.theta = theta;
 	sort_return rc = root.sort(params);
 	num_active = rc.active_parts;
 	time.stop();
 	tm = time.read();
+	stats = rc.stats;
 	return root;
 
 }
@@ -165,15 +167,15 @@ void drive_cosmos() {
 		printf("Starting ekin = %e\n", a * kin * partfac);
 	}
 	do {
-		unified_allocator allocator;
-		allocator.show_allocs();
+//		unified_allocator allocator;
+//		allocator.show_allocs();
 		if (iter % global().opts.checkpt_freq == 0) {
 			save_to_file(parts, iter, itime, a, cosmicK);
 		}
 		if (iter % 10 == 0) {
-			printf("%4s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "actv", "min",
-					"max", "time", "dt", "theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot",
-					"srate");
+			printf("%4s %4s %4s %4s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter",
+					"maxd", "mind", "ed", "avgd", "ppl", "actv", "min", "max", "time", "dt", "theta", "a", "z", "pot", "kin",
+					"cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
 		}
 		static double last_theta = -1.0;
 		if (z > 20.0) {
@@ -188,10 +190,11 @@ void drive_cosmos() {
 			last_theta = theta;
 		}
 		double time = double(itime) / double(std::numeric_limits<time_type>::max());
-		load_and_save_maps(time*T0,T0);
+		load_and_save_maps(time * T0, T0);
 		const auto min_r = min_rung(itime);
 		size_t num_active;
-		tree root = build_tree(parts, min_r, num_active, sort_tm);
+		tree_stats stats;
+		tree root = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
 		const bool full_eval = min_r <= 7;
 		//	const bool full_eval = false;
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, kick_tm);
@@ -211,8 +214,8 @@ void drive_cosmos() {
 		a += (0.5 * datau1 + 0.5 * datau2) * dt;
 		z = 1.0 / a - 1.0;
 		int rc = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, T0, drift_tm);
-		if( rc ) {
-			printf( "Mapped %i particles\n", rc);
+		if (rc) {
+			printf("Mapped %i particles\n", rc);
 		}
 		cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;
@@ -232,16 +235,19 @@ void drive_cosmos() {
 		sort_total += sort_tm;
 		kick_total += kick_tm;
 		double total_time = drift_tm + sort_tm + kick_tm;
-		if (full_eval) {
-			printf(
-					"%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
-					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac,
-					cosmicK * partfac, sum, sort_tm, kick_tm, drift_tm, total_time, science_rate);
-		} else {
-			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
-					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac,
-					"n/a", sort_tm, kick_tm, drift_tm, total_time, science_rate);
-		}
+		double parts_per_leaf = (double) parts.size() / stats.nleaves;
+		double avg_depth = std::log(stats.nleaves) / std::log(2.0);
+//		if (full_eval) {
+		printf(
+				"%4i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+				iter, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r,
+				max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm,
+				kick_tm, drift_tm, total_time, science_rate);
+//		} else {
+//			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+//					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac,
+//					"n/a", sort_tm, kick_tm, drift_tm, total_time, science_rate);
+//		}
 		itime = inc(itime, max_rung);
 		if (iter >= 1100) {
 			//			break;

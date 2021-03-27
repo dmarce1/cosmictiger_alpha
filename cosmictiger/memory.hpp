@@ -122,7 +122,6 @@ class managed_allocator {
 	int current_index;
 public:
 	static void cleanup() {
-		printf( "Cleaning %i tree allocs\n", allocs.size());
 		for (int i = 0; i < allocs.size(); i++) {
 			allocs[i]->T::~T();
 			unified_allocator ua;
