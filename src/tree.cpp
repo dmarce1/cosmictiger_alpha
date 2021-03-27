@@ -18,7 +18,7 @@ static std::atomic<size_t> parts_covered;
 
 timer tmp_tm;
 
-#define GPUOS 8
+#define GPUOS 2
 
 void tree::set_particle_set(particle_set *parts) {
 	particles = parts;
@@ -49,24 +49,14 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	return lev;
 }
 
-hpx::future<sort_return> tree::create_child(sort_params &params) {
-	static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
+hpx::future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	tree_ptr id;
-	//  id.rank = 0;
 	id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
 	CHECK_POINTER(id.ptr);
 	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
-	if (nparts > TREE_MIN_PARTS2THREAD) {
-		if (++threads_used <= OVERSUBSCRIPTION * hpx::thread::hardware_concurrency()) {
-			thread = true;
-		} else {
-			threads_used--;
-		}
-	}
-//	if( params.depth <= cpu_sort_depth()) {
-//		thread = true;
-//	}
+	const size_t min_parts2thread = particles->size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
+	thread = try_thread && (nparts >= min_parts2thread);
 #ifdef TEST_STACK
 	thread = false;
 #endif
@@ -79,7 +69,6 @@ hpx::future<sort_return> tree::create_child(sort_params &params) {
 		return hpx::async([id, params]() {
 			auto rc = ((tree*) (id.ptr))->sort(params);
 			rc.check = id;
-			threads_used--;
 			return rc;
 		});
 	}
@@ -161,7 +150,7 @@ sort_return tree::sort(sort_params params) {
 			child_params[RIGHT].parts.second = parts.second;
 
 			for (int ci = 0; ci < NCHILD; ci++) {
-				futs[ci] = create_child(child_params[ci]);
+				futs[ci] = create_child(child_params[ci], ci == LEFT);
 			}
 		}
 		std::array<multipole, NCHILD> Mc;
@@ -359,7 +348,13 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		kick_timer.start();
 		parts_covered = 0;
 		tmp_tm.start();
-		const int block_count = GPUOS * KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
+		size_t dummy, total_mem;
+		CUDA_CHECK(cudaMemGetInfo(&dummy, &total_mem));
+		total_mem /= 4;
+		size_t used_mem = (sizeof(vel_type) + sizeof(fixed32) * NDIM) * particles->size();
+		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
+		const int block_count = oversubscription * KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount + 0.5;
+//	/	printf( "Seeking %i blocks\n", block_count);
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
 		if (active_parts < MIN_GPU_PARTS) {
 			params.block_cutoff = 0;
@@ -594,12 +589,17 @@ void tree::gpu_daemon() {
 	static bool ewald_skip;
 	static int active_grids;
 	static int max_active_grids;
+	static int grids_completed;
+	static timer tm;
 	if (first_call) {
 		//	printf("Starting gpu daemon\n");
 		first_call = false;
 		active_grids = 0;
+		grids_completed = 0;
 		const int ngrids = KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
 		max_active_grids = (((ngrids - 1) / KICK_GRID_SIZE) + 1) * KICK_GRID_SIZE;
+		tm.reset();
+		tm.start();
 	}
 	int ngrids;
 	if (parts_covered == particles->size()) {
@@ -608,6 +608,14 @@ void tree::gpu_daemon() {
 		ngrids = std::min(KICK_GRID_SIZE, max_active_grids - active_grids);
 	}
 	std::vector<gpu_kick> tmp;
+	tm.stop();
+	if (tm.read() > 0.5) {
+		printf("                                                                                                      \r"
+				"kick status:  %i completed - %i active - %i in queue\r", grids_completed, active_grids,
+				(int) gpu_queue.size());
+		tm.reset();
+	}
+	tm.start();
 	if (gpu_queue.size() >= ngrids && ngrids) {
 //			kick_timer.stop();
 		//	printf("Time to GPU = %e\n", kick_timer.read());
@@ -667,7 +675,6 @@ void tree::gpu_daemon() {
 				unified_allocator calloc;
 				calloc.deallocate(gpu_params);
 			});
-//			printf("Sending %i ,  %i active and %i in queue\n", kicks.size(), active_grids, gpu_queue.size());
 			active_grids += kicks.size();
 			cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
 			completions.push_back(std::function<bool()>([=]() {
@@ -678,6 +685,7 @@ void tree::gpu_daemon() {
 						d();
 					}
 					active_grids -= kicks.size();
+					grids_completed += kicks.size();
 					for (int i = 0; i < kicks.size(); i++) {
 						(*gpu_promises)[i]->set_value();
 					}
