@@ -14,11 +14,11 @@ particle_set* tree::particles;
 #define CPU_LOAD (0)
 
 static unified_allocator kick_params_alloc;
+static std::atomic<size_t> parts_covered;
 
 timer tmp_tm;
 
-#define NWAVE 1
-#define GPUOS 2
+#define GPUOS 8
 
 void tree::set_particle_set(particle_set *parts) {
 	particles = parts;
@@ -357,6 +357,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto& phi = params.Phi;
 	if (params.depth == 0) {
 		kick_timer.start();
+		parts_covered = 0;
 		tmp_tm.start();
 		const int block_count = GPUOS * KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
@@ -488,6 +489,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
 			params.depth--;
 		} else if (((tree*) children[LEFT])->active_parts) {
+			parts_covered += ((tree*) children[RIGHT])->parts.second - ((tree*) children[RIGHT])->parts.first;
 			int depth0 = params.depth;
 			params.depth++;
 			params.L[params.depth] = L;
@@ -495,6 +497,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[LEFT] = children[LEFT].kick(params_ptr, false);
 			params.depth--;
 		} else if (((tree*) children[RIGHT])->active_parts) {
+			parts_covered += ((tree*) children[LEFT])->parts.second - ((tree*) children[LEFT])->parts.first;
 			int depth0 = params.depth;
 			params.depth++;
 			params.L[params.depth] = L;
@@ -587,94 +590,106 @@ void cuda_execute_kick_kernel(kick_params_type **params, int grid_size);
 void tree::gpu_daemon() {
 	static bool first_call = true;
 	static std::vector<std::function<bool()>> completions;
-	static timer timer;
 	static bool skip;
 	static bool ewald_skip;
-	static double wait_time = 1.0e-2;
-	static double max_wait = 1.0e-1;
-	static double min_wait = 1.0e-4;
+	static int active_grids;
+	static int max_active_grids;
 	if (first_call) {
 		//	printf("Starting gpu daemon\n");
-		timer.reset();
-		timer.start();
 		first_call = false;
-		wait_time = 1.0e-2;
+		active_grids = 0;
+		const int ngrids = KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
+		max_active_grids = (((ngrids - 1) / KICK_GRID_SIZE) + 1) * KICK_GRID_SIZE;
 	}
-	timer.stop();
-	if (timer.read() > wait_time) {
-		timer.reset();
-		timer.start();
-		if (gpu_queue.size() < KICK_GRID_SIZE) {
-			wait_time *= 2;
-		} else if (gpu_queue.size() >= 2 * KICK_GRID_SIZE) {
-			wait_time /= 2;
+	int ngrids;
+	if (parts_covered == particles->size()) {
+		ngrids = std::min(std::min((int) gpu_queue.size(), KICK_GRID_SIZE), max_active_grids - active_grids);
+	} else {
+		ngrids = std::min(KICK_GRID_SIZE, max_active_grids - active_grids);
+	}
+	std::vector<gpu_kick> tmp;
+	if (gpu_queue.size() >= ngrids && ngrids) {
+//			kick_timer.stop();
+		//	printf("Time to GPU = %e\n", kick_timer.read());
+		using promise_type = std::vector<std::shared_ptr<hpx::lcos::local::promise<void>>>;
+		std::shared_ptr<promise_type> gpu_promises;
+		//		std::shared_ptr<promise_type> cpu_promises[NWAVE];
+		gpu_promises = std::make_shared<promise_type>();
+		auto deleters = std::make_shared<std::vector<std::function<void()>> >();
+		unified_allocator calloc;
+		kick_params_type* gpu_params;
+		std::vector<gpu_kick> kicks;
+		while (gpu_queue.size()) {
+			tmp.push_back(gpu_queue.pop());
 		}
-		wait_time = std::max(wait_time, min_wait);
-		wait_time = std::min(wait_time, max_wait);
-		if (gpu_queue.size()) {
-			int min_grids = std::min(gpu_queue.size(), (size_t) KICK_GRID_SIZE);
-			while (gpu_queue.size() >= min_grids) {
-				kick_timer.stop();
-				//	printf("Time to GPU = %e\n", kick_timer.read());
-				using promise_type = std::vector<std::shared_ptr<hpx::lcos::local::promise<void>>>;
-				std::shared_ptr<promise_type> gpu_promises;
-				//		std::shared_ptr<promise_type> cpu_promises[NWAVE];
-				gpu_promises = std::make_shared<promise_type>();
-				auto deleters = std::make_shared<std::vector<std::function<void()>> >();
-				unified_allocator calloc;
-				kick_params_type* gpu_params;
-				std::vector<gpu_kick> kicks;
-				while (kicks.size() < min_grids && gpu_queue.size()) {
-					kicks.push_back(gpu_queue.pop());
-				}
-				gpu_params = (kick_params_type*) calloc.allocate(kicks.size() * sizeof(kick_params_type));
-				auto stream = get_stream();
-				std::sort(kicks.begin(), kicks.end(), [](const gpu_kick& a, const gpu_kick& b) {
-					return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first);
-				});
-				for (int i = 0; i < kicks.size(); i++) {
-					auto tmp = std::move(kicks[i]);
-					deleters->push_back(tmp.params->dchecks.to_device(stream));
-					deleters->push_back(tmp.params->echecks.to_device(stream));
-					deleters->push_back(tmp.params->multi_interactions.to_device(stream));
-					deleters->push_back(tmp.params->part_interactions.to_device(stream));
-					deleters->push_back(tmp.params->next_checks.to_device(stream));
-					deleters->push_back(tmp.params->opened_checks.to_device(stream));
-					deleters->push_back(tmp.params->tmp.to_device(stream));
-					memcpy(gpu_params + i, tmp.params, sizeof(kick_params_type));
-					auto tmpparams = tmp.params;
-					deleters->push_back([tmpparams]() {
-						kick_params_alloc.deallocate(tmpparams);
-					});
-					gpu_promises->push_back(std::move(tmp.promise));
-				}
-				const auto sz = kicks.size();
-				deleters->push_back([calloc, gpu_params, sz]() {
-					unified_allocator calloc;
-					calloc.deallocate(gpu_params);
-				});
-//				printf("Sending %i blocks %e\n", kicks.size(), wait_time);
-				cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
-				completions.push_back(std::function<bool()>([=]() {
-					if( cudaStreamQuery(stream) == cudaSuccess) {
-						CUDA_CHECK(cudaStreamSynchronize(stream));
-						cleanup_stream(stream);
-						for (auto &d : *deleters) {
-							d();
-						}
-						for (int i = 0; i < kicks.size(); i++) {
-							(*gpu_promises)[i]->set_value();
-						}
-						//		printf("Done executing\n");
-						return true;
-					} else {
-						return false;
-					}
-				}));
+		std::sort(tmp.begin(), tmp.end(), [](gpu_kick a, gpu_kick b) {
+			return a.parts.first < b.parts.first;
+		});
+		bool contiguous = true;
+		for (int i = 1; i < ngrids; i++) {
+			if (tmp[i].parts.first != tmp[i - 1].parts.second) {
+				contiguous = false;
+				break;
 			}
 		}
-	} else {
-		timer.start();
+		if (contiguous) {
+			for (int i = 0; i < ngrids; i++) {
+				kicks.push_back(tmp[i]);
+			}
+			for (int i = ngrids; i < tmp.size(); i++) {
+				gpu_queue.push(tmp[i]);
+			}
+			gpu_params = (kick_params_type*) calloc.allocate(kicks.size() * sizeof(kick_params_type));
+			auto stream = get_stream();
+			std::sort(kicks.begin(), kicks.end(), [](const gpu_kick& a, const gpu_kick& b) {
+				return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first);
+			});
+			for (int i = 0; i < kicks.size(); i++) {
+				auto tmp = std::move(kicks[i]);
+				deleters->push_back(tmp.params->dchecks.to_device(stream));
+				deleters->push_back(tmp.params->echecks.to_device(stream));
+				deleters->push_back(tmp.params->multi_interactions.to_device(stream));
+				deleters->push_back(tmp.params->part_interactions.to_device(stream));
+				deleters->push_back(tmp.params->next_checks.to_device(stream));
+				deleters->push_back(tmp.params->opened_checks.to_device(stream));
+				deleters->push_back(tmp.params->tmp.to_device(stream));
+				memcpy(gpu_params + i, tmp.params, sizeof(kick_params_type));
+				auto tmpparams = tmp.params;
+				deleters->push_back([tmpparams]() {
+					kick_params_alloc.deallocate(tmpparams);
+				});
+				gpu_promises->push_back(std::move(tmp.promise));
+			}
+			const auto sz = kicks.size();
+			deleters->push_back([calloc, gpu_params, sz]() {
+				unified_allocator calloc;
+				calloc.deallocate(gpu_params);
+			});
+			printf("Sending %i ,  %i active and %i in queue\n", kicks.size(), active_grids, gpu_queue.size());
+			active_grids += kicks.size();
+			cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
+			completions.push_back(std::function<bool()>([=]() {
+				if( cudaStreamQuery(stream) == cudaSuccess) {
+					CUDA_CHECK(cudaStreamSynchronize(stream));
+					cleanup_stream(stream);
+					for (auto &d : *deleters) {
+						d();
+					}
+					active_grids -= kicks.size();
+					for (int i = 0; i < kicks.size(); i++) {
+						(*gpu_promises)[i]->set_value();
+					}
+					//		printf("Done executing\n");
+					return true;
+				} else {
+					return false;
+				}
+			}));
+		} else {
+			for (int i = 0; i < tmp.size(); i++) {
+				gpu_queue.push(tmp[i]);
+			}
+		}
 	}
 	int i = 0;
 	while (i < completions.size()) {
@@ -718,7 +733,7 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 	auto fut = gpu.promise->get_future();
 	gpu.parts = parts;
 	gpu_queue.push(std::move(gpu));
-
+	parts_covered += gpu.parts.second - gpu.parts.first;
 	return std::move(fut);
 
 }

@@ -169,7 +169,7 @@ void drive_cosmos() {
 	do {
 //		unified_allocator allocator;
 //		allocator.show_allocs();
-		if (iter % global().opts.checkpt_freq == 0) {
+		if (iter % global().opts.checkpt_freq == 0 && iter) {
 			save_to_file(parts, iter, itime, a, cosmicK);
 		}
 		if (iter % 10 == 0) {
@@ -237,17 +237,19 @@ void drive_cosmos() {
 		double total_time = drift_tm + sort_tm + kick_tm;
 		double parts_per_leaf = (double) parts.size() / stats.nleaves;
 		double avg_depth = std::log(stats.nleaves) / std::log(2.0);
-//		if (full_eval) {
-		printf(
-				"%4i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
-				iter, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r,
-				max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm,
-				kick_tm, drift_tm, total_time, science_rate);
-//		} else {
-//			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
-//					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac,
-//					"n/a", sort_tm, kick_tm, drift_tm, total_time, science_rate);
-//		}
+		if (full_eval) {
+			printf(
+					"%4i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+					iter, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r,
+					max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm,
+					kick_tm, drift_tm, total_time, science_rate);
+		} else {
+			printf(
+					"%4i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+					iter, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r,
+					max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac, "n/a", sort_tm, kick_tm,
+					drift_tm, total_time, science_rate);
+		}
 		itime = inc(itime, max_rung);
 		if (iter >= 1100) {
 			//			break;
