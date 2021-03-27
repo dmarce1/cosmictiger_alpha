@@ -348,7 +348,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.block_cutoff = 0;
 	//		printf( "CPU ONLY\n");
 		}
-		managed_allocator<multipole>::set_read_only();
+		managed_allocator<tree_ptr>::set_read_only();
 		particles->prepare_kick();
 	}
 	if (children[0].ptr == 0) {
@@ -492,7 +492,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[LEFT].get();
 			futs[RIGHT].get();
 			if( depth == 0 ) {
-				managed_allocator<multipole>::unset_read_only();
+				managed_allocator<tree_ptr>::unset_read_only();
 			}
 		});
 	} else {
@@ -635,9 +635,6 @@ void tree::gpu_daemon() {
 				const auto sz = kicks.size();
 				deleters->push_back([calloc, gpu_params, sz]() {
 					unified_allocator calloc;
-					for( int i = 0; i < sz; i++) {
-						gpu_params[i].kick_params_type::~kick_params_type();
-					}
 					calloc.deallocate(gpu_params);
 				});
 //				printf("Sending %i blocks %e\n", kicks.size(), wait_time);

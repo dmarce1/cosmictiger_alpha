@@ -13,10 +13,12 @@ tree build_tree(particle_set& parts, int min_rung, size_t& num_active, double& t
 	timer time;
 	time.start();
 	tree::set_particle_set(&parts);
-	particle_set *parts_ptr;
-	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
-	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-	tree::cuda_set_kick_params(parts_ptr);
+	static particle_set *parts_ptr = nullptr;
+	if( parts_ptr == nullptr) {
+		CUDA_MALLOC(parts_ptr, sizeof(particle_set));
+		new (parts_ptr) particle_set(parts.get_virtual_particle_set());
+		tree::cuda_set_kick_params(parts_ptr);
+	}
 	tree root;
 	sort_params params;
 	params.min_rung = min_rung;
@@ -66,6 +68,8 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool f
 	first_call = false;
 	time.stop();
 	tm = time.read();
+	params_ptr->kick_params_type::~kick_params_type();
+	CUDA_FREE(params_ptr);
 	return kick_return_max_rung();
 }
 
@@ -161,6 +165,8 @@ void drive_cosmos() {
 		printf("Starting ekin = %e\n", a * kin * partfac);
 	}
 	do {
+		unified_allocator allocator;
+		allocator.show_allocs();
 		if (iter % global().opts.checkpt_freq == 0) {
 			save_to_file(parts, iter, itime, a, cosmicK);
 		}

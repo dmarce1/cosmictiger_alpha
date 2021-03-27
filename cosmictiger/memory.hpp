@@ -99,12 +99,14 @@ private:
 	static std::vector<std::stack<void*>> freelist;
 	static size_t allocated;
 	static std::unordered_map<void*, int> delete_indexes;
+	static std::unordered_map<int,int> alloc_counts;
 #ifndef __CUDACC__
 	static mutex_type mtx;
 #endif
 public:
 	void* allocate(size_t sz);
 	void deallocate(void *ptr);
+	void show_allocs();
 };
 cudaStream_t get_stream();
 void cleanup_stream(cudaStream_t s);
@@ -120,6 +122,7 @@ class managed_allocator {
 	int current_index;
 public:
 	static void cleanup() {
+		printf( "Cleaning %i tree allocs\n", allocs.size());
 		for (int i = 0; i < allocs.size(); i++) {
 			allocs[i]->T::~T();
 			unified_allocator ua;
