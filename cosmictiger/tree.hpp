@@ -352,7 +352,7 @@ public:
 	static void show_timings();
 #ifndef __CUDACC__
 	static void set_particle_set(particle_set*);
-	inline static hpx::future<sort_return> create_child(sort_params&);
+	inline static hpx::future<sort_return> create_child(sort_params&, bool try_thread);
 	static fast_future<sort_return> cleanup_child();
 	static hpx::lcos::local::mutex mtx;
 	static hpx::lcos::local::mutex gpu_mtx;

@@ -190,7 +190,9 @@ void drive_cosmos() {
 			last_theta = theta;
 		}
 		double time = double(itime) / double(std::numeric_limits<time_type>::max());
-		load_and_save_maps(time * T0, T0);
+		if( global().opts.map_size > 0 ) {
+			load_and_save_maps(time * T0, T0);
+		}
 		const auto min_r = min_rung(itime);
 		size_t num_active;
 		tree_stats stats;
@@ -214,10 +216,7 @@ void drive_cosmos() {
 		a += (0.5 * datau1 + 0.5 * datau2) * dt;
 		z = 1.0 / a - 1.0;
 		int rc = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, T0, drift_tm);
-		if (rc) {
-			printf("Mapped %i particles\n", rc);
-		}
-		cosmicK += kin * (a - a0);
+			cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;
 		//	printf( "%e %e %e %e\n", a, pot, kin, cosmicK);
 		if (iter == 0) {

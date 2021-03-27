@@ -17,7 +17,6 @@ static unified_allocator kick_params_alloc;
 
 timer tmp_tm;
 
-#define NWAVE 1
 #define GPUOS 2
 
 void tree::set_particle_set(particle_set *parts) {
@@ -49,24 +48,14 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	return lev;
 }
 
-hpx::future<sort_return> tree::create_child(sort_params &params) {
-	static std::atomic<int> threads_used(hpx_rank() == 0 ? 1 : 0);
+hpx::future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	tree_ptr id;
-	//  id.rank = 0;
 	id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
 	CHECK_POINTER(id.ptr);
 	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
-	if (nparts > TREE_MIN_PARTS2THREAD) {
-		if (++threads_used <= OVERSUBSCRIPTION * hpx::thread::hardware_concurrency()) {
-			thread = true;
-		} else {
-			threads_used--;
-		}
-	}
-//	if( params.depth <= cpu_sort_depth()) {
-//		thread = true;
-//	}
+	const size_t min_parts2thread = particles->size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
+	thread = try_thread && (nparts >= min_parts2thread);
 #ifdef TEST_STACK
 	thread = false;
 #endif
@@ -79,7 +68,6 @@ hpx::future<sort_return> tree::create_child(sort_params &params) {
 		return hpx::async([id, params]() {
 			auto rc = ((tree*) (id.ptr))->sort(params);
 			rc.check = id;
-			threads_used--;
 			return rc;
 		});
 	}
@@ -161,7 +149,7 @@ sort_return tree::sort(sort_params params) {
 			child_params[RIGHT].parts.second = parts.second;
 
 			for (int ci = 0; ci < NCHILD; ci++) {
-				futs[ci] = create_child(child_params[ci]);
+				futs[ci] = create_child(child_params[ci], ci == LEFT);
 			}
 		}
 		std::array<multipole, NCHILD> Mc;
@@ -358,7 +346,13 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	if (params.depth == 0) {
 		kick_timer.start();
 		tmp_tm.start();
-		const int block_count = GPUOS * KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
+		size_t dummy, total_mem;
+		CUDA_CHECK(cudaMemGetInfo(&dummy, &total_mem));
+		total_mem /= 4;
+		size_t used_mem = (sizeof(vel_type) + sizeof(fixed32) * NDIM) * particles->size();
+		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
+		const int block_count = oversubscription * KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount + 0.5;
+//	/	printf( "Seeking %i blocks\n", block_count);
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
 		if (active_parts < MIN_GPU_PARTS) {
 			params.block_cutoff = 0;
