@@ -207,6 +207,9 @@ public:
       THREAD;
       reserve(new_size);
       auto oldsz = sz;
+#ifndef NDEBUG
+      pod = 1;
+#endif
       if( !pod ) {
       	destruct(new_size, oldsz);
       }
