@@ -626,10 +626,12 @@ void tree::gpu_daemon() {
 			return a.parts.first < b.parts.first;
 		});
 		bool contiguous = true;
-		for (int i = 1; i < ngrids; i++) {
-			if (tmp[i].parts.first != tmp[i - 1].parts.second) {
-				contiguous = false;
-				break;
+		if (parts_covered != particles->size()) {
+			for (int i = 1; i < ngrids; i++) {
+				if (tmp[i].parts.first != tmp[i - 1].parts.second) {
+					contiguous = false;
+					break;
+				}
 			}
 		}
 		if (contiguous) {
@@ -665,7 +667,7 @@ void tree::gpu_daemon() {
 				unified_allocator calloc;
 				calloc.deallocate(gpu_params);
 			});
-			printf("Sending %i ,  %i active and %i in queue\n", kicks.size(), active_grids, gpu_queue.size());
+//			printf("Sending %i ,  %i active and %i in queue\n", kicks.size(), active_grids, gpu_queue.size());
 			active_grids += kicks.size();
 			cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
 			completions.push_back(std::function<bool()>([=]() {
