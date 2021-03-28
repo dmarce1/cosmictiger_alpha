@@ -589,23 +589,25 @@ void tree::gpu_daemon() {
 	static bool ewald_skip;
 	static int active_grids;
 	static int max_active_grids;
+	static int sm_count = global().cuda.devices[0].multiProcessorCount;
 	static int grids_completed;
 	static timer tm;
+	int kick_grid_size = KICK_GRID_SIZE;
 	if (first_call) {
 		//	printf("Starting gpu daemon\n");
 		first_call = false;
 		active_grids = 0;
 		grids_completed = 0;
-		const int ngrids = KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
-		max_active_grids = (((ngrids - 1) / KICK_GRID_SIZE) + 1) * KICK_GRID_SIZE;
+		const int ngrids = KICK_OCCUPANCY * sm_count;
+		max_active_grids = (((ngrids - 1) / kick_grid_size) + 1) * kick_grid_size;
 		tm.reset();
 		tm.start();
 	}
 	int ngrids;
 	if (parts_covered == particles->size()) {
-		ngrids = std::min(std::min((int) gpu_queue.size(), KICK_GRID_SIZE), max_active_grids - active_grids);
+		ngrids = std::min(std::min((int) gpu_queue.size(), kick_grid_size), max_active_grids - active_grids);
 	} else {
-		ngrids = std::min(KICK_GRID_SIZE, max_active_grids - active_grids);
+		ngrids = std::min(kick_grid_size, max_active_grids - active_grids);
 	}
 	std::vector<gpu_kick> tmp;
 	tm.stop();
