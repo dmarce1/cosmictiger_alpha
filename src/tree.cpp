@@ -609,7 +609,7 @@ void tree::gpu_daemon() {
 	}
 	std::vector<gpu_kick> tmp;
 	tm.stop();
-	if (tm.read() > 0.5) {
+	if (tm.read() > 0.05) {
 		printf("                                                                                                      \r"
 				"kick status:  %i completed - %i active - %i in queue\r", grids_completed, active_grids,
 				(int) gpu_queue.size());
