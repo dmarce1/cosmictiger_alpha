@@ -81,16 +81,27 @@ public:
    	return cap;
    }
    CUDA_EXPORT inline vector() {
-      THREAD;
-      if (tid == 0) {
-         dontfree = false;
-         ptr = nullptr;
-         cap = 0;
-         sz = 0;
-      }
-//      reserve(1);
-   }
-   CUDA_EXPORT inline vector(const vector &other) {
+       THREAD;
+       if (tid == 0) {
+          dontfree = false;
+          ptr = nullptr;
+          cap = 0;
+          sz = 0;
+       }
+ //      reserve(1);
+    }
+   CUDA_EXPORT inline vector(int initsz) {
+       THREAD;
+       if (tid == 0) {
+          dontfree = false;
+          ptr = nullptr;
+          cap = 0;
+          sz = 0;
+       }
+       resize(initsz);
+ //      reserve(1);
+    }
+    CUDA_EXPORT inline vector(const vector &other) {
       THREAD;
       BLOCK;
       if (tid == 0) {

@@ -7,6 +7,7 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/ewald_indices.hpp>
 #include <cosmictiger/driver.hpp>
+#include <cosmictiger/zeroverse.hpp>
 
 
 void yield() {
@@ -29,6 +30,8 @@ int hpx_main(int argc, char *argv[]) {
 		if (opts.test != "") {
 			test_run(opts.test);
 		} else {
+			zero_order_universe uni;
+			create_zero_order_universe(&uni, 1);
 			drive_cosmos();
 		}
 	}

@@ -49,6 +49,7 @@ set(cosmictiger_source_files
     src/tree.cu
     src/kick_return.cu
     src/kick_return.cpp
+    src/zeroverse.cpp
 )
 set(cosmictiger_header_files
 	cosmictiger/cosmos.hpp
@@ -58,6 +59,7 @@ set(cosmictiger_header_files
 	cosmictiger/kick_return.hpp
 	cosmictiger/defs.hpp
 	cosmictiger/green_direct.hpp
+	cosmictiger/constants.hpp
 	cosmictiger/green_ewald.hpp
 	cosmictiger/gravity.hpp
 	cosmictiger/gravity.hpp
@@ -85,7 +87,8 @@ set(cosmictiger_header_files
 	cosmictiger/timer.hpp
 	cosmictiger/tests.hpp
 	cosmictiger/map.hpp
-	cosmictiger/tree.hpp
+	cosmictiger/tree.hpp	
+	cosmictiger/zeroverse.hpp
 )
 
 
@@ -124,7 +127,7 @@ target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SO
 #target_include_directories(hpx_lite PUBLIC  /home/dmarce1/workspace/cosmictiger/hpx_lite)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                       --use_fast_math --maxrregcount 168 --gpu-architecture=compute_75;
+                       --use_fast_math --maxrregcount 128 --gpu-architecture=compute_75;
                         >)
 #target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
 #                       --maxrregcount 168 --use_fast_math --gpu-architecture=compute_75;

@@ -8,6 +8,7 @@
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/options.hpp>
 #include <cosmictiger/hpx.hpp>
+#include <cosmictiger/constants.hpp>
 #include <fstream>
 #include <boost/program_options.hpp>
 
@@ -71,6 +72,22 @@ bool process_options(int argc, char *argv[], options &opts) {
 		printf( "Bucket size of %i exceeds max of %i\n", opts.bucket_size, MAX_BUCKET_SIZE);
 		abort();
 	}
+
+
+	opts.Neff = 3.046;
+	opts.Y = 0.24;
+	opts.omega_b = 0.05;
+	opts.omega_c = 0.25;
+	opts.Theta = 1.0;
+	opts.sigma8 = 0.85;
+	double omega_r = 32.0 * M_PI / 3.0 * constants::G * constants::sigma
+			* (1 + opts.Neff * (7. / 8.0) * std::pow(4. / 11., 4. / 3.)) * std::pow(constants::H0, -2)
+			* std::pow(constants::c, -3) * std::pow(2.73 * opts.Theta, 4) * std::pow(opts.hubble, -2);
+	opts.omega_nu = omega_r * opts.Neff / (8.0 / 7.0 * std::pow(11.0 / 4.0, 4.0 / 3.0) + opts.Neff);
+	opts.omega_gam = omega_r - opts.omega_nu;
+
+
+
 	return rc;
 }
 
