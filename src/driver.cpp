@@ -253,8 +253,8 @@ void drive_cosmos() {
 					drift_tm, total_time, science_rate);
 		}
 		itime = inc(itime, max_rung);
-		if (iter >= 1100) {
-			//			break;
+		if (iter >= 100) {
+					break;
 		}
 		iter++;
 	} while (z > 0.0);

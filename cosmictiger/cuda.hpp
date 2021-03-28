@@ -81,8 +81,6 @@ struct cuda_properties {
 
 cuda_properties cuda_init();
 
-void cuda_enqueue_host_function(cudaStream_t stream, std::function<void()>&& function);
-
 
 #ifdef __CUDACC__
 __device__ inline void cuda_sync() {
