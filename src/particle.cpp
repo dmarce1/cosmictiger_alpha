@@ -45,7 +45,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 	uint8_t *data;
 	//unified_allocator alloc;
 	//data = (uint8_t*) alloc.allocate(chunk_size * size);
-	CUDA_MALLOC(data,chunk_size*size);
+	CUDA_MALLOC(data, chunk_size * size);
 	CHECK_POINTER(data);
 	base_ = (void*) data;
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -53,7 +53,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 	}
 	uptr_ = (vel_type*) (data + size * NDIM * sizeof(fixed32));
 #ifdef TEST_FORCE
-	const auto offset1 = sizeof(vel_type) * size + size * sizeof(pos_type);
+	const auto offset1 = sizeof(vel_type) * size + NDIM * size * sizeof(fixed32);
 	for (size_t dim = 0; dim < NDIM; dim++) {
 		gptr_[dim] = (float*) (data + offset1 + dim * size * sizeof(float));
 	}

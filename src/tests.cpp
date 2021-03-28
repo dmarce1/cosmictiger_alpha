@@ -52,7 +52,7 @@ static void tree_test() {
 }
 
 void kick_test() {
-#define NKICKS 50
+#define NKICKS 10
 	printf("Doing kick test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);

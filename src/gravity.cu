@@ -519,10 +519,10 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 	const int &bid = blockIdx.x;
 
 	const auto index = test_parts[bid];
-	pos_type sink;
-	sink.a[0] = parts->pos(0,index);
-	sink.a[1] = parts->pos(1,index);
-	sink.a[2] = parts->pos(2,index);
+	array<fixed32,NDIM> sink;
+	sink[0] = parts->pos(0,index);
+	sink[1] = parts->pos(1,index);
+	sink[2] = parts->pos(2,index);
 	const auto f_x = parts->force(0, index);
 	const auto f_y = parts->force(1, index);
 	const auto f_z = parts->force(2, index);
@@ -541,7 +541,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 		if (source != index) {
 			array<float, NDIM> X;
 			for (int dim = 0; dim < NDIM; dim++) {
-				const auto a = sink.a[dim];
+				const auto a = sink[dim];
 				const auto b = parts->pos(dim, source);
 				X[dim] = distance(a, b);
 			}

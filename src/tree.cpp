@@ -7,6 +7,8 @@
 #include <cosmictiger/kick_return.hpp>
 #include <cosmictiger/sort.hpp>
 
+#include <set>
+
 #include <cmath>
 
 particle_set* tree::particles;
@@ -14,6 +16,8 @@ particle_set* tree::particles;
 #define CPU_LOAD (0)
 
 static unified_allocator kick_params_alloc;
+pranges tree::covered_ranges;
+
 
 timer tmp_tm;
 
@@ -345,6 +349,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto& phi = params.Phi;
 	if (params.depth == 0) {
 		kick_timer.start();
+		covered_ranges.clear();
 		tmp_tm.start();
 		size_t dummy, total_mem;
 		CUDA_CHECK(cudaMemGetInfo(&dummy, &total_mem));
@@ -482,6 +487,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
 			params.depth--;
 		} else if (((tree*) children[LEFT])->active_parts) {
+			covered_ranges.add_range(((tree*) children[RIGHT])->parts);
 			int depth0 = params.depth;
 			params.depth++;
 			params.L[params.depth] = L;
@@ -489,6 +495,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[LEFT] = children[LEFT].kick(params_ptr, false);
 			params.depth--;
 		} else if (((tree*) children[RIGHT])->active_parts) {
+			covered_ranges.add_range(((tree*) children[LEFT])->parts);
 			int depth0 = params.depth;
 			params.depth++;
 			params.L[params.depth] = L;
@@ -623,9 +630,6 @@ void tree::gpu_daemon() {
 				}
 				gpu_params = (kick_params_type*) calloc.allocate(kicks.size() * sizeof(kick_params_type));
 				auto stream = get_stream();
-				std::sort(kicks.begin(), kicks.end(), [](const gpu_kick& a, const gpu_kick& b) {
-					return (a.parts.second - a.parts.first) > (b.parts.second - b.parts.first);
-				});
 				for (int i = 0; i < kicks.size(); i++) {
 					auto tmp = std::move(kicks[i]);
 					deleters->push_back(tmp.params->dchecks.to_device(stream));
@@ -712,6 +716,7 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 	auto fut = gpu.promise->get_future();
 	gpu.parts = parts;
 	gpu_queue.push(std::move(gpu));
+	covered_ranges.add_range(parts);
 
 	return std::move(fut);
 
