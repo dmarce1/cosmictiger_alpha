@@ -219,7 +219,7 @@ public:
       reserve(new_size);
       auto oldsz = sz;
 #ifndef NDEBUG
-      pod = 1;
+      pod = 0;
 #endif
       if( !pod ) {
       	destruct(new_size, oldsz);
