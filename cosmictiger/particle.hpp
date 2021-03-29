@@ -13,6 +13,7 @@
 #include <cosmictiger/fixed.hpp>
 #include <cosmictiger/range.hpp>
 #include <cosmictiger/array.hpp>
+#include <cosmictiger/time.hpp>
 #ifdef _CUDA_ARCH_
 #include <cosmictiger/hpx.hpp>
 #endif
@@ -168,6 +169,10 @@ CUDA_EXPORT inline float& particle_set::pot(size_t index) {
 	return eptr_[index - offset_];
 
 }
+
+
 #endif
+void load_from_file(particle_set& parts, int& step, time_type& itime, double& a, double& cosmicK);
+
 
 #endif /* COSMICTIGER_PARTICLE_HPP_ */

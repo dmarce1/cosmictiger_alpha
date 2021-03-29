@@ -14,6 +14,7 @@
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/drift.hpp>
 #include <cosmictiger/sort.hpp>
+#include <cosmictiger/time.hpp>
 #include <cmath>
 
 static void tree_test() {
@@ -56,7 +57,11 @@ void kick_test() {
 	printf("Doing kick test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
-	parts.load_particles("ics");
+	int step;
+	time_type itime;
+	double a, cosmicK;
+	load_from_file(parts, step, itime, a, cosmicK);
+	//parts.load_particles("ics");
 	// parts.generate_grid();
 //	parts.generate_random();
 	tree::set_particle_set(&parts);

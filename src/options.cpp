@@ -20,7 +20,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	command_opts.add_options()                                                                       //
 	("help", "produce help message")                                                                 //
 	("config", po::value<std::string>(&(opts.config))->default_value(""), "configuration file") //
-	("bucket_size", po::value<int>(&(opts.bucket_size))->default_value(MAX_BUCKET_SIZE), "bucket size") //
+	("bucket_size", po::value<int>(&(opts.bucket_size))->default_value(107), "bucket size") //
 	("checkpt_freq", po::value<int>(&(opts.checkpt_freq))->default_value(1000), "checkpoint frequency") //
 	("checkpt_file", po::value<std::string>(&(opts.checkpt_file))->default_value(""), "checkpoint restart") //
 	("code_to_g", po::value<double>(&(opts.code_to_g))->default_value(1.99e33), "code to g") //

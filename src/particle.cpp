@@ -295,3 +295,22 @@ void particle_set::load_particles(std::string filename) {
 	fread(&dummy, sizeof(dummy), 1, fp);
 	fclose(fp);
 }
+
+void load_from_file(particle_set& parts, int& step, time_type& itime, double& a, double& cosmicK) {
+	std::string filename = global().opts.checkpt_file;
+	printf("Loading %s...", filename.c_str());
+	FILE* fp = fopen(filename.c_str(), "rb");
+	if (!fp) {
+		printf("Unable to open %s\n", filename.c_str());
+		abort();
+	}
+	fread(&step, sizeof(int), 1, fp);
+	fread(&itime, sizeof(time_type), 1, fp);
+	fread(&a, sizeof(double), 1, fp);
+	fread(&cosmicK, sizeof(double), 1, fp);
+	parts.load_from_file(fp);
+	fclose(fp);
+	printf(" done\n");
+
+}
+
