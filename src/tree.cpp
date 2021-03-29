@@ -678,6 +678,7 @@ void tree::gpu_daemon() {
 				calloc.deallocate(gpu_params);
 			});
 			active_grids += kicks.size();
+			const int kicks_size = kicks.size();
 			cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
 			completions.push_back(std::function<bool()>([=]() {
 				if( cudaStreamQuery(stream) == cudaSuccess) {
@@ -686,9 +687,9 @@ void tree::gpu_daemon() {
 					for (auto &d : *deleters) {
 						d();
 					}
-					active_grids -= kicks.size();
-					grids_completed += kicks.size();
-					for (int i = 0; i < kicks.size(); i++) {
+					active_grids -= kicks_size;
+					grids_completed += kicks_size;
+					for (int i = 0; i < kicks_size; i++) {
 						(*gpu_promises)[i]->set_value();
 					}
 					//		printf("Done executing\n");
