@@ -46,14 +46,14 @@
 //#define KICK_OCCUPANCY 16
 
 // 1.65
-#define KICK_PP_MAX size_t(11*32)
-#define MAX_BUCKET_SIZE 167
-#define KICK_OCCUPANCY 16
+//#define KICK_PP_MAX size_t(11*32)
+//#define MAX_BUCKET_SIZE 167
+//#define KICK_OCCUPANCY 16
 
 // 1.64
-//#define KICK_PP_MAX size_t(12*32)
-//#define MAX_BUCKET_SIZE 137
-//#define KICK_OCCUPANCY 16
+#define KICK_PP_MAX size_t(12*32)
+#define MAX_BUCKET_SIZE 137
+#define KICK_OCCUPANCY 16
 
 // 1.66
 //#define KICK_PP_MAX size_t(13*32)
