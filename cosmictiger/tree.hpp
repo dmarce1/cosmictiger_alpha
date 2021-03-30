@@ -47,7 +47,6 @@ struct tree_alloc {
 	managed_allocator<tree> tree_alloc;
 };
 
-
 struct sort_params {
 #ifdef TEST_STACK
 	uint8_t* stack_ptr;
@@ -221,10 +220,10 @@ struct check_data {
 
 struct cuda_kick_shmem {
 	union {
-		array<array<fixed32, KICK_PP_MAX>,NDIM> src;  // 3072
+		array<array<fixed32, KICK_PP_MAX>, NDIM> src;  // 3072
 		array<multipole_pos, KICK_PC_MAX> msrc;
 	};
-	array<array<fixed32, MAX_BUCKET_SIZE>,NDIM> sink;  // 3072
+	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 3072
 	array<uint8_t, MAX_BUCKET_SIZE> act_map;
 };
 struct list_sizes_t {
@@ -237,7 +236,6 @@ struct list_sizes_t {
 
 list_sizes_t get_list_sizes();
 void reset_list_sizes();
-
 
 struct kick_params_type {
 	vector<tree_ptr> multi_interactions;
@@ -289,7 +287,7 @@ struct kick_params_type {
 	inline kick_params_type() {
 		depth = 0;
 		theta = 0.4;
-		eta = 0.2;
+		eta = 0.2 / std::sqrt(2);
 		scale = 1.0;
 		t0 = 1.0;
 		cpu_block = false;
@@ -301,7 +299,7 @@ struct kick_params_type {
 		M = global().opts.M;
 		G = global().opts.G;
 		const auto s = get_list_sizes();
-	//	printf( "%i %i %i %i %i\n", s.part, s.multi, s.next, s.open, s.tmp);
+		//	printf( "%i %i %i %i %i\n", s.part, s.multi, s.next, s.open, s.tmp);
 		part_interactions.reserve(s.part);
 		multi_interactions.reserve(s.multi);
 		next_checks.reserve(s.next);
@@ -417,5 +415,4 @@ inline bool tree_ptr::is_leaf() const {
 }
 
 void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);
-
 

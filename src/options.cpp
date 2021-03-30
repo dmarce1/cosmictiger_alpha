@@ -64,7 +64,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 			SHOW(nparts);
 		}
 	}
-	opts.hsoft = 1.0 / pow(opts.nparts, 1.0 / 3.0) / 50.0;
+	opts.hsoft = 1.0 / pow(opts.nparts, 1.0 / 3.0) / 25.0;
 	opts.theta = 0.7;
 	opts.G = opts.M = 1.0;
 	if( opts.bucket_size > MAX_BUCKET_SIZE) {
