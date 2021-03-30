@@ -716,7 +716,7 @@ void tree::gpu_daemon() {
 				i++;
 			}
 		}
-	} while (parts_covered == particles->size() && gpu_queue.size());
+	} while (max_active_grids != active_grids && parts_covered == particles->size() && gpu_queue.size());
 	if (!shutdown_daemon) {
 		hpx::async(gpu_daemon);
 	} else {
