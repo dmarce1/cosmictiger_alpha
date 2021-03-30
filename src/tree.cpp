@@ -600,7 +600,7 @@ void tree::gpu_daemon() {
 		active_grids = 0;
 		grids_completed = 0;
 		const int noccupy = KICK_OCCUPANCY * sm_count;
-		max_active_grids = (((noccupy - 1) / KICK_GRID_SIZE) + 1) * KICK_GRID_SIZE;
+		max_active_grids = (((noccupy - 1) / KICK_GRID_SIZE) + 2) * KICK_GRID_SIZE;
 		tm.reset();
 		tm.start();
 	}
@@ -621,7 +621,7 @@ void tree::gpu_daemon() {
 			tm.reset();
 		}
 		tm.start();
-		if (gpu_queue.size() >= kick_grid_size) {
+		if (max_active_grids != active_grids && gpu_queue.size() >= kick_grid_size) {
 //			kick_timer.stop();
 			//	printf("Time to GPU = %e\n", kick_timer.read());
 			using promise_type = std::vector<std::shared_ptr<hpx::lcos::local::promise<void>>>;
