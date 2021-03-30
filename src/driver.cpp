@@ -169,7 +169,7 @@ void drive_cosmos() {
 	do {
 //		unified_allocator allocator;
 //		allocator.show_allocs();
-		if (iter % global().opts.checkpt_freq == 0) {
+		if (iter % global().opts.checkpt_freq == 0 && iter) {
 			save_to_file(parts, iter, itime, a, cosmicK);
 		}
 		if (iter % 10 == 0) {

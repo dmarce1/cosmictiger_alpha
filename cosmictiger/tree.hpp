@@ -32,53 +32,37 @@ struct pair {
 class tree;
 struct sort_params;
 struct tree_ptr;
+/*
+ #ifndef __CUDACC__
+ class pranges {
+ private:
+ struct range_less {
+ bool operator()(const pair<size_t, size_t>& a, const pair<size_t, size_t>& b) const {
+ return a.first < b.first;
+ }
+ };
+ using set_type = std::vector<pair<size_t,size_t>>;
+ set_type ranges;
+ mutex_type mtx;
+ public:
+ void add_range(pair<size_t, size_t> r) {
+ std::lock_guard<mutex_type> lock(mtx);
+ ranges.push_back(r);
+ }
+ void clear() {
+ ranges.clear();
+ }
+ bool range_is_covered(pair<size_t, size_t> r) {
+ std::lock_guard<mutex_type> lock(mtx);
+ std::vector<pair<size_t, size_t>> tmp;
+ bool rc = false;
+ std::sort(ranges.begin(),ranges.end(),range_less());
+ int i = 0;
+ }
+ };
 
-
-#ifndef __CUDACC__
-class pranges {
-private:
-	struct range_less {
-		bool operator()(const pair<size_t, size_t>& a, const pair<size_t, size_t>& b) const {
-			return a.first < b.first;
-		}
-	};
-	using set_type = std::set<pair<size_t,size_t>, range_less>;
-	set_type ranges;
-	mutex_type mtx;
-public:
-	void add_range(pair<size_t, size_t> r) {
-		std::lock_guard<mutex_type> lock(mtx);
-		ranges.insert(r);
-	}
-	void clear() {
-		ranges.clear();
-	}
-	bool range_is_covered(pair<size_t, size_t> r) {
-		std::lock_guard<mutex_type> lock(mtx);
-		std::vector<pair<size_t, size_t>> tmp;
-		bool rc = false;
-		for (auto i = ranges.begin(); i != ranges.end(); i++) {
-			auto this_range = *i;
-			auto j = i++;
-			while (j != ranges.end() && i->second == j->first) {
-				this_range.second = j->second;
-				i++;
-				j++;
-			}
-			if (this_range.first <= r.first && this_range.second >= r.second) {
-				rc = true;
-			}
-			tmp.push_back(this_range);
-		}
-		ranges.clear();
-		ranges.insert(tmp.begin(), tmp.end());
-		tmp.clear();
-		return rc;
-	}
-};
-
-#endif
-
+ #endif
+ */
 struct tree_stats {
 	int max_depth;
 	int min_depth;
@@ -395,8 +379,8 @@ public:
 	static void set_cuda_particle_set(particle_set*);
 	static void cuda_set_kick_params(particle_set *p);
 	static void show_timings();
-	#ifndef __CUDACC__
-	static pranges covered_ranges;
+#ifndef __CUDACC__
+//		static pranges covered_ranges;
 	static void set_particle_set(particle_set*);
 	inline static hpx::future<sort_return> create_child(sort_params&, bool try_thread);
 	static fast_future<sort_return> cleanup_child();
