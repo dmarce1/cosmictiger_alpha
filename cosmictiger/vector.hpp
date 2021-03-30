@@ -173,7 +173,7 @@ public:
    void reserve(int new_cap) {
       THREAD;
       BLOCK;
-      if (new_cap > cap) {
+      if (new_cap > cap && new_cap ) {
          int i = 1;
          while (i < new_cap) {
             i *= 2;

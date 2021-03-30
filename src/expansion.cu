@@ -7,7 +7,7 @@
 
 #include <cosmictiger/expansion.hpp>
 #include <cosmictiger/array.hpp>
-
+/*
 __device__ expansion<float> Lfactor_gpu;
 expansion<float> Lfactor_cpu;
 
@@ -52,7 +52,7 @@ __host__ void expansion_init_cpu() {
 	//}
 	//abort();
 }
-
+*/
 CUDA_EXPORT expansion<float>& shift_expansion(expansion<float> &L, const array<float, NDIM> &dX, bool do_phi) {
 	float tmp1;
 	if (do_phi) {
