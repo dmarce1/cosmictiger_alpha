@@ -593,6 +593,8 @@ void tree::gpu_daemon() {
 	static int grids_completed;
 	static timer tm;
 	int kick_grid_size = KICK_GRID_SIZE;
+	static char waiting_chars[4] = {'-',  '\\', '|', '/' };
+	static int ticker = 0;
 	if (first_call) {
 		//	printf("Starting gpu daemon\n");
 		first_call = false;
@@ -611,9 +613,11 @@ void tree::gpu_daemon() {
 	}
 	std::vector<gpu_kick> tmp;
 	tm.stop();
-	if (tm.read() > 0.05) {
+
+	if (tm.read() > 0.1) {
+		ticker++;
 		printf("                                                                                                      \r"
-				"kick status:  %i completed - %i active - %i in queue\r", grids_completed, active_grids,
+				"%c kick status:  %i completed - %i active - %i in queue \r",  waiting_chars[ticker%4], grids_completed, active_grids,
 				(int) gpu_queue.size());
 		tm.reset();
 	}

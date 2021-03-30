@@ -289,7 +289,7 @@ struct kick_params_type {
 	inline kick_params_type() {
 		depth = 0;
 		theta = 0.4;
-		eta = 0.2;
+		eta = std::sqrt(2)*0.1;
 		scale = 1.0;
 		t0 = 1.0;
 		cpu_block = false;

@@ -245,4 +245,5 @@ void drive_cosmos() {
 	printf("Sort  time = %e (%.2f) %%\n", sort_total, sort_total / total_time * 100.0);
 	printf("Kick  time = %e (%.2f) %%\n", kick_total, kick_total / total_time * 100.0);
 	printf("Drift time = %e (%.2f) %%\n", drift_total, drift_total / total_time * 100.0);
+	printf("Total time = %e (%.2f) %%\n", total_time);
 }
