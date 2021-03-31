@@ -166,11 +166,18 @@ void drive_cosmos() {
 		drift(parts, 0.0, a, a, &kin, &momx, &momy, &momz, 0.0, T0, drift_tm);
 		printf("Starting ekin = %e\n", a * kin * partfac);
 	}
+	timer checkpt_tm;
+	checkpt_tm.start();
 	do {
 //		unified_allocator allocator;
 //		allocator.show_allocs();
-		if (iter % global().opts.checkpt_freq == 0 && iter) {
+		checkpt_tm.stop();
+		if( checkpt_tm.read() > global().opts.checkpt_freq) {
+			checkpt_tm.reset();
+			checkpt_tm.start();
 			save_to_file(parts, iter, itime, a, cosmicK);
+		} else {
+			checkpt_tm.start();
 		}
 		if (iter % 10 == 0) {
 			printf("%4s %4s %4s %4s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter",
