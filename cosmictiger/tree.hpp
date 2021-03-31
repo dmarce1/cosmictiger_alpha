@@ -25,44 +25,13 @@ struct pair {
 
 #define LEFT 0
 #define RIGHT 1
-//#define KICK_CUDA_SIZE (1<<16)
 
 #define TREE_PTR_STACK (TREE_MAX_DEPTH*WORKSPACE_SIZE)
 
 class tree;
 struct sort_params;
 struct tree_ptr;
-/*
- #ifndef __CUDACC__
- class pranges {
- private:
- struct range_less {
- bool operator()(const pair<size_t, size_t>& a, const pair<size_t, size_t>& b) const {
- return a.first < b.first;
- }
- };
- using set_type = std::vector<pair<size_t,size_t>>;
- set_type ranges;
- mutex_type mtx;
- public:
- void add_range(pair<size_t, size_t> r) {
- std::lock_guard<mutex_type> lock(mtx);
- ranges.push_back(r);
- }
- void clear() {
- ranges.clear();
- }
- bool range_is_covered(pair<size_t, size_t> r) {
- std::lock_guard<mutex_type> lock(mtx);
- std::vector<pair<size_t, size_t>> tmp;
- bool rc = false;
- std::sort(ranges.begin(),ranges.end(),range_less());
- int i = 0;
- }
- };
 
- #endif
- */
 struct tree_stats {
 	int max_depth;
 	int min_depth;

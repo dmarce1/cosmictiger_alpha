@@ -31,17 +31,9 @@
 #define N_TEST_PARTS (100)
 
 
-//#define KICK_PP_MAX size_t(10*32)
-//#define MAX_BUCKET_SIZE 196
-//#define KICK_OCCUPANCY 16
-
-#define KICK_PP_MAX size_t(11*32)
+#define KICK_PP_MAX size_t(8*32)
 #define MAX_BUCKET_SIZE 167
-#define KICK_OCCUPANCY 16
 
-//#define KICK_PP_MAX size_t(12*32)
-//#define MAX_BUCKET_SIZE 137
-//#define KICK_OCCUPANCY 16
 
 #define MIN_ACTIVE_PER_BLOCK 16
 #define MAX_RUNG 63
@@ -62,7 +54,6 @@
 #define MIN_RUNG 7
 
 #define DRIFT_BLOCK_SIZE 1024
-#define DRIFT_OCCUPANCY 1
 
 #define FLOP_RSQRT 4
 #define FLOP_DIV 5

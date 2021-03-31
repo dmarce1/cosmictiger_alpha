@@ -21,7 +21,6 @@ static std::atomic<size_t> parts_covered;
 
 timer tmp_tm;
 
-#define GPUOS 2
 
 void tree::set_particle_set(particle_set *parts) {
 	particles = parts;
@@ -290,14 +289,13 @@ void tree::cleanup() {
 }
 
 hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
+	static const bool use_cuda = global().opts.cuda;
 	kick_params_type &params = *params_ptr;
 	const auto part_begin = ((tree*) (*this))->parts.first;
 	const auto part_end = ((tree*) (*this))->parts.second;
 	const auto num_active = ((tree*) (*this))->active_nodes;
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-	const auto gpu_partcnt = global().opts.nparts / (sm_count * KICK_OCCUPANCY);
-	bool use_cpu_block = false;
-	if (num_active <= params.block_cutoff && num_active) {
+	if (use_cuda && num_active <= params.block_cutoff && num_active) {
 		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
 	} else {
 		static std::atomic<int> used_threads(0);
@@ -357,7 +355,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		total_mem /= 4;
 		size_t used_mem = (sizeof(vel_type) + sizeof(fixed32) * NDIM) * particles->size();
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
-		const int block_count = oversubscription * KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount + 0.5;
+		const int block_count = oversubscription * global().cuda_kick_occupancy * global().cuda.devices[0].multiProcessorCount + 0.5;
 //	/	printf( "Seeking %i blocks\n", block_count);
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
 		if (active_parts < MIN_GPU_PARTS) {
@@ -609,8 +607,10 @@ void tree::gpu_daemon() {
 	timer.reset();
 	timer.start();
 	first_call = false;
-	const int ngrids = KICK_OCCUPANCY * global().cuda.devices[0].multiProcessorCount;
-	max_blocks_active = (((ngrids - 1) / KICK_GRID_SIZE) + 2) * KICK_GRID_SIZE;
+	int max_oc = global().cuda_kick_occupancy * global().cuda.devices[0].multiProcessorCount;
+	int kick_grid_size = max_oc / 4;
+	max_blocks_active = 8 * kick_grid_size;
+
 	do {
 		timer.stop();
 		if (timer.read() > 0.05) {
@@ -620,8 +620,7 @@ void tree::gpu_daemon() {
 			timer.reset();
 		}
 		timer.start();
-		int kick_grid_size;
-		kick_grid_size = std::min((int) gpu_queue.size(), KICK_GRID_SIZE);
+		kick_grid_size = std::min((int) gpu_queue.size(), kick_grid_size);
 		while (gpu_queue.size() && kick_grid_size && blocks_active + kick_grid_size <= max_blocks_active) {
 			using promise_type = std::vector<std::shared_ptr<hpx::lcos::local::promise<void>>>;
 			std::shared_ptr<promise_type> gpu_promises;
@@ -683,7 +682,7 @@ void tree::gpu_daemon() {
 					return false;
 				}
 			}));
-			kick_grid_size = std::min((int) gpu_queue.size(), KICK_GRID_SIZE);
+			kick_grid_size = std::min((int) gpu_queue.size(), kick_grid_size);
 		}
 		int i = 0;
 		while (i < completions.size()) {

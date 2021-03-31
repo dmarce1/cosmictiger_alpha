@@ -16,6 +16,7 @@
 struct global_t {
    options opts;
    cuda_properties cuda;
+   int cuda_kick_occupancy;
 };
 
 

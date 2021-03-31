@@ -16,6 +16,7 @@ struct options {
 	size_t parts_dim;
 	size_t nparts;
 	int bucket_size;
+	bool cuda;
 	double hsoft;
 	double theta;
 	double code_to_s;

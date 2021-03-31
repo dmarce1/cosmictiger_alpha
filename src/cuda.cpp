@@ -11,7 +11,8 @@
 #include <cosmictiger/sort.hpp>
 #include <cosmictiger/drift.hpp>
 #include <cstdlib>
-CUDA_KERNEL cuda_ewald_cc_kernel(kick_params_type **params_ptr);
+
+CUDA_KERNEL cuda_kick_kernel(kick_params_type *params);
 
 #define STACK_SIZE (32*1024)
 #define HEAP_SIZE size_t(1024*1024*1024)
@@ -64,12 +65,20 @@ cuda_properties cuda_init() {
 		printf("Unable to set L2 fetch granularity to to %i\n", L2FETCH);
 		fail = true;
 	}
-	cudaFuncAttributes attrib;
-	// CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&drift_kernel ));
-	//printf( "Drift kernel takes %i registers\n", attrib.numRegs);
 
-	//CUDA_CHECK(cudaFuncGetAttributes(&attrib, (void* )&gpu_sort_kernel));
-	//printf("gpu_sort_kernel takes %i registers\n", attrib.numRegs);
+	int numBlocks;
+	CUDA_CHECK(
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor ( &numBlocks, cuda_kick_kernel, KICK_BLOCK_SIZE, sizeof(cuda_kick_shmem) ));
+
+	printf( "cuda_kick_kernel occupancy calculated to be %i\n", numBlocks);
+	global().cuda_kick_occupancy = numBlocks;
+
+//	printf( "cuda_kick_kernel uses %li shared memory\n", attrib.sharedSizeBytes);
+//	printf( "                      %li registers \n", attrib.numRegs);
+//	printf( "                      %li shmem carvout \n", attrib.preferredShmemCarveout);
+
+//CUDA_CHECK(cudaFuncGetAttributes(&attrib, (void* )&gpu_sort_kernel));
+//printf("gpu_sort_kernel takes %i registers\n", attrib.numRegs);
 //	printf("gpu_sort_kernel takes %i shmem\n", attrib.sharedSizeBytes);
 
 	//CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&gpu_sort_kernel ));
