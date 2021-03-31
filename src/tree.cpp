@@ -694,7 +694,7 @@ void tree::gpu_daemon() {
 				i++;
 			}
 		}
-	} while (completions.size());
+	} while (completions.size() || gpu_queue.size());
 }
 
 hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
