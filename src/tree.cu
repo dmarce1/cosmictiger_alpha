@@ -31,8 +31,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	tree_ptr tptr = params.tptr;
-	tree& me = *((tree*) params.tptr);
-	if (!me.active_parts && !params.full_eval) {
+	const multi_crit mecrit = tptr.get_mcrit();
+	const  active_type meactive = tptr.get_active();
+	if (!meactive.parts && !params.full_eval) {
 		return;
 	}
 	const int &tid = threadIdx.x;
@@ -44,7 +45,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		const auto &Lpos = params.Lpos[params.depth];
 		array<float, NDIM> dx;
 		for (int dim = 0; dim < NDIM; dim++) {
-			const auto x1 = me.pos[dim];
+			const auto x1 = mecrit.pos[dim];
 			const auto x2 = Lpos[dim];
 			dx[dim] = distance(x1, x2);
 		}
@@ -52,7 +53,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	}
 	int flops = 0;
 	int interacts = 0;
-	if (((tree*) tptr)->children[0].ptr == 0) {
+	if (tptr.is_leaf()) {
 		for (int k = tid; k < MAX_BUCKET_SIZE; k += KICK_BLOCK_SIZE) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				F[dim][k] = 0.f;
@@ -60,7 +61,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			phi[k] = -PHI0;
 		}
 	}
-	const auto& myparts = ((tree*) params.tptr)->parts;
+	const auto& myparts = tptr.get_parts();
 	array<int, NITERS> count;
 
 	const float theta = params.theta;
@@ -76,10 +77,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	lists[OI] = &opened_checks;
 	int my_index[NITERS];
 	int index_counts[NITERS];
-	const float myradius1 = me.radius; // + h;
+	const float myradius1 = mecrit.r; // + h;
 	const float myradius2 = SINK_BIAS * myradius1;
-	const auto mypos = me.pos;
-	const bool iamleaf = me.children[0].ptr == 0;
+	const auto mypos = mecrit.pos;
+	const bool iamleaf = tptr.is_leaf();
 	int ninteractions = iamleaf ? 3 : 2;
 	for (int type = 0; type < ninteractions; type++) {
 		const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
@@ -106,10 +107,11 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					}
 					if (ci < check_count) {
 						const auto check = checks[ci];
-						const auto other_pos = ((const tree*) check)->pos;
-						const float other_radius = ((const tree*) check)->radius;
-						const float other_nparts = ((const tree*) check)->parts.second - ((const tree*) check)->parts.first;
-						;
+						const auto other_mcrit = check.get_mcrit();
+						const auto& other_pos = other_mcrit.pos;
+						const float& other_radius = other_mcrit.r;
+						const auto other_parts = check.get_parts();
+						const size_t other_nparts = other_parts.second - other_parts.first;
 						array<float, NDIM> dist;
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
 							dist[dim] = distance(other_pos[dim], mypos[dim]);
@@ -125,7 +127,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const bool far1 = R1 < theta2d2;                 // 1
 						const bool far2 = R2 < theta2d2;                 // 1
 						const bool far3 = R3 < theta2d2;                 // 1
-						const bool isleaf = (((const tree*) check)->children[0].ptr == 0);
+						const bool isleaf = check.is_leaf();
 						interacts++;
 						flops += 27;
 						const bool mi = far1 || (direct && far3 && other_nparts >= MIN_PC_PARTS);
@@ -207,8 +209,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				my_index[1] = 0;
 				list_index = -1;
 				if (j < parti.size()) {
-					const auto& other = *((tree*) parti[j]);
-					const auto other_nparts = other.parts.second - other.parts.first;
+					const auto& other_parts = parti[j].get_parts();
+					const auto other_nparts = other_parts.second - other_parts.first;
 					const float hfac = params.theta * fmaxf(params.hsoft, MIN_DX);
 					bool res = false;
 					const int sz = myparts.second - myparts.first;
@@ -217,12 +219,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					} else {
 						for (int k = 0; k < sz; k++) {
 							const auto this_rung = parts->rung(k + myparts.first);
+							const auto other_mcrit = parti[j].get_mcrit();
 							if (this_rung >= params.rung || params.full_eval) {
-								float dx0 = distance(other.pos[0], sinks[0][k]);
-								float dy0 = distance(other.pos[1], sinks[1][k]);
-								float dz0 = distance(other.pos[2], sinks[2][k]);
+								float dx0 = distance(other_mcrit.pos[0], sinks[0][k]);
+								float dy0 = distance(other_mcrit.pos[1], sinks[1][k]);
+								float dz0 = distance(other_mcrit.pos[2], sinks[2][k]);
 								float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-								res = sqr(other.radius + hfac) > d2 * theta2;
+								res = sqr(other_mcrit.r + hfac) > d2 * theta2;
 								flops += 15;
 								if (res) {
 									break;
@@ -278,39 +281,40 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			break;
 		}
 	}
-	if (!(((tree*) tptr)->children[0].ptr == 0)) {
-		tree* left = ((tree*) tptr)->children[LEFT];
-		tree* right = ((tree*) tptr)->children[RIGHT];
+	if (!tptr.is_leaf()) {
 		if (tid == 0) {
 			params.depth++;
 			params.L[params.depth] = L;
-			params.Lpos[params.depth] = me.pos;
+			params.Lpos[params.depth] = mecrit.pos;
 		}
-		if (left->active_parts && right->active_parts) {
+		const auto children = tptr.get_children();
+		const auto aleft = children[LEFT].get_active();
+		const auto aright = children[RIGHT].get_active();
+		if (aleft.parts && aright.parts) {
 			params.dchecks.push_top();
 			params.echecks.push_top();
 			if (tid == 0) {
-				params.tptr = ((tree*) tptr)->children[LEFT];
+				params.tptr = children[LEFT];
 			}
 			__syncwarp();
 			cuda_kick(params_ptr);
 			if (tid == 0) {
 				params.L[params.depth] = L;
-				params.tptr = ((tree*) tptr)->children[RIGHT];
+				params.tptr = children[RIGHT];
 			}
 			params.dchecks.pop_top();
 			params.echecks.pop_top();
 			__syncwarp();
 			cuda_kick(params_ptr);
-		} else if (left->active_parts) {
+		} else if (aleft.parts) {
 			if (tid == 0) {
-				params.tptr = ((tree*) tptr)->children[LEFT];
+				params.tptr = children[LEFT];
 			}
 			__syncwarp();
 			cuda_kick(params_ptr);
-		} else if (right->active_parts) {
+		} else if (aright.parts) {
 			if (tid == 0) {
-				params.tptr = ((tree*) tptr)->children[RIGHT];
+				params.tptr = children[RIGHT];
 			}
 			__syncwarp();
 			cuda_kick(params_ptr);
@@ -328,7 +332,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				float this_phi;
 				array<float, NDIM> dx;
 				for (int dim = 0; dim < NDIM; dim++) {
-					const auto x2 = me.pos[dim];
+					const auto x2 = mecrit.pos[dim];
 					const auto x1 = parts->pos(dim, k + myparts.first);
 					dx[dim] = distance(x1, x2);
 				}

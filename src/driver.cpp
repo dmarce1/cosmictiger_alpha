@@ -40,7 +40,7 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool f
 	timer time;
 	time.start();
 	tree_ptr root_ptr;
-	root_ptr.ptr = (uintptr_t) &root;
+	root_ptr =  &root;
 	kick_params_type *params_ptr;
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) kick_params_type();
@@ -119,10 +119,10 @@ void load_from_file(particle_set& parts, int& step, time_type& itime, double& a,
 		printf("Unable to open %s\n", filename.c_str());
 		abort();
 	}
-	fread(&step, sizeof(int), 1, fp);
-	fread(&itime, sizeof(time_type), 1, fp);
-	fread(&a, sizeof(double), 1, fp);
-	fread(&cosmicK, sizeof(double), 1, fp);
+	FREAD(&step, sizeof(int), 1, fp);
+	FREAD(&itime, sizeof(time_type), 1, fp);
+	FREAD(&a, sizeof(double), 1, fp);
+	FREAD(&cosmicK, sizeof(double), 1, fp);
 	parts.load_from_file(fp);
 	fclose(fp);
 	printf(" done\n");

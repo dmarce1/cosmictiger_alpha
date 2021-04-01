@@ -107,40 +107,40 @@ public:
 
 CUDA_EXPORT
 inline fixed32 particle_set::pos(int dim, size_t index) const {
-	assert(index >= 0);
+
 	assert(index < size_);
 	return xptr_[dim][index - offset_];
 }
 
 inline vel_type particle_set::vel(size_t index) const {
-	assert(index >= 0);
+
 	assert(index < size_);
 	return uptr_[index - offset_];
 }
 
 CUDA_EXPORT
 inline rung_t particle_set::rung(size_t index) const {
-	assert(index >= 0);
+
 	assert(index < size_);
 	return uptr_[index - offset_].p.r;
 }
 CUDA_EXPORT
 inline fixed32& particle_set::pos(int dim, size_t index) {
-	assert(index >= 0);
+
 	assert(index < size_);
 	return xptr_[dim][index - offset_];
 }
 
 CUDA_EXPORT
 inline vel_type& particle_set::vel(size_t index) {
-	assert(index >= 0);
+
 	assert(index < size_);
 	return uptr_[index - offset_];
 }
 
 CUDA_EXPORT
 inline void particle_set::set_rung(rung_t t, size_t index) {
-	assert(index >= 0);
+
 	assert(index < size_);
 	uptr_[index - offset_].p.r = t;
 }

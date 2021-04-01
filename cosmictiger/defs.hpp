@@ -8,6 +8,9 @@
 #ifndef COSMICTIGER_DEFS_HPP_
 #define COSMICTIGER_DEFS_HPP_
 
+#include <stdlib.h>
+#include <stdio.h>
+
 #define NDIM 3
 #define FULL_MASK 0xFFFFFFFF
 
@@ -26,7 +29,7 @@
 
 //#define USE_READMOSTLY
 //#define USE_NAN_TEST
-//#define TEST_FORCE
+#define TEST_FORCE
 //#define TEST_STACK
 #define N_TEST_PARTS (100)
 
@@ -111,6 +114,17 @@ struct pair {
 	A first;
 	B second;
 };
+
+
+inline void safe_fread(void* ptr, size_t sz, size_t nele, FILE* fp, const char* file, int line) {
+	if(fread(ptr,sz,nele,fp)!=nele) {
+		printf( "Failed to read %li elements of size %li in %s on line %i\n", nele, sz, file, line);
+		abort();
+	}
+}
+
+#define FREAD(ptr,size,nele,fp) safe_fread(ptr,size,nele,fp,__FILE__,__LINE__);
+
 
 
 #endif /* COSMICTIGER_DEFS_HPP_ */

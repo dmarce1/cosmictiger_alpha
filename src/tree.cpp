@@ -155,7 +155,7 @@ sort_return tree::sort(sort_params params) {
 			}
 		}
 		std::array<multipole, NCHILD> Mc;
-		std::array<fixed32*, NCHILD> Xc;
+		std::array<array<fixed32, NDIM>, NCHILD> Xc;
 		std::array<float, NCHILD> Rc;
 		auto &M = (multi);
 		rc.active_parts = 0;
@@ -168,8 +168,9 @@ sort_return tree::sort(sort_params params) {
 		for (int ci = 0; ci < NCHILD; ci++) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
-			Mc[ci] = ((tree*) this_rc.check)->multi;
-			Xc[ci] = ((tree*) this_rc.check)->pos.data();
+			auto this_mpole = this_rc.check.get_mpole();
+			Mc[ci] = this_mpole.multi;
+			Xc[ci] = this_mpole.pos;
 			children[ci] = this_rc.check;
 			rc.active_parts += this_rc.active_parts;
 			rc.active_nodes += this_rc.active_nodes;
@@ -200,8 +201,8 @@ sort_return tree::sort(sort_params params) {
 			xr[dim] = Xc[RIGHT][dim].to_double() - com[dim];
 		}
 		M = (ML >> xl) + (MR >> xr);
-		rleft = std::sqrt(rleft) + ((tree*) children[LEFT])->radius;
-		rright = std::sqrt(rright) + ((tree*) children[RIGHT])->radius;
+		rleft = std::sqrt(rleft) + children[LEFT].get_mcrit().r;
+		rright = std::sqrt(rright) + children[RIGHT].get_mcrit().r;
 		radius = std::max(rleft, rright);
 		float rmax = 0.0;
 		const auto corners = params.box.get_corners();
@@ -290,9 +291,11 @@ void tree::cleanup() {
 hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	static const bool use_cuda = global().opts.cuda;
 	kick_params_type &params = *params_ptr;
-	const auto part_begin = ((tree*) (*this))->parts.first;
-	const auto part_end = ((tree*) (*this))->parts.second;
-	const auto num_active = ((tree*) (*this))->active_nodes;
+	const auto parts = get_parts();
+	const auto part_begin = parts.first;
+	const auto part_end = parts.second;
+	const auto actives = get_active();
+	const auto num_active = actives.nodes;
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
 	if (use_cuda && num_active <= params.block_cutoff && num_active) {
 		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
@@ -409,9 +412,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 #endif
 			const auto th = params.theta * std::max(params.hsoft, MIN_DX);
 			for (int ci = 0; ci < checks.size(); ci++) {
-				const auto other_radius = checks[ci].get_radius();
-				const auto other_parts = ((tree*) checks[ci])->parts;
-				const auto other_pos = checks[ci].get_pos();
+				const auto mcrit = checks[ci].get_mcrit();
+				const auto other_radius = mcrit.r;
+				const auto other_parts = checks[ci].get_parts();
+				const auto other_pos = mcrit.pos;
 				float d2 = 0.f;
 				for (int dim = 0; dim < NDIM; dim++) {
 					d2 += sqr(distance(other_pos[dim], pos[dim]));
@@ -434,7 +438,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				} else if (isleaf) {
 					next_checks.push_back(checks[ci]);
 				} else {
-					const auto child_checks = checks[ci].get_children().get();
+					const auto child_checks = checks[ci].get_children();
 					next_checks.push_back(child_checks[LEFT]);
 					next_checks.push_back(child_checks[RIGHT]);
 				}
@@ -472,7 +476,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		array<hpx::future<void>, NCHILD> futs;
 		futs[LEFT] = hpx::make_ready_future();
 		futs[RIGHT] = hpx::make_ready_future();
-		if (((tree*) children[LEFT])->active_parts && ((tree*) children[RIGHT])->active_parts) {
+		active_type aleft = children[LEFT].get_active();
+		active_type aright = children[RIGHT].get_active();
+		if (aleft.parts && aright.parts) {
 			int depth0 = params.depth;
 			params.depth++;
 			params.dchecks.push_top();
@@ -485,8 +491,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.L[params.depth] = L;
 			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
 			params.depth--;
-		} else if (((tree*) children[LEFT])->active_parts) {
-			const auto other_parts = ((tree*) children[RIGHT])->parts;
+		} else if (aleft.parts) {
+			const auto other_parts = children[RIGHT].get_parts();
 //			covered_ranges.add_range(parts);
 			parts_covered += other_parts.second - other_parts.first;
 			if (parts_covered == global().opts.nparts) {
@@ -498,8 +504,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.Lpos[params.depth] = pos;
 			futs[LEFT] = children[LEFT].kick(params_ptr, false);
 			params.depth--;
-		} else if (((tree*) children[RIGHT])->active_parts) {
-			const auto other_parts = ((tree*) children[LEFT])->parts;
+		} else if (aright.parts) {
+			const auto other_parts = children[LEFT].get_parts();
 //			covered_ranges.add_range(parts);
 			parts_covered += other_parts.second - other_parts.first;
 			if (parts_covered == global().opts.nparts) {
@@ -613,8 +619,8 @@ void tree::gpu_daemon() {
 	do {
 		timer.stop();
 		if (timer.read() > 0.05) {
-			printf("Kicking: GPU stage - %c %i in queue: %i active: %i complete                \r", waiting_char[counter % 4], gpu_queue.size(), blocks_active,
-					blocks_completed);
+			printf("Kicking: GPU stage - %c %li in queue: %i active: %i complete                \r",
+					waiting_char[counter % 4], gpu_queue.size(), blocks_active, blocks_completed);
 			fflush(stdout);
 			counter++;
 			timer.reset();

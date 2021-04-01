@@ -25,16 +25,18 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 			int n = 0;
 			for (int k = 0; k < simd_float::size(); k++) {
 				if (j + k < cnt1) {
+					multipole_pos mpole = multis[j + k].get_mpole();
 					for (int dim = 0; dim < NDIM; dim++) {
-						Y[dim][k] = fixed<int>(((const tree*) multis[j + k])->pos[dim]).raw();
+						Y[dim][k] = fixed<int>(mpole.pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
-						M[i][k] = (((const tree*) multis[j + k])->multi)[i];
+						M[i][k] = (mpole.multi)[i];
 					}
 					n++;
 				} else {
+					multipole_pos mpole = multis[cnt1 - 1].get_mpole();
 					for (int dim = 0; dim < NDIM; dim++) {
-						Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
+						Y[dim][k] = fixed<int>(mpole.pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
 						M[i][k] = 0.f;
@@ -75,7 +77,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 		sources[dim].resize(0);
 	}
 	for (int k = 0; k < partis.size(); k++) {
-		const auto& other_parts = ((tree*) partis[k])->parts;
+		const auto& other_parts = partis[k].get_parts();
 		for (size_t l = other_parts.first; l < other_parts.second; l++) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				sources[dim].push_back(particles->pos(dim, l));
@@ -151,7 +153,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 		sources[dim].resize(0);
 	}
 	for (int k = 0; k < partis.size(); k++) {
-		const auto& other_parts = ((tree*) partis[k])->parts;
+		const auto& other_parts = partis[k].get_parts();
 		for (size_t l = other_parts.first; l < other_parts.second; l++) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				sources[dim].push_back(particles->pos(dim, l));
@@ -262,20 +264,21 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 				n = 0;
 				for (int k = 0; k < simd_float::size(); k++) {
 					if (j + k < cnt1) {
+						multipole_pos mpole = multis[j + k].get_mpole();
 						for (int dim = 0; dim < NDIM; dim++) {
-							Y[dim][k] = fixed<int>(((const tree*) multis[j + k])->pos[dim]).raw();
+							Y[dim][k] = fixed<int>(mpole.pos[dim]).raw();
 						}
-						for (int l = 0; l < MP; l++) {
-							M[l][k] = (((const tree*) multis[j + k])->multi)[l];
+						for (int i = 0; i < MP; i++) {
+							M[i][k] = (mpole.multi)[i];
 						}
-						interacts++;
 						n++;
 					} else {
+						multipole_pos mpole = multis[cnt1 - 1].get_mpole();
 						for (int dim = 0; dim < NDIM; dim++) {
-							Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
+							Y[dim][k] = fixed<int>(mpole.pos[dim]).raw();
 						}
-						for (int l = 0; l < MP; l++) {
-							M[l][k] = 0.f;
+						for (int i = 0; i < MP; i++) {
+							M[i][k] = 0.f;
 						}
 					}
 				}
@@ -286,9 +289,9 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 				flops += n * green_direct(D, dX);
 				flops += n * multipole_interaction(Lacc, M, D, params.full_eval);
 			}
-			Phi[i] += Lacc[0].sum();// * DSCALE;
+			Phi[i] += Lacc[0].sum();                                                                           // * DSCALE;
 			for (int dim = 0; dim < NDIM; dim++) {
-				F[dim][i] -= Lacc[1 + dim].sum();// * (DSCALE * DSCALE);
+				F[dim][i] -= Lacc[1 + dim].sum();                                                    // * (DSCALE * DSCALE);
 			}
 		}
 	}
@@ -325,16 +328,18 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 			n = 0;
 			for (int k = 0; k < simd_float::size(); k++) {
 				if (j + k < cnt1) {
+					multipole_pos mpole = multis[j + k].get_mpole();
 					for (int dim = 0; dim < NDIM; dim++) {
-						Y[dim][k] = fixed<int>(((const tree*) multis[j + k])->pos[dim]).raw();
+						Y[dim][k] = fixed<int>(mpole.pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
-						M[i][k] = (((const tree*) multis[j + k])->multi)[i];
+						M[i][k] = (mpole.multi)[i];
 					}
 					n++;
 				} else {
+					multipole_pos mpole = multis[cnt1 - 1].get_mpole();
 					for (int dim = 0; dim < NDIM; dim++) {
-						Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
+						Y[dim][k] = fixed<int>(mpole.pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
 						M[i][k] = 0.f;

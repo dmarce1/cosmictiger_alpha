@@ -256,7 +256,7 @@ public:
 	hpx::future<void> send_kick_to_gpu(kick_params_type *params);
 	static void gpu_daemon();
 	inline bool is_leaf() const {
-		return children[0] == tree_ptr();
+		return children[0].ptr == 0;
 	}
 	static void cleanup();
 	void cpu_cc_direct(kick_params_type *params);
@@ -274,42 +274,14 @@ public:
 	friend class tree_ptr;
 };
 
-#ifndef __CUDACC__
-inline fast_future<array<tree_ptr, NCHILD>> tree_ptr::get_children() const {
-	assert(constructed == 1234);
-	assert(ptr);
-	return fast_future<array<tree_ptr, NCHILD>>(((tree*) ptr)->children);
-}
-#else
-CUDA_EXPORT
-inline array<tree_ptr, NCHILD> tree_ptr::get_children() const {
-	assert(constructed == 1234);
-	assert(ptr);
-	return (((tree*) ptr)->children);
-}
-
-#endif
-
-CUDA_EXPORT
-inline float tree_ptr::get_radius() const {
-	assert(constructed == 1234);
-	assert(ptr);
-	return ((tree*) ptr)->radius;
-}
-
-CUDA_EXPORT
-inline array<fixed32, NDIM> tree_ptr::get_pos() const {
-	assert(ptr);
-	assert(constructed == 1234);
-	return ((tree*) ptr)->pos;
-}
 
 CUDA_EXPORT
 inline bool tree_ptr::is_leaf() const {
 	assert(constructed == 1234);
 	assert(ptr);
-	return ((tree*) ptr)->children[0] == tree_ptr();
+	return ((tree*) ptr)->children[0].ptr == 0;
 }
 
 void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);
 
+#include <cosmictiger/tree_ptr_impl.hpp>

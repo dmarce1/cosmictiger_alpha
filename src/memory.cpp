@@ -32,7 +32,7 @@ void* cuda_allocator::allocate(size_t sz) {
 		CUDA_CHECK(cudaMalloc(&ptr, chunk_size * total_sz));
 //      printf( "Done Allocating %li bytes on device\n", chunk_size * total_sz);
 		for (int i = 0; i < chunk_size; i++) {
-			freelist[index].push(ptr + i * total_sz);
+			freelist[index].push(((char*)ptr + i * total_sz));
 		}
 	}
 	ptr = freelist[index].top();
@@ -63,7 +63,7 @@ void unified_allocator::show_allocs() {
 			printf("%i %i\n", i->second, i->first);
 		}
 	}
-	printf("%i MB in use\n", allocated / 1024 / 1024);
+	printf("%li MB in use\n", allocated / 1024 / 1024);
 }
 
 void* unified_allocator::allocate(size_t sz) {
@@ -89,7 +89,7 @@ void* unified_allocator::allocate(size_t sz) {
 		CUDA_MALLOC(cptr, chunk_size * total_sz);
 		ptr = cptr;
 		for (int i = 0; i < chunk_size; i++) {
-			freelist[index].push(ptr + i * total_sz);
+			freelist[index].push(((char*)ptr + i * total_sz));
 		}
 		allocated += chunk_size * total_sz;
 	}

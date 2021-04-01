@@ -18,22 +18,6 @@
 #include <atomic>
 
 
-
-struct multipole_pos {
-	multipole multi;
-	array<fixed32, NDIM> pos;
-};
-
-
-struct multi_crit {
-	array<fixed32, NDIM> pos;
-	float r;
-};
-
-
-using children_type = array<tree_ptr,NCHILD>;
-using parts_type = pair<size_t,size_t>;
-
 class trees {
 private:
 	void* data_;
@@ -52,44 +36,46 @@ public:
 	~trees();
 	void clear();
 
-	CUDA_EXPORT
-	inline multipole_pos& multi_pos(size_t i) {
+	CUDA_EXPORT inline
+	multipole_pos get_multi(size_t i) const {
 		return multi_data_[i];
 	}
 
-	CUDA_EXPORT
-	inline const multipole_pos& multi_pos(size_t i) const {
-		return multi_data_[i];
+	CUDA_EXPORT inline
+	void set_multi(size_t i, const multipole& mpole, const array<fixed32,NDIM>& pos ) {
+		multi_data_[i].pos = pos;
+		multi_data_[i].multi = mpole;
 	}
 
-	CUDA_EXPORT
-	inline children_type& children(size_t i) {
+	CUDA_EXPORT inline
+	children_type get_children(size_t i) const {
 		return child_data_[i];
 	}
 
-	CUDA_EXPORT
-	inline const children_type& children(size_t i) const {
-		return child_data_[i];
+	CUDA_EXPORT inline
+	void set_children(size_t i, const children_type& c) {
+		child_data_[i] = c;
 	}
 
-	CUDA_EXPORT
-	inline parts_type& parts(size_t i) {
+	CUDA_EXPORT inline
+	parts_type get_parts(size_t i) const {
 		return parts_data_[i];
 	}
 
-	CUDA_EXPORT
-	inline const parts_type& parts(size_t i) const {
-		return parts_data_[i];
+	CUDA_EXPORT inline
+	void set_parts(size_t i, parts_type p) {
+		parts_data_[i] = p;
 	}
 
-	CUDA_EXPORT
-	inline multi_crit& mcrit(size_t i) {
+	CUDA_EXPORT inline
+	multi_crit get_mcrit(size_t i) const {
 		return crit_data_[i];
 	}
 
-	CUDA_EXPORT
-	inline const multi_crit& mcrit(size_t i) const {
-		return crit_data_[i];
+	CUDA_EXPORT inline
+	void set_mcrit(size_t i, const array<fixed32,NDIM>& pos, float r ) {
+		crit_data_[i].pos = pos;
+		crit_data_[i].r = r;
 	}
 
 };
