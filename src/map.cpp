@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include <silo.h>
+#include <chealpix.h>
 
 template<typename T>
 struct atomwrapper {
@@ -45,37 +46,20 @@ std::unordered_map<int, map_type> maps;
 void prepare_map(int i) {
 //	printf("preparing map %i\n", i);
 	auto& map = maps[i];
-	const auto xdim = global().opts.map_size * 2;
-	const auto ydim = xdim / 2;
-	map = map_type(xdim * ydim, atomwrapper<int64_t>(0));
+	const auto npts = 12 * sqr(global().opts.map_size);
+	map = map_type(npts, atomwrapper<int64_t>(0));
 }
 
 void save_map(int i) {
-	const auto xdim = global().opts.map_size * 2;
-	const auto ydim = xdim / 2;
-	std::string filename = std::string("map.") + std::to_string(i) + ".silo";
-	auto db = DBCreate(filename.c_str(), DB_CLOBBER, DB_LOCAL, NULL, DB_PDB);
-	const map_type& map = maps[i];
-	std::vector<double> vals;
-	std::vector<double> x, y;
-	for (int j = 0; j < map.size(); j++) {
-		vals.push_back((double) int64_t(map[j]));
+	const auto npts = 12 * sqr(global().opts.map_size);
+	std::string filename = std::string("map.") + std::to_string(i) + ".hpx";
+	std::vector<float> res;
+	for (int j = 0; j < npts; j++) {
+		res.push_back((float) int64_t(maps[i][j]));
 	}
-	for (int j = 0; j <= xdim; j++) {
-		x.push_back(2.0 * j / xdim - 1.0);
-	}
-	for (int j = 0; j <= ydim; j++) {
-		y.push_back(double(j) / ydim - 0.5);
-	}
-
-	constexpr int ndim = 2;
-	const int dims1[ndim] = { xdim + 1, ydim + 1 };
-	const int dims2[ndim] = { xdim, ydim };
-	const double* coords[ndim] = { x.data(), y.data() };
-	const char* coord_names[ndim] = { "x", "y" };
-	DBPutQuadmesh(db, "mesh", coord_names, coords, dims1, ndim, DB_DOUBLE, DB_COLLINEAR, nullptr);
-	DBPutQuadvar1(db, "intensity", "mesh", vals.data(), dims2, ndim, nullptr, 0, DB_DOUBLE, DB_ZONECENT, nullptr);
-	DBClose(db);
+	FILE* fp = fopen(filename.c_str(), "wb");
+	fwrite(res.data(), sizeof(float), npts, fp);
+	fclose(fp);
 }
 
 void load_and_save_maps(double tau, double tau_max) {
@@ -106,21 +90,8 @@ void load_and_save_maps(double tau, double tau_max) {
 
 }
 
-void map_coords(double& x, double& y, double lambda, double phi) {
-	double theta = phi;
-	double theta0;
-	static const double res = 1.0 / global().opts.map_size;
-	int iters = 0;
-	do {
-		theta0 = theta;
-		theta -= (2.0 * theta + std::sin(2.0 * theta) - M_PI * std::sin(phi)) / (2.0 + 2.0 * std::cos(2.0 * theta));
-		iters++;
-	} while (std::abs(theta0 - theta) > res / 100.0);
-	x = lambda * std::cos(theta) / (M_PI);
-	y = std::sin(theta);
-}
-
-int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, double tau, double dtau, double tau_max) {
+int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, double tau, double dtau,
+		double tau_max) {
 	static const auto map_freq = global().opts.map_freq * tau_max;
 	static const auto map_freq_inv = 1.0 / map_freq;
 	array<double, NDIM> x0;
@@ -146,36 +117,21 @@ int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, d
 					const auto r0 = std::sqrt(R20 + sqr(x0[2]));
 					const auto tau0 = tau + r0;
 					const auto tau1 = tau + dtau + r1;
+
 					const int i0 = tau0 * map_freq_inv;
 					const int i1 = tau1 * map_freq_inv;
 					if (i0 != i1) {
 						for (int j = i0; j < i1; j++) {
 							rc++;
-							const auto xdim = global().opts.map_size * 2;
-							const auto ydim = xdim / 2;
-							auto x = (x0[0] + x1[0]) * 0.5;
-							auto y = (x0[1] + x1[1]) * 0.5;
-							const auto z = (x0[2] + x1[2]) * 0.5;
-							const auto R = std::sqrt(x * x + y * y);
-							const auto r = std::sqrt(R * R + z * z);
-							if (r > 1.0e-3) {
-								const auto zor = z / r;
-								const auto theta = std::asin(zor);
-								const auto phi = std::atan2(y, x);
-								map_coords(x, y, phi, theta);
-								int ix = (x + 1.0) / 2.0 * xdim + 0.5;
-								int iy = (y + 1.0) / 2.0 * ydim + 0.5;
-								ix = std::min(ix, xdim - 1);
-								ix = std::max(ix, 0);
-								iy = std::min(iy, ydim - 1);
-								iy = std::max(iy, 0);
-								const std::int64_t dN = 100.0 / (r * r) + 0.5;
-								if (maps.find(j + 1) == maps.end()) {
-									printf("map %i not found\n", j + 1);
-									abort();
-								}
-								maps[j + 1][ix + xdim * iy] += dN;
+							static const long Nside = global().opts.map_size;
+							for (int dim = 0; dim < NDIM; dim++) {
+								x0[dim] = 0.5 * (x0[dim] + x1[dim]);
 							}
+							double r = fma(x0[0], x0[0], fma(x0[1], x0[1], sqr(x0[2])));
+							long ipring;
+							vec2pix_ring(Nside, &x0[0], &ipring);
+							const std::int64_t dN = 100.0 / (r * r) + 0.5;
+							maps[j + 1][ipring] += dN;
 						}
 					}
 				}

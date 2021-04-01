@@ -92,7 +92,7 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    Boost::boost Silo::silo
+    Boost::boost Silo::silo chealpix
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
