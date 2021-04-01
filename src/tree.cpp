@@ -613,8 +613,9 @@ void tree::gpu_daemon() {
 	do {
 		timer.stop();
 		if (timer.read() > 0.05) {
-			printf("%c %i in queue: %i active: %i complete\r", waiting_char[counter % 4], gpu_queue.size(), blocks_active,
+			printf("Kicking: GPU stage - %c %i in queue: %i active: %i complete                \r", waiting_char[counter % 4], gpu_queue.size(), blocks_active,
 					blocks_completed);
+			fflush(stdout);
 			counter++;
 			timer.reset();
 		}

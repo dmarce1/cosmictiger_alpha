@@ -46,6 +46,7 @@ set(cosmictiger_source_files
     src/rand.cpp
     src/tests.cpp
     src/tree.cpp
+    src/trees.cpp
     src/tree.cu
     src/kick_return.cu
     src/kick_return.cpp
@@ -62,7 +63,6 @@ set(cosmictiger_header_files
 	cosmictiger/gravity.hpp
 	cosmictiger/gravity.hpp
 	cosmictiger/math.hpp
-	cosmictiger/managed_vector.hpp
 	cosmictiger/multipole.hpp
 	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
@@ -83,6 +83,7 @@ set(cosmictiger_header_files
 	cosmictiger/rand.hpp
 	cosmictiger/range.hpp
 	cosmictiger/timer.hpp
+	cosmictiger/trees.hpp
 	cosmictiger/tests.hpp
 	cosmictiger/map.hpp
 	cosmictiger/tree.hpp

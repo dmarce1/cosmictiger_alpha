@@ -10,6 +10,8 @@
 double T0;
 
 tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm) {
+	printf( "Building tree...                                                                           \r");
+	fflush(stdout);
 	timer time;
 	time.start();
 	tree::set_particle_set(&parts);
@@ -33,6 +35,8 @@ tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_act
 }
 
 int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool first_call, double& tm) {
+	printf( "Kicking: CPU stage...                                                                     \r");
+	fflush(stdout);
 	timer time;
 	time.start();
 	tree_ptr root_ptr;
@@ -77,6 +81,8 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool f
 
 int drift(particle_set& parts, double dt, double a0, double a1, double*ekin, double*momx, double*momy, double*momz,
 		double tau, double tau_max, double& tm) {
+	printf( "Drifting...                                                                             \r");
+	fflush(stdout);
 	timer time;
 	time.start();
 	int rc = drift_particles(parts.get_virtual_particle_set(), dt, a0, a1, ekin, momx, momy, momz, tau, tau_max);
