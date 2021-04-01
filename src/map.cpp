@@ -6,7 +6,6 @@
 #include <atomic>
 #include <unordered_map>
 
-#include <silo.h>
 #include <chealpix.h>
 
 template<typename T>

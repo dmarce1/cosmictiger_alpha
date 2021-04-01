@@ -92,13 +92,17 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    Boost::boost Silo::silo chealpix
+    Boost::boost chealpix cuda cudart tcmalloc
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
     ${cosmictiger_header_files}
  )
  
+ add_executable(
+ 	hpx2mw
+ 	src/hpx2mw.cpp
+ )
  
 #add_library(hpx_lite 
 #	hpx_lite/src/hpx.cpp
@@ -116,19 +120,12 @@ add_hpx_executable(
 
  
 set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-#set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-target_link_libraries(cosmictiger PUBLIC cuda cudart tcmalloc)
-#target_link_libraries(cosmictiger_lite PUBLIC boost_program_options hpx_lite cuda cudart tcmalloc  hwloc)
+target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
-#target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} /home/dmarce1/workspace/cosmictiger/hpx_lite)
-#target_include_directories(hpx_lite PUBLIC  /home/dmarce1/workspace/cosmictiger/hpx_lite)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
                         >)
-#target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-#                       --maxrregcount 168 --use_fast_math --gpu-architecture=compute_86;
-#                        >)
                         
                         
                         
