@@ -276,6 +276,7 @@ void tree::cleanup() {
 }
 
 hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
+	assert(index != -1234);
 	static const bool use_cuda = global().opts.cuda;
 	kick_params_type &params = *params_ptr;
 	const auto parts = get_parts();
@@ -705,8 +706,7 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 	 }*/
 
 	gpu_kick gpu;
-	tree_ptr me;
-	me.ptr = (uintptr_t) (this);
+	tree_ptr me = self;
 //   me.rank = hpx_rank();
 	kick_params_type *new_params;
 	new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));

@@ -42,6 +42,11 @@ class tree_ptr {
 	int index;
 public:
 
+	CUDA_EXPORT
+	tree_ptr() {
+		index = -1234;
+	}
+
 	inline tree_ptr& operator=(tree* ptr_) {
 		ptr = (uintptr_t) (ptr_);
 		index = 0;

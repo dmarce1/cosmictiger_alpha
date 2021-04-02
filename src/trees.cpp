@@ -6,7 +6,6 @@
 trees trees_allocator::tree_database;
 std::atomic<int> next_chunk_;
 
-
 void trees::init() {
 	const int nparts = global().opts.nparts;
 	const int bucket_size = global().opts.bucket_size;
@@ -15,15 +14,10 @@ void trees::init() {
 	ntrees_ = ((ntrees_ - 1) / nchunks_ + 1) * nchunks_;
 	chunk_size_ = ntrees_ / nchunks_;
 	printf("Allocating trees - %i trees in %i chunks of %i size\n", ntrees_, nchunks_, chunk_size_);
-	const int total_element_sz = sizeof(multipole_pos) + sizeof(children_type) + sizeof(parts_type) + sizeof(multi_crit);
-	const int total_sz = total_element_sz * ntrees_;
-	char* cdata;
-	CUDA_MALLOC(cdata, total_sz);
-	data_ = (void*) cdata;
-	multi_data_ = (multipole_pos*) data_;
-	child_data_ = (children_type*) (((char*) multi_data_) + sizeof(multipole_pos) * ntrees_);
-	parts_data_ = (parts_type*) (((char*) child_data_) + sizeof(children_type) * ntrees_);
-	crit_data_ = (multi_crit*) (((char*) parts_data_) + sizeof(parts_type) * ntrees_);
+	CUDA_MALLOC(multi_data_, ntrees_);
+	CUDA_MALLOC(child_data_, ntrees_);
+	CUDA_MALLOC(parts_data_, ntrees_);
+	CUDA_MALLOC(crit_data_, ntrees_);
 	get_cuda_trees_database() = *this;
 	initialized = true;
 }

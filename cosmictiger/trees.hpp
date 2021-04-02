@@ -42,7 +42,6 @@ inline int ewald_min_level(double theta, double h) {
 
 class trees {
 private:
-	void* data_;
 	bool initialized;
 	multipole_pos* multi_data_;
 	children_type* child_data_;
@@ -159,6 +158,7 @@ public:
 		}
 		tree_ptr ptr;
 		ptr.index = index;
+		assert(ptr.index>=0);
 		assert(ptr.index < tree_database.get_tree_count());
 		return ptr;
 	}

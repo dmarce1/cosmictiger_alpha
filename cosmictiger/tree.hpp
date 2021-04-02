@@ -229,6 +229,8 @@ struct tree {
 #ifndef __CUDACC__
 private:
 #endif
+	array<fixed32, NDIM> pos;
+	float radius;
 	size_t active_parts;
 	size_t active_nodes;
 	array<tree_ptr, NCHILD> children;
@@ -239,6 +241,8 @@ public:
 	tree() {
 		children[LEFT].ptr = 0;
 		children[RIGHT].ptr = 0;
+		children[LEFT].index = -1;
+		children[RIGHT].index = -1;
 		self.ptr = (uintptr_t)(this);
 		self.index = 0;
 	}
@@ -279,6 +283,7 @@ public:
 CUDA_EXPORT
 inline bool tree_ptr::is_leaf() const {
 	assert(ptr);
+	assert(index != -1234);
 	return ((tree*) ptr)->children[0].ptr == 0;
 }
 
