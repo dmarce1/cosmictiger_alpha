@@ -25,13 +25,14 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	for (int i = 0; i < LP; i++) {
 		L[i] = 0.0f;
 	}
-	const auto &pos = ((tree*) params.tptr)->pos;
+	const auto &pos = params.tptr.get_pos();
 	const int sz = multis.size();
 	for (int i = tid; i < sz; i += KICK_BLOCK_SIZE) {
-		const multipole mpole = ((tree*) multis[i])->multi;
+		const multipole mpole = multis[i].get_multi();
 		array<float, NDIM> fpos;
+		const auto other_pos = multis[i].get_pos();
 		for (int dim = 0; dim < NDIM; dim++) {
-			fpos[dim] = distance(pos[dim], ((tree*) multis[i])->pos[dim]);
+			fpos[dim] = distance(pos[dim], other_pos[dim]);
 		}
 		flops += 6;
 		if (etype == DIRECT) {
@@ -83,7 +84,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		}
 		auto these_parts = ((tree*) parti[0])->parts;
 		int i = 0;
-		const auto &pos = ((tree*) params.tptr)->pos;
+		const auto &pos = params.tptr.get_pos();
 		const auto partsz = parti.size();
 		while (i < partsz) {
 			part_index = 0;
@@ -305,7 +306,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 				fx = fmaf(dx0, r3inv, fx); // 2
 				fy = fmaf(dx1, r3inv, fy); // 2
 				fz = fmaf(dx2, r3inv, fz); // 2
-				NAN_TEST(fx); NAN_TEST(fy); NAN_TEST(fz);
+				NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
 				phi -= r1inv; // 1
 				flops += 15;
 				interacts++;
@@ -351,7 +352,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 				fx = fmaf(dx0, r3inv, fx); // 2
 				fy = fmaf(dx1, r3inv, fy); // 2
 				fz = fmaf(dx2, r3inv, fz); // 2
-				NAN_TEST(fx); NAN_TEST(fy); NAN_TEST(fz);
+				NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
 				phi -= r1inv; // 1
 				flops += 15;
 				interacts++;
@@ -416,74 +417,32 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	auto& dx2 = dx[2];
 	int nsrc = 0;
 	const int msize = sizeof(multipole_pos) / sizeof(float);
-	const auto mmax = (((multis.size() - 1) / KICK_PC_MAX) + 1) * KICK_PC_MAX;
-	for (int m = 0; m < mmax; m += KICK_PC_MAX) {
-		nsrc = 0;
-		for (int z = 0; z < KICK_PC_MAX; z++) {
-			if (m + z < multis.size()) {
-				const auto& other_ptr = ((tree*) multis[m + z]);
-				const float* src = (float*) &other_ptr->multi;
-				float* dst = (float*) &(msrcs[nsrc]);
-				nsrc++;
-				if (tid < msize) {
-					dst[tid] = src[tid];
-				}
-			}
+	const auto mmax = (((multis.size() - 1) / KICK_BLOCK_SIZE) + 1) * KICK_BLOCK_SIZE;
+	for (int m = tid; m < mmax; m += KICK_BLOCK_SIZE) {
+		multipole multi;
+		array<fixed32, NDIM> other_pos;
+		if (m < multis.size()) {
+			multi = multis[m].get_multi();
+			other_pos = multis[m].get_pos();
 		}
-		__syncwarp();
-		int kmid;
-		if ((nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 2) {
-			kmid = nactive - (nactive % KICK_BLOCK_SIZE);
-		} else {
-			kmid = nactive;
-		}
-		for (int k = tid; k < kmid; k += KICK_BLOCK_SIZE) {
+		for (int k = 0; k < nactive; k++) {
 			for (int i = 0; i < NDIM + 1; i++) {
 				Lforce[i] = 0.f;
 			}
-			for (int i = 0; i < nsrc; i++) {
-				const auto &source = msrcs[i].pos;
-				dx0 = distance(sinks[0][k], source[0]);
-				dx1 = distance(sinks[1][k], source[1]);
-				dx2 = distance(sinks[2][k], source[2]);
+			if (m < multis.size()) {
+				dx0 = distance(sinks[0][k], other_pos[0]);
+				dx1 = distance(sinks[1][k], other_pos[1]);
+				dx2 = distance(sinks[2][k], other_pos[2]);
 				flops += 6;
 				flops += green_direct(D, dx);
-				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
+				flops += multipole_interaction(Lforce, multi, D, params.full_eval);
 				interacts++;
 			}
-			phi = Lforce[0];// * DSCALE;
-			fx = Lforce[1];// * (DSCALE * DSCALE);
-			fy = Lforce[2];// * (DSCALE * DSCALE);
-			fz = Lforce[3];// * (DSCALE * DSCALE);
-			NAN_TEST(fx); NAN_TEST(fy); NAN_TEST(fz);
-			const int l = act_map[k];
-			F[0][l] -= fx;
-			F[1][l] -= fy;
-			F[2][l] -= fz;
-			if (full_eval) {
-				Phi[l] += phi;
-			}
-		}
-		__syncwarp();
-		for (int k = kmid; k < nactive; k++) {
-			for (int i = 0; i < NDIM + 1; i++) {
-				Lforce[i] = 0.f;
-			}
-			for (int i = tid; i < nsrc; i += KICK_BLOCK_SIZE) {
-				const auto &source = msrcs[i].pos;
-				dx0 = distance(sinks[0][k], source[0]);
-				dx1 = distance(sinks[1][k], source[1]);
-				dx2 = distance(sinks[2][k], source[2]);
-				flops += 6;
-				flops += green_direct(D, dx);
-				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
-				interacts++;
-			}
-			phi = Lforce[0];// * DSCALE;
-			fx = Lforce[1];// * (DSCALE * DSCALE);
-			fy = Lforce[2];// * (DSCALE * DSCALE);
-			fz = Lforce[3];// * (DSCALE * DSCALE);
-			NAN_TEST(fx); NAN_TEST(fy); NAN_TEST(fz);
+			phi = Lforce[0]; // * DSCALE;
+			fx = Lforce[1]; // * (DSCALE * DSCALE);
+			fy = Lforce[2]; // * (DSCALE * DSCALE);
+			fz = Lforce[3]; // * (DSCALE * DSCALE);
+			NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
 			for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
 				fx += __shfl_down_sync(0xffffffff, fx, P);
 				fy += __shfl_down_sync(0xffffffff, fy, P);

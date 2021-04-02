@@ -37,6 +37,7 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool f
 	time.start();
 	tree_ptr root_ptr;
 	root_ptr.ptr = (uintptr_t) &root;
+	root_ptr.dindex = 0;
 	kick_params_type *params_ptr;
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) kick_params_type();

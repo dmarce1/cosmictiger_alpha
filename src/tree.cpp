@@ -6,6 +6,7 @@
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/kick_return.hpp>
 #include <cosmictiger/sort.hpp>
+#include <cosmictiger/tree_database.hpp>
 
 #include <set>
 
@@ -53,6 +54,8 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 hpx::future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	tree_ptr id;
 	id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
+	id.dindex = tree_data_allocate();
+	((tree*) (id.ptr))->self = id;
 	CHECK_POINTER(id.ptr);
 	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
@@ -155,9 +158,9 @@ sort_return tree::sort(sort_params params) {
 			}
 		}
 		std::array<multipole, NCHILD> Mc;
-		std::array<fixed32*, NCHILD> Xc;
+		std::array<array<fixed32,NDIM>, NCHILD> Xc;
 		std::array<float, NCHILD> Rc;
-		auto &M = (multi);
+		multipole M;
 		rc.active_parts = 0;
 		rc.active_nodes = 1;
 		rc.stats.nparts = 0;
@@ -168,9 +171,8 @@ sort_return tree::sort(sort_params params) {
 		for (int ci = 0; ci < NCHILD; ci++) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
-			Mc[ci] = ((tree*) this_rc.check)->multi;
-			Xc[ci] = ((tree*) this_rc.check)->pos.data();
-			children[ci] = this_rc.check;
+			Mc[ci] = this_rc.check.get_multi();
+			Xc[ci] = this_rc.check.get_pos();
 			rc.active_parts += this_rc.active_parts;
 			rc.active_nodes += this_rc.active_nodes;
 			rc.stats.nparts += this_rc.stats.nparts;
@@ -188,6 +190,7 @@ sort_return tree::sort(sort_params params) {
 		M() = ML() + MR();
 		double rleft = 0.0;
 		double rright = 0.0;
+		array<fixed32,NDIM> pos;
 		for (int dim = 0; dim < NDIM; dim++) {
 			com[dim] = (ML() * Xc[LEFT][dim].to_double() + MR() * Xc[RIGHT][dim].to_double()) / (ML() + MR());
 			pos[dim] = com[dim];
@@ -200,9 +203,9 @@ sort_return tree::sort(sort_params params) {
 			xr[dim] = Xc[RIGHT][dim].to_double() - com[dim];
 		}
 		M = (ML >> xl) + (MR >> xr);
-		rleft = std::sqrt(rleft) + ((tree*) children[LEFT])->radius;
-		rright = std::sqrt(rright) + ((tree*) children[RIGHT])->radius;
-		radius = std::max(rleft, rright);
+		rleft = std::sqrt(rleft) + children[LEFT].get_radius();
+		rright = std::sqrt(rright) + children[RIGHT].get_radius();
+		float radius = std::max(rleft, rright);
 		float rmax = 0.0;
 		const auto corners = params.box.get_corners();
 		for (int ci = 0; ci < NCORNERS; ci++) {
@@ -218,8 +221,12 @@ sort_return tree::sort(sort_params params) {
 		//   printf("y      = %e\n", pos[1].to_float());
 		//  printf("z      = %e\n", pos[2].to_float());
 		// printf("radius = %e\n", radius);
+		self.set_pos(pos);
+		self.set_radius(radius);
+		self.set_multi(M);
 	} else {
 		std::array<double, NDIM> com = { 0, 0, 0 };
+		array<fixed32,NDIM> pos;
 		if (parts.second - parts.first != 0) {
 			for (auto i = parts.first; i < parts.second; i++) {
 				for (int dim = 0; dim < NDIM; dim++) {
@@ -236,9 +243,9 @@ sort_return tree::sort(sort_params params) {
 				com[dim] = (box.begin[dim] + box.end[dim]) * 0.5;
 			}
 		}
-		auto &M = (multi);
+		multipole M;
 		M = 0.0;
-		radius = 0.0;
+		float radius = 0.0;
 		for (auto i = parts.first; i < parts.second; i++) {
 			double this_radius = 0.0;
 			M() += 1.0;
@@ -270,6 +277,9 @@ sort_return tree::sort(sort_params params) {
 		rc.stats.max_depth = rc.stats.min_depth = params.depth;
 		rc.stats.nnodes = 1;
 		rc.stats.nleaves = 1;
+		self.set_pos(pos);
+		self.set_radius(radius);
+		self.set_multi(M);
 	}
 	active_parts = rc.active_parts;
 	active_nodes = rc.active_nodes;
@@ -281,6 +291,7 @@ hpx::lcos::local::mutex tree::mtx;
 hpx::lcos::local::mutex tree::gpu_mtx;
 
 void tree::cleanup() {
+	tree_data_clear();
 	shutdown_daemon = true;
 	while (daemon_running) {
 		hpx::this_thread::yield();
@@ -382,6 +393,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto &L = params.L[params.depth];
 	const auto &Lpos = params.Lpos[params.depth];
 	array<float, NDIM> dx;
+	const auto pos = self.get_pos();
 	for (int dim = 0; dim < NDIM; dim++) {
 		const auto x1 = pos[dim];
 		const auto x2 = Lpos[dim];
@@ -419,7 +431,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				if (ewald_dist) {
 					d2 = std::max(d2, (float) EWALD_MIN_DIST2);
 				}
-				const float myradius = SINK_BIAS * (radius);
+				const float myradius = SINK_BIAS * self.get_radius();
 				const auto R1 = sqr(std::max(other_radius + myradius + th, MIN_DX));                 // 2
 				const auto R2 = sqr(std::max(other_radius * params.theta + myradius + th, MIN_DX));
 				const auto R3 = sqr(std::max(other_radius + (myradius * params.theta / SINK_BIAS) + th, MIN_DX));
@@ -434,7 +446,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				} else if (isleaf) {
 					next_checks.push_back(checks[ci]);
 				} else {
-					const auto child_checks = checks[ci].get_children().get();
+					const auto child_checks = checks[ci].get_children();
 					next_checks.push_back(child_checks[LEFT]);
 					next_checks.push_back(child_checks[RIGHT]);
 				}
@@ -708,14 +720,11 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 	 }*/
 
 	gpu_kick gpu;
-	tree_ptr me;
-	me.ptr = (uintptr_t) (this);
-//   me.rank = hpx_rank();
 	kick_params_type *new_params;
 	new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
 	new (new_params) kick_params_type();
 	*new_params = *params;
-	new_params->tptr = me;
+	new_params->tptr = self;
 	gpu.params = new_params;
 	auto fut = gpu.promise->get_future();
 	gpu.parts = parts;

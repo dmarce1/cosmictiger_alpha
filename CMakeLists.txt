@@ -48,6 +48,7 @@ set(cosmictiger_source_files
     src/tree.cpp
     src/tree.cu
     src/kick_return.cu
+    src/tree_database.cu
     src/kick_return.cpp
 )
 set(cosmictiger_header_files
@@ -85,6 +86,7 @@ set(cosmictiger_header_files
 	cosmictiger/timer.hpp
 	cosmictiger/tests.hpp
 	cosmictiger/map.hpp
+	cosmictiger/tree_database.hpp
 	cosmictiger/tree.hpp
 )
 

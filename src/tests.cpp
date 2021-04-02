@@ -80,6 +80,7 @@ void kick_test() {
 		tm_kick.start();
 		tree_ptr root_ptr;
 		root_ptr.ptr = (uintptr_t) &root;
+		root_ptr.dindex = 0;
 		//  root_ptr.rank = hpx_rank();
 		// printf( "%li", size_t(WORKSPACE_SIZE));
 		kick_params_type *params_ptr;
@@ -176,6 +177,7 @@ void drift_test() {
 		tm_kick.start();
 		tree_ptr root_ptr;
 		root_ptr.ptr = (uintptr_t) &root;
+		root_ptr.dindex = 0;
 		//  root_ptr.rank = hpx_rank();
 		// printf( "%li", size_t(WORKSPACE_SIZE));
 		kick_params_type *params_ptr;
@@ -260,6 +262,7 @@ void force_test() {
 	root.sort(params);
 	tree_ptr root_ptr;
 	root_ptr.ptr = (uintptr_t) &root;
+	root_ptr.dindex = 0;
 	//  root_ptr.rank = hpx_rank();
 	// printf( "%li", size_t(WORKSPACE_SIZE));
 	kick_params_type *params_ptr;

@@ -10,6 +10,7 @@
 #include <cosmictiger/interactions.hpp>
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/stack_vector.hpp>
+#include <cosmictiger/tree_database.hpp>
 
 #include <functional>
 
@@ -100,97 +101,6 @@ struct sort_params {
 class tree_ptr;
 class kick_params_type;
 
-struct tree_ptr {
-	uintptr_t ptr;
-//   int rank;
-//	int8_t opened;
-#ifndef NDEBUG
-	int constructed;
-#endif
-#ifndef NDEBUG
-	CUDA_EXPORT
-	inline tree_ptr() {
-		//   rank = -1;
-		ptr = 0;
-//		opened = false;
-		constructed = 1234;
-	}
-#else
-	tree_ptr() = default;
-#endif
-	CUDA_EXPORT
-	inline tree_ptr(tree_ptr &&other) {
-		//  rank = other.rank;
-		ptr = other.ptr;
-//		opened = other.opened;
-#ifndef NDEBUG
-		constructed = 1234;
-#endif
-	}
-	CUDA_EXPORT
-	inline tree_ptr(const tree_ptr &other) {
-		//  rank = other.rank;
-		ptr = other.ptr;
-//		opened = other.opened;
-#ifndef NDEBUG
-		constructed = 1234;
-#endif
-	}
-	CUDA_EXPORT
-	inline tree_ptr& operator=(const tree_ptr &other) {
-		assert(constructed == 1234);
-		ptr = other.ptr;
-		// rank = other.rank;
-//		opened = other.opened;
-		return *this;
-	}
-	CUDA_EXPORT
-	inline tree_ptr& operator=(tree_ptr &&other) {
-		assert(constructed == 1234);
-		ptr = other.ptr;
-		// rank = other.rank;
-//		opened = other.opened;
-		return *this;
-	}
-	CUDA_EXPORT
-	inline bool operator==(const tree_ptr &other) const {
-		assert(constructed == 1234);
-		return /*rank == other.rank && */ptr == other.ptr/* && opened == other.opened*/;
-	}
-	template<class A>
-	void serialization(A &&arc, unsigned) {
-		arc & ptr;
-		//   arc & rank;
-//		arc & opened;
-	}
-	CUDA_EXPORT
-
-	inline operator tree*() {
-		assert(constructed == 1234);
-		assert(ptr);
-		return (tree*) (ptr);
-	}
-	CUDA_EXPORT
-	inline operator const tree*() const {
-		assert(constructed == 1234);
-		assert(ptr);
-		return (const tree*) (ptr);
-	}
-#ifndef __CUDACC__
-	fast_future<array<tree_ptr, NCHILD>> get_children() const;
-#else
-	CUDA_EXPORT
-	array<tree_ptr,NCHILD> get_children() const;
-#endif
-	CUDA_EXPORT
-	float get_radius() const;CUDA_EXPORT
-	array<fixed32, NDIM> get_pos() const;CUDA_EXPORT
-	bool is_leaf() const;
-#ifndef __CUDACC__
-	hpx::future<void> kick(kick_params_type*, bool);
-#endif
-};
-
 struct sort_return {
 	tree_stats stats;
 	tree_ptr check;
@@ -201,6 +111,7 @@ struct sort_return {
 		assert(false);
 	}
 };
+
 #define NITERS 4
 struct cuda_ewald_shmem {
 	array<float, KICK_BLOCK_SIZE> Lreduce;  // 256
@@ -330,9 +241,7 @@ struct tree {
 #ifndef __CUDACC__
 private:
 #endif //*** multi and pos MUST be adjacent and ordered multi then pos !!!!!!! *****/
-	multipole multi;
-	array<fixed32, NDIM> pos;
-	float radius;
+	tree_ptr self;
 	size_t active_parts;
 	size_t active_nodes;
 	array<tree_ptr, NCHILD> children;
@@ -342,6 +251,8 @@ public:
 	tree() {
 		children[LEFT].ptr = 0;
 		children[RIGHT].ptr = 0;
+		self.ptr = (uintptr_t)(this);
+		self.dindex = 0;
 	}
 	static std::atomic<int> cuda_node_count;
 	static std::atomic<int> cpu_node_count;
@@ -376,13 +287,6 @@ public:
 	friend class tree_ptr;
 };
 
-#ifndef __CUDACC__
-inline fast_future<array<tree_ptr, NCHILD>> tree_ptr::get_children() const {
-	assert(constructed == 1234);
-	assert(ptr);
-	return fast_future<array<tree_ptr, NCHILD>>(((tree*) ptr)->children);
-}
-#else
 CUDA_EXPORT
 inline array<tree_ptr, NCHILD> tree_ptr::get_children() const {
 	assert(constructed == 1234);
@@ -390,21 +294,7 @@ inline array<tree_ptr, NCHILD> tree_ptr::get_children() const {
 	return (((tree*) ptr)->children);
 }
 
-#endif
 
-CUDA_EXPORT
-inline float tree_ptr::get_radius() const {
-	assert(constructed == 1234);
-	assert(ptr);
-	return ((tree*) ptr)->radius;
-}
-
-CUDA_EXPORT
-inline array<fixed32, NDIM> tree_ptr::get_pos() const {
-	assert(ptr);
-	assert(constructed == 1234);
-	return ((tree*) ptr)->pos;
-}
 
 CUDA_EXPORT
 inline bool tree_ptr::is_leaf() const {
@@ -412,6 +302,7 @@ inline bool tree_ptr::is_leaf() const {
 	assert(ptr);
 	return ((tree*) ptr)->children[0] == tree_ptr();
 }
+
 
 void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);
 

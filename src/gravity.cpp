@@ -13,6 +13,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	expansion<simd_float> D;
 	multipole_type<simd_float> M;
 	expansion<simd_float> Lacc;
+	const auto pos = self.get_pos();
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
@@ -25,16 +26,19 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 			int n = 0;
 			for (int k = 0; k < simd_float::size(); k++) {
 				if (j + k < cnt1) {
+					const multipole mpole = multis[j + k].get_multi();
+					const auto other_pos = multis[j + k].get_pos();
 					for (int dim = 0; dim < NDIM; dim++) {
-						Y[dim][k] = fixed<int>(((const tree*) multis[j + k])->pos[dim]).raw();
+						Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
-						M[i][k] = (((const tree*) multis[j + k])->multi)[i];
+						M[i][k] = mpole[i];
 					}
 					n++;
 				} else {
+					const auto other_pos = multis[cnt1 - 1].get_pos();
 					for (int dim = 0; dim < NDIM; dim++) {
-						Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
+						Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
 						M[i][k] = 0.f;
@@ -88,6 +92,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	expansion<simd_float> D;
 	simd_float M;
 	expansion<simd_float> Lacc;
+	const auto pos = self.get_pos();
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
@@ -262,20 +267,22 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 				n = 0;
 				for (int k = 0; k < simd_float::size(); k++) {
 					if (j + k < cnt1) {
+						const multipole mpole = multis[j + k].get_multi();
+						const auto other_pos = multis[j + k].get_pos();
 						for (int dim = 0; dim < NDIM; dim++) {
-							Y[dim][k] = fixed<int>(((const tree*) multis[j + k])->pos[dim]).raw();
+							Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 						}
-						for (int l = 0; l < MP; l++) {
-							M[l][k] = (((const tree*) multis[j + k])->multi)[l];
+						for (int i = 0; i < MP; i++) {
+							M[i][k] = mpole[i];
 						}
-						interacts++;
 						n++;
 					} else {
+						const auto other_pos = multis[cnt1 - 1].get_pos();
 						for (int dim = 0; dim < NDIM; dim++) {
-							Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
+							Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 						}
-						for (int l = 0; l < MP; l++) {
-							M[l][k] = 0.f;
+						for (int i = 0; i < MP; i++) {
+							M[i][k] = 0.f;
 						}
 					}
 				}
@@ -286,9 +293,9 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 				flops += n * green_direct(D, dX);
 				flops += n * multipole_interaction(Lacc, M, D, params.full_eval);
 			}
-			Phi[i] += Lacc[0].sum();// * DSCALE;
+			Phi[i] += Lacc[0].sum();                                                                           // * DSCALE;
 			for (int dim = 0; dim < NDIM; dim++) {
-				F[dim][i] -= Lacc[1 + dim].sum();// * (DSCALE * DSCALE);
+				F[dim][i] -= Lacc[1 + dim].sum();                                                    // * (DSCALE * DSCALE);
 			}
 		}
 	}
@@ -312,6 +319,7 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 	expansion<simd_float> D;
 	multipole_type<simd_float> M;
 	expansion<simd_float> Lacc;
+	const auto pos = self.get_pos();
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
@@ -325,16 +333,19 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 			n = 0;
 			for (int k = 0; k < simd_float::size(); k++) {
 				if (j + k < cnt1) {
+					const multipole mpole = multis[j + k].get_multi();
+					const auto other_pos = multis[j + k].get_pos();
 					for (int dim = 0; dim < NDIM; dim++) {
-						Y[dim][k] = fixed<int>(((const tree*) multis[j + k])->pos[dim]).raw();
+						Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
-						M[i][k] = (((const tree*) multis[j + k])->multi)[i];
+						M[i][k] = mpole[i];
 					}
 					n++;
 				} else {
+					const auto other_pos = multis[cnt1 - 1].get_pos();
 					for (int dim = 0; dim < NDIM; dim++) {
-						Y[dim][k] = fixed<int>(((const tree*) multis[cnt1 - 1])->pos[dim]).raw();
+						Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
 						M[i][k] = 0.f;
