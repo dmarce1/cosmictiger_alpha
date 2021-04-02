@@ -3,6 +3,7 @@
 
 #define TREECU
 #include <cosmictiger/tree.hpp>
+#include <cosmictiger/trees.hpp>
 #include <cosmictiger/interactions.hpp>
 #include <functional>
 #include <cosmictiger/gravity.hpp>
@@ -19,6 +20,26 @@
 CUDA_DEVICE particle_set *parts;
 
 __managed__ list_sizes_t list_sizes { 0, 0, 0, 0, 0 };
+
+__managed__ trees cuda_trees_database;
+
+
+#ifdef __CUDA_ARCH__
+__device__
+trees& get_trees_database() {
+	return cuda_trees_database;
+}
+#endif
+
+trees& get_cuda_trees_database() {
+	return cuda_trees_database;
+}
+
+#ifndef __CUDA_ARCH__
+__host__ trees& get_trees_database() {
+	return trees_allocator::get_trees();
+}
+#endif
 
 #define MI 0
 #define PI 1

@@ -228,8 +228,7 @@ struct gpu_ewald {
 struct tree {
 #ifndef __CUDACC__
 private:
-#endif //*** multi and pos MUST be adjacent and ordered multi then pos !!!!!!! *****/
-	multipole multi;
+#endif
 	array<fixed32, NDIM> pos;
 	float radius;
 	size_t active_parts;
@@ -242,6 +241,8 @@ public:
 	tree() {
 		children[LEFT].ptr = 0;
 		children[RIGHT].ptr = 0;
+		self.ptr = (uintptr_t)(this);
+		self.index = 0;
 	}
 	static std::atomic<int> cuda_node_count;
 	static std::atomic<int> cpu_node_count;

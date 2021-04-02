@@ -30,6 +30,7 @@ hpx::future<sort_return> tree::create_child(sort_params &params, bool try_thread
 	tree_ptr id;
 	id = params.allocs->trees_alloc.get_tree_ptr();
 	id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
+	((tree*) id.ptr)->self = id;
 	CHECK_POINTER(id.ptr);
 	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
@@ -134,7 +135,7 @@ sort_return tree::sort(sort_params params) {
 		std::array<multipole, NCHILD> Mc;
 		std::array<array<fixed32, NDIM>, NCHILD> Xc;
 		std::array<float, NCHILD> Rc;
-		auto &M = (multi);
+		multipole M;
 		rc.active_parts = 0;
 		rc.active_nodes = 1;
 		rc.stats.nparts = 0;
@@ -196,6 +197,7 @@ sort_return tree::sort(sort_params params) {
 		//   printf("y      = %e\n", pos[1].to_float());
 		//  printf("z      = %e\n", pos[2].to_float());
 		// printf("radius = %e\n", radius);
+		self.set_mpole(M, pos);
 	} else {
 		std::array<double, NDIM> com = { 0, 0, 0 };
 		if (parts.second - parts.first != 0) {
@@ -214,7 +216,7 @@ sort_return tree::sort(sort_params params) {
 				com[dim] = (box.begin[dim] + box.end[dim]) * 0.5;
 			}
 		}
-		auto &M = (multi);
+		multipole M;
 		M = 0.0;
 		radius = 0.0;
 		for (auto i = parts.first; i < parts.second; i++) {
@@ -248,6 +250,7 @@ sort_return tree::sort(sort_params params) {
 		rc.stats.max_depth = rc.stats.min_depth = params.depth;
 		rc.stats.nnodes = 1;
 		rc.stats.nleaves = 1;
+		self.set_mpole(M, pos);
 	}
 	active_parts = rc.active_parts;
 	active_nodes = rc.active_nodes;

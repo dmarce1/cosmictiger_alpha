@@ -15,7 +15,6 @@ struct tree;
 struct kick_params_type;
 
 
-
 struct multipole_pos {
 	multipole multi;
 	array<fixed32, NDIM> pos;
@@ -45,15 +44,18 @@ public:
 
 	inline tree_ptr& operator=(tree* ptr_) {
 		ptr = (uintptr_t) (ptr_);
+		index = 0;
 		return *this;
 	}
-
 
 	CUDA_EXPORT
 	inline multi_crit get_mcrit() const;
 
 	CUDA_EXPORT
 	inline const multipole_pos& get_mpole() const;
+
+	CUDA_EXPORT
+	inline void set_mpole( const multipole& m, const array<fixed32,NDIM>& p);
 
 	CUDA_EXPORT
 	inline parts_type get_parts() const;
