@@ -13,6 +13,7 @@ struct tree_data_t {
 	int8_t* leaf;
 	array<fixed32, NDIM>* pos;
 	multipole* multi;
+	array<tree_ptr,NCHILD>* children;
 	int ntrees;
 	int nchunks;
 };
@@ -35,6 +36,7 @@ void tree_data_initialize() {
 	CUDA_MALLOC(data.pos, data.ntrees);
 	CUDA_MALLOC(data.leaf, data.ntrees);
 	CUDA_MALLOC(data.multi, data.ntrees);
+	CUDA_MALLOC(data.children, data.ntrees);
 
 	printf("Allocating %i trees in %i chunks of %i each\n", data.ntrees, data.nchunks, chunk_size);
 
@@ -129,4 +131,15 @@ void tree_data_set_isleaf(int i, bool b) {
 
 }
 
+
+CUDA_EXPORT
+array<tree_ptr,NCHILD> tree_data_get_children(int i) {
+	return data.children[i];
+}
+
+
+CUDA_EXPORT
+void tree_data_set_children(int i, const array<tree_ptr,NCHILD>& c) {
+	data.children[i] = c;
+}
 

@@ -244,13 +244,10 @@ private:
 	tree_ptr self;
 	size_t active_parts;
 	size_t active_nodes;
-	array<tree_ptr, NCHILD> children;
 	pair<size_t, size_t> parts;
 	static particle_set* particles;
 public:
 	tree() {
-		children[LEFT].ptr = 0;
-		children[RIGHT].ptr = 0;
 		self.ptr = (uintptr_t)(this);
 		self.dindex = 0;
 	}
@@ -286,17 +283,6 @@ public:
 #endif
 	friend class tree_ptr;
 };
-
-CUDA_EXPORT
-inline array<tree_ptr, NCHILD> tree_ptr::get_children() const {
-	assert(constructed == 1234);
-	assert(ptr);
-	return (((tree*) ptr)->children);
-}
-
-
-
-
 
 void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);
 

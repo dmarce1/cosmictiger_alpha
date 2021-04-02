@@ -134,6 +134,7 @@ sort_return tree::sort(sort_params params) {
 	}
 #endif
 	sort_return rc;
+	array<tree_ptr, NCHILD> children;
 	if (parts.second - parts.first > global().opts.bucket_size
 			|| (params.depth < params.min_depth && parts.second - parts.first > 0)) {
 		std::array<fast_future<sort_return>, NCHILD> futs;
@@ -158,7 +159,7 @@ sort_return tree::sort(sort_params params) {
 			}
 		}
 		std::array<multipole, NCHILD> Mc;
-		std::array<array<fixed32,NDIM>, NCHILD> Xc;
+		std::array<array<fixed32, NDIM>, NCHILD> Xc;
 		std::array<float, NCHILD> Rc;
 		multipole M;
 		rc.active_parts = 0;
@@ -190,7 +191,7 @@ sort_return tree::sort(sort_params params) {
 		M() = ML() + MR();
 		double rleft = 0.0;
 		double rright = 0.0;
-		array<fixed32,NDIM> pos;
+		array<fixed32, NDIM> pos;
 		for (int dim = 0; dim < NDIM; dim++) {
 			com[dim] = (ML() * Xc[LEFT][dim].to_double() + MR() * Xc[RIGHT][dim].to_double()) / (ML() + MR());
 			pos[dim] = com[dim];
@@ -225,9 +226,10 @@ sort_return tree::sort(sort_params params) {
 		self.set_radius(radius);
 		self.set_multi(M);
 		self.set_leaf(false);
+		self.set_children(children);
 	} else {
 		std::array<double, NDIM> com = { 0, 0, 0 };
-		array<fixed32,NDIM> pos;
+		array<fixed32, NDIM> pos;
 		if (parts.second - parts.first != 0) {
 			for (auto i = parts.first; i < parts.second; i++) {
 				for (int dim = 0; dim < NDIM; dim++) {
@@ -278,10 +280,15 @@ sort_return tree::sort(sort_params params) {
 		rc.stats.max_depth = rc.stats.min_depth = params.depth;
 		rc.stats.nnodes = 1;
 		rc.stats.nleaves = 1;
+		for (int ci = 0; ci < NCHILD; ci++) {
+			children[ci].ptr = 0;
+			children[ci].dindex = -1;
+		}
 		self.set_pos(pos);
 		self.set_radius(radius);
 		self.set_multi(M);
 		self.set_leaf(true);
+		self.set_children(children);
 	}
 	active_parts = rc.active_parts;
 	active_nodes = rc.active_nodes;
@@ -486,6 +493,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		array<hpx::future<void>, NCHILD> futs;
 		futs[LEFT] = hpx::make_ready_future();
 		futs[RIGHT] = hpx::make_ready_future();
+		auto children = self.get_children();
 		if (((tree*) children[LEFT])->active_parts && ((tree*) children[RIGHT])->active_parts) {
 			int depth0 = params.depth;
 			params.depth++;

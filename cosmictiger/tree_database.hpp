@@ -75,7 +75,10 @@ struct tree_ptr {
 	}
 
 	CUDA_EXPORT
-	array<tree_ptr, NCHILD> get_children() const;
+	inline array<tree_ptr, NCHILD> get_children() const;
+
+	CUDA_EXPORT
+	inline void set_children(const array<tree_ptr,NCHILD>& c) const;
 
 	CUDA_EXPORT
 	inline float get_radius() const;
@@ -135,6 +138,13 @@ bool tree_data_get_isleaf(int i);
 CUDA_EXPORT
 void tree_data_set_isleaf(int i, bool);
 
+CUDA_EXPORT
+array<tree_ptr,NCHILD> tree_data_get_children(int i);
+
+CUDA_EXPORT
+void tree_data_set_children(int i, const array<tree_ptr,NCHILD>& c);
+
+
 
 void tree_data_clear();
 
@@ -186,4 +196,14 @@ inline void tree_ptr::set_leaf(bool b) const {
 	tree_data_set_isleaf(dindex, b);
 }
 
+
+CUDA_EXPORT
+inline array<tree_ptr, NCHILD> tree_ptr::get_children() const {
+	return tree_data_get_children(dindex);
+}
+
+CUDA_EXPORT
+inline void tree_ptr::set_children(const array<tree_ptr,NCHILD>& c) const {
+	tree_data_set_children(dindex, c);
+}
 

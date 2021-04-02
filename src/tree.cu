@@ -127,7 +127,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const bool far1 = R1 < theta2d2;                 // 1
 						const bool far2 = R2 < theta2d2;                 // 1
 						const bool far3 = R3 < theta2d2;                 // 1
-						const bool isleaf = (((const tree*) check)->children[0].ptr == 0);
+						const bool isleaf = check.is_leaf();
 						interacts++;
 						flops += 27;
 						const bool mi = far1 || (direct && far3 && other_nparts >= MIN_PC_PARTS);
@@ -281,9 +281,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			break;
 		}
 	}
-	if (!(((tree*) tptr)->children[0].ptr == 0)) {
-		tree* left = ((tree*) tptr)->children[LEFT];
-		tree* right = ((tree*) tptr)->children[RIGHT];
+	if (!params.tptr.is_leaf()) {
+		const auto children = tptr.get_children();
+		tree* left = (tree*)children[LEFT].ptr;
+		tree* right = (tree*) children[RIGHT].ptr;
 		if (tid == 0) {
 			params.depth++;
 			params.L[params.depth] = L;
@@ -293,13 +294,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			params.dchecks.push_top();
 			params.echecks.push_top();
 			if (tid == 0) {
-				params.tptr = ((tree*) tptr)->children[LEFT];
+				params.tptr = children[LEFT];
 			}
 			__syncwarp();
 			cuda_kick(params_ptr);
 			if (tid == 0) {
 				params.L[params.depth] = L;
-				params.tptr = ((tree*) tptr)->children[RIGHT];
+				params.tptr = children[RIGHT];
 			}
 			params.dchecks.pop_top();
 			params.echecks.pop_top();
@@ -307,13 +308,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			cuda_kick(params_ptr);
 		} else if (left->active_parts) {
 			if (tid == 0) {
-				params.tptr = ((tree*) tptr)->children[LEFT];
+				params.tptr = children[LEFT];
 			}
 			__syncwarp();
 			cuda_kick(params_ptr);
 		} else if (right->active_parts) {
 			if (tid == 0) {
-				params.tptr = ((tree*) tptr)->children[RIGHT];
+				params.tptr = children[RIGHT];
 			}
 			__syncwarp();
 			cuda_kick(params_ptr);
