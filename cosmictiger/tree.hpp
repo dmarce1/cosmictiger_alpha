@@ -269,7 +269,7 @@ public:
 	hpx::future<void> send_kick_to_gpu(kick_params_type *params);
 	static void gpu_daemon();
 	inline bool is_leaf() const {
-		return children[0] == tree_ptr();
+		return self.is_leaf();
 	}
 	static void cleanup();
 	void cpu_cc_direct(kick_params_type *params);
@@ -296,12 +296,6 @@ inline array<tree_ptr, NCHILD> tree_ptr::get_children() const {
 
 
 
-CUDA_EXPORT
-inline bool tree_ptr::is_leaf() const {
-	assert(constructed == 1234);
-	assert(ptr);
-	return ((tree*) ptr)->children[0] == tree_ptr();
-}
 
 
 void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);

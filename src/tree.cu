@@ -55,7 +55,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	}
 	int flops = 0;
 	int interacts = 0;
-	if (((tree*) tptr)->children[0].ptr == 0) {
+	const bool iamleaf = tptr.is_leaf();
+	if (iamleaf) {
 		for (int k = tid; k < MAX_BUCKET_SIZE; k += KICK_BLOCK_SIZE) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				F[dim][k] = 0.f;
@@ -81,7 +82,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	int index_counts[NITERS];
 	const float& myradius1 = myradius; // + h;
 	const float myradius2 = SINK_BIAS * myradius1;
-	const bool iamleaf = me.children[0].ptr == 0;
 	int ninteractions = iamleaf ? 3 : 2;
 	for (int type = 0; type < ninteractions; type++) {
 		const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;

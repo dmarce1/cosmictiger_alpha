@@ -10,6 +10,7 @@ static constexpr int chunk_size = 2048;
 
 struct tree_data_t {
 	float* radius;
+	int8_t* leaf;
 	array<fixed32, NDIM>* pos;
 	multipole* multi;
 	int ntrees;
@@ -32,6 +33,7 @@ void tree_data_initialize() {
 
 	CUDA_MALLOC(data.radius, data.ntrees);
 	CUDA_MALLOC(data.pos, data.ntrees);
+	CUDA_MALLOC(data.leaf, data.ntrees);
 	CUDA_MALLOC(data.multi, data.ntrees);
 
 	printf("Allocating %i trees in %i chunks of %i each\n", data.ntrees, data.nchunks, chunk_size);
@@ -108,6 +110,23 @@ void tree_data_set_multi(int i,const multipole& m) {
 	assert(i>=0);
 	assert(i<data.ntrees);
 	data.multi[i] = m;
+}
+
+
+
+CUDA_EXPORT
+bool tree_data_get_isleaf(int i) {
+	assert(i>=0);
+	assert(i<data.ntrees);
+	return data.leaf[i];
+
+}
+
+CUDA_EXPORT
+void tree_data_set_isleaf(int i, bool b) {
+	assert(i>=0);
+	data.leaf[i] = b;
+
 }
 
 

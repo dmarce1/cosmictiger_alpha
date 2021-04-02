@@ -224,6 +224,7 @@ sort_return tree::sort(sort_params params) {
 		self.set_pos(pos);
 		self.set_radius(radius);
 		self.set_multi(M);
+		self.set_leaf(false);
 	} else {
 		std::array<double, NDIM> com = { 0, 0, 0 };
 		array<fixed32,NDIM> pos;
@@ -280,6 +281,7 @@ sort_return tree::sort(sort_params params) {
 		self.set_pos(pos);
 		self.set_radius(radius);
 		self.set_multi(M);
+		self.set_leaf(true);
 	}
 	active_parts = rc.active_parts;
 	active_nodes = rc.active_nodes;
@@ -376,7 +378,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		managed_allocator<tree_ptr>::set_read_only();
 		particles->prepare_kick();
 	}
-	if (children[0].ptr == 0) {
+	if (self.is_leaf()) {
 		for (int i = 0; i < parts.second - parts.first; i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				F[dim][i] = 0.f;

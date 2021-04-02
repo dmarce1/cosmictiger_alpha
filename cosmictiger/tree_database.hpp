@@ -98,6 +98,10 @@ struct tree_ptr {
 	CUDA_EXPORT
 	inline bool is_leaf() const;
 
+	CUDA_EXPORT
+	inline void set_leaf(bool b) const;
+
+
 #ifndef __CUDACC__
 	hpx::future<void> kick(kick_params_type*, bool);
 #endif
@@ -124,6 +128,13 @@ multipole tree_data_get_multi(int i);
 
 CUDA_EXPORT
 void tree_data_set_multi(int i,const multipole& m);
+
+CUDA_EXPORT
+bool tree_data_get_isleaf(int i);
+
+CUDA_EXPORT
+void tree_data_set_isleaf(int i, bool);
+
 
 void tree_data_clear();
 
@@ -163,6 +174,16 @@ inline multipole tree_ptr::get_multi() const {
 CUDA_EXPORT
 inline void tree_ptr::set_multi(const multipole& m) const {
 	tree_data_set_multi(dindex, m);
+}
+
+CUDA_EXPORT
+inline bool tree_ptr::is_leaf() const {
+	return tree_data_get_isleaf(dindex);
+}
+
+CUDA_EXPORT
+inline void tree_ptr::set_leaf(bool b) const {
+	tree_data_set_isleaf(dindex, b);
 }
 
 
