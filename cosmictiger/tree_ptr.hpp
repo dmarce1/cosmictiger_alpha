@@ -40,13 +40,14 @@ struct active_type {
 
 class tree_ptr {
 	uintptr_t ptr;
-
+	int index;
 public:
 
 	inline tree_ptr& operator=(tree* ptr_) {
 		ptr = (uintptr_t) (ptr_);
 		return *this;
 	}
+
 
 	CUDA_EXPORT
 	inline multi_crit get_mcrit() const;
@@ -70,6 +71,7 @@ public:
 #endif
 
 	friend class tree;
+	friend class trees_allocator;
 };
 
 

@@ -38,6 +38,7 @@ struct tree_stats {
 #ifndef __CUDACC__
 struct tree_alloc {
 	managed_allocator<tree> tree_alloc;
+	trees_allocator trees_alloc;
 };
 
 struct sort_params {
@@ -235,6 +236,7 @@ private:
 	size_t active_nodes;
 	array<tree_ptr, NCHILD> children;
 	pair<size_t, size_t> parts;
+	tree_ptr self;
 	static particle_set* particles;
 public:
 	tree() {
@@ -277,7 +279,6 @@ public:
 
 CUDA_EXPORT
 inline bool tree_ptr::is_leaf() const {
-	assert(constructed == 1234);
 	assert(ptr);
 	return ((tree*) ptr)->children[0].ptr == 0;
 }

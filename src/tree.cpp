@@ -26,32 +26,9 @@ void tree::set_particle_set(particle_set *parts) {
 }
 
 static std::atomic<int> kick_block_count;
-
-CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
-	int lev = 12;
-	while (1) {
-		int N = 1 << (lev / NDIM);
-		double dx = EWALD_MIN_DIST * N;
-		double a;
-		constexpr double ffac = 1.01;
-		if (lev % NDIM == 0) {
-			a = std::sqrt(3) + ffac * h;
-		} else if (lev % NDIM == 1) {
-			a = 1.5 + ffac * h;
-		} else {
-			a = std::sqrt(1.5) + ffac * h;
-		}
-		double r = (1.0 + SINK_BIAS) * a / theta + h * N;
-		if (dx > r) {
-			break;
-		}
-		lev++;
-	}
-	return lev;
-}
-
 hpx::future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	tree_ptr id;
+	id = params.allocs->trees_alloc.get_tree_ptr();
 	id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
 	CHECK_POINTER(id.ptr);
 	const auto nparts = params.parts.second - params.parts.first;
@@ -282,6 +259,7 @@ hpx::lcos::local::mutex tree::mtx;
 hpx::lcos::local::mutex tree::gpu_mtx;
 
 void tree::cleanup() {
+	trees_allocator().cleanup();
 	shutdown_daemon = true;
 	while (daemon_running) {
 		hpx::this_thread::yield();
