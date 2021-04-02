@@ -52,6 +52,9 @@ public:
 	inline multi_crit get_mcrit() const;
 
 	CUDA_EXPORT
+	inline void set_mcrit(const array<fixed32,NDIM>&, float);
+
+	CUDA_EXPORT
 	inline const multipole_pos& get_mpole() const;
 
 	CUDA_EXPORT

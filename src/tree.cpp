@@ -167,6 +167,8 @@ sort_return tree::sort(sort_params params) {
 		M() = ML() + MR();
 		double rleft = 0.0;
 		double rright = 0.0;
+		array<fixed32,NDIM> pos;
+		float radius;
 		for (int dim = 0; dim < NDIM; dim++) {
 			com[dim] = (ML() * Xc[LEFT][dim].to_double() + MR() * Xc[RIGHT][dim].to_double()) / (ML() + MR());
 			pos[dim] = com[dim];
@@ -198,8 +200,11 @@ sort_return tree::sort(sort_params params) {
 		//  printf("z      = %e\n", pos[2].to_float());
 		// printf("radius = %e\n", radius);
 		self.set_mpole(M, pos);
+		self.set_mcrit(pos,radius);
 	} else {
 		std::array<double, NDIM> com = { 0, 0, 0 };
+		array<fixed32,NDIM> pos;
+		float radius;
 		if (parts.second - parts.first != 0) {
 			for (auto i = parts.first; i < parts.second; i++) {
 				for (int dim = 0; dim < NDIM; dim++) {
@@ -251,6 +256,7 @@ sort_return tree::sort(sort_params params) {
 		rc.stats.nnodes = 1;
 		rc.stats.nleaves = 1;
 		self.set_mpole(M, pos);
+		self.set_mcrit(pos,radius);
 	}
 	active_parts = rc.active_parts;
 	active_nodes = rc.active_nodes;
@@ -366,6 +372,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto &L = params.L[params.depth];
 	const auto &Lpos = params.Lpos[params.depth];
 	array<float, NDIM> dx;
+	const auto mecrit = self.get_mcrit();
+	const auto pos = mecrit.pos;
+	const auto radius = mecrit.r;
 	for (int dim = 0; dim < NDIM; dim++) {
 		const auto x1 = pos[dim];
 		const auto x2 = Lpos[dim];

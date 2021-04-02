@@ -229,8 +229,6 @@ struct tree {
 #ifndef __CUDACC__
 private:
 #endif
-	array<fixed32, NDIM> pos;
-	float radius;
 	size_t active_parts;
 	size_t active_nodes;
 	array<tree_ptr, NCHILD> children;

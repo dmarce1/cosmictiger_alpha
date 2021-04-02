@@ -13,6 +13,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	expansion<simd_float> D;
 	multipole_type<simd_float> M;
 	expansion<simd_float> Lacc;
+	const auto pos = self.get_mcrit().pos;
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
@@ -90,6 +91,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	expansion<simd_float> D;
 	simd_float M;
 	expansion<simd_float> Lacc;
+	const auto pos = self.get_mcrit().pos;
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
@@ -315,6 +317,7 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 	expansion<simd_float> D;
 	multipole_type<simd_float> M;
 	expansion<simd_float> Lacc;
+	const auto pos = self.get_mcrit().pos;
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
