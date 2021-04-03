@@ -196,8 +196,8 @@ void load_header(io_header_1 *header, std::string filename) {
 
 size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 
-	size_t lo = begin - offset_;
-	size_t hi = end - offset_;
+	size_t lo = begin;
+	size_t hi = end;
 	fixed32 xmid(xm);
 	while (lo < hi) {
 		if (xptr_[xdim][lo] >= xmid) {
@@ -215,7 +215,7 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 		}
 		lo++;
 	}
-	return hi + offset_;
+	return hi;
 }
 
 void particle_set::load_particles(std::string filename) {

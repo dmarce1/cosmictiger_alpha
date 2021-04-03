@@ -564,7 +564,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 		}
 	}
 	__syncthreads();
-	for (int P = EWALD_BLOCK_SIZE; P >= 1; P /= 2) {
+	for (int P = EWALD_BLOCK_SIZE / 2; P >= 1; P /= 2) {
 		if (tid < P) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				f[dim][tid] += f[dim][tid + P];
