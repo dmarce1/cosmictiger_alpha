@@ -31,8 +31,8 @@
 #define N_TEST_PARTS (100)
 
 
-#define KICK_PP_MAX size_t(9*32)
-#define MAX_BUCKET_SIZE 137
+#define KICK_PP_MAX size_t(8*32)
+#define MAX_BUCKET_SIZE 167
 
 
 #define MIN_ACTIVE_PER_BLOCK 16
@@ -43,6 +43,7 @@
 #define TREE_RADIX_MAX 54
 #define TREE_SORT_MULTITHREAD
 #define TREE_MIN_PARTS2THREAD (64*1024)
+#define EWALD_BLOCK_SIZE 128
 #define KICK_BLOCK_SIZE 32
 #define KICK_PC_MAX (1*32)
 #define GROUP_SIZE MAX_BUCKET_SIZE

@@ -13,6 +13,7 @@
 #include <cstdlib>
 
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params);
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr, float* pnorm, float GM);
 
 #define STACK_SIZE (32*1024)
 #define HEAP_SIZE size_t(1024*1024*1024)
@@ -70,8 +71,15 @@ cuda_properties cuda_init() {
 	CUDA_CHECK(
 			cudaOccupancyMaxActiveBlocksPerMultiprocessor ( &numBlocks, cuda_kick_kernel, KICK_BLOCK_SIZE, sizeof(cuda_kick_shmem) ));
 
-	printf( "cuda_kick_kernel occupancy calculated to be %i\n", numBlocks);
+	printf( "cuda_kick_kernel occupancy: %i\n", numBlocks);
 	global().cuda_kick_occupancy = numBlocks;
+
+#ifdef TEST_FORCE
+	CUDA_CHECK(
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor ( &numBlocks, cuda_pp_ewald_interactions, EWALD_BLOCK_SIZE, EWALD_BLOCK_SIZE*(NDIM+1)*sizeof(double) + 1024 ));
+#endif
+
+	printf( "cuda_pp_ewald_interactions: %i\n", numBlocks);
 
 //	printf( "cuda_kick_kernel uses %li shared memory\n", attrib.sharedSizeBytes);
 //	printf( "                      %li registers \n", attrib.numRegs);
