@@ -5,6 +5,7 @@
 #include <cosmictiger/array.hpp>
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/tree.hpp>
+#include <cosmictiger/range.hpp>
 
 class tree;
 struct kick_params_type;
@@ -107,6 +108,10 @@ struct tree_ptr {
 	CUDA_EXPORT
 	inline void set_active_nodes(size_t p) const;
 
+	CUDA_EXPORT range get_range() const;
+
+	CUDA_EXPORT void set_range(const range&) const;
+
 #ifndef __CUDACC__
 	hpx::future<void> kick(kick_params_type*, bool);
 #endif
@@ -164,6 +169,12 @@ size_t tree_data_get_active_nodes(int i);
 
 CUDA_EXPORT
 void tree_data_set_active_nodes(int i, size_t p);
+
+CUDA_EXPORT
+range tree_data_get_range(int i);
+
+CUDA_EXPORT
+void tree_data_set_range(int i, const range& r);
 
 void tree_data_clear();
 
@@ -258,6 +269,16 @@ inline void tree_ptr::set_active_nodes(size_t p) const {
 	tree_data_set_active_nodes(dindex, p);
 }
 
+CUDA_EXPORT
+inline range tree_ptr::get_range() const {
+	return tree_data_get_range(dindex);
+}
+
+CUDA_EXPORT
+inline void tree_ptr::set_range(const range& r) const {
+	tree_data_set_range(dindex,r);
+}
+
 struct multipole_pos {
 	multipole multi;
 	array<fixed32, NDIM> pos;
@@ -279,6 +300,7 @@ struct tree_data_t {
 struct tree_database_t {
 	size_t* active_nodes;
 	tree_data_t* data;
+	range* ranges;
 	int ntrees;
 	int nchunks;
 };
@@ -482,6 +504,29 @@ void tree_data_set_active_nodes(int i, size_t p) {
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.active_nodes[i] = p;
+}
+
+CUDA_EXPORT inline range tree_data_get_range(int i) {
+#ifdef __CUDACC__
+	auto& tree_data_ = gpu_tree_data_;
+#else
+	auto& tree_data_ = cpu_tree_data_;
+#endif
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	return tree_data_.ranges[i];
+}
+
+CUDA_EXPORT inline
+void tree_data_set_range(int i, const range& r) {
+#ifdef __CUDACC__
+	auto& tree_data_ = gpu_tree_data_;
+#else
+	auto& tree_data_ = cpu_tree_data_;
+#endif
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	tree_data_.ranges[i] = r;
 }
 
 

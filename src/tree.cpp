@@ -288,6 +288,7 @@ sort_return tree::sort(sort_params params) {
 	active_nodes = rc.active_nodes;
 	self.set_active_parts(active_parts);
 	self.set_active_nodes(active_nodes);
+	self.set_range(box);
 	rc.stats.e_depth = params.min_depth;
 	return rc;
 }

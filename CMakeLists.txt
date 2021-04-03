@@ -37,6 +37,7 @@ set(cosmictiger_source_files
     src/global.cpp
     src/gravity.cpp
     src/gravity.cu
+    src/groups.cpp
     src/hpx.cpp
     src/main.cpp
     src/memory.cpp
@@ -60,7 +61,7 @@ set(cosmictiger_header_files
 	cosmictiger/defs.hpp
 	cosmictiger/green_direct.hpp
 	cosmictiger/green_ewald.hpp
-	cosmictiger/gravity.hpp
+	cosmictiger/groups.hpp
 	cosmictiger/gravity.hpp
 	cosmictiger/math.hpp
 	cosmictiger/managed_vector.hpp
