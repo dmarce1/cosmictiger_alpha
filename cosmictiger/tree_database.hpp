@@ -266,7 +266,7 @@ struct multipole_pos {
 struct tree_data_t {
 	float* radius;
 	int8_t* leaf;
-	array<fixed32, NDIM>* pos;
+	array<fixed32*, NDIM> pos;
 	multipole_pos* multi;
 	pair<size_t, size_t>* parts;
 	array<tree_ptr, NCHILD>* children;
@@ -316,7 +316,11 @@ CUDA_EXPORT inline array<fixed32, NDIM> tree_data_get_pos(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.pos[i];
+	array<fixed32,NDIM> pos;
+	pos[0] = tree_data_.pos[0][i];
+	pos[1] = tree_data_.pos[1][i];
+	pos[2] = tree_data_.pos[2][i];
+	return pos;
 }
 
 CUDA_EXPORT inline
@@ -328,7 +332,9 @@ void tree_data_set_pos(int i, const array<fixed32, NDIM>& p) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.pos[i] = p;
+	tree_data_.pos[0][i] = p[0];
+	tree_data_.pos[1][i] = p[1];
+	tree_data_.pos[2][i] = p[2];
 	tree_data_.multi[i].pos = p;
 }
 

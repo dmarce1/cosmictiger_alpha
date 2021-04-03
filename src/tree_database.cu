@@ -22,7 +22,9 @@ void tree_data_initialize() {
 	gpu_tree_data_.nchunks = gpu_tree_data_.ntrees / chunk_size;
 
 	CUDA_MALLOC(gpu_tree_data_.radius, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.pos, gpu_tree_data_.ntrees);
+	for( int i = 0; i < NDIM; i++) {
+		CUDA_MALLOC(gpu_tree_data_.pos[i], gpu_tree_data_.ntrees);
+	}
 	CUDA_MALLOC(gpu_tree_data_.leaf, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.multi, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.children, gpu_tree_data_.ntrees);
