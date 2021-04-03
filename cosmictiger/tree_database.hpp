@@ -269,23 +269,26 @@ struct mcrit_t {
 };
 
 struct tree_data_t {
-	mcrit_t* mcrit;
-	int8_t* leaf;
-	multipole_pos* multi;
-	pair<size_t, size_t>* parts;
-	array<tree_ptr, NCHILD>* children;
-	size_t* active_parts;
+	multipole_pos multi;
+	float radius;
+	pair<size_t, size_t> parts;
+	array<tree_ptr, NCHILD> children;
+	size_t active_parts;
+};
+
+struct tree_database_t {
 	size_t* active_nodes;
+	tree_data_t* data;
 	int ntrees;
 	int nchunks;
 };
 
 #ifdef TREE_DATABASE_CU
-__managed__ tree_data_t gpu_tree_data_;
-tree_data_t cpu_tree_data_;
+__managed__ tree_database_t gpu_tree_data_;
+tree_database_t cpu_tree_data_;
 #else
-extern __managed__ tree_data_t gpu_tree_data_;
-extern tree_data_t cpu_tree_data_;
+extern __managed__ tree_database_t gpu_tree_data_;
+extern tree_database_t cpu_tree_data_;
 #endif
 
 CUDA_EXPORT inline
@@ -297,7 +300,7 @@ float tree_data_get_radius(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.mcrit[i].radius;
+	return tree_data_.data[i].radius;
 }
 
 CUDA_EXPORT inline
@@ -309,7 +312,7 @@ void tree_data_set_radius(int i, float r) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.mcrit[i].radius = r;
+	tree_data_.data[i].radius = r;
 }
 
 CUDA_EXPORT inline array<fixed32, NDIM> tree_data_get_pos(int i) {
@@ -320,7 +323,7 @@ CUDA_EXPORT inline array<fixed32, NDIM> tree_data_get_pos(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.mcrit[i].pos;
+	return tree_data_.data[i].multi.pos;
 }
 
 CUDA_EXPORT inline
@@ -332,8 +335,7 @@ void tree_data_set_pos(int i, const array<fixed32, NDIM>& p) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.mcrit[i].pos = p;
-	tree_data_.multi[i].pos = p;
+	tree_data_.data[i].multi.pos = p;
 }
 
 CUDA_EXPORT inline multipole tree_data_get_multi(int i) {
@@ -344,7 +346,7 @@ CUDA_EXPORT inline multipole tree_data_get_multi(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.multi[i].multi;
+	return tree_data_.data[i].multi.multi;
 }
 
 CUDA_EXPORT inline float* tree_data_get_multi_ptr(int i) {
@@ -355,7 +357,7 @@ CUDA_EXPORT inline float* tree_data_get_multi_ptr(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return (float*) (&tree_data_.multi[i]);
+	return (float*) (&tree_data_.data[i].multi);
 }
 
 CUDA_EXPORT inline
@@ -367,7 +369,7 @@ void tree_data_set_multi(int i, const multipole& m) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.multi[i].multi = m;
+	tree_data_.data[i].multi.multi = m;
 }
 
 CUDA_EXPORT inline
@@ -379,21 +381,14 @@ bool tree_data_get_isleaf(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.leaf[i];
+	return tree_data_.data[i].children[0].dindex == -1;
 
 }
 
 CUDA_EXPORT inline
 void tree_data_set_isleaf(int i, bool b) {
-#ifdef __CUDACC__
-	auto& tree_data_ = gpu_tree_data_;
-#else
-	auto& tree_data_ = cpu_tree_data_;
-#endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.leaf[i] = b;
-
 }
 
 CUDA_EXPORT inline array<tree_ptr, NCHILD> tree_data_get_children(int i) {
@@ -404,7 +399,7 @@ CUDA_EXPORT inline array<tree_ptr, NCHILD> tree_data_get_children(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.children[i];
+	return tree_data_.data[i].children;
 }
 
 CUDA_EXPORT inline
@@ -416,8 +411,8 @@ void tree_data_set_children(int i, const array<tree_ptr, NCHILD>& c) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.children[i][0] = c[0];
-	tree_data_.children[i][1] = c[1];
+	tree_data_.data[i].children[0] = c[0];
+	tree_data_.data[i].children[1] = c[1];
 }
 
 CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_parts(int i) {
@@ -428,7 +423,7 @@ CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_parts(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.parts[i];
+	return tree_data_.data[i].parts;
 }
 
 CUDA_EXPORT inline
@@ -440,7 +435,7 @@ void tree_data_set_parts(int i, const pair<size_t, size_t>& p) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.parts[i] = p;
+	tree_data_.data[i].parts = p;
 }
 
 CUDA_EXPORT inline size_t tree_data_get_active_parts(int i) {
@@ -451,7 +446,7 @@ CUDA_EXPORT inline size_t tree_data_get_active_parts(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.active_parts[i];
+	return tree_data_.data[i].active_parts;
 }
 
 CUDA_EXPORT inline
@@ -463,7 +458,7 @@ void tree_data_set_active_parts(int i, size_t p) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.active_parts[i] = p;
+	tree_data_.data[i].active_parts = p;
 }
 
 CUDA_EXPORT inline size_t tree_data_get_active_nodes(int i) {

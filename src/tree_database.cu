@@ -18,26 +18,21 @@ static thread_local int current_era = -1;
 
 void tree_data_initialize() {
 	gpu_tree_data_.ntrees = global().opts.nparts / global().opts.bucket_size;
-	gpu_tree_data_.ntrees = std::max(1 << ((int) std::ceil(std::log(gpu_tree_data_.ntrees) / std::log(2)) + 3), 1024 * 1024);
+	gpu_tree_data_.ntrees = std::max(1 << ((int) std::ceil(std::log(gpu_tree_data_.ntrees) / std::log(2)) + 3),
+			1024 * 1024);
 	gpu_tree_data_.nchunks = gpu_tree_data_.ntrees / chunk_size;
 
 	printf("Allocating %i trees in %i chunks of %i each\n", gpu_tree_data_.ntrees, gpu_tree_data_.nchunks, chunk_size);
 
-	CUDA_MALLOC(gpu_tree_data_.mcrit, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.leaf, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.multi, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.children, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.parts, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
+	CUDA_MALLOC(gpu_tree_data_.data, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 
 #ifndef NDEBUG
 	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
-		new (gpu_tree_data_.children[0] + i) array<tree_ptr,NCHILD>();
-		new (gpu_tree_data_.children[1] + i) array<tree_ptr,NCHILD>();
+		new (gpu_tree_data_.children[0] + i) array<tree_ptr, NCHILD>();
+		new (gpu_tree_data_.children[1] + i) array<tree_ptr, NCHILD>();
 	}
 #endif
-
 
 	tree_data_clear();
 
@@ -48,6 +43,9 @@ void tree_data_initialize() {
 void tree_data_clear() {
 	next_chunk = 0;
 	era++;
+	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
+		gpu_tree_data_.data[i].children[0].dindex = -1;
+	}
 }
 
 int tree_data_allocate() {
@@ -70,5 +68,4 @@ int tree_data_allocate() {
 	//printf( "Allocating %i from chunk %i\n", alloc, alloc / chunk_size);
 	return alloc;
 }
-
 
