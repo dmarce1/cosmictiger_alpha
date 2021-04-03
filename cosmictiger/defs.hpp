@@ -112,4 +112,11 @@ struct pair {
 	B second;
 };
 
+
+#ifdef __CUDA_ARCH__
+#define LDG(a) __ldg(a)
+#else
+#define LDG(a) (*(a))
+#endif
+
 #endif /* COSMICTIGER_DEFS_HPP_ */

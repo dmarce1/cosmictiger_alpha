@@ -19,7 +19,6 @@
 
 struct range;
 
-
 union vel_type {
 	struct {
 		float x;
@@ -27,8 +26,7 @@ union vel_type {
 		float z;
 		int8_t r;
 	} p;
-	array<float, NDIM> a;
-	CUDA_EXPORT
+	array<float, NDIM> a;CUDA_EXPORT
 	vel_type() {
 	}
 };
@@ -46,7 +44,8 @@ struct particle_set {
 	void prepare_kick();
 	void prepare_drift();
 	~particle_set();CUDA_EXPORT
-	fixed32 pos(int, size_t index) const;
+	fixed32 pos_ldg(int, size_t index) const;CUDA_EXPORT
+	fixed32 pos(int, size_t index) const;CUDA_EXPORT
 	vel_type vel(size_t index) const;CUDA_EXPORT
 	rung_t rung(size_t index) const;
 	size_t sort_range(size_t begin, size_t end, double xmid, int xdim);CUDA_EXPORT
@@ -71,7 +70,7 @@ struct particle_set {
 #ifndef __CUDACC__
 private:
 #endif
-	array<fixed32*,NDIM> xptr_;
+	array<fixed32*, NDIM> xptr_;
 	vel_type* uptr_;
 #ifdef TEST_FORCE
 	array<float*, NDIM> gptr_;
@@ -88,7 +87,7 @@ public:
 	particle_set get_virtual_particle_set() const {
 		particle_set v;
 		v.uptr_ = uptr_;
-		for( int dim = 0; dim < NDIM; dim++) {
+		for (int dim = 0; dim < NDIM; dim++) {
 			v.xptr_[dim] = xptr_[dim];
 		}
 //		v.rptr_ = rptr_;
@@ -104,6 +103,19 @@ public:
 	}
 }
 ;
+
+CUDA_EXPORT
+inline fixed32 particle_set::pos_ldg(int dim, size_t index) const {
+	assert(index >= 0);
+	assert(index < size_);
+	union fixed_union {
+		fixed32 f;
+		int i;
+	};
+	fixed_union x;
+	x.i = LDG((int* )(xptr_[dim] + index - offset_));
+	return x.f;
+}
 
 CUDA_EXPORT
 inline fixed32 particle_set::pos(int dim, size_t index) const {
@@ -124,6 +136,7 @@ inline rung_t particle_set::rung(size_t index) const {
 	assert(index < size_);
 	return uptr_[index - offset_].p.r;
 }
+
 CUDA_EXPORT
 inline fixed32& particle_set::pos(int dim, size_t index) {
 	assert(index >= 0);

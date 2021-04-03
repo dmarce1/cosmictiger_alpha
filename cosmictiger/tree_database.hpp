@@ -10,11 +10,6 @@
 class tree;
 struct kick_params_type;
 
-#ifdef __CUDA_ARCH__
-#define LDG(a) __ldg(a)
-#else
-#define LDG(a) (*(a))
-#endif
 
 struct tree_ptr {
 	int dindex;
@@ -372,7 +367,12 @@ CUDA_EXPORT inline multipole tree_data_get_multi(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.multi[i].multi;
+	multipole M;
+	multipole& m = tree_data_.multi[i].multi;
+	for (int i = 0; i < MP; i++) {
+		M[i] = LDG(&m[i]);
+	}
+	return M;
 }
 
 CUDA_EXPORT inline float* tree_data_get_multi_ptr(int i) {
@@ -455,7 +455,13 @@ CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_parts(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.parts[i];
+	union parts_union {
+		pair<size_t,size_t> parts;
+		int4 ints;
+	};
+	parts_union p;
+	p.ints = LDG((int4*)(tree_data_.parts + i));
+	return p.parts;
 }
 
 CUDA_EXPORT inline
@@ -478,7 +484,7 @@ CUDA_EXPORT inline size_t tree_data_get_active_parts(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.active_parts[i];
+	return LDG(&tree_data_.active_parts[i]);
 }
 
 CUDA_EXPORT inline
