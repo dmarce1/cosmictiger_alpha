@@ -83,6 +83,7 @@ sort_return tree::sort(sort_params params) {
 	static std::atomic<int> gpu_searches(0);
 	active_parts = 0;
 	active_nodes = 0;
+	pair<size_t, size_t> parts;
 	if (params.iamroot()) {
 		gpu_searches = 0;
 		int dummy;
@@ -90,12 +91,8 @@ sort_return tree::sort(sort_params params) {
 		params.min_depth = ewald_min_level(params.theta, global().opts.hsoft);
 //		printf("min ewald = %i\n", params.min_depth);
 	}
-	{
-//		const auto bnds = params.get_bounds();
-///		parts.first = bnds.first;
-//		parts.second = bnds.second;
-		parts = params.parts;
-	}
+	parts = params.parts;
+	self.set_parts(parts);
 	if (params.depth == TREE_MAX_DEPTH) {
 		printf("Exceeded maximum tree depth\n");
 		abort();
@@ -310,8 +307,9 @@ void tree::cleanup() {
 hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	static const bool use_cuda = global().opts.cuda;
 	kick_params_type &params = *params_ptr;
-	const auto part_begin = ((tree*) (*this))->parts.first;
-	const auto part_end = ((tree*) (*this))->parts.second;
+	const auto parts = get_parts();
+	const auto part_begin = parts.first;
+	const auto part_end = parts.second;
 	const auto num_active = ((tree*) (*this))->active_nodes;
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
 	if (use_cuda && num_active <= params.block_cutoff && num_active) {
@@ -364,6 +362,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	}
 	auto& F = params.F;
 	auto& phi = params.Phi;
+	const auto parts = self.get_parts();
 	if (params.depth == 0) {
 		kick_timer.start();
 //		covered_ranges.clear();
@@ -431,7 +430,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			const auto th = params.theta * std::max(params.hsoft, MIN_DX);
 			for (int ci = 0; ci < checks.size(); ci++) {
 				const auto other_radius = checks[ci].get_radius();
-				const auto other_parts = ((tree*) checks[ci])->parts;
+				const auto other_parts = checks[ci].get_parts();
 				const auto other_pos = checks[ci].get_pos();
 				float d2 = 0.f;
 				for (int dim = 0; dim < NDIM; dim++) {
@@ -508,7 +507,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
 			params.depth--;
 		} else if (((tree*) children[LEFT])->active_parts) {
-			const auto other_parts = ((tree*) children[RIGHT])->parts;
+			const auto other_parts = children[RIGHT].get_parts();
 //			covered_ranges.add_range(parts);
 			parts_covered += other_parts.second - other_parts.first;
 			if (parts_covered == global().opts.nparts) {
@@ -521,7 +520,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[LEFT] = children[LEFT].kick(params_ptr, false);
 			params.depth--;
 		} else if (((tree*) children[RIGHT])->active_parts) {
-			const auto other_parts = ((tree*) children[LEFT])->parts;
+			const auto other_parts = children[LEFT].get_parts();
 //			covered_ranges.add_range(parts);
 			parts_covered += other_parts.second - other_parts.first;
 			if (parts_covered == global().opts.nparts) {
@@ -737,10 +736,10 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 	new_params->tptr = self;
 	gpu.params = new_params;
 	auto fut = gpu.promise->get_future();
-	gpu.parts = parts;
+	gpu.parts = self.get_parts();
 	gpu_queue.push(std::move(gpu));
 //	covered_ranges.add_range(parts);
-	parts_covered += parts.second - parts.first;
+	parts_covered += gpu.parts.second - gpu.parts.first;
 	if (parts_covered == global().opts.nparts) {
 		gpu_daemon();
 	}

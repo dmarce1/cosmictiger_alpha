@@ -13,12 +13,13 @@ struct tree_data_t {
 	int8_t* leaf;
 	array<fixed32, NDIM>* pos;
 	multipole* multi;
+	pair<size_t,size_t>* parts;
 	array<tree_ptr,NCHILD>* children;
 	int ntrees;
 	int nchunks;
 };
 
-__managed__ tree_data_t data;
+__managed__ tree_data_t tree_data_;
 
 static std::atomic<int> next_chunk;
 static int era = 0;
@@ -28,17 +29,18 @@ static thread_local int current_offset;
 static thread_local int current_era = -1;
 
 void tree_data_initialize() {
-	data.ntrees = global().opts.nparts / global().opts.bucket_size;
-	data.ntrees = std::max(1 << ((int) std::ceil(std::log(data.ntrees) / std::log(2)) + 3), 1024 * 1024);
-	data.nchunks = data.ntrees / chunk_size;
+	tree_data_.ntrees = global().opts.nparts / global().opts.bucket_size;
+	tree_data_.ntrees = std::max(1 << ((int) std::ceil(std::log(tree_data_.ntrees) / std::log(2)) + 3), 1024 * 1024);
+	tree_data_.nchunks = tree_data_.ntrees / chunk_size;
 
-	CUDA_MALLOC(data.radius, data.ntrees);
-	CUDA_MALLOC(data.pos, data.ntrees);
-	CUDA_MALLOC(data.leaf, data.ntrees);
-	CUDA_MALLOC(data.multi, data.ntrees);
-	CUDA_MALLOC(data.children, data.ntrees);
+	CUDA_MALLOC(tree_data_.radius, tree_data_.ntrees);
+	CUDA_MALLOC(tree_data_.pos, tree_data_.ntrees);
+	CUDA_MALLOC(tree_data_.leaf, tree_data_.ntrees);
+	CUDA_MALLOC(tree_data_.multi, tree_data_.ntrees);
+	CUDA_MALLOC(tree_data_.children, tree_data_.ntrees);
+	CUDA_MALLOC(tree_data_.parts, tree_data_.ntrees);
 
-	printf("Allocating %i trees in %i chunks of %i each\n", data.ntrees, data.nchunks, chunk_size);
+	printf("Allocating %i trees in %i chunks of %i each\n", tree_data_.ntrees, tree_data_.nchunks, chunk_size);
 
 	tree_data_clear();
 
@@ -59,7 +61,7 @@ int tree_data_allocate() {
 		current_alloc = chunk_size * next_chunk++;
 		current_offset = 0;
 	}
-	if( current_alloc + chunk_size >= data.ntrees) {
+	if( current_alloc + chunk_size >= tree_data_.ntrees) {
 		printf( "Fatal error - tree arena full!\n");
 		abort();
 	}
@@ -74,44 +76,44 @@ int tree_data_allocate() {
 CUDA_EXPORT
 float tree_data_get_radius(int i) {
 	assert(i>=0);
-	assert(i<data.ntrees);
-	return data.radius[i];
+	assert(i<tree_data_.ntrees);
+	return tree_data_.radius[i];
 }
 
 CUDA_EXPORT
 void tree_data_set_radius(int i, float r) {
 	assert(i>=0);
-	assert(i<data.ntrees);
-	data.radius[i] = r;
+	assert(i<tree_data_.ntrees);
+	tree_data_.radius[i] = r;
 }
 
 CUDA_EXPORT
 array<fixed32, NDIM> tree_data_get_pos(int i) {
 	assert(i>=0);
-	assert(i<data.ntrees);
-	return data.pos[i];
+	assert(i<tree_data_.ntrees);
+	return tree_data_.pos[i];
 }
 
 CUDA_EXPORT
 void tree_data_set_pos(int i, const array<fixed32, NDIM>& p) {
 	assert(i>=0);
-	assert(i<data.ntrees);
-	data.pos[i] = p;
+	assert(i<tree_data_.ntrees);
+	tree_data_.pos[i] = p;
 }
 
 
 CUDA_EXPORT
 multipole tree_data_get_multi(int i) {
 	assert(i>=0);
-	assert(i<data.ntrees);
-	return data.multi[i];
+	assert(i<tree_data_.ntrees);
+	return tree_data_.multi[i];
 }
 
 CUDA_EXPORT
 void tree_data_set_multi(int i,const multipole& m) {
 	assert(i>=0);
-	assert(i<data.ntrees);
-	data.multi[i] = m;
+	assert(i<tree_data_.ntrees);
+	tree_data_.multi[i] = m;
 }
 
 
@@ -119,27 +121,36 @@ void tree_data_set_multi(int i,const multipole& m) {
 CUDA_EXPORT
 bool tree_data_get_isleaf(int i) {
 	assert(i>=0);
-	assert(i<data.ntrees);
-	return data.leaf[i];
+	assert(i<tree_data_.ntrees);
+	return tree_data_.leaf[i];
 
 }
 
 CUDA_EXPORT
 void tree_data_set_isleaf(int i, bool b) {
 	assert(i>=0);
-	data.leaf[i] = b;
+	tree_data_.leaf[i] = b;
 
 }
 
 
 CUDA_EXPORT
 array<tree_ptr,NCHILD> tree_data_get_children(int i) {
-	return data.children[i];
+	return tree_data_.children[i];
 }
 
 
 CUDA_EXPORT
 void tree_data_set_children(int i, const array<tree_ptr,NCHILD>& c) {
-	data.children[i] = c;
+	tree_data_.children[i] = c;
 }
 
+CUDA_EXPORT
+pair<size_t,size_t> tree_data_get_parts(int i) {
+	return tree_data_.parts[i];
+}
+
+CUDA_EXPORT
+void tree_data_set_parts(int i, const pair<size_t,size_t>& p) {
+	tree_data_.parts[i] = p;
+}

@@ -73,7 +73,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		return;
 	}
 	auto &sources = shmem.src;
-	const auto &myparts = ((tree*) params.tptr)->parts;
+	const auto &myparts = params.tptr.get_parts();
 	int part_index;
 	int flops = 0;
 	int interacts = 0;
@@ -82,7 +82,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		for (int j = 0; j < LP; j++) {
 			L[j] = 0.0;
 		}
-		auto these_parts = ((tree*) parti[0])->parts;
+		auto these_parts = parti[0].get_parts();
 		int i = 0;
 		const auto &pos = params.tptr.get_pos();
 		const auto partsz = parti.size();
@@ -90,9 +90,9 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 			part_index = 0;
 			while (part_index < KICK_PP_MAX && i < partsz) {
 				while (i + 1 < partsz) {
-					const auto other_tree = ((tree*) parti[i + 1]);
-					if (these_parts.second == other_tree->parts.first) {
-						these_parts.second = other_tree->parts.second;
+					const auto other_tree_parts = parti[i + 1].get_parts();
+					if (these_parts.second == other_tree_parts.first) {
+						these_parts.second = other_tree_parts.second;
 						i++;
 					} else {
 						break;
@@ -111,7 +111,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				if (these_parts.first == these_parts.second) {
 					i++;
 					if (i < parti.size()) {
-						these_parts = ((tree*) parti[i])->parts;
+						these_parts = parti[i].get_parts();
 					}
 				}
 			}
@@ -154,7 +154,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	auto& act_map = shmem.act_map;
 	particle_set *parts = params.particles;
 
-	const auto &myparts = ((tree*) params.tptr)->parts;
+	const auto &myparts = params.tptr.get_parts();
 	const int nsinks = myparts.second - myparts.first;
 	const int nsinks_max = max(((nsinks - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
 
@@ -229,17 +229,17 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 		return;
 	}
 //   printf( "%i\n", parti.size());
-	const auto &myparts = ((tree*) params.tptr)->parts;
+	const auto &myparts = params.tptr.get_parts();
 	int i = 0;
-	auto these_parts = ((tree*) parti[0])->parts;
+	auto these_parts = parti[0].get_parts();
 	const auto partsz = parti.size();
 	while (i < partsz) {
 		part_index = 0;
 		while (part_index < KICK_PP_MAX && i < partsz) {
 			while (i + 1 < partsz) {
-				const auto other_tree = ((tree*) parti[i + 1]);
-				if (these_parts.second == other_tree->parts.first) {
-					these_parts.second = other_tree->parts.second;
+				const auto other_tree_parts = parti[i + 1].get_parts();
+				if (these_parts.second == other_tree_parts.first) {
+					these_parts.second = other_tree_parts.second;
 					i++;
 				} else {
 					break;
@@ -258,7 +258,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 			if (these_parts.first == these_parts.second) {
 				i++;
 				if (i < partsz) {
-					these_parts = ((tree*) parti[i])->parts;
+					these_parts = parti[i].get_parts();
 				}
 			}
 		}
@@ -395,7 +395,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	auto &F = params.F;
 	auto& act_map = shmem.act_map;
 	auto &Phi = params.Phi;
-	const auto &myparts = ((tree*) params.tptr)->parts;
+	const auto &myparts = params.tptr.get_parts();
 	if (multis.size() == 0) {
 		return;
 	}

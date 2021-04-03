@@ -18,12 +18,6 @@
 #include <memory>
 #include <stack>
 
-template<class A, class B>
-struct pair {
-	A first;
-	B second;
-};
-
 #define LEFT 0
 #define RIGHT 1
 
@@ -244,7 +238,6 @@ private:
 	tree_ptr self;
 	size_t active_parts;
 	size_t active_nodes;
-	pair<size_t, size_t> parts;
 	static particle_set* particles;
 public:
 	tree() {

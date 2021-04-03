@@ -64,7 +64,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			phi[k] = -PHI0;
 		}
 	}
-	const auto& myparts = ((tree*) params.tptr)->parts;
+	const auto& myparts = params.tptr.get_parts();
 	array<int, NITERS> count;
 
 	const float theta = params.theta;
@@ -110,7 +110,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const auto check = checks[ci];
 						const auto other_pos = check.get_pos();
 						const float other_radius = check.get_radius();
-						const float other_nparts = ((const tree*) check)->parts.second - ((const tree*) check)->parts.first;
+						const auto check_parts = check.get_parts();
+						const float other_nparts = check_parts.second - check_parts.first;
 						;
 						array<float, NDIM> dist;
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
@@ -211,7 +212,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				if (j < parti.size()) {
 					const auto other_pos = parti[j].get_pos();
 					const auto other_radius = parti[j].get_radius();
-					const auto other_nparts = ((tree*)parti[j])->parts.second - ((tree*)parti[j])->parts.first;
+					const auto parti_parts = parti[j].get_parts();
+					const auto other_nparts = parti_parts.second - parti_parts.first;
 					const float hfac = params.theta * fmaxf(params.hsoft, MIN_DX);
 					bool res = false;
 					const int sz = myparts.second - myparts.first;

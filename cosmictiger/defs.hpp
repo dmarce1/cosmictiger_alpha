@@ -106,4 +106,10 @@
 #define EWALD_MIN_DIST2 (EWALD_MIN_DIST *EWALD_MIN_DIST)
 #define EWALD_REAL_CUTOFF2 (2.6f*2.6f)
 
+template<class A, class B>
+struct pair {
+	A first;
+	B second;
+};
+
 #endif /* COSMICTIGER_DEFS_HPP_ */

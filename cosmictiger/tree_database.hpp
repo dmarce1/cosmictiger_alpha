@@ -6,7 +6,6 @@
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/tree.hpp>
 
-
 class tree;
 struct kick_params_type;
 
@@ -78,7 +77,7 @@ struct tree_ptr {
 	inline array<tree_ptr, NCHILD> get_children() const;
 
 	CUDA_EXPORT
-	inline void set_children(const array<tree_ptr,NCHILD>& c) const;
+	inline void set_children(const array<tree_ptr, NCHILD>& c) const;
 
 	CUDA_EXPORT
 	inline float get_radius() const;
@@ -87,7 +86,7 @@ struct tree_ptr {
 	inline array<fixed32, NDIM> get_pos() const;
 
 	CUDA_EXPORT
-	inline 	void set_radius(float) const;
+	inline void set_radius(float) const;
 
 	CUDA_EXPORT
 	inline void set_pos(const array<fixed32, NDIM>&) const;
@@ -104,13 +103,16 @@ struct tree_ptr {
 	CUDA_EXPORT
 	inline void set_leaf(bool b) const;
 
+	CUDA_EXPORT
+	inline pair<size_t, size_t> get_parts() const;
+
+	CUDA_EXPORT
+	inline void set_parts(const pair<size_t, size_t>& p) const;
 
 #ifndef __CUDACC__
 	hpx::future<void> kick(kick_params_type*, bool);
 #endif
 };
-
-
 
 void tree_data_initialize();
 
@@ -130,7 +132,7 @@ CUDA_EXPORT
 multipole tree_data_get_multi(int i);
 
 CUDA_EXPORT
-void tree_data_set_multi(int i,const multipole& m);
+void tree_data_set_multi(int i, const multipole& m);
 
 CUDA_EXPORT
 bool tree_data_get_isleaf(int i);
@@ -139,18 +141,20 @@ CUDA_EXPORT
 void tree_data_set_isleaf(int i, bool);
 
 CUDA_EXPORT
-array<tree_ptr,NCHILD> tree_data_get_children(int i);
+array<tree_ptr, NCHILD> tree_data_get_children(int i);
 
 CUDA_EXPORT
-void tree_data_set_children(int i, const array<tree_ptr,NCHILD>& c);
+void tree_data_set_children(int i, const array<tree_ptr, NCHILD>& c);
 
+CUDA_EXPORT
+pair<size_t, size_t> tree_data_get_parts(int i);
 
+CUDA_EXPORT
+void tree_data_set_parts(int i, const pair<size_t, size_t>& p);
 
 void tree_data_clear();
 
 int tree_data_allocate();
-
-
 
 CUDA_EXPORT
 inline float tree_ptr::get_radius() const {
@@ -173,7 +177,7 @@ void tree_ptr::set_radius(float r) const {
 
 CUDA_EXPORT
 void tree_ptr::set_pos(const array<fixed32, NDIM>& p) const {
-	tree_data_set_pos(dindex,p);
+	tree_data_set_pos(dindex, p);
 }
 
 CUDA_EXPORT
@@ -196,14 +200,22 @@ inline void tree_ptr::set_leaf(bool b) const {
 	tree_data_set_isleaf(dindex, b);
 }
 
-
 CUDA_EXPORT
 inline array<tree_ptr, NCHILD> tree_ptr::get_children() const {
 	return tree_data_get_children(dindex);
 }
 
 CUDA_EXPORT
-inline void tree_ptr::set_children(const array<tree_ptr,NCHILD>& c) const {
+inline void tree_ptr::set_children(const array<tree_ptr, NCHILD>& c) const {
 	tree_data_set_children(dindex, c);
 }
 
+CUDA_EXPORT
+inline pair<size_t, size_t> tree_ptr::get_parts() const {
+	return tree_data_get_parts(dindex);
+}
+
+CUDA_EXPORT
+inline void tree_ptr::set_parts(const pair<size_t, size_t>& p) const {
+	tree_data_set_parts(dindex, p);
+}
