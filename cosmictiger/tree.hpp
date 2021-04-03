@@ -112,11 +112,6 @@ struct cuda_ewald_shmem {
 	array<float, KICK_BLOCK_SIZE> Lreduce;  // 256
 };
 
-struct multipole_pos {
-	multipole multi;
-	array<fixed32, NDIM> pos;
-};
-
 struct check_data {
 	array<fixed32, NDIM> pos;
 	float radius;

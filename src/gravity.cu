@@ -417,25 +417,66 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	auto& dx2 = dx[2];
 	int nsrc = 0;
 	const int msize = sizeof(multipole_pos) / sizeof(float);
-	const auto mmax = (((multis.size() - 1) / KICK_BLOCK_SIZE) + 1) * KICK_BLOCK_SIZE;
-	for (int m = tid; m < mmax; m += KICK_BLOCK_SIZE) {
-		multipole multi;
-		array<fixed32, NDIM> other_pos;
-		if (m < multis.size()) {
-			multi = multis[m].get_multi();
-			other_pos = multis[m].get_pos();
+	const auto mmax = (((multis.size() - 1) / KICK_PC_MAX) + 1) * KICK_PC_MAX;
+	for (int m = 0; m < mmax; m += KICK_PC_MAX) {
+		nsrc = 0;
+		for (int z = 0; z < KICK_PC_MAX; z++) {
+			if (m + z < multis.size()) {
+				const float* src = multis[m + z].get_multi_ptr();
+				float* dst = (float*) &(msrcs[nsrc]);
+				nsrc++;
+				if (tid < msize) {
+					dst[tid] = src[tid];
+				}
+			}
 		}
-		for (int k = 0; k < nactive; k++) {
+		__syncwarp();
+		int kmid;
+		if ((nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 2) {
+			kmid = nactive - (nactive % KICK_BLOCK_SIZE);
+		} else {
+			kmid = nactive;
+		}
+		for (int k = tid; k < kmid; k += KICK_BLOCK_SIZE) {
 			for (int i = 0; i < NDIM + 1; i++) {
 				Lforce[i] = 0.f;
 			}
-			if (m < multis.size()) {
-				dx0 = distance(sinks[0][k], other_pos[0]);
-				dx1 = distance(sinks[1][k], other_pos[1]);
-				dx2 = distance(sinks[2][k], other_pos[2]);
+			for (int i = 0; i < nsrc; i++) {
+				const auto &source = msrcs[i].pos;
+				dx0 = distance(sinks[0][k], source[0]);
+				dx1 = distance(sinks[1][k], source[1]);
+				dx2 = distance(sinks[2][k], source[2]);
 				flops += 6;
 				flops += green_direct(D, dx);
-				flops += multipole_interaction(Lforce, multi, D, params.full_eval);
+				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
+				interacts++;
+			}
+			phi = Lforce[0]; // * DSCALE;
+			fx = Lforce[1]; // * (DSCALE * DSCALE);
+			fy = Lforce[2]; // * (DSCALE * DSCALE);
+			fz = Lforce[3]; // * (DSCALE * DSCALE);
+			NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
+			const int l = act_map[k];
+			F[0][l] -= fx;
+			F[1][l] -= fy;
+			F[2][l] -= fz;
+			if (full_eval) {
+				Phi[l] += phi;
+			}
+		}
+		__syncwarp();
+		for (int k = kmid; k < nactive; k++) {
+			for (int i = 0; i < NDIM + 1; i++) {
+				Lforce[i] = 0.f;
+			}
+			for (int i = tid; i < nsrc; i += KICK_BLOCK_SIZE) {
+				const auto &source = msrcs[i].pos;
+				dx0 = distance(sinks[0][k], source[0]);
+				dx1 = distance(sinks[1][k], source[1]);
+				dx2 = distance(sinks[2][k], source[2]);
+				flops += 6;
+				flops += green_direct(D, dx);
+				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
 				interacts++;
 			}
 			phi = Lforce[0]; // * DSCALE;
@@ -466,6 +507,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	if (params.full_eval) {
 		kick_return_update_interactions_gpu(KR_PC, interacts, flops);
 	}
+
 }
 
 #ifdef TEST_FORCE

@@ -78,6 +78,9 @@ struct tree_ptr {
 	inline multipole get_multi() const;
 
 	CUDA_EXPORT
+	inline float* get_multi_ptr() const;
+
+	CUDA_EXPORT
 	inline void set_multi(const multipole&) const;
 
 	CUDA_EXPORT
@@ -125,6 +128,9 @@ void tree_data_set_pos(int, const array<fixed32, NDIM>&);
 
 CUDA_EXPORT
 multipole tree_data_get_multi(int i);
+
+CUDA_EXPORT
+float* tree_data_get_multi_ptr(int i);
 
 CUDA_EXPORT
 void tree_data_set_multi(int i, const multipole& m);
@@ -193,6 +199,11 @@ inline multipole tree_ptr::get_multi() const {
 }
 
 CUDA_EXPORT
+inline float* tree_ptr::get_multi_ptr() const {
+	return tree_data_get_multi_ptr(dindex);
+}
+
+CUDA_EXPORT
 inline void tree_ptr::set_multi(const multipole& m) const {
 	tree_data_set_multi(dindex, m);
 }
@@ -247,11 +258,16 @@ inline void tree_ptr::set_active_nodes(size_t p) const {
 	tree_data_set_active_nodes(dindex, p);
 }
 
+struct multipole_pos {
+	multipole multi;
+	array<fixed32, NDIM> pos;
+};
+
 struct tree_data_t {
 	float* radius;
 	int8_t* leaf;
 	array<fixed32, NDIM>* pos;
-	multipole* multi;
+	multipole_pos* multi;
 	pair<size_t, size_t>* parts;
 	array<tree_ptr, NCHILD>* children;
 	size_t* active_parts;
@@ -313,6 +329,7 @@ void tree_data_set_pos(int i, const array<fixed32, NDIM>& p) {
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.pos[i] = p;
+	tree_data_.multi[i].pos = p;
 }
 
 CUDA_EXPORT inline multipole tree_data_get_multi(int i) {
@@ -323,7 +340,19 @@ CUDA_EXPORT inline multipole tree_data_get_multi(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.multi[i];
+	return tree_data_.multi[i].multi;
+}
+
+
+CUDA_EXPORT inline float* tree_data_get_multi_ptr(int i) {
+#ifdef __CUDACC__
+	auto& tree_data_ = gpu_tree_data_;
+#else
+	auto& tree_data_ = cpu_tree_data_;
+#endif
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	return (float*)(&tree_data_.multi[i]);
 }
 
 CUDA_EXPORT inline
@@ -335,7 +364,7 @@ void tree_data_set_multi(int i, const multipole& m) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.multi[i] = m;
+	tree_data_.multi[i].multi = m;
 }
 
 CUDA_EXPORT inline
