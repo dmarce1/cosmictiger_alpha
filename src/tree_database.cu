@@ -27,13 +27,16 @@ void tree_data_initialize() {
 	}
 	CUDA_MALLOC(gpu_tree_data_.leaf, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.multi, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.children, gpu_tree_data_.ntrees);
+	for( int i = 0; i < NCHILD; i++) {
+		CUDA_MALLOC(gpu_tree_data_.children[i], gpu_tree_data_.ntrees);
+	}
 	CUDA_MALLOC(gpu_tree_data_.parts, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 
 	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
-		new (gpu_tree_data_.children + i) array<tree_ptr,NCHILD>();
+		new (gpu_tree_data_.children[0] + i) array<tree_ptr,NCHILD>();
+		new (gpu_tree_data_.children[1] + i) array<tree_ptr,NCHILD>();
 	}
 
 	printf("Allocating %i trees in %i chunks of %i each\n", gpu_tree_data_.ntrees, gpu_tree_data_.nchunks, chunk_size);

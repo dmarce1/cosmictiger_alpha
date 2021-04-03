@@ -269,7 +269,7 @@ struct tree_data_t {
 	array<fixed32*, NDIM> pos;
 	multipole_pos* multi;
 	pair<size_t, size_t>* parts;
-	array<tree_ptr, NCHILD>* children;
+	array<tree_ptr*, NCHILD> children;
 	size_t* active_parts;
 	size_t* active_nodes;
 	int ntrees;
@@ -316,7 +316,7 @@ CUDA_EXPORT inline array<fixed32, NDIM> tree_data_get_pos(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	array<fixed32,NDIM> pos;
+	array<fixed32, NDIM> pos;
 	pos[0] = tree_data_.pos[0][i];
 	pos[1] = tree_data_.pos[1][i];
 	pos[2] = tree_data_.pos[2][i];
@@ -349,7 +349,6 @@ CUDA_EXPORT inline multipole tree_data_get_multi(int i) {
 	return tree_data_.multi[i].multi;
 }
 
-
 CUDA_EXPORT inline float* tree_data_get_multi_ptr(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
@@ -358,7 +357,7 @@ CUDA_EXPORT inline float* tree_data_get_multi_ptr(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return (float*)(&tree_data_.multi[i]);
+	return (float*) (&tree_data_.multi[i]);
 }
 
 CUDA_EXPORT inline
@@ -407,7 +406,10 @@ CUDA_EXPORT inline array<tree_ptr, NCHILD> tree_data_get_children(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.children[i];
+	array<tree_ptr, NCHILD> children;
+	children[0] = tree_data_.children[0][i];
+	children[1] = tree_data_.children[1][i];
+	return children;
 }
 
 CUDA_EXPORT inline
@@ -419,7 +421,8 @@ void tree_data_set_children(int i, const array<tree_ptr, NCHILD>& c) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.children[i] = c;
+	tree_data_.children[0][i] = c[0];
+	tree_data_.children[1][i] = c[1];
 }
 
 CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_parts(int i) {
