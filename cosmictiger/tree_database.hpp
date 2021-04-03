@@ -10,16 +10,17 @@
 class tree;
 struct kick_params_type;
 
+#ifdef __CUDA_ARCH__
+#define LDG(a) __ldg(a)
+#else
+#define LDG(a) (*(a))
+#endif
+
 struct tree_ptr {
 	int dindex;
 #ifndef NDEBUG
-	int constructed;
-#endif
-#ifndef NDEBUG
 	CUDA_EXPORT
 	inline tree_ptr() {
-		ptr = 0;
-		constructed = 1234;
 		dindex = -1;
 	}
 #else
@@ -28,32 +29,23 @@ struct tree_ptr {
 	CUDA_EXPORT
 	inline tree_ptr(tree_ptr &&other) {
 		dindex = other.dindex;
-#ifndef NDEBUG
-		constructed = 1234;
-#endif
 	}
 	CUDA_EXPORT
 	inline tree_ptr(const tree_ptr &other) {
 		dindex = other.dindex;
-#ifndef NDEBUG
-		constructed = 1234;
-#endif
 	}
 	CUDA_EXPORT
 	inline tree_ptr& operator=(const tree_ptr &other) {
-		assert(constructed == 1234);
 		dindex = other.dindex;
 		return *this;
 	}
 	CUDA_EXPORT
 	inline tree_ptr& operator=(tree_ptr &&other) {
-		assert(constructed == 1234);
 		dindex = other.dindex;
 		return *this;
 	}
 	CUDA_EXPORT
 	inline bool operator==(const tree_ptr &other) const {
-		assert(constructed == 1234);
 		return dindex == other.dindex;
 	}
 
@@ -108,9 +100,11 @@ struct tree_ptr {
 	CUDA_EXPORT
 	inline void set_active_nodes(size_t p) const;
 
-	CUDA_EXPORT range get_range() const;
+	CUDA_EXPORT
+	range get_range() const;
 
-	CUDA_EXPORT void set_range(const range&) const;
+	CUDA_EXPORT
+	void set_range(const range&) const;
 
 #ifndef __CUDACC__
 	hpx::future<void> kick(kick_params_type*, bool);
@@ -182,15 +176,11 @@ int tree_data_allocate();
 
 CUDA_EXPORT
 inline float tree_ptr::get_radius() const {
-	assert(constructed == 1234);
-	assert(ptr);
 	return tree_data_get_radius(dindex);
 }
 
 CUDA_EXPORT
 inline array<fixed32, NDIM> tree_ptr::get_pos() const {
-	assert(ptr);
-	assert(constructed == 1234);
 	return tree_data_get_pos(dindex);
 }
 
@@ -276,7 +266,7 @@ inline range tree_ptr::get_range() const {
 
 CUDA_EXPORT
 inline void tree_ptr::set_range(const range& r) const {
-	tree_data_set_range(dindex,r);
+	tree_data_set_range(dindex, r);
 }
 
 struct multipole_pos {
@@ -285,22 +275,23 @@ struct multipole_pos {
 };
 
 struct mcrit_t {
-	array<fixed32,NDIM> pos;
+	array<fixed32, NDIM> pos;
 	float radius;
 };
 
 struct tree_data_t {
-	multipole_pos multi;
+	array<fixed32, NDIM> pos;
 	float radius;
-	pair<size_t, size_t> parts;
 	array<tree_ptr, NCHILD> children;
-	size_t active_parts;
 };
 
 struct tree_database_t {
+	multipole_pos* multi;
 	size_t* active_nodes;
+	pair<size_t, size_t>* parts;
 	tree_data_t* data;
 	range* ranges;
+	size_t* active_parts;
 	int ntrees;
 	int nchunks;
 };
@@ -322,7 +313,7 @@ float tree_data_get_radius(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.data[i].radius;
+	return LDG(&tree_data_.data[i].radius);
 }
 
 CUDA_EXPORT inline
@@ -345,7 +336,19 @@ CUDA_EXPORT inline array<fixed32, NDIM> tree_data_get_pos(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.data[i].multi.pos;
+	union fixed_union {
+		fixed32 f;
+		int i;
+	};
+	fixed_union x, y, z;
+	array<fixed32, NDIM> p;
+	x.i = LDG((int* )&tree_data_.data[i].pos[0]);
+	y.i = LDG((int* )&tree_data_.data[i].pos[1]);
+	z.i = LDG((int* )&tree_data_.data[i].pos[2]);
+	p[0] = x.f;
+	p[1] = y.f;
+	p[2] = z.f;
+	return p;
 }
 
 CUDA_EXPORT inline
@@ -357,7 +360,8 @@ void tree_data_set_pos(int i, const array<fixed32, NDIM>& p) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.data[i].multi.pos = p;
+	tree_data_.multi[i].pos = p;
+	tree_data_.data[i].pos = p;
 }
 
 CUDA_EXPORT inline multipole tree_data_get_multi(int i) {
@@ -368,7 +372,7 @@ CUDA_EXPORT inline multipole tree_data_get_multi(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.data[i].multi.multi;
+	return tree_data_.multi[i].multi;
 }
 
 CUDA_EXPORT inline float* tree_data_get_multi_ptr(int i) {
@@ -379,7 +383,7 @@ CUDA_EXPORT inline float* tree_data_get_multi_ptr(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return (float*) (&tree_data_.data[i].multi);
+	return (float*) (&tree_data_.multi[i]);
 }
 
 CUDA_EXPORT inline
@@ -391,7 +395,7 @@ void tree_data_set_multi(int i, const multipole& m) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.data[i].multi.multi = m;
+	tree_data_.multi[i].multi = m;
 }
 
 CUDA_EXPORT inline
@@ -403,7 +407,7 @@ bool tree_data_get_isleaf(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.data[i].children[0].dindex == -1;
+	return LDG(&tree_data_.data[i].children[0].dindex) == -1;
 
 }
 
@@ -421,7 +425,13 @@ CUDA_EXPORT inline array<tree_ptr, NCHILD> tree_data_get_children(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.data[i].children;
+	union child_union {
+		array<tree_ptr, NCHILD> children;
+		int2 ints;
+	};
+	child_union u;
+	u.ints = LDG((int2* )(&tree_data_.data[i].children));
+	return u.children;
 }
 
 CUDA_EXPORT inline
@@ -445,7 +455,7 @@ CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_parts(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.data[i].parts;
+	return tree_data_.parts[i];
 }
 
 CUDA_EXPORT inline
@@ -457,7 +467,7 @@ void tree_data_set_parts(int i, const pair<size_t, size_t>& p) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.data[i].parts = p;
+	tree_data_.parts[i] = p;
 }
 
 CUDA_EXPORT inline size_t tree_data_get_active_parts(int i) {
@@ -468,7 +478,7 @@ CUDA_EXPORT inline size_t tree_data_get_active_parts(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.data[i].active_parts;
+	return tree_data_.active_parts[i];
 }
 
 CUDA_EXPORT inline
@@ -480,7 +490,7 @@ void tree_data_set_active_parts(int i, size_t p) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.data[i].active_parts = p;
+	tree_data_.active_parts[i] = p;
 }
 
 CUDA_EXPORT inline size_t tree_data_get_active_nodes(int i) {
@@ -528,7 +538,6 @@ void tree_data_set_range(int i, const range& r) {
 	assert(i < tree_data_.ntrees);
 	tree_data_.ranges[i] = r;
 }
-
 
 void tree_database_set_readonly();
 

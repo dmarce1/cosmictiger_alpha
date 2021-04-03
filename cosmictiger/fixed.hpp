@@ -53,11 +53,7 @@ public:
 		num.i = 1;
 		return num;
 	}
-
-	CUDA_EXPORT
-	constexpr inline fixed<T>() :
-			i(0) {
-	}
+	fixed<T>() = default;
 
 	CUDA_EXPORT
 	inline

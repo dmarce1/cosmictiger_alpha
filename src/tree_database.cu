@@ -27,8 +27,11 @@ void tree_data_initialize() {
 	printf("Allocating %i trees in %i chunks of %i each\n", gpu_tree_data_.ntrees, gpu_tree_data_.nchunks, chunk_size);
 
 	CUDA_MALLOC(gpu_tree_data_.data, gpu_tree_data_.ntrees);
+	CUDA_MALLOC(gpu_tree_data_.parts, gpu_tree_data_.ntrees);
+	CUDA_MALLOC(gpu_tree_data_.multi, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.ranges, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
+	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
 
 #ifndef NDEBUG
 	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
