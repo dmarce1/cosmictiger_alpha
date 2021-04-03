@@ -484,3 +484,7 @@ void tree_data_set_active_nodes(int i, size_t p) {
 	tree_data_.active_nodes[i] = p;
 }
 
+
+void tree_database_set_readonly();
+
+void tree_database_unset_readonly();

@@ -37,16 +37,13 @@ struct tree_stats {
 };
 
 #ifndef __CUDACC__
-struct tree_alloc {
-	managed_allocator<tree> tree_alloc;
-};
+
 
 struct sort_params {
 #ifdef TEST_STACK
 	uint8_t* stack_ptr;
 #endif
 	range box;
-	std::shared_ptr<tree_alloc> allocs;
 	int8_t depth;
 	int8_t min_depth;
 	double theta;
@@ -75,14 +72,12 @@ struct sort_params {
 		parts.first = 0;
 		parts.second = global().opts.nparts;
 		depth = 0;
-		allocs = std::make_shared<tree_alloc>();
 	}
 
 	std::array<sort_params, NCHILD> get_children() const {
 		std::array<sort_params, NCHILD> child;
 		for (int i = 0; i < NCHILD; i++) {
 			child[i].depth = depth + 1;
-			child[i].allocs = allocs;
 			child[i].box = box;
 			child[i].min_depth = min_depth;
 			child[i].min_rung = min_rung;

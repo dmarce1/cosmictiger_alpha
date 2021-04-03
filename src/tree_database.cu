@@ -22,6 +22,8 @@ void tree_data_initialize() {
 			1024 * 1024);
 	gpu_tree_data_.nchunks = gpu_tree_data_.ntrees / chunk_size;
 
+	CUDA_CHECK(cudaMemAdvise(&gpu_tree_data_, sizeof(gpu_tree_data_), cudaMemAdviseSetReadMostly, 0));
+
 	printf("Allocating %i trees in %i chunks of %i each\n", gpu_tree_data_.ntrees, gpu_tree_data_.nchunks, chunk_size);
 
 	CUDA_MALLOC(gpu_tree_data_.data, gpu_tree_data_.ntrees);
@@ -39,6 +41,22 @@ void tree_data_initialize() {
 	cpu_tree_data_ = gpu_tree_data_;
 
 }
+
+
+void tree_database_set_readonly() {
+#ifdef USE_READMOSTLY
+	CUDA_CHECK(cudaMemAdvise(gpu_tree_data_.data, gpu_tree_data_.ntrees, cudaMemAdviseSetReadMostly, 0));
+	CUDA_CHECK(cudaMemAdvise(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees, cudaMemAdviseSetReadMostly, 0));
+#endif
+}
+
+void tree_database_unset_readonly() {
+#ifdef USE_READMOSTLY
+	CUDA_CHECK(cudaMemAdvise(gpu_tree_data_.data, gpu_tree_data_.ntrees, cudaMemAdviseUnsetReadMostly, 0));
+	CUDA_CHECK(cudaMemAdvise(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees, cudaMemAdviseUnsetReadMostly, 0));
+#endif
+}
+
 
 void tree_data_clear() {
 	next_chunk = 0;

@@ -67,7 +67,6 @@ hpx::future<sort_return> tree::create_child(sort_params &params, bool try_thread
 		rc.check = id;
 		return hpx::make_ready_future(std::move(rc));
 	} else {
-		params.allocs = std::make_shared<tree_alloc>();
 		return hpx::async([id, params]() {
 			auto rc = tree::sort(params);
 			rc.check = id;
@@ -385,7 +384,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.block_cutoff = 0;
 			//		printf( "CPU ONLY\n");
 		}
-		managed_allocator<tree_ptr>::set_read_only();
+		tree_database_set_readonly();
 		particles->prepare_kick();
 	}
 	if (self.is_leaf()) {
@@ -547,7 +546,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[LEFT].get();
 			futs[RIGHT].get();
 			if( depth == 0 ) {
-				managed_allocator<tree_ptr>::unset_read_only();
+				tree_database_unset_readonly();
 			}
 		});
 	} else {
