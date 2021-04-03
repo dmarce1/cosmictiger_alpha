@@ -109,6 +109,18 @@ struct tree_ptr {
 	CUDA_EXPORT
 	inline void set_parts(const pair<size_t, size_t>& p) const;
 
+	CUDA_EXPORT
+	inline size_t get_active_parts() const;
+
+	CUDA_EXPORT
+	inline void set_active_parts(size_t p) const;
+
+	CUDA_EXPORT
+	inline size_t get_active_nodes() const;
+
+	CUDA_EXPORT
+	inline void set_active_nodes(size_t p) const;
+
 #ifndef __CUDACC__
 	hpx::future<void> kick(kick_params_type*, bool);
 #endif
@@ -152,9 +164,24 @@ pair<size_t, size_t> tree_data_get_parts(int i);
 CUDA_EXPORT
 void tree_data_set_parts(int i, const pair<size_t, size_t>& p);
 
+CUDA_EXPORT
+size_t tree_data_get_active_parts(int i);
+
+CUDA_EXPORT
+void tree_data_set_active_parts(int i, size_t p);
+
+
+CUDA_EXPORT
+size_t tree_data_get_active_nodes(int i);
+
+CUDA_EXPORT
+void tree_data_set_active_nodes(int i, size_t p);
+
+
 void tree_data_clear();
 
 int tree_data_allocate();
+
 
 CUDA_EXPORT
 inline float tree_ptr::get_radius() const {
@@ -219,3 +246,26 @@ CUDA_EXPORT
 inline void tree_ptr::set_parts(const pair<size_t, size_t>& p) const {
 	tree_data_set_parts(dindex, p);
 }
+
+
+CUDA_EXPORT
+inline size_t tree_ptr::get_active_parts() const {
+	return tree_data_get_active_parts(dindex);
+}
+
+CUDA_EXPORT
+inline void tree_ptr::set_active_parts(size_t p) const {
+	tree_data_set_active_parts(dindex, p);
+}
+
+
+CUDA_EXPORT
+inline size_t tree_ptr::get_active_nodes() const {
+	return tree_data_get_active_nodes(dindex);
+}
+
+CUDA_EXPORT
+inline void tree_ptr::set_active_nodes(size_t p) const {
+	tree_data_set_active_nodes(dindex, p);
+}
+

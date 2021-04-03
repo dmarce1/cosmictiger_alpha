@@ -15,6 +15,8 @@ struct tree_data_t {
 	multipole* multi;
 	pair<size_t, size_t>* parts;
 	array<tree_ptr, NCHILD>* children;
+	size_t* active_parts;
+	size_t* active_nodes;
 	int ntrees;
 	int nchunks;
 };
@@ -39,6 +41,8 @@ void tree_data_initialize() {
 	CUDA_MALLOC(tree_data_.multi, tree_data_.ntrees);
 	CUDA_MALLOC(tree_data_.children, tree_data_.ntrees);
 	CUDA_MALLOC(tree_data_.parts, tree_data_.ntrees);
+	CUDA_MALLOC(tree_data_.active_parts, tree_data_.ntrees);
+	CUDA_MALLOC(tree_data_.active_nodes, tree_data_.ntrees);
 
 	for (int i = 0; i < tree_data_.ntrees; i++) {
 		new (tree_data_.children + i) array<tree_ptr,NCHILD>();
@@ -161,3 +165,38 @@ void tree_data_set_parts(int i, const pair<size_t, size_t>& p) {
 	assert(i < tree_data_.ntrees);
 	tree_data_.parts[i] = p;
 }
+
+
+
+CUDA_EXPORT
+size_t tree_data_get_active_parts(int i) {
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	return tree_data_.active_parts[i];
+}
+
+CUDA_EXPORT
+void tree_data_set_active_parts(int i, size_t p) {
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	tree_data_.active_parts[i] = p;
+}
+
+
+
+
+CUDA_EXPORT
+size_t tree_data_get_active_nodes(int i) {
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	return tree_data_.active_nodes[i];
+}
+
+CUDA_EXPORT
+void tree_data_set_active_nodes(int i, size_t p) {
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	tree_data_.active_nodes[i] = p;
+}
+
+

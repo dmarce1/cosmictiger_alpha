@@ -33,7 +33,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	tree_ptr tptr = params.tptr;
 	tree& me = *((tree*) params.tptr);
-	if (!me.active_parts && !params.full_eval) {
+	if (!tptr.get_active_parts() && !params.full_eval) {
 		return;
 	}
 	const int &tid = threadIdx.x;
@@ -285,14 +285,14 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	}
 	if (!params.tptr.is_leaf()) {
 		const auto children = tptr.get_children();
-		tree* left = (tree*)children[LEFT].ptr;
-		tree* right = (tree*) children[RIGHT].ptr;
+		const auto left_active = children[LEFT].get_active_parts();
+		const auto right_active = children[RIGHT].get_active_parts();;
 		if (tid == 0) {
 			params.depth++;
 			params.L[params.depth] = L;
 			params.Lpos[params.depth] = mypos;
 		}
-		if (left->active_parts && right->active_parts) {
+		if ((left_active && right_active) || params.full_eval) {
 			params.dchecks.push_top();
 			params.echecks.push_top();
 			if (tid == 0) {
@@ -308,13 +308,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			params.echecks.pop_top();
 			__syncwarp();
 			cuda_kick(params_ptr);
-		} else if (left->active_parts) {
+		} else if (left_active) {
 			if (tid == 0) {
 				params.tptr = children[LEFT];
 			}
 			__syncwarp();
 			cuda_kick(params_ptr);
-		} else if (right->active_parts) {
+		} else if (right_active) {
 			if (tid == 0) {
 				params.tptr = children[RIGHT];
 			}

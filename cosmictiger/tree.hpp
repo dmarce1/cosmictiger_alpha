@@ -236,8 +236,6 @@ struct tree {
 private:
 #endif //*** multi and pos MUST be adjacent and ordered multi then pos !!!!!!! *****/
 	tree_ptr self;
-	size_t active_parts;
-	size_t active_nodes;
 	static particle_set* particles;
 public:
 	tree() {
