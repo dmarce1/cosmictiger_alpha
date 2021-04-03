@@ -263,13 +263,17 @@ struct multipole_pos {
 	array<fixed32, NDIM> pos;
 };
 
+struct mcrit_t {
+	array<fixed32,NDIM> pos;
+	float radius;
+};
+
 struct tree_data_t {
-	float* radius;
+	mcrit_t* mcrit;
 	int8_t* leaf;
-	array<fixed32*, NDIM> pos;
 	multipole_pos* multi;
 	pair<size_t, size_t>* parts;
-	array<tree_ptr*, NCHILD> children;
+	array<tree_ptr, NCHILD>* children;
 	size_t* active_parts;
 	size_t* active_nodes;
 	int ntrees;
@@ -293,7 +297,7 @@ float tree_data_get_radius(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.radius[i];
+	return tree_data_.mcrit[i].radius;
 }
 
 CUDA_EXPORT inline
@@ -305,7 +309,7 @@ void tree_data_set_radius(int i, float r) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.radius[i] = r;
+	tree_data_.mcrit[i].radius = r;
 }
 
 CUDA_EXPORT inline array<fixed32, NDIM> tree_data_get_pos(int i) {
@@ -316,11 +320,7 @@ CUDA_EXPORT inline array<fixed32, NDIM> tree_data_get_pos(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	array<fixed32, NDIM> pos;
-	pos[0] = tree_data_.pos[0][i];
-	pos[1] = tree_data_.pos[1][i];
-	pos[2] = tree_data_.pos[2][i];
-	return pos;
+	return tree_data_.mcrit[i].pos;
 }
 
 CUDA_EXPORT inline
@@ -332,9 +332,7 @@ void tree_data_set_pos(int i, const array<fixed32, NDIM>& p) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.pos[0][i] = p[0];
-	tree_data_.pos[1][i] = p[1];
-	tree_data_.pos[2][i] = p[2];
+	tree_data_.mcrit[i].pos = p;
 	tree_data_.multi[i].pos = p;
 }
 
@@ -406,10 +404,7 @@ CUDA_EXPORT inline array<tree_ptr, NCHILD> tree_data_get_children(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	array<tree_ptr, NCHILD> children;
-	children[0] = tree_data_.children[0][i];
-	children[1] = tree_data_.children[1][i];
-	return children;
+	return tree_data_.children[i];
 }
 
 CUDA_EXPORT inline
@@ -421,8 +416,8 @@ void tree_data_set_children(int i, const array<tree_ptr, NCHILD>& c) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.children[0][i] = c[0];
-	tree_data_.children[1][i] = c[1];
+	tree_data_.children[i][0] = c[0];
+	tree_data_.children[i][1] = c[1];
 }
 
 CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_parts(int i) {

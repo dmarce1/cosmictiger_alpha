@@ -7,7 +7,7 @@
 #include <cmath>
 #include <atomic>
 
-static constexpr int chunk_size = 2048;
+static constexpr int chunk_size = 16384;
 
 static std::atomic<int> next_chunk;
 static int era = 0;
@@ -21,25 +21,23 @@ void tree_data_initialize() {
 	gpu_tree_data_.ntrees = std::max(1 << ((int) std::ceil(std::log(gpu_tree_data_.ntrees) / std::log(2)) + 3), 1024 * 1024);
 	gpu_tree_data_.nchunks = gpu_tree_data_.ntrees / chunk_size;
 
-	CUDA_MALLOC(gpu_tree_data_.radius, gpu_tree_data_.ntrees);
-	for( int i = 0; i < NDIM; i++) {
-		CUDA_MALLOC(gpu_tree_data_.pos[i], gpu_tree_data_.ntrees);
-	}
+	printf("Allocating %i trees in %i chunks of %i each\n", gpu_tree_data_.ntrees, gpu_tree_data_.nchunks, chunk_size);
+
+	CUDA_MALLOC(gpu_tree_data_.mcrit, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.leaf, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.multi, gpu_tree_data_.ntrees);
-	for( int i = 0; i < NCHILD; i++) {
-		CUDA_MALLOC(gpu_tree_data_.children[i], gpu_tree_data_.ntrees);
-	}
+	CUDA_MALLOC(gpu_tree_data_.children, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.parts, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 
+#ifndef NDEBUG
 	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
 		new (gpu_tree_data_.children[0] + i) array<tree_ptr,NCHILD>();
 		new (gpu_tree_data_.children[1] + i) array<tree_ptr,NCHILD>();
 	}
+#endif
 
-	printf("Allocating %i trees in %i chunks of %i each\n", gpu_tree_data_.ntrees, gpu_tree_data_.nchunks, chunk_size);
 
 	tree_data_clear();
 
