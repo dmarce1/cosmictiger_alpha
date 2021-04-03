@@ -77,7 +77,6 @@ private:
 	float* eptr_;
 #endif
 //	rung_t *rptr_;
-	void *base_;
 	size_t size_;
 	size_t offset_;
 	bool virtual_;
@@ -91,7 +90,6 @@ public:
 			v.xptr_[dim] = xptr_[dim];
 		}
 //		v.rptr_ = rptr_;
-		v.base_ = base_;
 #ifdef TEST_FORCE
 		v.gptr_ = gptr_;
 		v.eptr_ = eptr_;

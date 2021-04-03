@@ -38,26 +38,15 @@ particle_set::particle_set(size_t size, size_t offset) {
 	offset_ = offset;
 	size_ = size;
 	virtual_ = false;
-	size_t chunk_size = NDIM * sizeof(fixed32) + sizeof(vel_type);
+	CUDA_MALLOC(xptr_[0], size);
+	CUDA_MALLOC(xptr_[1], size);
+	CUDA_MALLOC(xptr_[2], size);
+	CUDA_MALLOC(uptr_, size);
 #ifdef TEST_FORCE
-	chunk_size += (NDIM + 1) * sizeof(float);
-#endif
-	uint8_t *data;
-	//unified_allocator alloc;
-	//data = (uint8_t*) alloc.allocate(chunk_size * size);
-	CUDA_MALLOC(data, chunk_size * size);
-	CHECK_POINTER(data);
-	base_ = (void*) data;
-	for (int dim = 0; dim < NDIM; dim++) {
-		xptr_[dim] = (fixed32*) (data + dim * sizeof(fixed32) * size);
-	}
-	uptr_ = (vel_type*) (data + size * NDIM * sizeof(fixed32));
-#ifdef TEST_FORCE
-	const auto offset1 = sizeof(vel_type) * size + NDIM * size * sizeof(fixed32);
-	for (size_t dim = 0; dim < NDIM; dim++) {
-		gptr_[dim] = (float*) (data + offset1 + dim * size * sizeof(float));
-	}
-	eptr_ = (float*) (data + offset1 + size * NDIM * sizeof(float));
+	CUDA_MALLOC(gptr_[0], size);
+	CUDA_MALLOC(gptr_[1], size);
+	CUDA_MALLOC(gptr_[2], size);
+	CUDA_MALLOC(eptr_, size);
 #endif
 	for (int i = 0; i < size; i++) {
 		uptr_[i].p.r = 0;
@@ -106,11 +95,6 @@ void particle_set::save_to_file(FILE* fp) {
 //}
 
 particle_set::~particle_set() {
-	if (!virtual_) {
-//		unified_allocator alloc;
-//		alloc.deallocate(base_);
-		CUDA_FREE(base_);
-	}
 }
 
 void particle_set::generate_random() {
