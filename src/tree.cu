@@ -26,6 +26,11 @@ __managed__ list_sizes_t list_sizes { 0, 0, 0, 0, 0 };
 #define CI 2
 #define OI 3
 
+__device__ float rung_dt[MAX_RUNG] = { 1.0 / (1 << 0), 1.0 / (1 << 1), 1.0 / (1 << 2), 1.0 / (1 << 3), 1.0 / (1 << 4),
+		1.0 / (1 << 5), 1.0 / (1 << 6), 1.0 / (1 << 7), 1.0 / (1 << 8), 1.0 / (1 << 9), 1.0 / (1 << 10), 1.0 / (1 << 11),
+		1.0 / (1 << 12), 1.0 / (1 << 13), 1.0 / (1 << 14), 1.0 / (1 << 15), 1.0 / (1 << 16), 1.0 / (1 << 17), 1.0
+				/ (1 << 18), 1.0 / (1 << 19), 1.0 / (1 << 20), 1.0 / (1 << 21), 1.0 / (1 << 22), 1.0 / (1 << 23) };
+
 CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
 	__shared__
@@ -285,7 +290,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	if (!params.tptr.is_leaf()) {
 		const auto children = tptr.get_children();
 		const auto left_active = children[LEFT].get_active_parts();
-		const auto right_active = children[RIGHT].get_active_parts();;
+		const auto right_active = children[RIGHT].get_active_parts();
+		;
 		if (tid == 0) {
 			params.depth++;
 			params.L[params.depth] = L;
@@ -326,6 +332,11 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		//   printf( "%li\n", rc.flops);
 	} else {
 		const float invlog2 = 1.0f / logf(2);
+		const float GM = params.G * params.M;
+		const float tfactor = params.eta * sqrtf(params.scale * params.hsoft);
+		const float logt0 = logf(params.t0);
+		const float t0 = 0.5f * params.t0;
+		const auto minrung = fmaxf(MIN_RUNG, params.rung);
 		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 			const auto this_rung = parts->rung(k + myparts.first);
 			if (this_rung >= params.rung || params.full_eval) {
@@ -343,9 +354,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 				phi[k] += this_phi;
 				for (int dim = 0; dim < NDIM; dim++) {
-					F[dim][k] *= params.G * params.M;
+					F[dim][k] *= GM;
 				}
-				phi[k] *= params.G * params.M;
+				phi[k] *= GM;
 #ifdef TEST_FORCE
 				for (int dim = 0; dim < NDIM; dim++) {
 					parts->force(dim, k + myparts.first) = F[dim][k];
@@ -353,27 +364,28 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				parts->pot(k + myparts.first) = phi[k];
 #endif
 				if (this_rung >= params.rung) {
-					float dt = params.t0 / (size_t(1) << this_rung);
+					float dt = t0 * rung_dt[this_rung];
+					const auto index = k + myparts.first;
+					auto& vx = parts->vel(index).p.x;
+					auto& vy = parts->vel(index).p.y;
+					auto& vz = parts->vel(index).p.z;
 					if (!params.first) {
-						parts->vel(k + myparts.first).p.x += 0.5 * dt * F[0][k];
-						parts->vel(k + myparts.first).p.y += 0.5 * dt * F[1][k];
-						parts->vel(k + myparts.first).p.z += 0.5 * dt * F[2][k];
+						vx = fmaf(dt, F[0][k], vx);
+						vy = fmaf(dt, F[1][k], vy);
+						vz = fmaf(dt, F[2][k], vz);
 					}
-					float fmag = 0.0;
-					for (int dim = 0; dim < NDIM; dim++) {
-						fmag += sqr(F[dim][k]);
+					const float fmag2 = fmaf(F[0][k], F[0][k], fmaf(F[1][k], F[1][k], sqr(F[2][k])));
+					if (fmag2 != 0.f) {
+						dt = fminf(tfactor * rsqrt(sqrtf(fmag2)), params.t0);
+					} else {
+						dt = 1.0e+30;
 					}
-					fmag = sqrtf(fmag);
-					//   printf( "%e\n", fmag);
-					assert(fmag > 0.0);
-					dt = fminf(params.eta * sqrtf(params.scale * params.hsoft / fmag), params.t0);
-					int new_rung = fmaxf(fmaxf(fmaxf(ceil(logf(params.t0 / dt) * invlog2), this_rung - 1), params.rung),
-					MIN_RUNG);
-					dt = params.t0 / (size_t(1) << new_rung);
-					parts->vel(k + myparts.first).p.x += 0.5 * dt * F[0][k];
-					parts->vel(k + myparts.first).p.y += 0.5 * dt * F[1][k];
-					parts->vel(k + myparts.first).p.z += 0.5 * dt * F[2][k];
-					parts->set_rung(new_rung, k + myparts.first);
+					const int new_rung = fmaxf(fmaxf(ceilf((logt0 - logf(dt)) * invlog2), this_rung - 1), minrung);
+					dt = t0 * rung_dt[new_rung];
+					vx = fmaf(dt, F[0][k], vx);
+					vy = fmaf(dt, F[1][k], vy);
+					vz = fmaf(dt, F[2][k], vz);
+					parts->set_rung(new_rung, index);
 				}
 				if (params.full_eval) {
 					kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);

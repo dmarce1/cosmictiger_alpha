@@ -26,7 +26,7 @@
 
 //#define USE_READMOSTLY
 //#define USE_NAN_TEST
-//#define TEST_FORCE
+#define TEST_FORCE
 //#define TEST_STACK
 #define N_TEST_PARTS (100)
 
@@ -36,7 +36,7 @@
 
 
 #define MIN_ACTIVE_PER_BLOCK 16
-#define MAX_RUNG 63
+#define MAX_RUNG 24
 #define TREE_MAX_DEPTH 54
 #define TREE_RADIX_CUSHION -9
 #define TREE_RADIX_MIN 3
