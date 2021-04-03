@@ -20,7 +20,11 @@ tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_act
 		tree::cuda_set_kick_params(parts_ptr);
 	}
 	tree root;
+	tree_ptr root_ptr;
+
+	root_ptr.dindex = 0;
 	sort_params params;
+	params.tptr = root_ptr;
 	params.min_rung = min_rung;
 	params.theta = theta;
 	sort_return rc = root.sort(params);
@@ -36,11 +40,12 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool f
 	timer time;
 	time.start();
 	tree_ptr root_ptr;
-	root_ptr.ptr = (uintptr_t) &root;
+
 	root_ptr.dindex = 0;
 	kick_params_type *params_ptr;
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) kick_params_type();
+	params_ptr->tptr = root_ptr;
 	params_ptr->dchecks.push(root_ptr);
 	params_ptr->echecks.push(root_ptr);
 	params_ptr->rung = min_rung;

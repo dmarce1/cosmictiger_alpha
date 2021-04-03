@@ -32,7 +32,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	tree_ptr tptr = params.tptr;
-	tree& me = *((tree*) params.tptr);
 	if (!tptr.get_active_parts() && !params.full_eval) {
 		return;
 	}

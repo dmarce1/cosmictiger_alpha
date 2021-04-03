@@ -75,17 +75,19 @@ void kick_test() {
 		sort_params params;
 		params.theta = global().opts.theta;
 		params.min_rung = 0;
+		tree_ptr root_ptr;
+
+		root_ptr.dindex = 0;
+		params.tptr = root_ptr;
 		root.sort(params);
 		tm_sort.stop();
 		tm_kick.start();
-		tree_ptr root_ptr;
-		root_ptr.ptr = (uintptr_t) &root;
-		root_ptr.dindex = 0;
 		//  root_ptr.rank = hpx_rank();
 		// printf( "%li", size_t(WORKSPACE_SIZE));
 		kick_params_type *params_ptr;
 		CUDA_MALLOC(params_ptr, 1);
 		new (params_ptr) kick_params_type();
+		params_ptr->tptr = root_ptr;
 		params_ptr->dchecks.push(root_ptr);
 		params_ptr->echecks.push(root_ptr);
 
@@ -176,7 +178,7 @@ void drift_test() {
 		tm_sort.stop();
 		tm_kick.start();
 		tree_ptr root_ptr;
-		root_ptr.ptr = (uintptr_t) &root;
+
 		root_ptr.dindex = 0;
 		//  root_ptr.rank = hpx_rank();
 		// printf( "%li", size_t(WORKSPACE_SIZE));
@@ -259,15 +261,18 @@ void force_test() {
 	sort_params params;
 	params.theta = global().opts.theta;
 	params.min_rung = 0;
-	root.sort(params);
 	tree_ptr root_ptr;
-	root_ptr.ptr = (uintptr_t) &root;
+
 	root_ptr.dindex = 0;
+	params.tptr = root_ptr;
+	root.sort(params);
+	root.sort(params);
 	//  root_ptr.rank = hpx_rank();
 	// printf( "%li", size_t(WORKSPACE_SIZE));
 	kick_params_type *params_ptr;
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) kick_params_type();
+	params_ptr->tptr = root_ptr;
 	params_ptr->dchecks.push(root_ptr);
 	params_ptr->echecks.push(root_ptr);
 

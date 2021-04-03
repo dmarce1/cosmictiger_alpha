@@ -10,7 +10,6 @@ class tree;
 struct kick_params_type;
 
 struct tree_ptr {
-	uintptr_t ptr;
 	int dindex;
 #ifndef NDEBUG
 	int constructed;
@@ -27,7 +26,6 @@ struct tree_ptr {
 #endif
 	CUDA_EXPORT
 	inline tree_ptr(tree_ptr &&other) {
-		ptr = other.ptr;
 		dindex = other.dindex;
 #ifndef NDEBUG
 		constructed = 1234;
@@ -35,7 +33,6 @@ struct tree_ptr {
 	}
 	CUDA_EXPORT
 	inline tree_ptr(const tree_ptr &other) {
-		ptr = other.ptr;
 		dindex = other.dindex;
 #ifndef NDEBUG
 		constructed = 1234;
@@ -44,33 +41,19 @@ struct tree_ptr {
 	CUDA_EXPORT
 	inline tree_ptr& operator=(const tree_ptr &other) {
 		assert(constructed == 1234);
-		ptr = other.ptr;
 		dindex = other.dindex;
 		return *this;
 	}
 	CUDA_EXPORT
 	inline tree_ptr& operator=(tree_ptr &&other) {
 		assert(constructed == 1234);
-		ptr = other.ptr;
 		dindex = other.dindex;
 		return *this;
 	}
 	CUDA_EXPORT
 	inline bool operator==(const tree_ptr &other) const {
 		assert(constructed == 1234);
-		return ptr == other.ptr;
-	}
-	CUDA_EXPORT
-	inline operator tree*() {
-		assert(constructed == 1234);
-		assert(ptr);
-		return (tree*) (ptr);
-	}
-	CUDA_EXPORT
-	inline operator const tree*() const {
-		assert(constructed == 1234);
-		assert(ptr);
-		return (const tree*) (ptr);
+		return dindex == other.dindex;
 	}
 
 	CUDA_EXPORT

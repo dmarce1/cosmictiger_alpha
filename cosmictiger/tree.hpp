@@ -52,6 +52,7 @@ struct sort_params {
 	double theta;
 	pair<size_t, size_t> parts;
 	int min_rung;
+	tree_ptr tptr;
 	template<class A>
 	void serialization(A &&arc, unsigned) {
 		/********* ADD******/
@@ -185,6 +186,7 @@ struct kick_params_type {
 		block_cutoff = other.block_cutoff;
 		G = other.G;
 		M = other.M;
+		tptr = other.tptr;
 		return *this;
 	}
 
@@ -235,13 +237,8 @@ struct tree {
 #ifndef __CUDACC__
 private:
 #endif //*** multi and pos MUST be adjacent and ordered multi then pos !!!!!!! *****/
-	tree_ptr self;
 	static particle_set* particles;
 public:
-	tree() {
-		self.ptr = (uintptr_t)(this);
-		self.dindex = 0;
-	}
 	static std::atomic<int> cuda_node_count;
 	static std::atomic<int> cpu_node_count;
 	static void set_cuda_particle_set(particle_set*);
@@ -254,19 +251,16 @@ public:
 	static fast_future<sort_return> cleanup_child();
 	static hpx::lcos::local::mutex mtx;
 	static hpx::lcos::local::mutex gpu_mtx;
-	hpx::future<void> send_kick_to_gpu(kick_params_type *params);
+	static hpx::future<void> send_kick_to_gpu(kick_params_type *params);
 	static void gpu_daemon();
-	inline bool is_leaf() const {
-		return self.is_leaf();
-	}
 	static void cleanup();
-	void cpu_cc_direct(kick_params_type *params);
-	void cpu_cp_direct(kick_params_type *params);
-	void cpu_pp_direct(kick_params_type *params);
-	void cpu_pc_direct(kick_params_type *params);
-	void cpu_cc_ewald(kick_params_type *params);
-	sort_return sort(sort_params = sort_params());
-	hpx::future<void> kick(kick_params_type*);
+	static void cpu_cc_direct(kick_params_type *params);
+	static void cpu_cp_direct(kick_params_type *params);
+	static void cpu_pp_direct(kick_params_type *params);
+	static void cpu_pc_direct(kick_params_type *params);
+	static void cpu_cc_ewald(kick_params_type *params);
+	static sort_return sort(sort_params = sort_params());
+	static hpx::future<void> kick(kick_params_type*);
 	static std::atomic<bool> daemon_running;
 	static std::atomic<bool> shutdown_daemon;
 	static lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> gpu_queue;

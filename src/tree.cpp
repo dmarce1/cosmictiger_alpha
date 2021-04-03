@@ -53,10 +53,8 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 
 hpx::future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	tree_ptr id;
-	id.ptr = (uintptr_t) params.allocs->tree_alloc.allocate();
 	id.dindex = tree_data_allocate();
-	((tree*) (id.ptr))->self = id;
-	CHECK_POINTER(id.ptr);
+	params.tptr = id;
 	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
 	const size_t min_parts2thread = particles->size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
@@ -65,13 +63,13 @@ hpx::future<sort_return> tree::create_child(sort_params &params, bool try_thread
 	thread = false;
 #endif
 	if (!thread) {
-		sort_return rc = ((tree*) (id.ptr))->sort(params);
+		sort_return rc = tree::sort(params);
 		rc.check = id;
 		return hpx::make_ready_future(std::move(rc));
 	} else {
 		params.allocs = std::make_shared<tree_alloc>();
 		return hpx::async([id, params]() {
-			auto rc = ((tree*) (id.ptr))->sort(params);
+			auto rc = tree::sort(params);
 			rc.check = id;
 			return rc;
 		});
@@ -84,6 +82,7 @@ sort_return tree::sort(sort_params params) {
 	size_t active_parts = 0;
 	size_t active_nodes = 0;
 	pair<size_t, size_t> parts;
+	tree_ptr self = params.tptr;
 	if (params.iamroot()) {
 		gpu_searches = 0;
 		int dummy;
@@ -278,7 +277,6 @@ sort_return tree::sort(sort_params params) {
 		rc.stats.nnodes = 1;
 		rc.stats.nleaves = 1;
 		for (int ci = 0; ci < NCHILD; ci++) {
-			children[ci].ptr = 0;
 			children[ci].dindex = -1;
 		}
 		self.set_pos(pos);
@@ -315,7 +313,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	const auto num_active = get_active_nodes();
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
 	if (use_cuda && num_active <= params.block_cutoff && num_active) {
-		return ((tree*) ptr)->send_kick_to_gpu(params_ptr);
+		return tree::send_kick_to_gpu(params_ptr);
 	} else {
 		static std::atomic<int> used_threads(0);
 		if (thread) {
@@ -332,7 +330,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 			*new_params = *params_ptr;
 			tree_ptr me = *this;
 			auto func = [me,new_params]() {
-				auto rc = ((tree*) me.ptr)->kick(new_params);
+				auto rc = tree::kick(new_params);
 				used_threads--;
 				new_params->kick_params_type::~kick_params_type();
 				kick_params_alloc.deallocate(new_params);
@@ -341,7 +339,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 			auto fut = hpx::async(std::move(func));
 			return std::move(fut);
 		} else {
-			auto fut = hpx::make_ready_future(((tree*) ptr)->kick(params_ptr));
+			auto fut = hpx::make_ready_future(tree::kick(params_ptr));
 			return fut;
 		}
 	}
@@ -360,6 +358,7 @@ timer kick_timer;
 //int num_kicks = 0;
 hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
+	tree_ptr self = params.tptr;
 	const size_t active_parts = self.get_active_parts();
 	if (!active_parts && !params.full_eval) {
 		return hpx::make_ready_future();
@@ -419,7 +418,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto &multis = params.multi_interactions;
 	auto &parti = params.part_interactions;
 	auto &next_checks = params.next_checks;
-	int ninteractions = is_leaf() ? 4 : 2;
+	int ninteractions = params.tptr.is_leaf() ? 4 : 2;
 	bool found_ewald = false;
 	for (int type = 0; type < ninteractions; type++) {
 		const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
@@ -491,7 +490,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 
 	}
 //  printf( "%li\n", params.depth);
-	if (!is_leaf()) {
+	if (!params.tptr.is_leaf()) {
 // printf("4\n");
 		const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
 		array<hpx::future<void>, NCHILD> futs;
@@ -505,10 +504,12 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.echecks.push_top();
 			params.L[params.depth] = L;
 			params.Lpos[params.depth] = pos;
+			params.tptr = children[LEFT];
 			futs[LEFT] = children[LEFT].kick(params_ptr, try_thread);
 			params.dchecks.pop_top();
 			params.echecks.pop_top();
 			params.L[params.depth] = L;
+			params.tptr = children[RIGHT];
 			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
 			params.depth--;
 		} else if (children[LEFT].get_active_parts()) {
@@ -522,6 +523,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.depth++;
 			params.L[params.depth] = L;
 			params.Lpos[params.depth] = pos;
+			params.tptr = children[LEFT];
 			futs[LEFT] = children[LEFT].kick(params_ptr, false);
 			params.depth--;
 		} else if (children[RIGHT].get_active_parts()) {
@@ -535,6 +537,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.depth++;
 			params.L[params.depth] = L;
 			params.Lpos[params.depth] = pos;
+			params.tptr = children[RIGHT];
 			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
 			params.depth--;
 		}
@@ -738,10 +741,9 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 	new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
 	new (new_params) kick_params_type();
 	*new_params = *params;
-	new_params->tptr = self;
 	gpu.params = new_params;
 	auto fut = gpu.promise->get_future();
-	gpu.parts = self.get_parts();
+	gpu.parts = params->tptr.get_parts();
 	gpu_queue.push(std::move(gpu));
 //	covered_ranges.add_range(parts);
 	parts_covered += gpu.parts.second - gpu.parts.first;

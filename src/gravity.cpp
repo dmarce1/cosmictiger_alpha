@@ -13,7 +13,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	expansion<simd_float> D;
 	multipole_type<simd_float> M;
 	expansion<simd_float> Lacc;
-	const auto pos = self.get_pos();
+	const auto pos = params.tptr.get_pos();
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
@@ -69,7 +69,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
-	const auto parts = self.get_parts();
+	const auto parts = params.tptr.get_parts();
 	int nparts = parts.second - parts.first;
 	int flops = 0;
 	int interacts = 0;
@@ -93,7 +93,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	expansion<simd_float> D;
 	simd_float M;
 	expansion<simd_float> Lacc;
-	const auto pos = self.get_pos();
+	const auto pos = params.tptr.get_pos();
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
@@ -150,7 +150,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	int flops = 0;
 	int interacts = 0;
 	int n;
-	const auto parts = self.get_parts();
+	const auto parts = params.tptr.get_parts();
 	int nparts = parts.second - parts.first;
 	static thread_local std::array<std::vector<fixed32>, NDIM> sources;
 	auto &partis = params.part_interactions;
@@ -245,7 +245,7 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 	auto &multis = params.multi_interactions;
 	auto& F = params.F;
 	auto& Phi = params.Phi;
-	const auto parts = self.get_parts();
+	const auto parts = params.tptr.get_parts();
 	int nparts = parts.second - parts.first;
 	array<simd_int, NDIM> X;
 	array<simd_float, NDIM> dX;
@@ -322,7 +322,7 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 	expansion<simd_float> D;
 	multipole_type<simd_float> M;
 	expansion<simd_float> Lacc;
-	const auto pos = self.get_pos();
+	const auto pos = params.tptr.get_pos();
 	for (int dim = 0; dim < NDIM; dim++) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
