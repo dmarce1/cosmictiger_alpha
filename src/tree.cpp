@@ -355,7 +355,10 @@ timer kick_timer;
 
 #define MIN_WORK 0
 
-//int num_kicks = 0;
+int get_block_cutoff() {
+
+}
+
 hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
 	tree_ptr self = params.tptr;
@@ -368,7 +371,6 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	const auto parts = self.get_parts();
 	if (params.depth == 0) {
 		kick_timer.start();
-//		covered_ranges.clear();
 		parts_covered = 0;
 		tmp_tm.start();
 		size_t dummy, total_mem;
@@ -378,12 +380,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
 		const int block_count = oversubscription * global().cuda_kick_occupancy
 				* global().cuda.devices[0].multiProcessorCount + 0.5;
-//	/	printf( "Seeking %i blocks\n", block_count);
 		size_t active_nodes = self.get_active_nodes();
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
 		if (active_parts < MIN_GPU_PARTS) {
 			params.block_cutoff = 0;
-			//		printf( "CPU ONLY\n");
 		}
 		tree_database_set_readonly();
 		particles->prepare_kick();

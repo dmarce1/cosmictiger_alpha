@@ -24,6 +24,8 @@
 #define TEST_BOUNDS
 #endif
 
+#define WARP_SIZE 32
+
 //#define USE_READMOSTLY
 //#define USE_NAN_TEST
 #define TEST_FORCE

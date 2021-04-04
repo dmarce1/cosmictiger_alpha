@@ -2,14 +2,13 @@
 
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/fixed.hpp>
-
-#include <array>
+#include <cosmictiger/array.hpp>
 
 #define NCORNERS (1<<NDIM)
 
 struct range {
-	std::array<double, NDIM> begin;
-	std::array<double, NDIM> end;
+	array<double, NDIM> begin;
+	array<double, NDIM> end;
 
 	inline bool contains(std::array<fixed32, NDIM> v) const {
 		bool rc = true;
@@ -26,7 +25,7 @@ struct range {
 		arc & begin;
 		arc & end;
 	}
-	bool intersects(const range& other) const {
+	CUDA_EXPORT bool intersects(const range& other) const {
 		bool rc = true;
 		for (int dim = 0; dim < NDIM; dim++) {
 			if (end[dim] < other.begin[dim]) {

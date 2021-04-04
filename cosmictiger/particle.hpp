@@ -44,7 +44,7 @@ struct particle_set {
 	particle_set(size_t, size_t = 0);
 	void prepare_sort();
 	void prepare_kick();
-	void prepare_drift();
+	void prepare_drift();CUDA_EXPORT
 	~particle_set();CUDA_EXPORT
 	fixed32 pos_ldg(int, size_t index) const;CUDA_EXPORT
 	fixed32 pos(int, size_t index) const;CUDA_EXPORT
@@ -58,10 +58,9 @@ struct particle_set {
 	void load_particles(std::string filename);
 	void load_from_file(FILE* fp);
 	void save_to_file(FILE* fp);
-	void generate_grid();
-	CUDA_EXPORT group_t group(size_t) const;
-	CUDA_EXPORT group_t& group(size_t);
-	CUDA_EXPORT
+	void generate_grid();CUDA_EXPORT
+	group_t group(size_t) const;CUDA_EXPORT
+	group_t& group(size_t);CUDA_EXPORT
 	size_t size() const {
 		return size_;
 	}
@@ -194,7 +193,6 @@ CUDA_EXPORT inline group_t particle_set::group(size_t index) const {
 CUDA_EXPORT inline group_t& particle_set::group(size_t index) {
 	return idptr_[index];
 }
-
 
 #endif
 

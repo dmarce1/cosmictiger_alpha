@@ -19,6 +19,12 @@ struct group_param_type {
 	vector<tree_ptr> opened_checks;
 	stack_vector<tree_ptr> checks;
 	bool first_round;
+	int depth;
+	size_t block_cutoff;
+
+	group_param_type() {
+		depth = 0;
+	}
 
 	group_param_type& operator=(const group_param_type& other) {
 		checks = other.checks.copy_top();
@@ -31,6 +37,12 @@ struct group_param_type {
 };
 
 
+#ifndef __CUDACC__
 hpx::future<bool> find_groups(group_param_type*);
+#endif
+
+__device__ bool cuda_find_groups(group_param_type*);
+std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** params, int, cudaStream_t stream);
+
 
 #endif /* GROUPS_HPP_ */
