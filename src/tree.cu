@@ -68,7 +68,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			phi[k] = -PHI0;
 		}
 	}
-	const auto& myparts = params.tptr.get_parts();
+	const auto myparts = params.tptr.get_parts();
 	array<int, NITERS> count;
 
 	const float theta = params.theta;

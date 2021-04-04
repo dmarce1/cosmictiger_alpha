@@ -42,6 +42,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 	CUDA_MALLOC(xptr_[1], size);
 	CUDA_MALLOC(xptr_[2], size);
 	CUDA_MALLOC(uptr_, size);
+	CUDA_MALLOC(idptr_, size);
 #ifdef TEST_FORCE
 	CUDA_MALLOC(gptr_[0], size);
 	CUDA_MALLOC(gptr_[1], size);

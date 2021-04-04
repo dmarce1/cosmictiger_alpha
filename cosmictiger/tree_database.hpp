@@ -9,36 +9,10 @@
 
 class tree;
 struct kick_params_type;
-
+struct group_param_type;
 
 struct tree_ptr {
 	int dindex;
-#ifndef NDEBUG
-	CUDA_EXPORT
-	inline tree_ptr() {
-		dindex = -1;
-	}
-#else
-	tree_ptr() = default;
-#endif
-	CUDA_EXPORT
-	inline tree_ptr(tree_ptr &&other) {
-		dindex = other.dindex;
-	}
-	CUDA_EXPORT
-	inline tree_ptr(const tree_ptr &other) {
-		dindex = other.dindex;
-	}
-	CUDA_EXPORT
-	inline tree_ptr& operator=(const tree_ptr &other) {
-		dindex = other.dindex;
-		return *this;
-	}
-	CUDA_EXPORT
-	inline tree_ptr& operator=(tree_ptr &&other) {
-		dindex = other.dindex;
-		return *this;
-	}
 	CUDA_EXPORT
 	inline bool operator==(const tree_ptr &other) const {
 		return dindex == other.dindex;
@@ -102,6 +76,7 @@ struct tree_ptr {
 	void set_range(const range&) const;
 
 #ifndef __CUDACC__
+	hpx::future<bool> find_groups(group_param_type*, bool);
 	hpx::future<void> kick(kick_params_type*, bool);
 #endif
 };
@@ -413,8 +388,6 @@ bool tree_data_get_isleaf(int i) {
 
 CUDA_EXPORT inline
 void tree_data_set_isleaf(int i, bool b) {
-	assert(i >= 0);
-	assert(i < tree_data_.ntrees);
 }
 
 CUDA_EXPORT inline array<tree_ptr, NCHILD> tree_data_get_children(int i) {

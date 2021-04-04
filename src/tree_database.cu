@@ -33,12 +33,6 @@ void tree_data_initialize() {
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
 
-#ifndef NDEBUG
-	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
-		new (gpu_tree_data_.children[0] + i) array<tree_ptr, NCHILD>();
-		new (gpu_tree_data_.children[1] + i) array<tree_ptr, NCHILD>();
-	}
-#endif
 
 	tree_data_clear();
 

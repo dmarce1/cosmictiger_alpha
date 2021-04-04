@@ -37,6 +37,7 @@ set(cosmictiger_source_files
     src/global.cpp
     src/gravity.cpp
     src/gravity.cu
+    src/groups.cu
     src/groups.cpp
     src/hpx.cpp
     src/main.cpp

@@ -14,6 +14,7 @@
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/drift.hpp>
 #include <cosmictiger/sort.hpp>
+#include <cosmictiger/groups.hpp>
 #include <cmath>
 
 static void tree_test() {
@@ -154,6 +155,59 @@ void kick_test() {
 	FILE* fp = fopen("timings.dat", "at");
 	fprintf(fp, "%i %e %e\n", global().opts.bucket_size, avg, dev);
 	fclose(fp);
+}
+
+void group_test() {
+	printf("Doing group test\n");
+	printf("Generating particles\n");
+	particle_set parts(global().opts.nparts);
+	parts.generate_random();
+	tree::set_particle_set(&parts);
+	particle_set *parts_ptr;
+	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
+	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
+	timer ttime;
+	std::vector<double> timings;
+	printf("Finding Groups\n");
+	ttime.start();
+	tree root;
+	timer tm_sort, tm_kick, tm_cleanup;
+	tm_sort.start();
+	sort_params params;
+	params.theta = global().opts.theta;
+	params.min_rung = 0;
+	tree_ptr root_ptr;
+
+	root_ptr.dindex = 0;
+	params.tptr = root_ptr;
+	root.sort(params);
+	tm_sort.stop();
+	tm_kick.start();
+	//  root_ptr.rank = hpx_rank();
+	// printf( "%li", size_t(WORKSPACE_SIZE));
+	group_param_type *params_ptr;
+	CUDA_MALLOC(params_ptr, 1);
+	new (params_ptr) group_param_type();
+	params_ptr->self = root_ptr;
+	params_ptr->link_len = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 6.0;
+	params_ptr->parts = parts.get_virtual_particle_set();
+	params_ptr->checks.push(root_ptr);
+	params_ptr->first_round = true;
+	printf("Searching");
+	fflush(stdout);
+	while (find_groups(params_ptr).get()) {
+		printf(".");
+		fflush(stdout);
+		params_ptr->self = root_ptr;
+		params_ptr->checks.resize(0);
+		params_ptr->checks.push(root_ptr);
+		params_ptr->first_round = false;
+	}
+	printf( ".\n");
+	tm_kick.stop();
+	tree::cleanup();
+	CUDA_FREE(params_ptr);
+	printf("Done\n");
 }
 
 void drift_test() {
@@ -336,6 +390,8 @@ void test_run(const std::string test) {
 		drift_test();
 	} else if (test == "kick") {
 		kick_test();
+	} else if (test == "group") {
+		group_test();
 #ifdef TEST_FORCE
 	} else if (test == "force") {
 		force_test();

@@ -19,6 +19,8 @@
 
 struct range;
 
+using group_t = int64_t;
+
 union vel_type {
 	struct {
 		float x;
@@ -56,7 +58,10 @@ struct particle_set {
 	void load_particles(std::string filename);
 	void load_from_file(FILE* fp);
 	void save_to_file(FILE* fp);
-	void generate_grid();CUDA_EXPORT
+	void generate_grid();
+	CUDA_EXPORT group_t group(size_t) const;
+	CUDA_EXPORT group_t& group(size_t);
+	CUDA_EXPORT
 	size_t size() const {
 		return size_;
 	}
@@ -72,6 +77,7 @@ private:
 #endif
 	array<fixed32*, NDIM> xptr_;
 	vel_type* uptr_;
+	group_t* idptr_;
 #ifdef TEST_FORCE
 	array<float*, NDIM> gptr_;
 	float* eptr_;
@@ -86,6 +92,7 @@ public:
 	particle_set get_virtual_particle_set() const {
 		particle_set v;
 		v.uptr_ = uptr_;
+		v.idptr_ = idptr_;
 		for (int dim = 0; dim < NDIM; dim++) {
 			v.xptr_[dim] = xptr_[dim];
 		}
@@ -179,6 +186,16 @@ CUDA_EXPORT inline float& particle_set::pot(size_t index) {
 	return eptr_[index];
 
 }
+
+CUDA_EXPORT inline group_t particle_set::group(size_t index) const {
+	return idptr_[index];
+}
+
+CUDA_EXPORT inline group_t& particle_set::group(size_t index) {
+	return idptr_[index];
+}
+
+
 #endif
 
 #endif /* COSMICTIGER_PARTICLE_HPP_ */

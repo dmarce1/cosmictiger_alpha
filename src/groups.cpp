@@ -1,0 +1,123 @@
+#include <cosmictiger/groups.hpp>
+#include <cosmictiger/gravity.hpp>
+
+hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool thread) {
+	group_param_type &params = *params_ptr;
+	static std::atomic<int> used_threads(0);
+	static unified_allocator alloc;
+	if (thread) {
+		const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
+		if (used_threads++ > max_threads) {
+			used_threads--;
+			thread = false;
+		}
+	}
+	if (thread) {
+		group_param_type *new_params;
+		new_params = (group_param_type*) alloc.allocate(sizeof(group_param_type));
+		new (new_params) group_param_type;
+		*new_params = *params_ptr;
+		auto func = [new_params]() {
+			auto rc = ::find_groups(new_params);
+			used_threads--;
+			new_params->group_param_type::~group_param_type();
+			alloc.deallocate(new_params);
+			return rc;
+		};
+		auto fut = hpx::async(std::move(func));
+		return std::move(fut);
+	} else {
+		auto fut = ::find_groups(params_ptr);
+		return fut;
+	}
+
+}
+
+hpx::future<bool> find_groups(group_param_type* params_ptr) {
+	group_param_type& params = *params_ptr;
+	auto& checks = params.checks;
+	auto& parts = params.parts;
+	auto& next_checks = params.next_checks;
+	auto& opened_checks = params.opened_checks;
+	tree_ptr self = params.self;
+
+	const auto myrange = self.get_range();
+	const auto iamleaf = self.is_leaf();
+	bool opened_one;
+	opened_checks.resize(0);
+	do {
+		next_checks.resize(0);
+		opened_one = false;
+		for (int i = 0; i < checks.size(); i++) {
+			const auto other_range = checks[i].get_range();
+			if (myrange.intersects(other_range)) {
+				if (checks[i].is_leaf()) {
+					opened_checks.push_back(checks[i]);
+				} else {
+					const auto children = checks[i].get_children();
+					next_checks.push_back(checks[i]);
+					opened_one = true;
+				}
+			}
+		}
+		checks.resize(2 * next_checks.size());
+		for (int i = 0; i < next_checks.size(); i++) {
+			const auto children = next_checks[i].get_children();
+			checks[2 * i + LEFT] = children[LEFT];
+			checks[2 * i + RIGHT] = children[RIGHT];
+		}
+		next_checks.resize(0);
+	} while (iamleaf && checks.size());
+	for (int i = 0; i < opened_checks.size(); i++) {
+		checks.push(opened_checks[i]);
+	}
+	if (iamleaf) {
+		const auto myparts = self.get_parts();
+		if (params.first_round) {
+			for (auto i = myparts.first; i != myparts.second; i++) {
+				parts.group(i) = -1;
+			}
+		}
+		const auto linklen2 = sqr(params.link_len);
+		bool found_link = true;
+		for (int i = 0; i < checks.size(); i++) {
+			const auto other_parts = checks[i].get_parts();
+			found_link = false;
+			for (int j = myparts.first; j != myparts.second; j++) {
+				for (int k = other_parts.first; k != other_parts.second; k++) {
+					float dx0, dx1, dx2;
+					dx0 = distance(parts.pos(0, j), parts.pos(0, k));
+					dx1 = distance(parts.pos(1, j), parts.pos(1, k));
+					dx2 = distance(parts.pos(2, j), parts.pos(2, k));
+					const float dist2 = fma(dx0, dx0, fma(dx1, dx1, sqr(dx2)));
+					if (dist2 < linklen2 && dist2 != 0.0) {
+						const size_t min_index = std::min(j, k);
+						const size_t max_index = std::max(j, k);
+						if (parts.group(min_index) == -1) {
+							parts.group(min_index) = min_index;
+						}
+						if (parts.group(max_index) != parts.group(min_index)) {
+							found_link = true;
+							parts.group(max_index) = parts.group(min_index);
+						}
+					}
+				}
+			}
+		}
+		return hpx::make_ready_future(found_link);
+	} else {
+		std::array<hpx::future<bool>, NCHILD> futs;
+		bool found_link;
+		auto mychildren = self.get_children();
+		params.checks.push_top();
+		params.self = mychildren[LEFT];
+		futs[LEFT] = mychildren[LEFT].find_groups(params_ptr, true);
+		params.checks.pop_top();
+		params.self = mychildren[RIGHT];
+		futs[RIGHT] = mychildren[RIGHT].find_groups(params_ptr, false);
+		return hpx::when_all(futs.begin(), futs.end()).then([](hpx::future<std::vector<hpx::future<bool>>> futfut) {
+			auto futs = futfut.get();
+			return futs[LEFT].get() || futs[RIGHT].get();
+		});
+	}
+}
