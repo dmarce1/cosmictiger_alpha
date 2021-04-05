@@ -140,14 +140,9 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 	} else {
 
 		const auto myparts = self.get_parts();
-		if (params.first_round) {
-			for (auto i = myparts.first + tid; i < myparts.second; i += warpSize) {
-				parts.group(i) = -1;
-			}
-		}
 		__syncwarp();
 		const auto linklen2 = sqr(params.link_len);
-		bool found_link = true;
+		bool found_link;
 		for (int i = 0; i < checks.size(); i++) {
 			const auto other_parts = checks[i].get_parts();
 			found_link = false;

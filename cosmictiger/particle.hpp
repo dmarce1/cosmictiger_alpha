@@ -64,6 +64,7 @@ struct particle_set {
 	size_t size() const {
 		return size_;
 	}
+	void init_groups();
 #ifdef TEST_FORCE
 	CUDA_EXPORT
 	float force(int dim, size_t index) const;CUDA_EXPORT

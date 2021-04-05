@@ -53,7 +53,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 				all_params = (group_param_type**) alloc.allocate(sizeof(group_param_type*) * this_kernel->size());
 				std::vector<std::function<void()>> deleters;
 				for (int i = 0; i < this_kernel->size(); i++) {
-					printf( "Setting up %i of %i\n", i, this_kernel->size());
+//					printf( "Setting up %i of %i\n", i, this_kernel->size());
 					all_params[i] = (*this_kernel)[i].params;
 					deleters.push_back(all_params[i]->next_checks.to_device(stream));
 					deleters.push_back(all_params[i]->opened_checks.to_device(stream));
@@ -126,6 +126,7 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 	if (params.depth == 0) {
 		printf( "Resetting\n");
 		parts_covered = 0;
+		parts.init_groups();
 		gpu_queue.resize(0);
 		size_t dummy, total_mem;
 		CUDA_CHECK(cudaMemGetInfo(&dummy, &total_mem));
@@ -174,13 +175,8 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 	}
 	if (iamleaf) {
 		const auto myparts = self.get_parts();
-		if (params.first_round) {
-			for (auto i = myparts.first; i != myparts.second; i++) {
-				parts.group(i) = -1;
-			}
-		}
 		const auto linklen2 = sqr(params.link_len);
-		bool found_link = true;
+		bool found_link;
 		for (int i = 0; i < checks.size(); i++) {
 			const auto other_parts = checks[i].get_parts();
 			found_link = false;

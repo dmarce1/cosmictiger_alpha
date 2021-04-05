@@ -34,6 +34,13 @@ void particle_set::prepare_drift() {
 #endif
 }
 
+void particle_set::init_groups() {
+	for( int i = 0; i < size(); i++) {
+		idptr_[i] = -1;
+	}
+}
+
+
 particle_set::particle_set(size_t size, size_t offset) {
 	offset_ = offset;
 	size_ = size;
