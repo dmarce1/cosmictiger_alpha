@@ -136,8 +136,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						flops += 27;
 						const bool mi = far1 || (direct && far3/* && other_nparts >= MIN_PC_PARTS*/);
 						const bool pi = (far2 || direct) && isleaf;
-						list_index = int(mi) * MI
-								+ (1 - int(mi)) * (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
+						list_index = (1 - int(mi))
+								* (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
 						my_index[list_index] = 1;
 					}
 					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {

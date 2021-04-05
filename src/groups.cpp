@@ -59,7 +59,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 					deleters.push_back(all_params[i]->opened_checks.to_device(stream));
 					deleters.push_back(all_params[i]->checks.to_device(stream));
 				}
-				printf( "Sending %i blocks\n", this_kernel->size());
+				printf("Sending %i blocks\n", this_kernel->size());
 				auto cfunc = call_cuda_find_groups(all_params, this_kernel->size(), stream);
 				completions.push_back([cfunc,deleters, all_params, this_kernel]() {
 					auto rc = cfunc();
@@ -124,9 +124,11 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 	auto& parts = params.parts;
 	tree_ptr self = params.self;
 	if (params.depth == 0) {
-		printf( "Resetting\n");
+		printf("Resetting\n");
 		parts_covered = 0;
-		parts.init_groups();
+		if (params.first_round) {
+			parts.init_groups();
+		}
 		gpu_queue.resize(0);
 		size_t dummy, total_mem;
 		CUDA_CHECK(cudaMemGetInfo(&dummy, &total_mem));
@@ -145,30 +147,25 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 
 	const auto myrange = self.get_range();
 	const auto iamleaf = self.is_leaf();
-	bool opened_one;
 	opened_checks.resize(0);
 	do {
 		next_checks.resize(0);
-		opened_one = false;
 		for (int i = 0; i < checks.size(); i++) {
 			const auto other_range = checks[i].get_range();
 			if (myrange.intersects(other_range)) {
 				if (checks[i].is_leaf()) {
 					opened_checks.push_back(checks[i]);
 				} else {
-					const auto children = checks[i].get_children();
 					next_checks.push_back(checks[i]);
-					opened_one = true;
 				}
 			}
 		}
-		checks.resize(2 * next_checks.size());
+		checks.resize(NCHILD * next_checks.size());
 		for (int i = 0; i < next_checks.size(); i++) {
 			const auto children = next_checks[i].get_children();
-			checks[2 * i + LEFT] = children[LEFT];
-			checks[2 * i + RIGHT] = children[RIGHT];
+			checks[NCHILD * i + LEFT] = children[LEFT];
+			checks[NCHILD * i + RIGHT] = children[RIGHT];
 		}
-		next_checks.resize(0);
 	} while (iamleaf && checks.size());
 	for (int i = 0; i < opened_checks.size(); i++) {
 		checks.push(opened_checks[i]);
@@ -177,9 +174,9 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 		const auto myparts = self.get_parts();
 		const auto linklen2 = sqr(params.link_len);
 		bool found_link;
+		found_link = false;
 		for (int i = 0; i < checks.size(); i++) {
 			const auto other_parts = checks[i].get_parts();
-			found_link = false;
 			for (int j = myparts.first; j != myparts.second; j++) {
 				for (int k = other_parts.first; k != other_parts.second; k++) {
 					float dx0, dx1, dx2;
@@ -188,15 +185,19 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 					dx2 = distance(parts.pos(2, j), parts.pos(2, k));
 					const float dist2 = fma(dx0, dx0, fma(dx1, dx1, sqr(dx2)));
 					if (dist2 < linklen2 && dist2 != 0.0) {
-						const size_t min_index = std::min(j, k);
-						const size_t max_index = std::max(j, k);
-						if (parts.group(min_index) == -1) {
-							parts.group(min_index) = min_index;
+						if (parts.group(j) == -1) {
+							parts.group(j) = j;
 						}
-						if (parts.group(max_index) != parts.group(min_index)) {
+						if (parts.group(k) == -1) {
+							parts.group(k) = k;
+						}
+						auto& id1 = parts.group(k);
+						auto& id2 = parts.group(j);
+						const auto shared_id = std::min(id1, id2);
+						if (id1 != shared_id || id2 != shared_id) {
 							found_link = true;
-							parts.group(max_index) = parts.group(min_index);
 						}
+						id1 = id2 = shared_id;
 					}
 				}
 			}
@@ -216,7 +217,8 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 		params.depth--;
 		return hpx::when_all(futs.begin(), futs.end()).then([](hpx::future<std::vector<hpx::future<bool>>> futfut) {
 			auto futs = futfut.get();
-			return futs[LEFT].get() || futs[RIGHT].get();
+			const bool rcr = futs[RIGHT].get();
+			return futs[LEFT].get() || rcr;
 		});
 	}
 }

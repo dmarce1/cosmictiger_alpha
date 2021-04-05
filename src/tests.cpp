@@ -189,12 +189,14 @@ void group_test() {
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) group_param_type();
 	params_ptr->self = root_ptr;
-	params_ptr->link_len = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 6.0;
+	params_ptr->link_len = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 2.0;
 	params_ptr->parts = parts.get_virtual_particle_set();
 	params_ptr->checks.push(root_ptr);
 	params_ptr->first_round = true;
 	printf("Searching");
 	fflush(stdout);
+	timer tm;
+	tm.start();
 	while (find_groups(params_ptr).get()) {
 		printf(".");
 		fflush(stdout);
@@ -207,7 +209,8 @@ void group_test() {
 	tm_kick.stop();
 	tree::cleanup();
 	CUDA_FREE(params_ptr);
-	printf("Done\n");
+	tm.stop();
+	printf("Done in %e s\n", tm.read());
 }
 
 void drift_test() {
