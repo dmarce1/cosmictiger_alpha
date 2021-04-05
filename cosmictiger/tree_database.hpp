@@ -142,7 +142,25 @@ void tree_data_set_range(int i, const range& r);
 
 void tree_data_clear();
 
-int tree_data_allocate();
+std::pair<int,int> tree_data_allocate();
+
+class tree_allocator {
+	std::pair<int,int> current_alloc;
+	int next;
+public:
+	tree_allocator() {
+		current_alloc = tree_data_allocate();
+		next = current_alloc.first;
+	}
+	int allocate() {
+		next++;
+		if( next == current_alloc.second) {
+			current_alloc = tree_data_allocate();
+			next = current_alloc.first;
+		}
+		return next;
+	}
+};
 
 CUDA_EXPORT
 inline float tree_ptr::get_radius() const {
