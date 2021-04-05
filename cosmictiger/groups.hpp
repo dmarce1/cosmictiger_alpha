@@ -22,8 +22,16 @@ struct group_param_type {
 	int depth;
 	size_t block_cutoff;
 
-	group_param_type() {
-		depth = 0;
+	CUDA_EXPORT
+	void call_destructors() {
+		next_checks.~vector<tree_ptr>();
+		checks.~stack_vector<tree_ptr>();
+		opened_checks.~vector<tree_ptr>();
+	}
+
+	CUDA_EXPORT
+	~group_param_type() {
+
 	}
 
 	group_param_type& operator=(const group_param_type& other) {

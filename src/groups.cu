@@ -26,20 +26,22 @@ std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** para
 	};
 }
 
+
 __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
 	const auto& tid = threadIdx.x;
 	const auto& bid = blockIdx.x;
 	const bool this_rc = cuda_find_groups(params[bid]);
 	if (tid == 0) {
-		params[bid]->group_param_type::~group_param_type();
+		auto& param = *params[bid];
+		param.call_destructors();
 		rc[bid] = this_rc;
 	}
 }
 
 __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 	const auto& tid = threadIdx.x;
-
-	group_param_type& params = *params_ptr;
+	bool rc;
+		group_param_type& params = *params_ptr;
 	auto& checks = params.checks;
 	auto& parts = params.parts;
 	auto& next_checks = params.next_checks;
@@ -122,9 +124,9 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 			params.depth--;
 		}
 		__syncwarp();
-		const bool rc = cuda_find_groups(params_ptr);
-		found_link = found_link || rc;
-		return found_link;
+		const bool rightrc = cuda_find_groups(params_ptr);
+		found_link = found_link || rightrc;
+		rc = found_link;
 	} else {
 
 		const auto myparts = self.get_parts();
@@ -160,6 +162,8 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 				}
 			}
 		}
-		return __reduce_add_sync(FULL_MASK, found_link);
+		rc = __reduce_add_sync(FULL_MASK, found_link);
 	}
+	return rc;
 }
+
