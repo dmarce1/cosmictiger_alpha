@@ -19,7 +19,10 @@
 
 struct range;
 
-using group_t = int64_t;
+#define NO_GROUP (~(0x0LL))
+
+
+using group_t = unsigned long long int;
 
 union vel_type {
 	struct {

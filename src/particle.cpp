@@ -36,7 +36,7 @@ void particle_set::prepare_drift() {
 
 void particle_set::init_groups() {
 	for( int i = 0; i < size(); i++) {
-		idptr_[i] = -1;
+		idptr_[i] = NO_GROUP;
 	}
 }
 

@@ -1,7 +1,7 @@
 #include <cosmictiger/groups.hpp>
 #include <cosmictiger/gravity.hpp>
 
-#define NLISTS 3
+#define NLISTS 2
 #define OPEN 0
 #define NEXT 1
 #define NOLIST 2
@@ -13,7 +13,7 @@ std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** para
 	bool* rc;
 	unified_allocator alloc;
 	rc = (bool*) alloc.allocate(sizeof(bool) * params_size);
-	cuda_find_groups_kernel<<<params_size,WARP_SIZE,0,stream>>>(rc, params);
+	cuda_find_groups_kernel<<<params_size,WARP_SIZE,sizeof(groups_shmem),stream>>>(rc, params);
 	const int size = params_size;
 	return [stream,rc, size]() {
 		if( cudaStreamQuery(stream)==cudaSuccess) {
@@ -40,6 +40,10 @@ __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
 
 __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 	const auto& tid = threadIdx.x;
+	extern int __shared__ shmem_ptr[];
+	groups_shmem& shmem = *((groups_shmem*) shmem_ptr);
+	auto& self_parts = shmem.self;
+	auto& other_parts = shmem.others;
 	bool rc;
 	group_param_type& params = *params_ptr;
 	auto& checks = params.checks;
@@ -53,12 +57,11 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 	const auto iamleaf = self.is_leaf();
 	opened_checks.resize(0);
 	array<vector<tree_ptr>*, NLISTS> lists;
-	array<int, NLISTS> indices;
+	array<int, NLISTS + 1> indices;
 	array<int, NLISTS> counts;
 
 	lists[NEXT] = &next_checks;
 	lists[OPEN] = &opened_checks;
-	lists[NOLIST] = nullptr;
 	int mylist;
 	do {
 		next_checks.resize(0);
@@ -66,16 +69,12 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 		for (int i = tid; i < cimax; i += warpSize) {
 			indices[OPEN] = indices[NEXT] = indices[NOLIST] = 0;
 			mylist = NOLIST;
-			if (i < checks.size() && myrange.intersects(checks[i].get_range())) {
-				if (checks[i].is_leaf()) {
-					mylist = OPEN;
-				} else {
-					mylist = NEXT;
-				}
-			} else {
-				mylist = NOLIST;
+			if (i < checks.size()) {
+				const int intersects = myrange.intersects(checks[i].get_range());
+				const int isleaf = checks[i].is_leaf();
+				mylist = intersects * ((1 - isleaf) * NEXT) + (1 - intersects) * NOLIST;
+				indices[mylist] = 1;
 			}
-			indices[mylist] = 1;
 			for (int P = 1; P < warpSize; P *= 2) {
 				for (int j = 0; j < NLISTS; j++) {
 					const auto tmp = __shfl_up_sync(FULL_MASK, indices[j], P);
@@ -113,46 +112,68 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 		}
 	} while (iamleaf && checks.size());
 	__syncwarp();
-	if (tid == 0) {
-		for (int i = 0; i < opened_checks.size(); i++) {
-			checks.push(opened_checks[i]);
-		}
+	const int csz = checks.size();
+	checks.resize(csz + opened_checks.size());
+	__syncwarp();
+	for (int i = tid; i < opened_checks.size(); i += warpSize) {
+		checks[i + csz] = opened_checks[i];
 	}
 	__syncwarp();
 	if (iamleaf) {
 		const auto myparts = self.get_parts();
 		const auto linklen2 = sqr(params.link_len);
-		int found_link, this_found_link;
-		found_link = 0;
-		for (int i = 0; i < checks.size(); i++) {
-			const auto other_parts = checks[i].get_parts();
-			for (int j = myparts.first + tid; j < myparts.second; j += warpSize) {
-				for (int k = other_parts.first; k != other_parts.second; k++) {
-					float dx0, dx1, dx2;
-					dx0 = distance(parts.pos(0, j), parts.pos(0, k));
-					dx1 = distance(parts.pos(1, j), parts.pos(1, k));
-					dx2 = distance(parts.pos(2, j), parts.pos(2, k));
-					const float dist2 = fma(dx0, dx0, fma(dx1, dx1, sqr(dx2)));
-					if (dist2 < linklen2 && dist2 != 0.0) {
-						if (parts.group(j) == -1) {
-							parts.group(j) = j;
-						}
-						if (parts.group(k) == -1) {
-							parts.group(k) = k;
-						}
-						auto& id1 = parts.group(k);
-						auto& id2 = parts.group(j);
-						const auto shared_id = min(id1, id2);
-						if (id1 != shared_id || id2 != shared_id) {
-							found_link++;
-						}
-						id1 = id2 = shared_id;
+
+		for (int i = tid; i < (myparts.second - myparts.first); i += warpSize) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				self_parts[dim][i] = parts.pos(dim, i + myparts.first);
+			}
+		}
+
+		int found_link, iters;
+		iters = 0;
+		do {
+			found_link = 0;
+			for (int i = 0; i < checks.size(); i++) {
+				const auto other_pair = checks[i].get_parts();
+				for (int k = tid; k < (other_pair.second - other_pair.first); k += warpSize) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						other_parts[dim][k] = parts.pos(dim, k + other_pair.first);
 					}
 				}
+				__syncwarp();
+				for (int k = 0; k != other_pair.second - other_pair.first; k++) {
+					for (int j = tid; j < myparts.second - myparts.first; j += warpSize) {
+
+						float dx0, dx1, dx2;
+						dx0 = distance(self_parts[0][j], other_parts[0][k]);
+						dx1 = distance(self_parts[1][j], other_parts[1][k]);
+						dx2 = distance(self_parts[2][j], other_parts[2][k]);
+						const float dist2 = fma(dx0, dx0, fma(dx1, dx1, sqr(dx2)));
+						if (dist2 < linklen2 && dist2 != 0.0) {
+							const auto j0 = j + myparts.first;
+							const auto k0 = k + other_pair.first;
+							auto& id1 = parts.group(j0);
+							auto& id2 = parts.group(k0);
+							if (atomicCAS(&id1, NO_GROUP, j0) == NO_GROUP) {
+								found_link++;
+							}
+							if (atomicCAS(&id2, NO_GROUP, j0) == NO_GROUP) {
+								found_link++;
+							}
+							if (atomicMin(&id1, id2) != id2) {
+								found_link++;
+							}
+							if (atomicMin(&id2, id1) != id1) {
+								found_link++;
+							}
+						}
+					}
+				}
+				__syncwarp();
 			}
-			__syncwarp();
-		}
-		return __reduce_add_sync(FULL_MASK, found_link) != 0;
+			iters++;
+		} while (__reduce_add_sync(FULL_MASK, found_link) != 0);
+		return iters > 1;
 	} else {
 		auto mychildren = self.get_children();
 		params.checks.push_top();
@@ -175,130 +196,5 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 		return rc1 || rc2;
 	}
 
-	/*
-	 *
-	 * array<vector<tree_ptr>*, NLISTS> lists;
-	 array<int, NLISTS> indices;
-	 array<int, NLISTS> counts;
-	 tree_ptr self = params.self;
-
-	 lists[NEXT] = &next_checks;
-	 lists[OPEN] = &opened_checks;
-	 lists[NOLIST] = nullptr;
-	 *
-	 const auto myrange = self.get_range();
-	 const auto iamleaf = self.is_leaf();
-	 int mylist;
-	 opened_checks.resize(0);
-	 do {
-	 next_checks.resize(0);
-	 __syncwarp();
-	 const int cimax = ((checks.size() - 1) / warpSize + 1) * warpSize;
-	 for (int i = tid; i < cimax; i += warpSize) {
-	 indices[OPEN] = indices[NEXT] = indices[NOLIST] = 0;
-	 mylist = NOLIST;
-	 if (i < checks.size()) {
-	 const auto other_range = checks[i].get_range();
-	 const int intersects = myrange.intersects(other_range);
-	 const int isleaf = checks[i].is_leaf();
-	 mylist = intersects * (isleaf * OPEN + (1 - isleaf) * NEXT) + (1 - intersects) * NOLIST;
-	 indices[mylist] = 1;
-	 }
-	 for (int P = 1; P < warpSize; P *= 2) {
-	 for (int j = 0; j < NLISTS; j++) {
-	 const auto tmp = __shfl_up_sync(FULL_MASK, indices[j], P);
-	 if (tid >= P) {
-	 indices[j] += tmp;
-	 }
-	 }
-	 }
-	 for (int j = 0; j < NLISTS; j++) {
-	 counts[j] = __shfl_sync(FULL_MASK, indices[j], warpSize - 1);
-	 const auto tmp = __shfl_up_sync(FULL_MASK, indices[j], 1);
-	 indices[j] = (tid > 0) ? tmp : 0;
-	 }
-	 const int osz = opened_checks.size();
-	 indices[OPEN] += osz;
-	 opened_checks.resize(osz + counts[OPEN]);
-	 next_checks.resize(counts[NEXT]);
-	 __syncwarp();
-	 if (mylist != NOLIST) {
-	 assert(indices[mylist] < lists[mylist]->size());
-	 (*(lists[mylist]))[indices[mylist]] = checks[i];
-	 }
-	 __syncwarp();
-	 }
-	 __syncwarp();
-	 checks.resize(NCHILD * next_checks.size());
-	 __syncwarp();
-	 for (int i = tid; i < next_checks.size(); i += warpSize) {
-	 const auto children = next_checks[i].get_children();
-	 assert(2*i+RIGHT < checks.size());
-	 checks[NCHILD * i + LEFT] = children[LEFT];
-	 checks[NCHILD * i + RIGHT] = children[RIGHT];
-	 }
-	 __syncwarp();
-	 } while (iamleaf && checks.size());
-	 const int csz = checks.size();
-	 checks.resize(csz + opened_checks.size());
-	 __syncwarp();
-	 for (int i = tid; i < opened_checks.size(); i += warpSize) {
-	 checks[csz + i] = opened_checks[i];
-	 }
-	 __syncwarp();
-	 if (!iamleaf) {
-	 auto mychildren = self.get_children();
-	 params.checks.push_top();
-	 if (tid == 0) {
-	 params.self = mychildren[LEFT];
-	 params.depth++;
-	 }
-	 __syncwarp();
-	 bool found_link = cuda_find_groups(params_ptr);
-	 params.checks.pop_top();
-	 if (tid == 0) {
-	 params.self = mychildren[RIGHT];
-	 }
-	 __syncwarp();
-	 const bool rightrc = cuda_find_groups(params_ptr);
-	 if (tid == 0) {
-	 params.depth--;
-	 }
-	 __syncwarp();
-	 found_link = found_link || rightrc;
-	 rc = found_link;
-	 } else {
-
-	 const auto myparts = self.get_parts();
-	 __syncwarp();
-	 const auto linklen2 = sqr(params.link_len);
-	 bool found_link;
-	 for (int i = 0; i < checks.size(); i++) {
-	 const auto other_parts = checks[i].get_parts();
-	 found_link = false;
-	 for (int j = myparts.first + tid; j < myparts.second; j += warpSize) {
-	 for (int k = other_parts.first; k < other_parts.second; k++) {
-	 float dx0, dx1, dx2;
-	 dx0 = distance(parts.pos(0, j), parts.pos(0, k));
-	 dx1 = distance(parts.pos(1, j), parts.pos(1, k));
-	 dx2 = distance(parts.pos(2, j), parts.pos(2, k));
-	 const float dist2 = fma(dx0, dx0, fma(dx1, dx1, sqr(dx2)));
-	 if (dist2 < linklen2 && dist2 != 0.0) {
-	 const size_t min_index = min(j, k);
-	 const size_t max_index = max(j, k);
-	 if (parts.group(min_index) == -1) {
-	 parts.group(min_index) = min_index;
-	 }
-	 if (parts.group(max_index) != parts.group(min_index)) {
-	 found_link = true;
-	 parts.group(max_index) = parts.group(min_index);
-	 }
-	 }
-	 }
-	 }
-	 }
-	 rc = __reduce_add_sync(FULL_MASK, found_link);
-	 }*/
-	return rc;
 }
 

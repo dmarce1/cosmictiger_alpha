@@ -185,10 +185,10 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 					dx2 = distance(parts.pos(2, j), parts.pos(2, k));
 					const float dist2 = fma(dx0, dx0, fma(dx1, dx1, sqr(dx2)));
 					if (dist2 < linklen2 && dist2 != 0.0) {
-						if (parts.group(j) == -1) {
+						if (parts.group(j) == NO_GROUP) {
 							parts.group(j) = j;
 						}
-						if (parts.group(k) == -1) {
+						if (parts.group(k) == NO_GROUP) {
 							parts.group(k) = k;
 						}
 						auto& id1 = parts.group(k);

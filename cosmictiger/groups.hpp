@@ -54,5 +54,10 @@ hpx::future<bool> find_groups(group_param_type*);
 __device__ bool cuda_find_groups(group_param_type*);
 std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** params, int, cudaStream_t stream);
 
+struct groups_shmem {
+	array<array<fixed32, MAX_BUCKET_SIZE>,NDIM> others;
+	array<array<fixed32, MAX_BUCKET_SIZE>,NDIM> self;
+};
+
 
 #endif /* GROUPS_HPP_ */
