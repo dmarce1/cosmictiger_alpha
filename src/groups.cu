@@ -115,6 +115,7 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 	for (int i = tid; i < opened_checks.size(); i += warpSize) {
 		checks[csz + i] = opened_checks[i];
 	}
+	__syncwarp();
 	if (!iamleaf) {
 		auto mychildren = self.get_children();
 		params.checks.push_top();
@@ -129,11 +130,11 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 			params.self = mychildren[RIGHT];
 		}
 		__syncwarp();
+		const bool rightrc = cuda_find_groups(params_ptr);
 		if (tid == 0) {
 			params.depth--;
 		}
 		__syncwarp();
-		const bool rightrc = cuda_find_groups(params_ptr);
 		found_link = found_link || rightrc;
 		rc = found_link;
 	} else {
