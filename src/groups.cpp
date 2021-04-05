@@ -9,7 +9,7 @@ struct gpu_groups {
 
 static std::vector<gpu_groups> gpu_queue;
 static mutex_type mutex;
-static size_t parts_covered;
+static std::atomic<size_t> parts_covered;
 
 hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool thread) {
 	group_param_type &params = *params_ptr;
@@ -24,14 +24,14 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 		*new_params = *params_ptr;
 		hpx::future<bool> fut;
 		{
-			const int gsz = gpu_queue.size();
 			std::lock_guard<mutex_type> lock(mutex);
+			const int gsz = gpu_queue.size();
 			gpu_queue.resize(gsz + 1);
 			fut = gpu_queue[gsz].promise.get_future();
 			gpu_queue[gsz].params = new_params;
 			gpu_queue[gsz].part_begin = myparts.first;
-			parts_covered += myparts.second - myparts.first;
 		}
+		parts_covered += myparts.second - myparts.first;
 		if (parts_covered == params.parts.size()) {
 			std::sort(gpu_queue.begin(), gpu_queue.end(), [](const gpu_groups& a,const gpu_groups& b) {
 				return a.part_begin < b.part_begin;
@@ -58,6 +58,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 					deleters.push_back(all_params[i]->opened_checks.to_device(stream));
 					deleters.push_back(all_params[i]->checks.to_device(stream));
 				}
+				printf( "Sending %i blocks\n", this_kernel->size());
 				auto cfunc = call_cuda_find_groups(all_params, this_kernel->size(), stream);
 				completions.push_back([cfunc,deleters, all_params, this_kernel]() {
 					auto rc = cfunc();
@@ -121,8 +122,8 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 	group_param_type& params = *params_ptr;
 	auto& parts = params.parts;
 	tree_ptr self = params.self;
-
 	if (params.depth == 0) {
+		printf( "Resetting\n");
 		parts_covered = 0;
 		gpu_queue.resize(0);
 		size_t dummy, total_mem;

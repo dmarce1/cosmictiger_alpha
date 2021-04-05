@@ -8,7 +8,8 @@
 
 __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params);
 
-std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** params, int params_size, cudaStream_t stream) {
+std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** params, int params_size,
+		cudaStream_t stream) {
 	bool* rc;
 	unified_allocator alloc;
 	rc = (bool*) alloc.allocate(sizeof(bool) * params_size);
@@ -26,7 +27,6 @@ std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** para
 	};
 }
 
-
 __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
 	const auto& tid = threadIdx.x;
 	const auto& bid = blockIdx.x;
@@ -41,7 +41,7 @@ __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
 __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 	const auto& tid = threadIdx.x;
 	bool rc;
-		group_param_type& params = *params_ptr;
+	group_param_type& params = *params_ptr;
 	auto& checks = params.checks;
 	auto& parts = params.parts;
 	auto& next_checks = params.next_checks;
@@ -52,8 +52,8 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 	array<int, NLISTS + 1> tmp;
 	tree_ptr self = params.self;
 
-	lists[OPEN] = &next_checks;
-	lists[NEXT] = &opened_checks;
+	lists[NEXT] = &next_checks;
+	lists[OPEN] = &opened_checks;
 
 	const auto myrange = self.get_range();
 	const auto iamleaf = self.is_leaf();
@@ -62,14 +62,18 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 	do {
 		next_checks.resize(0);
 		__syncwarp();
-		indices[OPEN] = 0;
-		indices[NEXT] = 0;
-		for (int i = tid; i < checks.size(); i += warpSize) {
-			const auto other_range = checks[i].get_range();
-			const int intersects = myrange.intersects(other_range);
-			const int isleaf = checks[i].is_leaf();
-			mylist = intersects * (isleaf * OPEN + (1 - isleaf) * NEXT) + (1 - intersects) * NOLIST;
-			indices[mylist] = 1;
+		const int cimax = ((checks.size() - 1) / warpSize + 1) * warpSize;
+		for (int i = tid; i < cimax; i += warpSize) {
+			indices[OPEN] = 0;
+			indices[NEXT] = 0;
+			mylist = NOLIST;
+			if (i < checks.size()) {
+				const auto other_range = checks[i].get_range();
+				const int intersects = myrange.intersects(other_range);
+				const int isleaf = checks[i].is_leaf();
+				mylist = intersects * (isleaf * OPEN + (1 - isleaf) * NEXT) + (1 - intersects) * NOLIST;
+				indices[mylist] = 1;
+			}
 			for (int P = 1; P < warpSize; P *= 2) {
 				for (int i = 0; i < NLISTS; i++) {
 					tmp[i] = __shfl_up_sync(0xFFFFFFFF, indices[i], P);
@@ -86,19 +90,24 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 			const int osz = opened_checks.size();
 			indices[OPEN] += osz;
 			opened_checks.resize(osz + counts[OPEN]);
-			next_checks.resize(NCHILD * counts[NEXT]);
+			next_checks.resize(counts[NEXT]);
 			__syncwarp();
 			if (mylist != NOLIST) {
+				assert(indices[mylist] < lists[mylist]->size());
 				(*(lists[mylist]))[indices[mylist]] = checks[i];
 			}
+			__syncwarp();
 		}
-		checks.resize(2 * next_checks.size());
+		__syncwarp();
+		checks.resize(NCHILD * next_checks.size());
 		__syncwarp();
 		for (int i = tid; i < next_checks.size(); i += warpSize) {
 			const auto children = next_checks[i].get_children();
+			assert(2*i+RIGHT < checks.size());
 			checks[2 * i + LEFT] = children[LEFT];
 			checks[2 * i + RIGHT] = children[RIGHT];
 		}
+		__syncwarp();
 	} while (iamleaf && checks.size());
 	const int csz = checks.size();
 	checks.resize(csz + opened_checks.size());

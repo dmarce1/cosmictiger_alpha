@@ -266,6 +266,9 @@ void drive_cosmos() {
 		}
 		iter++;
 	} while (z > 0.0);
+	if( global().opts.map_size > 0 ) {
+		load_and_save_maps(T0, T0);
+	}
 	double total_time = drift_total + sort_total + kick_total;
 	printf("Sort  time = %e (%.2f) %%\n", sort_total, sort_total / total_time * 100.0);
 	printf("Kick  time = %e (%.2f) %%\n", kick_total, kick_total / total_time * 100.0);

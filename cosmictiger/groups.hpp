@@ -40,6 +40,8 @@ struct group_param_type {
 		self = other.self;
 		link_len = other.link_len;
 		first_round = other.first_round;
+		depth = other.depth;
+		block_cutoff = other.block_cutoff;
 		return *this;
 	}
 };
