@@ -25,16 +25,31 @@ struct range {
 		arc & begin;
 		arc & end;
 	}
-	CUDA_EXPORT bool intersects(const range& other) const {
+	CUDA_EXPORT
+	bool intersects(const range& other) const {
 		bool rc = true;
 		for (int dim = 0; dim < NDIM; dim++) {
-			if (end[dim] < other.begin[dim]) {
-				rc = false;
-				break;
+			if (end[dim] != 1.0) {
+				if (end[dim] < other.begin[dim]) {
+					rc = false;
+					break;
+				}
+			} else {
+				if (other.begin[dim] != 0.0) {
+					rc = false;
+					break;
+				}
 			}
-			if (begin[dim] > other.end[dim]) {
-				rc = false;
-				break;
+			if (other.end[dim] != 1.0) {
+				if (begin[dim] > other.end[dim]) {
+					rc = false;
+					break;
+				}
+			} else {
+				if (begin[dim] != 0.0) {
+					rc = false;
+					break;
+				}
 			}
 		}
 		return rc;
