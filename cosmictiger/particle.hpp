@@ -190,6 +190,9 @@ CUDA_EXPORT inline float& particle_set::pot(size_t index) {
 
 }
 
+
+#endif
+
 CUDA_EXPORT inline group_t particle_set::group(size_t index) const {
 	return idptr_[index];
 }
@@ -197,7 +200,5 @@ CUDA_EXPORT inline group_t particle_set::group(size_t index) const {
 CUDA_EXPORT inline group_t& particle_set::group(size_t index) {
 	return idptr_[index];
 }
-
-#endif
 
 #endif /* COSMICTIGER_PARTICLE_HPP_ */
