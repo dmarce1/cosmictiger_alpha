@@ -20,7 +20,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 	if (use_cuda && myparts.second - myparts.first <= params.block_cutoff) {
 		group_param_type *new_params;
 		new_params = (group_param_type*) alloc.allocate(sizeof(group_param_type));
-		new (new_params) group_param_type;
+		new (new_params) group_param_type();
 		*new_params = *params_ptr;
 		hpx::future<bool> fut;
 		{
@@ -53,6 +53,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 				all_params = (group_param_type**) alloc.allocate(sizeof(group_param_type*) * this_kernel->size());
 				std::vector<std::function<void()>> deleters;
 				for (int i = 0; i < this_kernel->size(); i++) {
+					printf( "Setting up %i of %i\n", i, this_kernel->size());
 					all_params[i] = (*this_kernel)[i].params;
 					deleters.push_back(all_params[i]->next_checks.to_device(stream));
 					deleters.push_back(all_params[i]->opened_checks.to_device(stream));
@@ -100,7 +101,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 		if (thread) {
 			group_param_type *new_params;
 			new_params = (group_param_type*) alloc.allocate(sizeof(group_param_type));
-			new (new_params) group_param_type;
+			new (new_params) group_param_type();
 			*new_params = *params_ptr;
 			auto func = [new_params]() {
 				auto rc = ::find_groups(new_params);

@@ -326,7 +326,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 		if (thread) {
 			kick_params_type *new_params;
 			new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
-			new (new_params) kick_params_type;
+			new (new_params) kick_params_type();
 			*new_params = *params_ptr;
 			tree_ptr me = *this;
 			auto func = [me,new_params]() {

@@ -141,7 +141,7 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 
 		const auto myparts = self.get_parts();
 		if (params.first_round) {
-			for (auto i = myparts.first + tid; i != myparts.second; i += warpSize) {
+			for (auto i = myparts.first + tid; i < myparts.second; i += warpSize) {
 				parts.group(i) = -1;
 			}
 		}
@@ -151,8 +151,8 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 		for (int i = 0; i < checks.size(); i++) {
 			const auto other_parts = checks[i].get_parts();
 			found_link = false;
-			for (int j = myparts.first + tid; j != myparts.second; j += warpSize) {
-				for (int k = other_parts.first; k != other_parts.second; k++) {
+			for (int j = myparts.first + tid; j < myparts.second; j += warpSize) {
+				for (int k = other_parts.first; k < other_parts.second; k++) {
 					float dx0, dx1, dx2;
 					dx0 = distance(parts.pos(0, j), parts.pos(0, k));
 					dx1 = distance(parts.pos(1, j), parts.pos(1, k));
