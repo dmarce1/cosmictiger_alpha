@@ -53,7 +53,7 @@ static void tree_test() {
 }
 
 void kick_test() {
-#define NKICKS 10
+#define NKICKS 100
 	printf("Doing kick test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
@@ -193,19 +193,16 @@ void group_test() {
 	params_ptr->parts = parts.get_virtual_particle_set();
 	params_ptr->checks.push(root_ptr);
 	params_ptr->first_round = true;
-	printf("Searching");
+	printf("Searching\n");
 	fflush(stdout);
 	timer tm;
 	tm.start();
 	while (find_groups(params_ptr).get()) {
-		printf(".");
-		fflush(stdout);
 		params_ptr->self = root_ptr;
 		params_ptr->checks.resize(0);
 		params_ptr->checks.push(root_ptr);
 		params_ptr->first_round = false;
 	}
-	printf( ".\n");
 	tm_kick.stop();
 	tree::cleanup();
 	CUDA_FREE(params_ptr);
