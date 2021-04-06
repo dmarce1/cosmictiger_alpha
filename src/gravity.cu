@@ -30,6 +30,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	}
 	const auto pos = params.tptr.get_pos();
 	const int sz = multis.size();
+	const bool full_eval = params.full_eval;
 	for (int i = tid; i < sz; i += warpSize) {
 		const multipole mpole = multis[i].get_multi();
 		array<float, NDIM> fpos;
@@ -43,7 +44,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		} else {
 			flops += green_ewald(D, fpos);
 		}
-		flops += multipole_interaction(L, mpole, D, params.full_eval);
+		flops += multipole_interaction(L, mpole, D, full_eval);
 		interacts++;
 	}
 
@@ -58,7 +59,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		params.L[params.depth][i] += L[i];
 	}
 	__syncwarp();
-	if (params.full_eval) {
+	if (full_eval) {
 		kick_return_update_interactions_gpu(etype == DIRECT ? KR_CC : KR_EWCC, interacts, flops);
 	}
 }
@@ -72,6 +73,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	const auto& parti = shmem.part_interactions;
 	const int &tid = threadIdx.x;
 	//auto &Lreduce = shmem.Lreduce;
+	const bool full_eval = params.full_eval;
 	if (parti.size() == 0) {
 		return;
 	}
@@ -142,7 +144,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		}
 	}
 	__syncwarp();
-	if (params.full_eval) {
+	if (full_eval) {
 		kick_return_update_interactions_gpu(KR_CP, interacts, flops);
 	}
 }
@@ -156,6 +158,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
 	particle_set *parts = params.particles;
+	const bool full_eval = params.full_eval;
 
 	const auto myparts = params.tptr.get_parts();
 	const int nsinks = myparts.second - myparts.first;
@@ -171,7 +174,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 		my_index = 0;
 		found = false;
 		if (i < nsinks) {
-			if (parts->rung(i + myparts.first) >= params.rung || params.full_eval) {
+			if (parts->rung(i + myparts.first) >= params.rung || full_eval) {
 				found = true;
 				my_index = 1;
 				nactive++;
@@ -446,7 +449,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 				dx2 = distance(sinks[2][k], source[2]);
 				flops += 6;
 				flops += green_direct(D, dx);
-				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
+				flops += multipole_interaction(Lforce, msrcs[i].multi, D, full_eval);
 				interacts++;
 			}
 			const int l = act_map[k];
@@ -469,7 +472,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 				dx2 = distance(sinks[2][k], source[2]);
 				flops += 6;
 				flops += green_direct(D, dx);
-				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
+				flops += multipole_interaction(Lforce, msrcs[i].multi, D, full_eval);
 				interacts++;
 			}
 			for (int P = warpSize / 2; P >= 1; P /= 2) {
@@ -489,7 +492,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 		}
 	}
 	__syncwarp();
-	if (params.full_eval) {
+	if (full_eval) {
 		kick_return_update_interactions_gpu(KR_PC, interacts, flops);
 	}
 
