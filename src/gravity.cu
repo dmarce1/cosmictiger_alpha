@@ -495,13 +495,14 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 
 #ifdef TEST_FORCE
 CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr,
-		float* pnorm, float GM);
+		float* pnorm, float GM, float h);
 
 #ifdef __CUDA_ARCH__
-CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr, float* pnorm, float GM) {
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr, float* pnorm, float GM, float h) {
 	const int &tid = threadIdx.x;
 	const int &bid = blockIdx.x;
-
+	const auto hinv = 1.f / h;
+	const auto h2 = h * h;
 	const auto index = test_parts[bid];
 	array<fixed32,NDIM> sink;
 	sink[0] = parts->pos(0,index);
@@ -516,7 +517,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 	for (int dim = 0; dim < NDIM; dim++) {
 		f[dim][tid] = 0.0;
 	}
-	phi[tid] = -PHI0;
+	phi[tid] = 0.0;
 	for (size_t source = tid; source < parts->size(); source += EWALD_BLOCK_SIZE) {
 		if (source != index) {
 			array<float, NDIM> X;
@@ -525,42 +526,59 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 				const auto b = parts->pos(dim, source);
 				X[dim] = distance(a, b);
 			}
-			const ewald_const econst;
-			for (int i = 0; i < econst.nreal(); i++) {
-				const auto n =econst.real_index(i);
-				array<float, NDIM> dx;
-				for (int dim = 0; dim < NDIM; dim++) {
-					dx[dim] = X[dim] - n[dim];
+			const auto r2 = fmaf(X[0],X[0],fmaf(X[1],X[1],sqr(X[2])));
+			if (r2 < h2) {
+				const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
+				const float r2oh2 = r1oh1 * r1oh1;// 1
+				float r3inv = +15.0f / 8.0f;
+				r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
+				r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
+				float r1inv = -5.0f / 16.0f;
+				r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
+				r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
+				r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
+				phi[tid] -= r1inv;
+				for( int dim = 0; dim < NDIM; dim++) {
+					f[dim][tid] -= X[dim] * r3inv;
 				}
-				const float r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);
-				if (r2 < (EWALD_REAL_CUTOFF2)) {  // 1
-					const float r = sqrt(r2);// 1
-					const float rinv = 1.f / r;// 2
-					const float r2inv = rinv * rinv;// 1
-					const float r3inv = r2inv * rinv;// 1
-					const float exp0 = expf(-4.f * r2);// 26
-					const float erfc0 = erfcf(2.f * r);// 10
-					const float expfactor = 4.0 / sqrt(M_PI) * r * exp0;// 2
-					const float d0 = -erfc0 * rinv;
-					const float d1 = (expfactor + erfc0) * r3inv;// 2
-					phi[tid] += d0;
+			} else {
+				const ewald_const econst;
+				for (int i = 0; i < econst.nreal(); i++) {
+					const auto n =econst.real_index(i);
+					array<float, NDIM> dx;
 					for (int dim = 0; dim < NDIM; dim++) {
-						f[dim][tid] -= dx[dim] * d1;
+						dx[dim] = X[dim] - n[dim];
+					}
+					const float r2 = sqr(dx[0]) + sqr(dx[1]) + sqr(dx[2]);
+					if (r2 < (EWALD_REAL_CUTOFF2)) {  // 1
+						const float r = sqrt(r2);// 1
+						const float rinv = 1.f / r;// 2
+						const float r2inv = rinv * rinv;// 1
+						const float r3inv = r2inv * rinv;// 1
+						const float exp0 = expf(-4.f * r2);// 26
+						const float erfc0 = erfcf(2.f * r);// 10
+						const float expfactor = 4.0 / sqrt(M_PI) * r * exp0;// 2
+						const float d0 = -erfc0 * rinv;
+						const float d1 = (expfactor + erfc0) * r3inv;// 2
+						phi[tid] += d0;
+						for (int dim = 0; dim < NDIM; dim++) {
+							f[dim][tid] -= dx[dim] * d1;
+						}
 					}
 				}
-			}
-			for (int i = 0; i < econst.nfour(); i++) {
-				const auto &h = econst.four_index(i);
-				const auto &hpart = econst.four_expansion(i);
-				const float hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];
-				float co = cosf(2.0 * M_PI * hdotx);
-				float so = sinf(2.0 * M_PI * hdotx);
-				phi[tid] += hpart() * co;
-				for (int dim = 0; dim < NDIM; dim++) {
-					f[dim][tid] -= hpart(dim) * so;
+				for (int i = 0; i < econst.nfour(); i++) {
+					const auto &h = econst.four_index(i);
+					const auto &hpart = econst.four_expansion(i);
+					const float hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];
+					float co = cosf(2.0 * M_PI * hdotx);
+					float so = sinf(2.0 * M_PI * hdotx);
+					phi[tid] += hpart() * co;
+					for (int dim = 0; dim < NDIM; dim++) {
+						f[dim][tid] -= hpart(dim) * so;
+					}
 				}
+				phi[tid] += float(M_PI / 4.f);
 			}
-			phi[tid] += float(M_PI / 4.f);
 		}
 	}
 	__syncthreads();
@@ -604,7 +622,7 @@ void cuda_compare_with_direct(particle_set *parts) {
 	for (int i = 0; i < N_TEST_PARTS; i++) {
 		test_parts[i] = rand() % nparts;
 	}
-	cuda_pp_ewald_interactions<<<N_TEST_PARTS,EWALD_BLOCK_SIZE>>>(parts, test_parts, ferrs, fnorms, perrs, pnorms, global().opts.G * global().opts.M);
+	cuda_pp_ewald_interactions<<<N_TEST_PARTS,EWALD_BLOCK_SIZE>>>(parts, test_parts, ferrs, fnorms, perrs, pnorms, global().opts.G * global().opts.M, global().opts.hsoft);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	float favg_err = 0.0;
 	float fnorm = 0.0;

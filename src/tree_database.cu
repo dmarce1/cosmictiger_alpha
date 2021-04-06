@@ -7,7 +7,7 @@
 #include <cmath>
 #include <atomic>
 
-static constexpr int chunk_size = 16384;
+static constexpr int chunk_size = 2048;
 
 static std::atomic<int> next_chunk;
 

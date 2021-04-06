@@ -9,7 +9,20 @@
 #define GROUPS_HPP_
 
 #include <cosmictiger/tree.hpp>
+#include <cosmictiger/particle.hpp>
 
+struct group_info_t {
+	array<fixed32, NDIM> pos;
+	array<float, NDIM> vel;
+	float epot;
+	float ekin;
+	int count;
+	float rmax;
+	float r50;
+	float ravg;
+};
+
+void group_info_add(group_t id, const array<fixed32, NDIM>& pos, const array<float, NDIM>& vel);
 
 struct group_param_type {
 	particle_set parts;
@@ -46,7 +59,6 @@ struct group_param_type {
 	}
 };
 
-
 #ifndef __CUDACC__
 hpx::future<bool> find_groups(group_param_type*);
 #endif
@@ -55,9 +67,8 @@ __device__ bool cuda_find_groups(group_param_type*);
 std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** params, int, cudaStream_t stream);
 
 struct groups_shmem {
-	array<array<fixed32, MAX_BUCKET_SIZE>,NDIM> others;
-	array<array<fixed32, MAX_BUCKET_SIZE>,NDIM> self;
+	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> others;
+	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> self;
 };
-
 
 #endif /* GROUPS_HPP_ */
