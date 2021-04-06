@@ -122,8 +122,8 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 	if (iamleaf) {
 		const auto myparts = self.get_parts();
 		const auto linklen2 = sqr(params.link_len);
-
-		for (int i = tid; i < (myparts.second - myparts.first); i += warpSize) {
+		const int mysize = myparts.second - myparts.first;
+		for (int i = tid; i < mysize; i += warpSize) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				self_parts[dim][i] = parts.pos(dim, i + myparts.first);
 			}
@@ -135,14 +135,15 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 			found_link = 0;
 			for (int i = 0; i < checks.size(); i++) {
 				const auto other_pair = checks[i].get_parts();
-				for (int k = tid; k < (other_pair.second - other_pair.first); k += warpSize) {
+				const int other_size = other_pair.second - other_pair.first;
+				for (int k = tid; k < other_size; k += warpSize) {
 					for (int dim = 0; dim < NDIM; dim++) {
 						other_parts[dim][k] = parts.pos(dim, k + other_pair.first);
 					}
 				}
 				__syncwarp();
-				for (int k = 0; k != other_pair.second - other_pair.first; k++) {
-					for (int j = tid; j < myparts.second - myparts.first; j += warpSize) {
+				for (int j = tid; j < mysize; j += warpSize) {
+					for (int k = 0; k != other_size; k++) {
 
 						float dx0, dx1, dx2;
 						dx0 = distance(self_parts[0][j], other_parts[0][k]);
