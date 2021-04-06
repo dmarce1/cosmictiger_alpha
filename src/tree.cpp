@@ -681,7 +681,6 @@ void tree::gpu_daemon() {
 				deleters->push_back(tmp.params->part_interactions.to_device(stream));
 				deleters->push_back(tmp.params->next_checks.to_device(stream));
 				deleters->push_back(tmp.params->opened_checks.to_device(stream));
-				deleters->push_back(tmp.params->tmp.to_device(stream));
 				memcpy(gpu_params + i, tmp.params, sizeof(kick_params_type));
 				auto tmpparams = tmp.params;
 				deleters->push_back([tmpparams]() {

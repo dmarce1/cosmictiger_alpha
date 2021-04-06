@@ -122,11 +122,16 @@ struct cuda_kick_shmem {
 	};
 	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 3072
 	array<uint8_t, MAX_BUCKET_SIZE> act_map;
+	vector<tree_ptr> multi_interactions;
+	vector<tree_ptr> part_interactions;
+	vector<tree_ptr> next_checks;
+	vector<tree_ptr> opened_checks;
+	stack_vector<tree_ptr> dchecks;
+	stack_vector<tree_ptr> echecks;
 };
 struct list_sizes_t {
 	int multi;
 	int part;
-	int tmp;
 	int open;
 	int next;
 };
@@ -139,7 +144,6 @@ struct kick_params_type {
 	vector<tree_ptr> part_interactions;
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> opened_checks;
-	vector<tree_ptr> tmp;
 	stack_vector<tree_ptr> dchecks;
 	stack_vector<tree_ptr> echecks;
 	array<array<float, MAX_BUCKET_SIZE>, NDIM> F;
@@ -202,7 +206,6 @@ struct kick_params_type {
 		multi_interactions.reserve(s.multi);
 		next_checks.reserve(s.next);
 		opened_checks.reserve(s.open);
-		tmp.reserve(s.tmp);
 	}
 	friend class tree_ptr;
 };

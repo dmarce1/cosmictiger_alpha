@@ -37,7 +37,7 @@ class fixed {
 public:
 	friend class simd_fixed32;
 
-	T raw() const {
+	inline T raw() const {
 		return i;
 	}
 
@@ -53,26 +53,21 @@ public:
 		num.i = 1;
 		return num;
 	}
-	fixed<T>() = default;
+	inline fixed<T>() = default;
 
 	CUDA_EXPORT
 	inline
-#ifdef NDEBUG
-	constexpr
-#endif
-
-	CUDA_EXPORT
 	fixed<T>& operator=(double number) {
 		i = (c0 * number);
 		return *this;
 	}
 
 	CUDA_EXPORT
-	fixed<T>(float number) :
+	inline fixed<T>(float number) :
 			i(c0 * number) {
 	}
 	CUDA_EXPORT
-	fixed<T>(double number) :
+	inline fixed<T>(double number) :
 			i(c0 * number) {
 	}
 

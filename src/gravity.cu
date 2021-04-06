@@ -12,7 +12,10 @@
 
 CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type etype) {
 	kick_params_type &params = *params_ptr;
-	const auto& multis = params.multi_interactions;
+	__shared__
+	extern int shmem_ptr[];
+	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
+	const auto& multis = shmem.multi_interactions;
 	const int &tid = threadIdx.x;
 //	auto &Lreduce = shmem.Lreduce;
 	if (multis.size() == 0) {
@@ -27,7 +30,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	}
 	const auto pos = params.tptr.get_pos();
 	const int sz = multis.size();
-	for (int i = tid; i < sz; i += KICK_BLOCK_SIZE) {
+	for (int i = tid; i < sz; i += warpSize) {
 		const multipole mpole = multis[i].get_multi();
 		array<float, NDIM> fpos;
 		const auto other_pos = multis[i].get_pos();
@@ -44,13 +47,13 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		interacts++;
 	}
 
-	for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+	for (int P = warpSize / 2; P >= 1; P /= 2) {
 		for (int i = 0; i < LP; i++) {
 			L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
 		}
 	}
 	L.scale_back();
-	for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
+	for (int i = tid; i < LP; i += warpSize) {
 		NAN_TEST(L[i]);
 		params.L[params.depth][i] += L[i];
 	}
@@ -62,12 +65,12 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 
 CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
-	particle_set *parts = params.particles;
-	const auto& parti = params.part_interactions;
-	const int &tid = threadIdx.x;
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
+	particle_set *parts = params.particles;
+	const auto& parti = shmem.part_interactions;
+	const int &tid = threadIdx.x;
 	//auto &Lreduce = shmem.Lreduce;
 	if (parti.size() == 0) {
 		return;
@@ -101,7 +104,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				const size_t imin = these_parts.first;
 				const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
 				const int sz = imax - imin;
-				for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
+				for (int j = tid; j < sz; j += warpSize) {
 					for (int dim = 0; dim < NDIM; dim++) {
 						sources[dim][part_index + j] = parts->pos(dim, j + imin);
 					}
@@ -115,7 +118,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 					}
 				}
 			}
-			for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
+			for (int j = tid; j < part_index; j += warpSize) {
 				array<float, NDIM> dx;
 				dx[0] = distance(pos[0], sources[0][j]);
 				dx[1] = distance(pos[1], sources[1][j]);
@@ -127,13 +130,13 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				interacts++;
 			}
 		}
-		for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+		for (int P = warpSize / 2; P >= 1; P /= 2) {
 			for (int i = 0; i < LP; i++) {
 				L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
 			}
 		}
 		L.scale_back();
-		for (int i = tid; i < LP; i += KICK_BLOCK_SIZE) {
+		for (int i = tid; i < LP; i += warpSize) {
 			NAN_TEST(L[i]);
 			params.L[params.depth][i] += L[i];
 		}
@@ -156,7 +159,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 
 	const auto myparts = params.tptr.get_parts();
 	const int nsinks = myparts.second - myparts.first;
-	const int nsinks_max = max(((nsinks - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
+	const int nsinks_max = max(((nsinks - 1) / warpSize + 1) * warpSize, 0);
 
 	int my_index;
 	bool found;
@@ -164,7 +167,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	int nactive = 0;
 	int total;
 
-	for (int i = tid; i < nsinks_max; i += KICK_BLOCK_SIZE) {
+	for (int i = tid; i < nsinks_max; i += warpSize) {
 		my_index = 0;
 		found = false;
 		if (i < nsinks) {
@@ -175,13 +178,13 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 			}
 		}
 		int tmp;
-		for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
+		for (int P = 1; P < warpSize; P *= 2) {
 			tmp = __shfl_up_sync(0xFFFFFFFF, my_index, P);
 			if (tid >= P) {
 				my_index += tmp;
 			}
 		}
-		total = __shfl_sync(0xFFFFFFFF, my_index, KICK_BLOCK_SIZE - 1);
+		total = __shfl_sync(0xFFFFFFFF, my_index, warpSize - 1);
 		tmp = __shfl_up_sync(0xFFFFFFFF, my_index, 1);
 		if (tid > 0) {
 			my_index = tmp;
@@ -194,10 +197,10 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 		}
 		base += total;
 	}
-	for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+	for (int P = warpSize / 2; P >= 1; P /= 2) {
 		nactive += __shfl_xor_sync(0xFFFFFFFF, nactive, P);
 	}
-	for (int i = tid; i < nactive; i += KICK_BLOCK_SIZE) {
+	for (int i = tid; i < nactive; i += warpSize) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			sinks[dim][i] = parts->pos(dim, act_map[i] + myparts.first);
 		}
@@ -208,11 +211,11 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive) {
 	kick_params_type &params = *params_ptr;
 	particle_set *parts = params.particles;
-	const auto& parti = params.part_interactions;
 	const int &tid = threadIdx.x;
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
+	const auto& parti = shmem.part_interactions;
 	auto &F = params.F;
 	auto &Phi = params.Phi;
 	auto &sources = shmem.src;
@@ -248,7 +251,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 			const size_t imin = these_parts.first;
 			const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
 			const int sz = imax - imin;
-			for (int j = tid; j < sz; j += KICK_BLOCK_SIZE) {
+			for (int j = tid; j < sz; j += warpSize) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					sources[dim][part_index + j] = parts->pos(dim, j + imin);
 				}
@@ -270,12 +273,12 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 		float r3inv, r1inv;
 		__syncwarp();
 		int kmid;
-		if ((nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 2) {
-			kmid = nactive - (nactive % KICK_BLOCK_SIZE);
+		if ((nactive % warpSize) < warpSize / 2) {
+			kmid = nactive - (nactive % warpSize);
 		} else {
 			kmid = nactive;
 		}
-		for (int k = tid; k < kmid; k += KICK_BLOCK_SIZE) {
+		for (int k = tid; k < kmid; k += warpSize) {
 			fx = 0.f;
 			fy = 0.f;
 			fz = 0.f;
@@ -326,7 +329,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 			fy = 0.f;
 			fz = 0.f;
 			phi = 0.f;
-			for (int j = tid; j < part_index; j += KICK_BLOCK_SIZE) {
+			for (int j = tid; j < part_index; j += warpSize) {
 				dx0 = distance(sinks[0][k], sources[0][j]);
 				dx1 = distance(sinks[1][k], sources[1][j]);
 				dx2 = distance(sinks[2][k], sources[2][j]);               // 3
@@ -357,7 +360,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 				flops += 15;
 				interacts++;
 			}
-			for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+			for (int P = warpSize / 2; P >= 1; P /= 2) {
 				fx += __shfl_down_sync(0xffffffff, fx, P);
 				fy += __shfl_down_sync(0xffffffff, fy, P);
 				fz += __shfl_down_sync(0xffffffff, fz, P);
@@ -385,13 +388,12 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 CUDA_DEVICE
 void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	kick_params_type &params = *params_ptr;
-	const auto& multis = params.multi_interactions;
 	const int &tid = threadIdx.x;
 
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-	//auto &f = shmem.f;
+	const auto& multis = shmem.multi_interactions;
 	auto &F = params.F;
 	auto& act_map = shmem.act_map;
 	auto &Phi = params.Phi;
@@ -428,12 +430,12 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 		}
 		__syncwarp();
 		int kmid;
-		if ((nactive % KICK_BLOCK_SIZE) < KICK_BLOCK_SIZE / 2) {
-			kmid = nactive - (nactive % KICK_BLOCK_SIZE);
+		if ((nactive % warpSize) < warpSize / 2) {
+			kmid = nactive - (nactive % warpSize);
 		} else {
 			kmid = nactive;
 		}
-		for (int k = tid; k < kmid; k += KICK_BLOCK_SIZE) {
+		for (int k = tid; k < kmid; k += warpSize) {
 			for (int i = 0; i < NDIM + 1; i++) {
 				Lforce[i] = 0.f;
 			}
@@ -460,7 +462,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 			for (int i = 0; i < NDIM + 1; i++) {
 				Lforce[i] = 0.f;
 			}
-			for (int i = tid; i < nsrc; i += KICK_BLOCK_SIZE) {
+			for (int i = tid; i < nsrc; i += warpSize) {
 				const auto &source = msrcs[i].pos;
 				dx0 = distance(sinks[0][k], source[0]);
 				dx1 = distance(sinks[1][k], source[1]);
@@ -470,7 +472,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 				flops += multipole_interaction(Lforce, msrcs[i].multi, D, params.full_eval);
 				interacts++;
 			}
-			for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+			for (int P = warpSize / 2; P >= 1; P /= 2) {
 				for (int dim = 0; dim < NDIM + 1; dim++) {
 					Lforce[dim] += __shfl_down_sync(0xffffffff, Lforce[dim], P);
 				}

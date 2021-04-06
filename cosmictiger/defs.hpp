@@ -34,7 +34,7 @@
 
 
 #define KICK_PP_MAX size_t(8*32)
-#define MAX_BUCKET_SIZE 177
+#define MAX_BUCKET_SIZE 160
 
 
 #define MIN_ACTIVE_PER_BLOCK 16

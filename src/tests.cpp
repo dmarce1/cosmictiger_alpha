@@ -53,7 +53,7 @@ static void tree_test() {
 }
 
 void kick_test() {
-#define NKICKS 100
+#define NKICKS 10
 	printf("Doing kick test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
@@ -149,7 +149,7 @@ void kick_test() {
 		dev += sqr(avg - timings[i]);
 	}
 	dev = std::sqrt(dev / NKICKS);
-	printf("Score = %e +/- %e\n", avg, dev);
+	printf("---- Bucket Size = %i, Score = %e +/- %e\n", global().opts.bucket_size, avg, dev);
 	parts_ptr->particle_set::~particle_set();
 	CUDA_FREE(parts_ptr);
 	FILE* fp = fopen("timings.dat", "at");

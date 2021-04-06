@@ -28,10 +28,10 @@
 template<class T>
 class vector {
    T *ptr;
+   T *new_ptr;
    int cap;
    int sz;
    bool dontfree;
-   T *new_ptr;
    CUDA_EXPORT
    inline
    void destruct(int b, int e) {
@@ -88,6 +88,17 @@ public:
          cap = 0;
          sz = 0;
       }
+//      reserve(1);
+   }
+   CUDA_EXPORT inline vector( int _sz) {
+      THREAD;
+      if (tid == 0) {
+         dontfree = false;
+         ptr = nullptr;
+         cap = 0;
+         sz = 0;
+      }
+      resize(_sz);
 //      reserve(1);
    }
    CUDA_EXPORT inline vector(const vector &other) {

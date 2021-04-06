@@ -15,6 +15,11 @@ class stack_vector {
       return bounds.back();
    }
 public:
+   CUDA_EXPORT inline void swap(stack_vector<T>& other) {
+   	data.swap(other.data);
+   	bounds.swap(other.bounds);
+
+   }
    CUDA_EXPORT inline int depth() const {
       return bounds.size() - 2;
    }

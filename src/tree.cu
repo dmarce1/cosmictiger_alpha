@@ -19,7 +19,7 @@
 
 CUDA_DEVICE particle_set *parts;
 
-__managed__ list_sizes_t list_sizes { 0, 0, 0, 0, 0 };
+__managed__ list_sizes_t list_sizes { 0, 0, 0, 0 };
 
 #define MI 0
 #define PI 1
@@ -74,10 +74,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	const float theta = params.theta;
 	const float theta2 = params.theta * params.theta;
 	array<vector<tree_ptr>*, NITERS> lists;
-	auto &multis = params.multi_interactions;
-	auto &parti = params.part_interactions;
-	auto &next_checks = params.next_checks;
-	auto &opened_checks = params.opened_checks;
+	auto &multis = shmem.multi_interactions;
+	auto &parti = shmem.part_interactions;
+	auto &next_checks = shmem.next_checks;
+	auto &opened_checks = shmem.opened_checks;
 	lists[MI] = &multis;
 	lists[PI] = &parti;
 	lists[CI] = &next_checks;
@@ -194,7 +194,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				opened_checks.resize(0), vectorPOD;
 			}
 		} while (direct && check_count);
-		auto &tmp_parti = params.tmp;
+		auto &tmp_parti = shmem.opened_checks;
 		if (type == PC_PP_DIRECT) {
 			auto &sinks = shmem.sink;
 			const int pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
@@ -415,14 +415,30 @@ void tree::cuda_set_kick_params(particle_set *p) {
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 	const int &bid = blockIdx.x;
 	params[bid].particles = parts;
-	cuda_kick(params + bid);
+	__shared__
+	extern int shmem_ptr[];
+	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	if (threadIdx.x == 0) {
-		atomicMax(&list_sizes.tmp, params[bid].tmp.capacity());
-		atomicMax(&list_sizes.multi, params[bid].multi_interactions.capacity());
-		atomicMax(&list_sizes.part, params[bid].part_interactions.capacity());
-		atomicMax(&list_sizes.next, params[bid].next_checks.capacity());
-		atomicMax(&list_sizes.open, params[bid].opened_checks.capacity());
-		params[bid].kick_params_type::~kick_params_type();
+		memcpy(&shmem.part_interactions, &(params[bid].part_interactions), sizeof(vector<tree_ptr> ));
+		memcpy(&shmem.multi_interactions, &(params[bid].multi_interactions), sizeof(vector<tree_ptr> ));
+		memcpy(&shmem.next_checks, &(params[bid].next_checks), sizeof(vector<tree_ptr> ));
+		memcpy(&shmem.opened_checks, &(params[bid].opened_checks), sizeof(vector<tree_ptr> ));
+	}
+	__syncthreads();
+	cuda_kick(params + bid);
+	__syncthreads();
+	if (threadIdx.x == 0) {
+		atomicMax(&list_sizes.multi, shmem.multi_interactions.capacity());
+		atomicMax(&list_sizes.part, shmem.part_interactions.capacity());
+		atomicMax(&list_sizes.next, shmem.next_checks.capacity());
+		atomicMax(&list_sizes.open, shmem.opened_checks.capacity());
+//		params[bid].kick_params_type::~kick_params_type();
+		shmem.part_interactions.~vector<tree_ptr>();
+		shmem.multi_interactions.~vector<tree_ptr>();
+		shmem.next_checks.~vector<tree_ptr>();
+		shmem.opened_checks.~vector<tree_ptr>();
+		params[bid].dchecks.~stack_vector<tree_ptr>();
+		params[bid].echecks.~stack_vector<tree_ptr>();
 	}
 
 }
@@ -432,7 +448,7 @@ list_sizes_t get_list_sizes() {
 }
 
 void reset_list_sizes() {
-	list_sizes.tmp = list_sizes.multi = list_sizes.part = list_sizes.open = list_sizes.next = 0;
+	list_sizes.multi = list_sizes.part = list_sizes.open = list_sizes.next = 0;
 }
 
 thread_local static std::stack<cudaStream_t> streams;
