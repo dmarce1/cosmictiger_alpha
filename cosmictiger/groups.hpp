@@ -11,15 +11,30 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/particle.hpp>
 
+
 struct group_info_t {
-	array<fixed32, NDIM> pos;
+	array<double, NDIM> pos;
 	array<float, NDIM> vel;
+	float vtot;
 	float epot;
 	float ekin;
 	int count;
 	float rmax;
 	float r50;
 	float ravg;
+	group_info_t() {
+		for( int dim = 0; dim < NDIM; dim++) {
+			pos[dim] = 0.0;
+			vel[dim] = 0.0;
+		}
+		epot = 0.0;
+		ekin = 0.0;
+		count = 0;
+		rmax = 0.0;
+		r50 = 0.0;
+		ravg = 0.0;
+		vtot = 0.0;
+	}
 };
 
 void group_info_add(group_t id, const array<fixed32, NDIM>& pos, const array<float, NDIM>& vel);
@@ -70,5 +85,11 @@ struct groups_shmem {
 	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> others;
 	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> self;
 };
+
+void group_data_create(const particle_set& parts);
+void group_data_reduce();
+void group_data_output(FILE* fp);
+void group_data_destroy();
+
 
 #endif /* GROUPS_HPP_ */

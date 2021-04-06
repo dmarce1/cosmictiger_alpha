@@ -9,6 +9,8 @@
 
 double T0;
 
+int Ntarget = 3333;
+
 tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm) {
 	timer time;
 	time.start();
@@ -186,8 +188,8 @@ void drive_cosmos() {
 			checkpt_tm.start();
 		}
 		if (iter % 10 == 0) {
-			printf("%4s %4s %4s %4s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter",
-					"maxd", "mind", "ed", "avgd", "ppl", "actv", "min", "max", "time", "dt", "theta", "a", "z", "pot", "kin",
+			printf("%4s %4s %4s %4s %9s %9s %4s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter",
+					"maxd", "mind", "ed", "avgd", "bavg", "bmax", "actv", "min", "max", "time", "dt", "theta", "a", "z", "pot", "kin",
 					"cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
 		}
 		static double last_theta = -1.0;
@@ -221,6 +223,13 @@ void drive_cosmos() {
 		kick_return kr = kick_return_get();
 		if (full_eval) {
 			pot = 0.5 * kr.phis / a;
+
+			const auto kr = kick_return_get();
+			const int N0 = kr.count[KR_PP] / global().opts.nparts;
+			int bucket_size = global().opts.bucket_size * std::sqrt(double(Ntarget)/double(N0));
+			printf( "%i %i %i\n", N0, Ntarget, bucket_size);
+			global().opts.bucket_size = std::min(bucket_size,MAX_BUCKET_SIZE);
+
 		}
 		double dt = T0 / double(size_t(1) << max_rung);
 		double a0 = a;
@@ -251,8 +260,8 @@ void drive_cosmos() {
 		double avg_depth = std::log(stats.nleaves) / std::log(2.0);
 //		if (full_eval) {
 		printf(
-				"%4i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
-				iter, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r,
+				"%4i %4i %4i %4i %9.3f %9.2e %4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+				iter, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, global().opts.bucket_size, act_pct, min_r,
 				max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm,
 				kick_tm, drift_tm, total_time, science_rate);
 //		} else {

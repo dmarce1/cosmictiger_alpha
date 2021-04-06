@@ -2,6 +2,11 @@
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/timer.hpp>
 
+
+
+
+
+
 struct gpu_groups {
 	group_param_type* params;
 	size_t part_begin;
@@ -19,7 +24,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 	static const bool use_cuda = global().opts.cuda;
 	const auto myparts = get_parts();
 	int counter = 0;
-	if (use_cuda && myparts.second - myparts.first <= params.block_cutoff) {
+	if (false && use_cuda && myparts.second - myparts.first <= params.block_cutoff) {
 		group_param_type *new_params;
 		new_params = (group_param_type*) alloc.allocate(sizeof(group_param_type));
 		new (new_params) group_param_type();

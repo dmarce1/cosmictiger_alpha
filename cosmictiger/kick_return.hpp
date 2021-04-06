@@ -46,5 +46,6 @@ void kick_return_init(int min_rung);
 
 int kick_return_max_rung();
 void kick_return_show();
+int kick_return_pp_interactions();
 
 #endif /* KICK_RETURN_HPP_ */

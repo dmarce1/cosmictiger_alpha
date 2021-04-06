@@ -207,7 +207,16 @@ void group_test() {
 	tree::cleanup();
 	CUDA_FREE(params_ptr);
 	tm.stop();
-	printf("Done in %e s\n", tm.read());
+	printf("Groups found in %e s\n", tm.read());
+	tm.reset();
+	tm.start();
+	group_data_create(parts);
+	group_data_reduce();
+	group_data_output(stdout);
+	group_data_destroy();
+	tm.stop();
+	printf("Table created in %e s\n", tm.read());
+
 }
 
 void drift_test() {
