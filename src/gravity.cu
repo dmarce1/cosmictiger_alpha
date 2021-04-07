@@ -152,7 +152,6 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 
 CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	particle_set& parts = *(particle_set*) constant.particles;
-	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
 	__shared__
 	extern int shmem_ptr[];

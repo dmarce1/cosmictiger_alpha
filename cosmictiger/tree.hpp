@@ -282,6 +282,7 @@ struct kick_constants {
 	float halft0;
 	float h2;
 	float hinv;
+	float th;
 	int rung;
 	int minrung;
 	bool full_eval;

@@ -38,6 +38,7 @@ void cuda_set_kick_constants(kick_constants consts) {
 	consts.minrung = fmaxf(MIN_RUNG, consts.rung);
 	consts.h2 = sqr(consts.h);
 	consts.hinv = 1.f / consts.h;
+	consts.th = consts.h * consts.theta;
 	cudaMemcpyToSymbol(constant, &consts, sizeof(kick_constants));
 }
 
@@ -61,6 +62,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	const auto mypos = shmem.self.get_pos();
 	const auto myradius = shmem.self.get_radius();
 	const auto &Lpos = params.Lpos[shmem.depth];
+	const bool iamleaf = tptr.is_leaf();
 	array<float, NDIM> dx;
 	for (int dim = 0; dim < NDIM; dim++) {
 		dx[dim] = distance(mypos[dim], Lpos[dim]);
@@ -68,7 +70,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	cuda_shift_expansion(L, dx, constant.full_eval);
 	int flops = 0;
 	int interacts = 0;
-	const bool iamleaf = tptr.is_leaf();
 	if (iamleaf) {
 		for (int k = tid; k < MAX_BUCKET_SIZE; k += KICK_BLOCK_SIZE) {
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -109,8 +110,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		__syncwarp();
 		int check_count;
 		array<int, NITERS> tmp;
-		const float h = constant.h;
-		const float th = constant.theta * fmaxf(h, MIN_DX);
+		const float& th = constant.th;
 		do {
 			check_count = checks.size();
 			if (check_count) {
@@ -123,13 +123,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const auto check = checks[ci];
 						const auto other_pos = check.get_pos();
 						const float other_radius = check.get_radius();
-//						const auto check_parts = check.get_parts();
-//						const float other_nparts = check_parts.second - check_parts.first;
-						array<float, NDIM> dist;
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
-							dist[dim] = distance(other_pos[dim], mypos[dim]);
+							dx[dim] = distance(other_pos[dim], mypos[dim]);
 						}
-						float d2 = fmaf(dist[0], dist[0], fmaf(dist[1], dist[1], sqr(dist[2]))); // 5
+						float d2 = fmaf(dx[0], dx[0], fmaf(dx[1], dx[1], sqr(dx[2]))); // 5
 						if (ewald_dist) {
 							d2 = fmaxf(d2, EWALD_MIN_DIST2); // 5
 						}
@@ -137,16 +134,15 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const float R2 = sqr(other_radius * theta + myradius2 + th); // 3
 						const float R3 = sqr(other_radius + myradius1 * theta + th); // 3
 						const float theta2d2 = theta2 * d2; // 1
-						const bool far1 = R1 < theta2d2;                 // 1
-						const bool far2 = R2 < theta2d2;                 // 1
-						const bool far3 = R3 < theta2d2;                 // 1
-						const bool isleaf = check.is_leaf();
+						const int far1 = R1 < theta2d2;                 // 1
+						const int far2 = R2 < theta2d2;                 // 1
+						const int far3 = R3 < theta2d2;                 // 1
+						const int isleaf = check.is_leaf();
 						interacts++;
 						flops += 27;
 						const bool mi = far1 || (direct && far3/* && other_nparts >= MIN_PC_PARTS*/);
 						const bool pi = (far2 || direct) && isleaf;
-						list_index = (1 - int(mi))
-								* (int(pi) * PI + (1 - int(pi)) * (int(isleaf) * OI + (1 - int(isleaf)) * CI));
+						list_index = (1 - mi) * (pi * PI + (1 - pi) * (isleaf * OI + (1 - isleaf) * CI));
 						my_index[list_index] = 1;
 					}
 					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
@@ -226,7 +222,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					const auto other_radius = parti[j].get_radius();
 					const auto parti_parts = parti[j].get_parts();
 					const auto other_nparts = parti_parts.second - parti_parts.first;
-					const float hfac = constant.theta * fmaxf(constant.h, MIN_DX);
 					bool res = false;
 					const int sz = myparts.second - myparts.first;
 					if (other_nparts < MIN_PC_PARTS) {
@@ -239,7 +234,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 								float dy0 = distance(other_pos[1], sinks[1][k]);
 								float dz0 = distance(other_pos[2], sinks[2][k]);
 								float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-								res = sqr(other_radius + hfac) > d2 * theta2;
+								res = sqr(other_radius + th) > d2 * theta2;
 								flops += 15;
 								if (res) {
 									break;
@@ -299,7 +294,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		const auto children = tptr.get_children();
 		const auto left_active = children[LEFT].get_active_parts();
 		const auto right_active = children[RIGHT].get_active_parts();
-		;
 		if (tid == 0) {
 			shmem.depth++;
 			params.L[shmem.depth] = L;
@@ -350,7 +344,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			if (this_rung >= constant.rung || constant.full_eval) {
 				array<float, NDIM> g;
 				float this_phi;
-				array<float, NDIM> dx;
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto x2 = mypos[dim];
 					const auto x1 = parts.pos(dim, k + myparts.first);
@@ -431,7 +424,7 @@ CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 		memcpy(&shmem.multi_interactions, &(params[bid].multi_interactions), sizeof(vector<tree_ptr> ));
 		memcpy(&shmem.next_checks, &(params[bid].next_checks), sizeof(vector<tree_ptr> ));
 		memcpy(&shmem.opened_checks, &(params[bid].opened_checks), sizeof(vector<tree_ptr> ));
-		memcpy(&shmem.dchecks, &(params[bid].dchecks), sizeof(stack_vector<tree_ptr>));
+		memcpy(&shmem.dchecks, &(params[bid].dchecks), sizeof(stack_vector<tree_ptr> ));
 		shmem.self = params[bid].tptr;
 		shmem.depth = params[bid].depth;
 	}
