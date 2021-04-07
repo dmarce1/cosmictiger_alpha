@@ -67,6 +67,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 }
 
 CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
+	particle_set& parts = *(particle_set*) constant.particles;
 	kick_params_type &params = *params_ptr;
 	__shared__
 	extern int shmem_ptr[];
@@ -108,7 +109,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				const int sz = imax - imin;
 				for (int j = tid; j < sz; j += warpSize) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						sources[dim][part_index + j] = shmem.parts.pos(dim, j + imin);
+						sources[dim][part_index + j] = parts.pos(dim, j + imin);
 					}
 				}
 				these_parts.first += sz;
@@ -150,6 +151,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 }
 
 CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
+	particle_set& parts = *(particle_set*) constant.particles;
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
 	__shared__
@@ -172,7 +174,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 		my_index = 0;
 		found = false;
 		if (i < nsinks) {
-			if (shmem.parts.rung(i + myparts.first) >= params.rung || constant.full_eval) {
+			if (parts.rung(i + myparts.first) >= params.rung || constant.full_eval) {
 				found = true;
 				my_index = 1;
 				nactive++;
@@ -203,13 +205,14 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	}
 	for (int i = tid; i < nactive; i += warpSize) {
 		for (int dim = 0; dim < NDIM; dim++) {
-			sinks[dim][i] = shmem.parts.pos(dim, act_map[i] + myparts.first);
+			sinks[dim][i] = parts.pos(dim, act_map[i] + myparts.first);
 		}
 	}
 	return nactive;
 }
 
 CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive) {
+	particle_set& parts = *(particle_set*) constant.particles;
 	kick_params_type &params = *params_ptr;
 	const int &tid = threadIdx.x;
 	__shared__
@@ -251,7 +254,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 			const int sz = imax - imin;
 			for (int j = tid; j < sz; j += warpSize) {
 				for (int dim = 0; dim < NDIM; dim++) {
-					sources[dim][part_index + j] = shmem.parts.pos(dim, j + imin);
+					sources[dim][part_index + j] = parts.pos(dim, j + imin);
 				}
 			}
 			these_parts.first += sz;

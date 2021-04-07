@@ -15,6 +15,7 @@
 #include <cosmictiger/drift.hpp>
 #include <cosmictiger/sort.hpp>
 #include <cosmictiger/groups.hpp>
+#include <cosmictiger/time.hpp>
 #include <cmath>
 
 static void tree_test() {
@@ -52,12 +53,19 @@ static void tree_test() {
 	}
 }
 
+void load_from_file(particle_set& parts, int& step, time_type& itime, double& a, double& cosmicK);
 void kick_test() {
-#define NKICKS 10
 	printf("Doing kick test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
-	parts.load_particles("ics");
+	if( global().opts.checkpt_file == "") {
+		parts.load_particles("ics");
+	} else {
+		int step;
+		time_type itime;
+		double a, cosmicK;
+		load_from_file(parts,step,itime,a,cosmicK);
+	}
 	// parts.generate_grid();
 //	parts.generate_random();
 	tree::set_particle_set(&parts);

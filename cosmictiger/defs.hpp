@@ -32,9 +32,10 @@
 //#define TEST_STACK
 #define N_TEST_PARTS (100)
 
+#define NKICKS 25
 
 #define KICK_PP_MAX size_t(8*32)
-#define MAX_BUCKET_SIZE 158
+#define MAX_BUCKET_SIZE 160
 
 
 #define MIN_ACTIVE_PER_BLOCK 16

@@ -120,15 +120,13 @@ struct cuda_kick_shmem {
 		array<multipole_pos, KICK_PC_MAX> msrc;
 	};
 	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> sink;  // 3072
-	array<uint8_t, MAX_BUCKET_SIZE> act_map;
 	vector<tree_ptr> multi_interactions;
 	vector<tree_ptr> part_interactions;
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> opened_checks;
 	tree_ptr self;
-	particle_set parts;
 	int depth;
-
+	array<uint8_t, MAX_BUCKET_SIZE> act_map;
 };
 struct list_sizes_t {
 	int multi;
@@ -285,6 +283,7 @@ struct kick_constants {
 	int minrung;
 	float h2;
 	float hinv;
+	char particles[sizeof(particle_set)];
 };
 
 void cuda_set_kick_constants(kick_constants consts);

@@ -707,6 +707,7 @@ void tree::gpu_daemon() {
 				consts.scale = gpu_params[0].scale;
 				consts.t0 = gpu_params[0].t0;
 				consts.theta = gpu_params[0].theta;
+				memcpy(consts.particles, particles, sizeof(particle_set));
 				cuda_set_kick_constants(consts);
 			}
 			cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);

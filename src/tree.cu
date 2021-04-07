@@ -51,6 +51,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
+	particle_set& parts = *(particle_set*) constant.particles;
 	tree_ptr tptr = shmem.self;
 	const int &tid = threadIdx.x;
 	auto &F = params.F;
@@ -208,9 +209,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			const int pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
 			for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 				const auto index = k + myparts.first;
-				if (shmem.parts.rung(index) >= constant.rung || constant.full_eval) {
+				if (parts.rung(index) >= constant.rung || constant.full_eval) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						sinks[dim][k] = shmem.parts.pos(dim, index);
+						sinks[dim][k] = parts.pos(dim, index);
 					}
 				}
 			}
@@ -232,7 +233,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						res = true;
 					} else {
 						for (int k = 0; k < sz; k++) {
-							const auto this_rung = shmem.parts.rung(k + myparts.first);
+							const auto this_rung = parts.rung(k + myparts.first);
 							if (this_rung >= constant.rung || constant.full_eval) {
 								float dx0 = distance(other_pos[0], sinks[0][k]);
 								float dy0 = distance(other_pos[1], sinks[1][k]);
@@ -345,14 +346,14 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		const float& halft0 = constant.halft0;
 		const auto& minrung = constant.minrung;
 		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
-			const auto this_rung = shmem.parts.rung(k + myparts.first);
+			const auto this_rung = parts.rung(k + myparts.first);
 			if (this_rung >= params.rung || constant.full_eval) {
 				array<float, NDIM> g;
 				float this_phi;
 				array<float, NDIM> dx;
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto x2 = mypos[dim];
-					const auto x1 = shmem.parts.pos(dim, k + myparts.first);
+					const auto x1 = parts.pos(dim, k + myparts.first);
 					dx[dim] = distance(x1, x2);
 				}
 				shift_expansion(L, g, this_phi, dx, constant.full_eval);
@@ -366,16 +367,16 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				phi[k] *= GM;
 #ifdef TEST_FORCE
 				for (int dim = 0; dim < NDIM; dim++) {
-					shmem.parts.force(dim, k + myparts.first) = F[dim][k];
+					parts.force(dim, k + myparts.first) = F[dim][k];
 				}
-				shmem.parts.pot(k + myparts.first) = phi[k];
+				parts.pot(k + myparts.first) = phi[k];
 #endif
 				if (this_rung >= params.rung) {
 					float dt = halft0 * rung_dt[this_rung];
 					const auto index = k + myparts.first;
-					auto& vx = shmem.parts.vel(index).p.x;
-					auto& vy = shmem.parts.vel(index).p.y;
-					auto& vz = shmem.parts.vel(index).p.z;
+					auto& vx = parts.vel(index).p.x;
+					auto& vy = parts.vel(index).p.y;
+					auto& vz = parts.vel(index).p.z;
 					if (!params.first) {
 						vx = fmaf(dt, F[0][k], vx);
 						vy = fmaf(dt, F[1][k], vy);
@@ -392,13 +393,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					vx = fmaf(dt, F[0][k], vx);
 					vy = fmaf(dt, F[1][k], vy);
 					vz = fmaf(dt, F[2][k], vz);
-					shmem.parts.set_rung(new_rung, index);
+					parts.set_rung(new_rung, index);
 				}
 				if (constant.full_eval) {
 					kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
 				}
 			}
-			kick_return_update_rung_gpu(shmem.parts.rung(k + myparts.first));
+			kick_return_update_rung_gpu(parts.rung(k + myparts.first));
 		}
 	}
 	if (constant.full_eval) {
@@ -431,16 +432,6 @@ CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 		memcpy(&shmem.next_checks, &(params[bid].next_checks), sizeof(vector<tree_ptr> ));
 		memcpy(&shmem.opened_checks, &(params[bid].opened_checks), sizeof(vector<tree_ptr> ));
 		shmem.self = params[bid].tptr;
-		shmem.parts.xptr_ = parts->xptr_;
-		shmem.parts.uptr_ = parts->uptr_;
-		shmem.parts.idptr_ = parts->idptr_;
-#ifdef TEST_FORCE
-		shmem.parts.gptr_ = parts->gptr_;
-		shmem.parts.eptr_ = parts->eptr_;
-#endif
-		shmem.parts.size_ = parts->size_;
-		shmem.parts.offset_ = parts->offset_;
-		shmem.parts.virtual_ = true;
 		shmem.depth = params[bid].depth;
 	}
 	__syncthreads();
