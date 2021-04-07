@@ -39,7 +39,7 @@ void cuda_set_kick_constants(kick_constants consts) {
 	consts.h2 = sqr(consts.h);
 	consts.hinv = 1.f / consts.h;
 	consts.th = consts.h * consts.theta;
-	cudaMemcpyToSymbol(constant, &consts, sizeof(kick_constants));
+	CUDA_CHECK(cudaMemcpyToSymbol(constant, &consts, sizeof(kick_constants)));
 }
 
 __constant__ float rung_dt[MAX_RUNG] = { 1.0 / (1 << 0), 1.0 / (1 << 1), 1.0 / (1 << 2), 1.0 / (1 << 3), 1.0 / (1 << 4),
