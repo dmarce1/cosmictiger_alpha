@@ -124,6 +124,7 @@ struct cuda_kick_shmem {
 	vector<tree_ptr> part_interactions;
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> opened_checks;
+	stack_vector<tree_ptr> dchecks;
 	tree_ptr self;
 	int depth;
 	array<uint8_t, MAX_BUCKET_SIZE> act_map;

@@ -98,7 +98,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	int ninteractions = iamleaf ? 3 : 2;
 	for (int type = 0; type < ninteractions; type++) {
 		const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
-		auto& checks = ewald_dist ? params.echecks : params.dchecks;
+		auto& checks = ewald_dist ? params.echecks : shmem.dchecks;
 		const bool direct = type == PC_PP_EWALD || type == PC_PP_DIRECT;
 		for (int i = 0; i < NITERS; i++) {
 			count[i] = 0;
@@ -306,7 +306,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			params.Lpos[shmem.depth] = mypos;
 		}
 		if ((left_active && right_active) || constant.full_eval) {
-			params.dchecks.push_top();
+			shmem.dchecks.push_top();
 			params.echecks.push_top();
 			if (tid == 0) {
 				shmem.self = children[LEFT];
@@ -317,7 +317,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				params.L[shmem.depth] = L;
 				shmem.self = children[RIGHT];
 			}
-			params.dchecks.pop_top();
+			shmem.dchecks.pop_top();
 			params.echecks.pop_top();
 			__syncwarp();
 			cuda_kick(params_ptr);
@@ -431,6 +431,7 @@ CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 		memcpy(&shmem.multi_interactions, &(params[bid].multi_interactions), sizeof(vector<tree_ptr> ));
 		memcpy(&shmem.next_checks, &(params[bid].next_checks), sizeof(vector<tree_ptr> ));
 		memcpy(&shmem.opened_checks, &(params[bid].opened_checks), sizeof(vector<tree_ptr> ));
+		memcpy(&shmem.dchecks, &(params[bid].dchecks), sizeof(stack_vector<tree_ptr>));
 		shmem.self = params[bid].tptr;
 		shmem.depth = params[bid].depth;
 	}
@@ -447,7 +448,7 @@ CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 		shmem.multi_interactions.~vector<tree_ptr>();
 		shmem.next_checks.~vector<tree_ptr>();
 		shmem.opened_checks.~vector<tree_ptr>();
-		params[bid].dchecks.~stack_vector<tree_ptr>();
+		shmem.dchecks.~stack_vector<tree_ptr>();
 		params[bid].echecks.~stack_vector<tree_ptr>();
 	}
 
