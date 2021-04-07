@@ -68,24 +68,19 @@ struct particle_set {
 		return size_;
 	}
 	void init_groups();
-#ifdef TEST_FORCE
 	CUDA_EXPORT
 	float force(int dim, size_t index) const;CUDA_EXPORT
 	float& force(int dim, size_t index);CUDA_EXPORT
 	float pot(size_t index) const;CUDA_EXPORT
 	float& pot(size_t index);
-#endif
 #ifndef __CUDACC__
 private:
 #endif
 	array<fixed32*, NDIM> xptr_;
 	vel_type* uptr_;
 	group_t* idptr_;
-#ifdef TEST_FORCE
 	array<float*, NDIM> gptr_;
 	float* eptr_;
-#endif
-//	rung_t *rptr_;
 	size_t size_;
 	size_t offset_;
 	bool virtual_;
@@ -168,7 +163,6 @@ inline void particle_set::set_rung(rung_t t, size_t index) {
 
 void drift(particle_set *parts, double a1, double a2, double dtau);
 
-#ifdef TEST_FORCE
 CUDA_EXPORT inline float particle_set::force(int dim, size_t index) const {
 	assert(index < size_);
 	return gptr_[dim][index];
@@ -191,7 +185,6 @@ CUDA_EXPORT inline float& particle_set::pot(size_t index) {
 }
 
 
-#endif
 
 CUDA_EXPORT inline group_t particle_set::group(size_t index) const {
 	return idptr_[index];

@@ -494,7 +494,6 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 
 }
 
-#ifdef TEST_FORCE
 CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr,
 		float* pnorm, float GM, float h);
 
@@ -657,4 +656,3 @@ void cuda_compare_with_direct(particle_set *parts) {
 	CUDA_FREE(test_parts);
 }
 
-#endif
