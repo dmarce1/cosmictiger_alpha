@@ -347,7 +347,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		const auto& minrung = constant.minrung;
 		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 			const auto this_rung = parts.rung(k + myparts.first);
-			if (this_rung >= params.rung || constant.full_eval) {
+			if (this_rung >= constant.rung || constant.full_eval) {
 				array<float, NDIM> g;
 				float this_phi;
 				array<float, NDIM> dx;
@@ -371,13 +371,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 				parts.pot(k + myparts.first) = phi[k];
 #endif
-				if (this_rung >= params.rung) {
+				if (this_rung >= constant.rung) {
 					float dt = halft0 * rung_dt[this_rung];
 					const auto index = k + myparts.first;
 					auto& vx = parts.vel(index).p.x;
 					auto& vy = parts.vel(index).p.y;
 					auto& vz = parts.vel(index).p.z;
-					if (!params.first) {
+					if (!constant.first) {
 						vx = fmaf(dt, F[0][k], vx);
 						vy = fmaf(dt, F[1][k], vy);
 						vz = fmaf(dt, F[2][k], vz);

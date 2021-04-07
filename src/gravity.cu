@@ -174,7 +174,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 		my_index = 0;
 		found = false;
 		if (i < nsinks) {
-			if (parts.rung(i + myparts.first) >= params.rung || constant.full_eval) {
+			if (parts.rung(i + myparts.first) >= constant.rung || constant.full_eval) {
 				found = true;
 				my_index = 1;
 				nactive++;
