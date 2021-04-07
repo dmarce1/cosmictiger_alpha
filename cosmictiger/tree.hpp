@@ -38,7 +38,6 @@ struct tree_stats {
 
 #ifndef __CUDACC__
 
-
 struct sort_params {
 #ifdef TEST_STACK
 	uint8_t* stack_ptr;
@@ -264,3 +263,26 @@ public:
 
 void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);
 
+struct kick_constants {
+	float theta;
+	float eta;
+	float scale;
+	float t0;
+	bool full_eval;
+	int rung;
+	float h;
+	float G;
+	float M;
+	float theta2;
+	float invlog2;
+	float GM;
+	float tfactor;
+	float logt0;
+	float halft0;
+	int minrung;
+	float h2;
+	float hinv;
+
+};
+
+void cuda_set_kick_constants(kick_constants consts);

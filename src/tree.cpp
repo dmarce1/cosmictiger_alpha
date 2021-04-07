@@ -641,12 +641,13 @@ void tree::gpu_daemon() {
 	first_call = false;
 	int max_oc = global().cuda_kick_occupancy * global().cuda.devices[0].multiProcessorCount;
 	max_blocks_active = 2 * max_oc;
-
+	bool first_pass = true;
+	bool alldone;
 	do {
 		timer.stop();
 		if (timer.read() > 0.05) {
-			printf("%c %i in queue: %i active: %i complete                                  \r", waiting_char[counter % 4], gpu_queue.size(), blocks_active,
-					blocks_completed);
+			printf("%c %i in queue: %i active: %i complete                                  \r", waiting_char[counter % 4],
+					gpu_queue.size(), blocks_active, blocks_completed);
 			counter++;
 			timer.reset();
 		}
@@ -693,37 +694,51 @@ void tree::gpu_daemon() {
 				unified_allocator calloc;
 				calloc.deallocate(gpu_params);
 			});
+			auto completed = std::make_shared<bool>(false);
+			if( first_pass) {
+				first_pass = false;
+				kick_constants consts;
+				consts.G = gpu_params[0].G;
+				consts.M = gpu_params[0].M;
+				consts.eta = gpu_params[0].eta;
+				consts.full_eval = gpu_params[0].full_eval;
+				consts.h = gpu_params[0].hsoft;
+				consts.rung = gpu_params[0].rung;
+				consts.scale = gpu_params[0].scale;
+				consts.t0 = gpu_params[0].t0;
+				consts.theta = gpu_params[0].theta;
+				cuda_set_kick_constants(consts);
+			}
 			cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
 			completions.push_back(std::function<bool()>([=]() {
-				if( cudaStreamQuery(stream) == cudaSuccess) {
-					CUDA_CHECK(cudaStreamSynchronize(stream));
-					cleanup_stream(stream);
-					for (auto &d : *deleters) {
-						d();
+				if( !((*completed))) {
+					if( cudaStreamQuery(stream) == cudaSuccess) {
+						CUDA_CHECK(cudaStreamSynchronize(stream));
+						cleanup_stream(stream);
+						for (auto &d : *deleters) {
+							d();
+						}
+						blocks_completed += sz;
+						blocks_active -= sz;
+						for (int i = 0; i < sz; i++) {
+							(*gpu_promises)[i]->set_value();
+						}
+						*completed = true;
 					}
-					blocks_completed += sz;
-					blocks_active -= sz;
-					for (int i = 0; i < sz; i++) {
-						(*gpu_promises)[i]->set_value();
-					}
-					//		printf("Done executing\n");
-					return true;
-				} else {
-					return false;
 				}
+				return *completed;
 			}));
 			kick_grid_size = std::min((int) gpu_queue.size(), kick_grid_size);
 		}
 		int i = 0;
-		while (i < completions.size()) {
-			if (completions[i]()) {
-				completions[i] = completions.back();
-				completions.pop_back();
-			} else {
-				i++;
+		alldone = true;
+		for (int i = 0; i < completions.size(); i++) {
+			if (!completions[i]()) {
+				alldone = false;
+				break;
 			}
 		}
-	} while (completions.size() || gpu_queue.size());
+	} while (!alldone || gpu_queue.size());
 }
 
 hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {

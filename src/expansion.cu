@@ -53,6 +53,10 @@ __host__ void expansion_init_cpu() {
 	//abort();
 }
 
+__constant__ int offsets4[6] = { 0, 1, 1, 2, 2, 2 };
+__constant__ int offsets5[6] = { 0, 2, 2, 4, 4, 4 };
+__constant__ int offsets10[10] = { 0, 1, 1, 2, 2, 2, 3, 3, 3, 3 };
+
 CUDA_DEVICE expansion<float>& cuda_shift_expansion(expansion<float> &L, const array<float, NDIM> &dX, bool do_phi) {
 	const int& tid = threadIdx.x;
 	float tmp1;
@@ -192,9 +196,6 @@ CUDA_DEVICE expansion<float>& cuda_shift_expansion(expansion<float> &L, const ar
 
 	const auto tid4 = tid + 4;
 	const auto tid10 = tid + 10;
-	constexpr int offsets4[6] = { 0, 1, 1, 2, 2, 2 };
-	constexpr int offsets5[6] = { 0, 2, 2, 4, 4, 4 };
-	constexpr int offsets10[10] = { 0, 1, 1, 2, 2, 2, 3, 3, 3, 3 };
 	__syncwarp();
 	if (tid < 6) {
 		const auto tidpoff4 = tid + offsets4[tid];

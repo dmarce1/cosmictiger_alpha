@@ -9,6 +9,9 @@
 #include <cosmictiger/array.hpp>
 #include <cosmictiger/kick_return.hpp>
 #include <cosmictiger/cuda.hpp>
+#include <cosmictiger/tree.hpp>
+
+extern __constant__ kick_constants constant;
 
 CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type etype) {
 	kick_params_type &params = *params_ptr;
@@ -30,7 +33,6 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	}
 	const auto pos = params.tptr.get_pos();
 	const int sz = multis.size();
-	const bool full_eval = params.full_eval;
 	for (int i = tid; i < sz; i += warpSize) {
 		const multipole mpole = multis[i].get_multi();
 		array<float, NDIM> fpos;
@@ -44,7 +46,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		} else {
 			flops += green_ewald(D, fpos);
 		}
-		flops += multipole_interaction(L, mpole, D, full_eval);
+		flops += multipole_interaction(L, mpole, D, constant.full_eval);
 		interacts++;
 	}
 
@@ -59,7 +61,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		params.L[params.depth][i] += L[i];
 	}
 	__syncwarp();
-	if (full_eval) {
+	if (constant.full_eval) {
 		kick_return_update_interactions_gpu(etype == DIRECT ? KR_CC : KR_EWCC, interacts, flops);
 	}
 }
@@ -73,7 +75,6 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	const auto& parti = shmem.part_interactions;
 	const int &tid = threadIdx.x;
 	//auto &Lreduce = shmem.Lreduce;
-	const bool full_eval = params.full_eval;
 	if (parti.size() == 0) {
 		return;
 	}
@@ -144,7 +145,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		}
 	}
 	__syncwarp();
-	if (full_eval) {
+	if (constant.full_eval) {
 		kick_return_update_interactions_gpu(KR_CP, interacts, flops);
 	}
 }
@@ -158,7 +159,6 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
 	particle_set *parts = params.particles;
-	const bool full_eval = params.full_eval;
 
 	const auto myparts = params.tptr.get_parts();
 	const int nsinks = myparts.second - myparts.first;
@@ -174,7 +174,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 		my_index = 0;
 		found = false;
 		if (i < nsinks) {
-			if (parts->rung(i + myparts.first) >= params.rung || full_eval) {
+			if (parts->rung(i + myparts.first) >= params.rung || constant.full_eval) {
 				found = true;
 				my_index = 1;
 				nactive++;
@@ -224,12 +224,10 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	auto &sources = shmem.src;
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
-	const auto h = params.hsoft;
-	const auto h2 = h * h;
-	const auto hinv = 1.0f / h;
+	const auto& h2 = constant.h2;
+	const auto& hinv = constant.hinv;
 	int flops = 0;
 	int interacts = 0;
-	const bool full_eval = params.full_eval;
 	int part_index;
 	if (parti.size() == 0) {
 		return;
@@ -301,7 +299,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 					r3inv = +15.0f / 8.0f;
 					r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
 					r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
-					if (full_eval) {
+					if (constant.full_eval) {
 						r1inv = -5.0f / 16.0f;
 						r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
 						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
@@ -321,7 +319,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 			F[0][l] -= fx;
 			F[1][l] -= fy;
 			F[2][l] -= fz;
-			if (full_eval) {
+			if (constant.full_eval) {
 				Phi[l] += phi;
 			}
 //			}
@@ -347,7 +345,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 					r3inv = +15.0f / 8.0f;
 					r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
 					r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
-					if (full_eval) {
+					if (constant.full_eval) {
 						r1inv = -5.0f / 16.0f;
 						r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
 						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
@@ -367,7 +365,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 				fx += __shfl_down_sync(0xffffffff, fx, P);
 				fy += __shfl_down_sync(0xffffffff, fy, P);
 				fz += __shfl_down_sync(0xffffffff, fz, P);
-				if (full_eval) {
+				if (constant.full_eval) {
 					phi += __shfl_down_sync(0xffffffff, phi, P);
 				}
 			}
@@ -376,14 +374,14 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 				F[0][l] -= fx;
 				F[1][l] -= fy;
 				F[2][l] -= fz;
-				if (full_eval) {
+				if (constant.full_eval) {
 					Phi[l] += phi;
 				}
 			}
 		}
 	}
 	__syncwarp();
-	if (full_eval) {
+	if (constant.full_eval) {
 		kick_return_update_interactions_gpu(KR_PP, interacts, flops);
 	}
 }
@@ -407,7 +405,6 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	auto &sinks = shmem.sink;
 	auto& msrcs = shmem.msrc;
 
-	const bool full_eval = params.full_eval;
 	int interacts = 0;
 	int flops = 0;
 	array<float, NDIM> dx;
@@ -449,14 +446,14 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 				dx2 = distance(sinks[2][k], source[2]);
 				flops += 6;
 				flops += green_direct(D, dx);
-				flops += multipole_interaction(Lforce, msrcs[i].multi, D, full_eval);
+				flops += multipole_interaction(Lforce, msrcs[i].multi, D, constant.full_eval);
 				interacts++;
 			}
 			const int l = act_map[k];
 			F[0][l] -= Lforce[1];
 			F[1][l] -= Lforce[2];
 			F[2][l] -= Lforce[3];
-			if (full_eval) {
+			if (constant.full_eval) {
 				Phi[l] += Lforce[0];
 			}
 		}
@@ -472,7 +469,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 				dx2 = distance(sinks[2][k], source[2]);
 				flops += 6;
 				flops += green_direct(D, dx);
-				flops += multipole_interaction(Lforce, msrcs[i].multi, D, full_eval);
+				flops += multipole_interaction(Lforce, msrcs[i].multi, D, constant.full_eval);
 				interacts++;
 			}
 			for (int P = warpSize / 2; P >= 1; P /= 2) {
@@ -485,14 +482,14 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 				F[0][l] -= Lforce[1];
 				F[1][l] -= Lforce[2];
 				F[2][l] -= Lforce[3];
-				if (full_eval) {
+				if (constant.full_eval) {
 					Phi[l] += Lforce[0];
 				}
 			}
 		}
 	}
 	__syncwarp();
-	if (full_eval) {
+	if (constant.full_eval) {
 		kick_return_update_interactions_gpu(KR_PC, interacts, flops);
 	}
 
