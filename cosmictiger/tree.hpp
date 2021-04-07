@@ -126,6 +126,9 @@ struct cuda_kick_shmem {
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> opened_checks;
 	tree_ptr self;
+	particle_set parts;
+	int depth;
+
 };
 struct list_sizes_t {
 	int multi;
@@ -149,7 +152,6 @@ struct kick_params_type {
 	array<expansion<float>, TREE_MAX_DEPTH> L;
 	array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
 	tree_ptr tptr;
-	particle_set* particles;
 	int depth;
 	size_t block_cutoff;
 	float theta;
@@ -283,7 +285,6 @@ struct kick_constants {
 	int minrung;
 	float h2;
 	float hinv;
-
 };
 
 void cuda_set_kick_constants(kick_constants consts);

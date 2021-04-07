@@ -91,7 +91,7 @@ private:
 	bool virtual_;
 
 public:
-
+	CUDA_EXPORT
 	particle_set get_virtual_particle_set() const {
 		particle_set v;
 		v.uptr_ = uptr_;

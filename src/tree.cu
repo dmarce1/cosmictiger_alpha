@@ -55,11 +55,11 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	const int &tid = threadIdx.x;
 	auto &F = params.F;
 	auto &phi = params.Phi;
-	auto &L = params.L[params.depth];
+	auto &L = params.L[shmem.depth];
 	int list_index;
 	const auto mypos = shmem.self.get_pos();
 	const auto myradius = shmem.self.get_radius();
-	const auto &Lpos = params.Lpos[params.depth];
+	const auto &Lpos = params.Lpos[shmem.depth];
 	array<float, NDIM> dx;
 	for (int dim = 0; dim < NDIM; dim++) {
 		dx[dim] = distance(mypos[dim], Lpos[dim]);
@@ -208,9 +208,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			const int pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
 			for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
 				const auto index = k + myparts.first;
-				if (parts->rung(index) >= constant.rung || constant.full_eval) {
+				if (shmem.parts.rung(index) >= constant.rung || constant.full_eval) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						sinks[dim][k] = parts->pos(dim, index);
+						sinks[dim][k] = shmem.parts.pos(dim, index);
 					}
 				}
 			}
@@ -232,7 +232,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						res = true;
 					} else {
 						for (int k = 0; k < sz; k++) {
-							const auto this_rung = parts->rung(k + myparts.first);
+							const auto this_rung = shmem.parts.rung(k + myparts.first);
 							if (this_rung >= constant.rung || constant.full_eval) {
 								float dx0 = distance(other_pos[0], sinks[0][k]);
 								float dy0 = distance(other_pos[1], sinks[1][k]);
@@ -300,9 +300,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		const auto right_active = children[RIGHT].get_active_parts();
 		;
 		if (tid == 0) {
-			params.depth++;
-			params.L[params.depth] = L;
-			params.Lpos[params.depth] = mypos;
+			shmem.depth++;
+			params.L[shmem.depth] = L;
+			params.Lpos[shmem.depth] = mypos;
 		}
 		if ((left_active && right_active) || constant.full_eval) {
 			params.dchecks.push_top();
@@ -313,7 +313,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			__syncwarp();
 			cuda_kick(params_ptr);
 			if (tid == 0) {
-				params.L[params.depth] = L;
+				params.L[shmem.depth] = L;
 				shmem.self = children[RIGHT];
 			}
 			params.dchecks.pop_top();
@@ -334,7 +334,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			cuda_kick(params_ptr);
 		}
 		if (tid == 0) {
-			params.depth--;
+			shmem.depth--;
 		}
 		//   printf( "%li\n", rc.flops);
 	} else {
@@ -345,14 +345,14 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		const float& halft0 = constant.halft0;
 		const auto& minrung = constant.minrung;
 		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
-			const auto this_rung = parts->rung(k + myparts.first);
+			const auto this_rung = shmem.parts.rung(k + myparts.first);
 			if (this_rung >= params.rung || constant.full_eval) {
 				array<float, NDIM> g;
 				float this_phi;
 				array<float, NDIM> dx;
 				for (int dim = 0; dim < NDIM; dim++) {
 					const auto x2 = mypos[dim];
-					const auto x1 = parts->pos(dim, k + myparts.first);
+					const auto x1 = shmem.parts.pos(dim, k + myparts.first);
 					dx[dim] = distance(x1, x2);
 				}
 				shift_expansion(L, g, this_phi, dx, constant.full_eval);
@@ -366,16 +366,16 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				phi[k] *= GM;
 #ifdef TEST_FORCE
 				for (int dim = 0; dim < NDIM; dim++) {
-					parts->force(dim, k + myparts.first) = F[dim][k];
+					shmem.parts.force(dim, k + myparts.first) = F[dim][k];
 				}
-				parts->pot(k + myparts.first) = phi[k];
+				shmem.parts.pot(k + myparts.first) = phi[k];
 #endif
 				if (this_rung >= params.rung) {
 					float dt = halft0 * rung_dt[this_rung];
 					const auto index = k + myparts.first;
-					auto& vx = parts->vel(index).p.x;
-					auto& vy = parts->vel(index).p.y;
-					auto& vz = parts->vel(index).p.z;
+					auto& vx = shmem.parts.vel(index).p.x;
+					auto& vy = shmem.parts.vel(index).p.y;
+					auto& vz = shmem.parts.vel(index).p.z;
 					if (!params.first) {
 						vx = fmaf(dt, F[0][k], vx);
 						vy = fmaf(dt, F[1][k], vy);
@@ -392,13 +392,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					vx = fmaf(dt, F[0][k], vx);
 					vy = fmaf(dt, F[1][k], vy);
 					vz = fmaf(dt, F[2][k], vz);
-					parts->set_rung(new_rung, index);
+					shmem.parts.set_rung(new_rung, index);
 				}
 				if (constant.full_eval) {
 					kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
 				}
 			}
-			kick_return_update_rung_gpu(parts->rung(k + myparts.first));
+			kick_return_update_rung_gpu(shmem.parts.rung(k + myparts.first));
 		}
 	}
 	if (constant.full_eval) {
@@ -422,7 +422,6 @@ void tree::cuda_set_kick_params(particle_set *p) {
 
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 	const int &bid = blockIdx.x;
-	params[bid].particles = parts;
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
@@ -432,6 +431,17 @@ CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 		memcpy(&shmem.next_checks, &(params[bid].next_checks), sizeof(vector<tree_ptr> ));
 		memcpy(&shmem.opened_checks, &(params[bid].opened_checks), sizeof(vector<tree_ptr> ));
 		shmem.self = params[bid].tptr;
+		shmem.parts.xptr_ = parts->xptr_;
+		shmem.parts.uptr_ = parts->uptr_;
+		shmem.parts.idptr_ = parts->idptr_;
+#ifdef TEST_FORCE
+		shmem.parts.gptr_ = parts->gptr_;
+		shmem.parts.eptr_ = parts->eptr_;
+#endif
+		shmem.parts.size_ = parts->size_;
+		shmem.parts.offset_ = parts->offset_;
+		shmem.parts.virtual_ = true;
+		shmem.depth = params[bid].depth;
 	}
 	__syncthreads();
 	cuda_kick(params + bid);
