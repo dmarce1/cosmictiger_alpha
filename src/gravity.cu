@@ -31,7 +31,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	for (int i = 0; i < LP; i++) {
 		L[i] = 0.0f;
 	}
-	const auto pos = params.tptr.get_pos();
+	const auto pos = shmem.self.get_pos();
 	const int sz = multis.size();
 	for (int i = tid; i < sz; i += warpSize) {
 		const multipole mpole = multis[i].get_multi();
@@ -79,7 +79,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		return;
 	}
 	auto &sources = shmem.src;
-	const auto myparts = params.tptr.get_parts();
+	const auto myparts = shmem.self.get_parts();
 	int part_index;
 	int flops = 0;
 	int interacts = 0;
@@ -90,7 +90,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		}
 		auto these_parts = parti[0].get_parts();
 		int i = 0;
-		const auto pos = params.tptr.get_pos();
+		const auto pos = shmem.self.get_pos();
 		const auto partsz = parti.size();
 		while (i < partsz) {
 			part_index = 0;
@@ -160,7 +160,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	auto& act_map = shmem.act_map;
 	particle_set *parts = params.particles;
 
-	const auto myparts = params.tptr.get_parts();
+	const auto myparts = shmem.self.get_parts();
 	const int nsinks = myparts.second - myparts.first;
 	const int nsinks_max = max(((nsinks - 1) / warpSize + 1) * warpSize, 0);
 
@@ -233,7 +233,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 		return;
 	}
 //   printf( "%i\n", parti.size());
-	const auto myparts = params.tptr.get_parts();
+	const auto myparts = shmem.self.get_parts();
 	int i = 0;
 	auto these_parts = parti[0].get_parts();
 	const auto partsz = parti.size();
@@ -398,7 +398,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	auto &F = params.F;
 	auto& act_map = shmem.act_map;
 	auto &Phi = params.Phi;
-	const auto myparts = params.tptr.get_parts();
+	const auto myparts = shmem.self.get_parts();
 	if (multis.size() == 0) {
 		return;
 	}

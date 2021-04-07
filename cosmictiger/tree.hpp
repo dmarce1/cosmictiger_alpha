@@ -125,6 +125,7 @@ struct cuda_kick_shmem {
 	vector<tree_ptr> part_interactions;
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> opened_checks;
+	tree_ptr self;
 };
 struct list_sizes_t {
 	int multi;

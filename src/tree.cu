@@ -51,14 +51,14 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-	tree_ptr tptr = params.tptr;
+	tree_ptr tptr = shmem.self;
 	const int &tid = threadIdx.x;
 	auto &F = params.F;
 	auto &phi = params.Phi;
 	auto &L = params.L[params.depth];
 	int list_index;
-	const auto mypos = params.tptr.get_pos();
-	const auto myradius = params.tptr.get_radius();
+	const auto mypos = shmem.self.get_pos();
+	const auto myradius = shmem.self.get_radius();
 	const auto &Lpos = params.Lpos[params.depth];
 	array<float, NDIM> dx;
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -76,7 +76,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			phi[k] = -PHI0;
 		}
 	}
-	const auto myparts = params.tptr.get_parts();
+	const auto myparts = shmem.self.get_parts();
 	array<int, NITERS> count;
 
 	const float& theta = constant.theta;
@@ -294,7 +294,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			break;
 		}
 	}
-	if (!params.tptr.is_leaf()) {
+	if (!shmem.self.is_leaf()) {
 		const auto children = tptr.get_children();
 		const auto left_active = children[LEFT].get_active_parts();
 		const auto right_active = children[RIGHT].get_active_parts();
@@ -308,13 +308,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			params.dchecks.push_top();
 			params.echecks.push_top();
 			if (tid == 0) {
-				params.tptr = children[LEFT];
+				shmem.self = children[LEFT];
 			}
 			__syncwarp();
 			cuda_kick(params_ptr);
 			if (tid == 0) {
 				params.L[params.depth] = L;
-				params.tptr = children[RIGHT];
+				shmem.self = children[RIGHT];
 			}
 			params.dchecks.pop_top();
 			params.echecks.pop_top();
@@ -322,13 +322,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			cuda_kick(params_ptr);
 		} else if (left_active) {
 			if (tid == 0) {
-				params.tptr = children[LEFT];
+				shmem.self = children[LEFT];
 			}
 			__syncwarp();
 			cuda_kick(params_ptr);
 		} else if (right_active) {
 			if (tid == 0) {
-				params.tptr = children[RIGHT];
+				shmem.self = children[RIGHT];
 			}
 			__syncwarp();
 			cuda_kick(params_ptr);
@@ -431,6 +431,7 @@ CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 		memcpy(&shmem.multi_interactions, &(params[bid].multi_interactions), sizeof(vector<tree_ptr> ));
 		memcpy(&shmem.next_checks, &(params[bid].next_checks), sizeof(vector<tree_ptr> ));
 		memcpy(&shmem.opened_checks, &(params[bid].opened_checks), sizeof(vector<tree_ptr> ));
+		shmem.self = params[bid].tptr;
 	}
 	__syncthreads();
 	cuda_kick(params + bid);
