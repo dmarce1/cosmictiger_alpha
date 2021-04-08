@@ -76,3 +76,28 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 
 int cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, double* momx, double* momy, double* momz, double tau, double tau_max);
 
+
+int drift_particles(particle_set parts, double dt, double a0, double a1, double* ekin, double* momx, double* momy,
+		double* momz, double tau, double tau_max) {
+//	drift_cpu( parts,dt, a0,a1);
+	parts.prepare_drift();
+//	const auto a = 1.0 / (0.5 / a0 + 0.5 / a1);
+	const auto ddt = cosmos_drift_dtau(a0,dt);
+	const auto a = 1.0 / ddt;
+//	printf( "%e %e\n", a, 1.0/ddt);
+	double* results;
+	CUDA_MALLOC(results, 4);
+	for (int i = 0; i < 4; i++) {
+		results[i] = 0.0;
+	}
+//	drift_kernel<<<nblock,DRIFT_BLOCK_SIZE,0,stream>>>(parts, dt, a, results + 0, results + 1, results + 2, results + 3);
+//	CUDA_CHECK(cudaStreamSynchronize(stream));
+	int rc = cpu_drift_kernel(parts, dt, a, results + 0, results + 1, results + 2, results + 3, tau, tau_max);
+	*ekin = results[0];
+	*momx = results[1];
+	*momy = results[2];
+	*momz = results[3];
+	CUDA_FREE(results);
+//	printf( "%i\n", (int) rc);
+	return rc;
+}
