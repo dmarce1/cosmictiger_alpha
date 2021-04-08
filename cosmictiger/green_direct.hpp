@@ -25,11 +25,6 @@ inline bool any_true(simd_float a) {
 template<class T>
 CUDA_EXPORT int green_direct(expansion<T> &D, array<T, NDIM> dX, T rmin = 0.f) {
 	bool scaled = false;
-#ifndef __CUDA_ARCH__
-	const T nthree(-3.0f);
-	const T nfive(-5.0f);
-	const T nseven(-7.0f);
-#endif
 	T r2 = FMAX(FMA(dX[0], dX[0], FMA(dX[1], dX[1], sqr(dX[2]))), rmin * rmin);            // 5
 	if (any_true(r2 < T(RCUT2))) {
 		scaled = true;
@@ -42,9 +37,9 @@ CUDA_EXPORT int green_direct(expansion<T> &D, array<T, NDIM> dX, T rmin = 0.f) {
 	const T r2inv = rinv * rinv;        // 1
 	const T d0 = -rinv;                 // 1
 	const T d1 = -d0 * r2inv;           // 2
-	const T d2 = nthree * d1 * r2inv;      // 2
-	const T d3 = nfive * d2 * r2inv;    // 2
-	const T d4 = nseven * d3 * r2inv;      // 2
+	const T d2 = T(-3) * d1 * r2inv;      // 2
+	const T d3 = T(-5) * d2 * r2inv;    // 2
+	const T d4 = T(-7) * d3 * r2inv;      // 2
 	NAN_TEST(d0);NAN_TEST(d1);NAN_TEST(d2);NAN_TEST(d3);NAN_TEST(d4);
 	int flops = 21 + FLOP_RSQRT + green_deriv_direct(D, d0, d1, d2, d3, d4, dX);
 	if (scaled) {

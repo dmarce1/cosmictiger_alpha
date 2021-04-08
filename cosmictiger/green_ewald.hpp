@@ -117,15 +117,10 @@ CUDA_EXPORT int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, con
 template<class T>
 CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 	ewald_const econst;
+	T r = SQRT(FMA(X[0], X[0], FMA(X[1], X[1], sqr(X[2]))));                   // 5
 #ifndef __CUDA_ARCH__
 	const T rmin = 1.0e-2;
-	const T fouroversqrtpi(4.0 / SQRT(M_PI));
-	const T nthree(-3.0);
-	const T nfive(-5.0);
-	const T nseven(-7.0);
-	const T neight(-8.0);
 #endif
-	T r = SQRT(FMA(X[0], X[0], FMA(X[1], X[1], sqr(X[2]))));                   // 5
 	r = FMAX(rmin, r);
 	int flops = 6;
 	D = 0.0;
@@ -153,15 +148,15 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 			T erfc0 = erfcexp(2.f * r, &exp0);                                            // 18 + FLOP_DIV + FLOP_EXP
 			const T expfactor = fouroversqrtpi * r * exp0;                                // 2
 			const T e1 = expfactor * r3inv;                                               // 1
-			const T e2 = neight * e1;                                                     // 1
-			const T e3 = neight * e2;                                                     // 1
-			const T e4 = neight * e3;                                                     // 1
+			const T e2 = T(-8) * e1;                                                     // 1
+			const T e3 = T(-8) * e2;                                                     // 1
+			const T e4 = T(-8) * e3;                                                     // 1
 			const T d0 = -erfc0 * rinv;                                                   // 2
 			const T d1 = FMA(-d0, r2inv, e1);                                             // 3
-			const T d2 = FMA(nthree * d1, r2inv, e2);                                     // 3
-			const T d3 = FMA(nfive * d2, r2inv, e3);                                      // 3
-			const T d4 = FMA(nseven * d3, r2inv, e4);                                     // 3
-			NAN_TEST(d0); NAN_TEST(d1); NAN_TEST(d2); NAN_TEST(d3); NAN_TEST(d4);
+			const T d2 = FMA(T(-3) * d1, r2inv, e2);                                     // 3
+			const T d3 = FMA(T(-5) * d2, r2inv, e3);                                      // 3
+			const T d4 = FMA(T(-7) * d3, r2inv, e4);                                     // 3
+			NAN_TEST(d0);NAN_TEST(d1);NAN_TEST(d2);NAN_TEST(d3);NAN_TEST(d4);
 			flops += 51 + 2 * FLOP_DIV + FLOP_SQRT + FLOP_EXP + green_deriv_ewald(D, d0, d1, d2, d3, d4, dx);
 		}
 	}
