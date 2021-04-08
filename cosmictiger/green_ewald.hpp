@@ -120,10 +120,6 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 #ifndef __CUDA_ARCH__
 	const T rmin = 1.0e-2;
 	const T fouroversqrtpi(4.0 / SQRT(M_PI));
-	const T nthree(-3.0);
-	const T nfive(-5.0);
-	const T nseven(-7.0);
-	const T neight(-8.0);
 #endif
 	T r = SQRT(FMA(X[0], X[0], FMA(X[1], X[1], sqr(X[2]))));                   // 5
 	r = FMAX(rmin, r);
@@ -153,15 +149,19 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 			T erfc0 = erfcexp(2.f * r, &exp0);                                            // 18 + FLOP_DIV + FLOP_EXP
 			const T expfactor = fouroversqrtpi * r * exp0;                                // 2
 			const T e1 = expfactor * r3inv;                                               // 1
-			const T e2 = neight * e1;                                                     // 1
-			const T e3 = neight * e2;                                                     // 1
-			const T e4 = neight * e3;                                                     // 1
+			const T e2 = T(8) * e1;                                                     // 1
+			const T e3 = T(8) * e2;                                                     // 1
+			const T e4 = T(8) * e3;                                                     // 1
 			const T d0 = -erfc0 * rinv;                                                   // 2
 			const T d1 = FMA(-d0, r2inv, e1);                                             // 3
-			const T d2 = FMA(nthree * d1, r2inv, e2);                                     // 3
-			const T d3 = FMA(nfive * d2, r2inv, e3);                                      // 3
-			const T d4 = FMA(nseven * d3, r2inv, e4);                                     // 3
-			NAN_TEST(d0); NAN_TEST(d1); NAN_TEST(d2); NAN_TEST(d3); NAN_TEST(d4);
+			const T d2 = FMA(T(-3) * d1, r2inv, e2);                                     // 3
+			const T d3 = FMA(T(-5) * d2, r2inv, e3);                                      // 3
+			const T d4 = FMA(T(-7) * d3, r2inv, e4);                                     // 3
+			NAN_TEST(d0);
+			NAN_TEST(d1);
+			NAN_TEST(d2);
+			NAN_TEST(d3);
+			NAN_TEST(d4);
 			flops += 51 + 2 * FLOP_DIV + FLOP_SQRT + FLOP_EXP + green_deriv_ewald(D, d0, d1, d2, d3, d4, dx);
 		}
 	}
@@ -176,18 +176,40 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 		T so;
 		SINCOS(twopi * hdotx, &so, &co);                           // FLOP_SINCOS
 		D[0] = FMA(hpart[0], co, D[0]);                           // 2
-		for (int i = 1; i < 4; i++) {
-			D[i] = FMA(hpart[i], so, D[i]);                           // 2
-		}
-		for (int i = 4; i < 10; i++) {
-			D[i] = FMA(hpart[i], co, D[i]);                           // 2
-		}
-		for (int i = 10; i < 20; i++) {
-			D[i] = FMA(hpart[i], so, D[i]);                           // 2
-		}
-		for (int i = 20; i < 35; i++) {
-			D[i] = FMA(hpart[i], co, D[i]);                           // 2
-		}
+		D[1] = FMA(hpart[1], so, D[1]);                           // 2
+		D[2] = FMA(hpart[2], so, D[2]);                           // 2
+		D[3] = FMA(hpart[3], so, D[3]);                           // 2
+		D[4] = FMA(hpart[4], co, D[4]);                           // 2
+		D[5] = FMA(hpart[5], co, D[5]);                           // 2
+		D[6] = FMA(hpart[6], co, D[6]);                           // 2
+		D[7] = FMA(hpart[7], co, D[7]);                           // 2
+		D[8] = FMA(hpart[8], co, D[8]);                           // 2
+		D[9] = FMA(hpart[9], co, D[9]);                           // 2
+		D[10] = FMA(hpart[10], so, D[10]);                           // 2
+		D[11] = FMA(hpart[11], so, D[11]);                           // 2
+		D[12] = FMA(hpart[12], so, D[12]);                           // 2
+		D[13] = FMA(hpart[13], so, D[13]);                           // 2
+		D[14] = FMA(hpart[14], so, D[14]);                           // 2
+		D[15] = FMA(hpart[15], so, D[15]);                           // 2
+		D[16] = FMA(hpart[16], so, D[16]);                           // 2
+		D[17] = FMA(hpart[17], so, D[17]);                           // 2
+		D[18] = FMA(hpart[18], so, D[18]);                           // 2
+		D[19] = FMA(hpart[19], so, D[19]);                           // 2
+		D[20] = FMA(hpart[20], co, D[20]);                           // 2
+		D[21] = FMA(hpart[21], co, D[21]);                           // 2
+		D[22] = FMA(hpart[22], co, D[22]);                           // 2
+		D[23] = FMA(hpart[23], co, D[23]);                           // 2
+		D[24] = FMA(hpart[24], co, D[24]);                           // 2
+		D[25] = FMA(hpart[25], co, D[25]);                           // 2
+		D[26] = FMA(hpart[26], co, D[26]);                           // 2
+		D[27] = FMA(hpart[27], co, D[27]);                           // 2
+		D[28] = FMA(hpart[28], co, D[28]);                           // 2
+		D[30] = FMA(hpart[30], co, D[30]);                           // 2
+		D[29] = FMA(hpart[29], co, D[29]);                           // 2
+		D[31] = FMA(hpart[31], co, D[31]);                           // 2
+		D[32] = FMA(hpart[32], co, D[32]);                           // 2
+		D[33] = FMA(hpart[33], co, D[33]);                           // 2
+		D[34] = FMA(hpart[34], co, D[34]);                           // 2
 		flops += 75 + FLOP_SINCOS;
 	}
 	expansion<T> D1;
@@ -199,19 +221,45 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 	}
 	/**** Account for r == 0 case ****/
 	const T zero_mask = (r < 2 * rmin);
-	for (int i = 0; i < LP; i++) {
-		D[i] *= (T(1) - zero_mask);
-	}
-	D[0] = 2.837291e+00 * zero_mask + D[0] * (T(1) - zero_mask);
-	D[4] = -4.188790e+00 * zero_mask + D[4] * (T(1) - zero_mask);
-	D[7] = -4.188790e+00 * zero_mask + D[7] * (T(1) - zero_mask);
-	D[9] = -4.188790e+00 * zero_mask + D[9] * (T(1) - zero_mask);
-	D[20] = -7.42e+01 * zero_mask + D[20] * (T(1) - zero_mask);
-	D[23] = 3.73e+01 * zero_mask + D[23] * (T(1) - zero_mask);
-	D[25] = 3.73e+01 * zero_mask + D[25] * (T(1) - zero_mask);
-	D[30] = -7.42e+01 * zero_mask + D[30] * (T(1) - zero_mask);
-	D[32] = 3.73e+01 * zero_mask + D[32] * (T(1) - zero_mask);
-	D[34] = -7.42e+01 * zero_mask + D[34] * (T(1) - zero_mask);
+	const T one_mask =  (T(1) - zero_mask);
+	D[0] = 2.837291e+00 * zero_mask + D[0] * one_mask;
+	D[1] = D[1] * one_mask;
+	D[2] = D[2] * one_mask;
+	D[3] = D[3] * one_mask;
+	D[4] = -4.188790e+00 * zero_mask + D[4] * one_mask;
+	D[5] = D[5] * one_mask;
+	D[6] = D[6] * one_mask;
+	D[7] = -4.188790e+00 * zero_mask + D[7] * one_mask;
+	D[8] = D[8] * one_mask;
+	D[9] = -4.188790e+00 * zero_mask + D[9] * one_mask;
+	D[7] = D[7] * one_mask;
+	D[8] = D[8] * one_mask;
+	D[9] = D[9] * one_mask;
+	D[10] = D[10] * one_mask;
+	D[11] = D[11] * one_mask;
+	D[12] = D[12] * one_mask;
+	D[13] = D[13] * one_mask;
+	D[14] = D[14] * one_mask;
+	D[15] = D[15] * one_mask;
+	D[16] = D[16] * one_mask;
+	D[17] = D[17] * one_mask;
+	D[18] = D[18] * one_mask;
+	D[19] = D[19] * one_mask;
+	D[20] = -7.42e+01 * zero_mask + D[20] * one_mask;
+	D[21] = D[21] * one_mask;
+	D[22] = D[22] * one_mask;
+	D[23] = 3.73e+01 * zero_mask + D[23] * one_mask;
+	D[24] = D[23] * one_mask;
+	D[25] = 3.73e+01 * zero_mask + D[25] * one_mask;
+	D[26] = D[24] * one_mask;
+	D[27] = D[25] * one_mask;
+	D[28] = D[26] * one_mask;
+	D[29] = D[27] * one_mask;
+	D[30] = -7.42e+01 * zero_mask + D[30] * one_mask;
+	D[31] = D[31] * one_mask;
+	D[32] = 3.73e+01 * zero_mask + D[32] * one_mask;
+	D[33] = D[33] * one_mask;
+	D[34] = -7.42e+01 * zero_mask + D[34] * one_mask;
 	flops += 71;
 	return flops;
 }
