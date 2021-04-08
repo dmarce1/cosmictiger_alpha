@@ -200,14 +200,18 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 	size_t lo = begin;
 	size_t hi = end;
 	fixed32 xmid(xm);
+	auto& xptr_dim = xptr_[xdim];
+	auto& x = xptr_[0];
+	auto& y = xptr_[1];
+	auto& z = xptr_[2];
 	while (lo < hi) {
-		if (xptr_[xdim][lo] >= xmid) {
+		if (xptr_dim[lo] >= xmid) {
 			while (lo != hi) {
 				hi--;
-				if (xptr_[xdim][hi] < xmid) {
-					std::swap(xptr_[0][hi], xptr_[0][lo]);
-					std::swap(xptr_[1][hi], xptr_[1][lo]);
-					std::swap(xptr_[2][hi], xptr_[2][lo]);
+				if (xptr_dim[hi] < xmid) {
+					std::swap(x[hi], x[lo]);
+					std::swap(y[hi], y[lo]);
+					std::swap(z[hi], z[lo]);
 					std::swap(uptr_[hi], uptr_[lo]);
 //					std::swap(rptr_[hi], rptr_[lo]);
 					break;

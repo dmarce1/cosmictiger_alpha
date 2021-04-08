@@ -192,11 +192,15 @@ void drive_cosmos() {
 					"cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
 		}
 		static double last_theta = -1.0;
+		int& bucket_size = global().opts.bucket_size;
 		if (z > 20.0) {
+			bucket_size = 96;
 			theta = 0.4;
 		} else if (z > 2.0) {
+			bucket_size = 128;
 			theta = 0.55;
 		} else {
+			bucket_size = 160;
 			theta = 0.7;
 		}
 		if (theta != last_theta) {

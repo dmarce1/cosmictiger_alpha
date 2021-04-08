@@ -190,16 +190,20 @@ sort_return tree::sort(sort_params params) {
 		double rleft = 0.0;
 		double rright = 0.0;
 		array<fixed32, NDIM> pos;
-		for (int dim = 0; dim < NDIM; dim++) {
-			com[dim] = (ML() * Xc[LEFT][dim].to_double() + MR() * Xc[RIGHT][dim].to_double()) / (ML() + MR());
-			pos[dim] = com[dim];
-			rleft += sqr(Xc[LEFT][dim].to_double() - com[dim]);
-			rright += sqr(Xc[RIGHT][dim].to_double() - com[dim]);
-		}
 		std::array<double, NDIM> xl, xr;
 		for (int dim = 0; dim < NDIM; dim++) {
-			xl[dim] = Xc[LEFT][dim].to_double() - com[dim];
-			xr[dim] = Xc[RIGHT][dim].to_double() - com[dim];
+			xl[dim] = Xc[LEFT][dim].to_double();
+			xr[dim] = Xc[RIGHT][dim].to_double();
+		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			auto& Xl = xl[dim];
+			auto& Xr = xr[dim];
+			com[dim] = (ML() * Xl + MR() * Xr) / (ML() + MR());
+			Xl -= com[dim];
+			Xr -= com[dim];
+			rleft += sqr(Xl);
+			rright += sqr(Xr);
+			pos[dim] = com[dim];
 		}
 		M = (ML >> xl) + (MR >> xr);
 		rleft = std::sqrt(rleft) + children[LEFT].get_radius();
@@ -695,7 +699,7 @@ void tree::gpu_daemon() {
 				calloc.deallocate(gpu_params);
 			});
 			auto completed = std::make_shared<bool>(false);
-			if( first_pass) {
+			if (first_pass) {
 				first_pass = false;
 				kick_constants consts;
 				consts.G = gpu_params[0].G;
