@@ -298,9 +298,10 @@ void particle_set::load_particles(std::string filename) {
 }
 
 void particle_set::silo_out(const char* filename) const {
-
+	printf( "outputing in SILO format...\n");
 	auto db = DBCreate(filename, DB_CLOBBER, DB_LOCAL, NULL, DB_PDB);
 
+	printf( "positions\n");
 	{
 		std::vector<float> x(size_), y(size_), z(size_);
 		for (int i = 0; i < size_; i++) {
@@ -311,43 +312,48 @@ void particle_set::silo_out(const char* filename) const {
 		float* coords[NDIM] = { x.data(), y.data(), z.data() };
 		DBPutPointmesh(db, "points", NDIM, coords, size_, DB_FLOAT, NULL);
 	}
+	printf( "velocities\n");
 	{
 		std::vector<float> v(size_);
 		for (int dim = 0; dim < NDIM; dim++) {
 			for (int i = 0; i < size_; i++) {
-				v[dim] = vel(i).a[dim];
+				v[i] = vel(i).a[dim];
 			}
 			std::string name = "v";
 			name.push_back(char('x' + dim));
 			DBPutPointvar1(db, name.c_str(), "points", v.data(), size_, DB_FLOAT, NULL);
 		}
 	}
+	printf( "rungs\n");
 	{
-		std::vector<int> r(size_);
+		std::vector<short> r(size_);
 		for (int i = 0; i < size_; i++) {
 			r[i] = rung(i);
 		}
-		DBPutPointvar1(db, "rung", "points", r.data(), size_, DB_INT, NULL);
+		DBPutPointvar1(db, "rung", "points", r.data(), size_, DB_SHORT, NULL);
 	}
+	printf( "groups\n");
 	{
 		std::vector<long long> g(size_);
 		for (int i = 0; i < size_; i++) {
 			g[i] = group(i);
 		}
-		DBPutPointvar1(db, "rung", "points", g.data(), size_, DB_LONG_LONG, NULL);
+		DBPutPointvar1(db, "groups", "points", g.data(), size_, DB_LONG_LONG, NULL);
 	}
 #ifdef TEST_FORCE
+	printf( "forces\n");
 	{
 		std::vector<float> g(size_);
 		for (int dim = 0; dim < NDIM; dim++) {
 			for (int i = 0; i < size_; i++) {
-				g[dim] = force(dim, i);
+				g[i] = force(dim, i);
 			}
 			std::string name = "g";
 			name.push_back(char('x' + dim));
 			DBPutPointvar1(db, name.c_str(), "points", g.data(), size_, DB_FLOAT, NULL);
 		}
 	}
+	printf( "potential\n");
 	{
 		std::vector<float> p(size_);
 		for (int i = 0; i < size_; i++) {

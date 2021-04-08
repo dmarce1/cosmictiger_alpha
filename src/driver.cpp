@@ -174,11 +174,12 @@ void drive_cosmos() {
 	}
 	timer checkpt_tm;
 	checkpt_tm.start();
+	int silo_outs = 0;
 	do {
 //		unified_allocator allocator;
 //		allocator.show_allocs();
 		checkpt_tm.stop();
-		if( checkpt_tm.read() > global().opts.checkpt_freq) {
+		if (checkpt_tm.read() > global().opts.checkpt_freq) {
 			checkpt_tm.reset();
 			checkpt_tm.start();
 			save_to_file(parts, iter, itime, a, cosmicK);
@@ -203,7 +204,7 @@ void drive_cosmos() {
 			last_theta = theta;
 		}
 		double time = double(itime) / double(std::numeric_limits<time_type>::max());
-		if( global().opts.map_size > 0 ) {
+		if (global().opts.map_size > 0) {
 			load_and_save_maps(time * T0, T0);
 		}
 		const auto min_r = min_rung(itime);
@@ -213,6 +214,14 @@ void drive_cosmos() {
 		const bool full_eval = min_r <= 7;
 		//	const bool full_eval = false;
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, kick_tm);
+		const auto silo_int = global().opts.silo_interval;
+		if (silo_int > 0) {
+			if (full_eval) {
+				std::string filename = "points." + std::to_string(silo_outs) + ".silo";
+				parts.silo_out(filename.c_str());
+				silo_outs++;
+			}
+		}
 
 //		if (last_theta != theta) {
 		//cuda_compare_with_direct(&parts);
@@ -229,7 +238,7 @@ void drive_cosmos() {
 		a += (0.5 * datau1 + 0.5 * datau2) * dt;
 		z = 1.0 / a - 1.0;
 		int rc = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, T0, drift_tm);
-			cosmicK += kin * (a - a0);
+		cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;
 		//	printf( "%e %e %e %e\n", a, pot, kin, cosmicK);
 		if (iter == 0) {
@@ -252,9 +261,9 @@ void drive_cosmos() {
 //		if (full_eval) {
 		printf(
 				"%4i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
-				iter, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r,
-				max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm,
-				kick_tm, drift_tm, total_time, science_rate);
+				iter, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r, max_rung,
+				time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm, kick_tm,
+				drift_tm, total_time, science_rate);
 //		} else {
 //			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 //					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac,

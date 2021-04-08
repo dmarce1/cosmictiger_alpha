@@ -30,6 +30,7 @@ struct options {
 	double z0;
 	double M;
 	int map_size;
+	double silo_interval;
 	double map_freq;
 	int checkpt_freq;
 	std::string checkpt_file;
