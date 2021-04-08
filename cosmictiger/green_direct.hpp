@@ -3,9 +3,16 @@
 #include <cosmictiger/cuda.hpp>
 #include <cosmictiger/math.hpp>
 #include <cosmictiger/expansion.hpp>
+#include <cosmictiger/consts.hpp>
+
 
 #define DSCALE 1e4
+#define DSCALE2 1e8
+#define DSCALE3 1e12
+#define DSCALE4 1e16
+#define DSCALE5 1e20
 #define RCUT 1e-4
+#define RCUT2 1e-8
 
 CUDA_EXPORT inline bool any_true(bool a) {
 	return a;
@@ -18,11 +25,13 @@ inline bool any_true(simd_float a) {
 template<class T>
 CUDA_EXPORT int green_direct(expansion<T> &D, array<T, NDIM> dX, T rmin = 0.f) {
 	bool scaled = false;
+#ifndef __CUDA_ARCH__
 	const T nthree(-3.0f);
 	const T nfive(-5.0f);
 	const T nseven(-7.0f);
+#endif
 	T r2 = FMAX(FMA(dX[0], dX[0], FMA(dX[1], dX[1], sqr(dX[2]))), rmin * rmin);            // 5
-	if (any_true(r2 < T(RCUT * RCUT))) {
+	if (any_true(r2 < T(RCUT2))) {
 		scaled = true;
 		dX[0] *= T(DSCALE);
 		dX[1] *= T(DSCALE);
@@ -39,10 +48,6 @@ CUDA_EXPORT int green_direct(expansion<T> &D, array<T, NDIM> dX, T rmin = 0.f) {
 	NAN_TEST(d0);NAN_TEST(d1);NAN_TEST(d2);NAN_TEST(d3);NAN_TEST(d4);
 	int flops = 21 + FLOP_RSQRT + green_deriv_direct(D, d0, d1, d2, d3, d4, dX);
 	if (scaled) {
-		constexpr auto DSCALE2 = DSCALE * DSCALE;
-		constexpr auto DSCALE3 = DSCALE2 * DSCALE;
-		constexpr auto DSCALE4 = DSCALE3 * DSCALE;
-		constexpr auto DSCALE5 = DSCALE4 * DSCALE;
 		D[0] *= T(DSCALE);
 		D[1] *= T(DSCALE2);
 		D[2] *= T(DSCALE2);

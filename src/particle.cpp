@@ -4,6 +4,8 @@
 #include <cosmictiger/timer.hpp>
 #include <cosmictiger/global.hpp>
 
+#include <silo.h>
+
 #include <unordered_map>
 #include <algorithm>
 
@@ -23,6 +25,10 @@ void particle_set::prepare_kick() {
 	}
 	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseUnsetReadMostly, 0));
 #endif
+//	for (int dim = 0; dim < NDIM; dim++) {
+	//CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetPreferredLocation, cudaCpuDeviceId));
+//	}
+//	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseUnsetPreferredLocation, cudaCpuDeviceId));
 }
 
 void particle_set::prepare_drift() {
@@ -32,14 +38,17 @@ void particle_set::prepare_drift() {
 	}
 	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseSetReadMostly, 0));
 #endif
+	for (int dim = 0; dim < NDIM; dim++) {
+		//CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
+	}
+//	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
 }
 
 void particle_set::init_groups() {
-	for( int i = 0; i < size(); i++) {
+	for (int i = 0; i < size(); i++) {
 		idptr_[i] = NO_GROUP;
 	}
 }
-
 
 particle_set::particle_set(size_t size, size_t offset) {
 	offset_ = offset;
@@ -287,3 +296,67 @@ void particle_set::load_particles(std::string filename) {
 	fread(&dummy, sizeof(dummy), 1, fp);
 	fclose(fp);
 }
+
+void particle_set::silo_out(const char* filename) const {
+
+	auto db = DBCreate(filename, DB_CLOBBER, DB_LOCAL, NULL, DB_PDB);
+
+	{
+		std::vector<float> x(size_), y(size_), z(size_);
+		for (int i = 0; i < size_; i++) {
+			x[i] = pos(0, i).to_float();
+			y[i] = pos(1, i).to_float();
+			z[i] = pos(2, i).to_float();
+		}
+		float* coords[NDIM] = { x.data(), y.data(), z.data() };
+		DBPutPointmesh(db, "points", NDIM, coords, size_, DB_FLOAT, NULL);
+	}
+	{
+		std::vector<float> v(size_);
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (int i = 0; i < size_; i++) {
+				v[dim] = vel(i).a[dim];
+			}
+			std::string name = "v";
+			name.push_back(char('x' + dim));
+			DBPutPointvar1(db, name.c_str(), "points", v.data(), size_, DB_FLOAT, NULL);
+		}
+	}
+	{
+		std::vector<int> r(size_);
+		for (int i = 0; i < size_; i++) {
+			r[i] = rung(i);
+		}
+		DBPutPointvar1(db, "rung", "points", r.data(), size_, DB_INT, NULL);
+	}
+	{
+		std::vector<long long> g(size_);
+		for (int i = 0; i < size_; i++) {
+			g[i] = group(i);
+		}
+		DBPutPointvar1(db, "rung", "points", g.data(), size_, DB_LONG_LONG, NULL);
+	}
+#ifdef TEST_FORCE
+	{
+		std::vector<float> g(size_);
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (int i = 0; i < size_; i++) {
+				g[dim] = force(dim, i);
+			}
+			std::string name = "g";
+			name.push_back(char('x' + dim));
+			DBPutPointvar1(db, name.c_str(), "points", g.data(), size_, DB_FLOAT, NULL);
+		}
+	}
+	{
+		std::vector<float> p(size_);
+		for (int i = 0; i < size_; i++) {
+			p[i] = pot(i);
+		}
+		DBPutPointvar1(db, "phi", "points", p.data(), size_, DB_FLOAT, NULL);
+	}
+#endif
+	DBClose(db);
+
+}
+

@@ -348,6 +348,10 @@ inline simd_float fma(const simd_float &a, const simd_float &b, const simd_float
 	return v;
 }
 
+inline simd_float fmaf(const simd_float &a, const simd_float &b, const simd_float &c) {
+	return fma(a, b, c);
+}
+
 inline simd_float sqrt(const simd_float &vec) {
 	simd_float r;
 	r.v = _mmx_sqrt_ps(vec.v);

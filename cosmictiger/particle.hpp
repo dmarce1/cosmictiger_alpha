@@ -73,6 +73,7 @@ struct particle_set {
 	float& force(int dim, size_t index);CUDA_EXPORT
 	float pot(size_t index) const;CUDA_EXPORT
 	float& pot(size_t index);
+	void silo_out(const char* filename) const;
 #ifndef __CUDACC__
 private:
 #endif

@@ -36,7 +36,7 @@ CUDA_DEVICE inline float erfcexp(const float &x, float *e) {				// 18 + FLOP_DIV
 	const float a3(1.421413741f);
 	const float a4(-1.453152027f);
 	const float a5(1.061405429f);
-	const float t1 = 1.f / fma(p, x, 1.f);			            // FLOP_DIV + 2
+	const float t1 = 1.f / FMA(p, x, 1.f);			            // FLOP_DIV + 2
 	const float t2 = t1 * t1;											// 1
 	const float t3 = t2 * t1;											// 1
 	const float t4 = t2 * t2;											// 1
