@@ -39,9 +39,9 @@ public:
       has_data = false;
       fut = std::move(fut_);
    }
-   inline void set_value(T&& data) {
+   inline void set_value(T&& this_data) {
       has_data = true;
-      data = std::move(data);
+      data = std::move(this_data);
    }
    inline bool valid() const {
       return( has_data || fut.valid() );

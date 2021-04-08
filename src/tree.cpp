@@ -51,7 +51,8 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	return lev;
 }
 
-hpx::future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
+fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
+	fast_future<sort_return> fut;
 	tree_ptr id;
 	id.dindex = params.alloc->allocate();
 	params.tptr = id;
@@ -65,9 +66,9 @@ hpx::future<sort_return> tree::create_child(sort_params &params, bool try_thread
 	if (!thread) {
 		sort_return rc = tree::sort(params);
 		rc.check = id;
-		return hpx::make_ready_future(std::move(rc));
+		fut.set_value(std::move(rc));
 	} else {
-		return hpx::async([id, params]() {
+		fut = hpx::async([id, params]() {
 			sort_params new_params = params;
 			new_params.alloc = std::make_shared<tree_allocator>();
 			auto rc = tree::sort(new_params);
@@ -75,6 +76,7 @@ hpx::future<sort_return> tree::create_child(sort_params &params, bool try_thread
 			return rc;
 		});
 	}
+	return std::move(fut);
 }
 
 sort_return tree::sort(sort_params params) {
