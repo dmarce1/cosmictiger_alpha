@@ -118,8 +118,12 @@ template<class T>
 CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 	ewald_const econst;
 	T r = SQRT(FMA(X[0], X[0], FMA(X[1], X[1], sqr(X[2]))));                   // 5
-#ifndef __CUDA_ARCH__
-	const T rmin = 1.0e-2;
+#ifdef __CUDA_ARCH__
+	constexpr T rmin = 0.01f;
+	constexpr T fouroversqrtpi = 2.256758334f;
+#else
+	const T rmin = 0.01f;
+	const T fouroversqrtpi = 2.256758334f;
 #endif
 	r = FMAX(rmin, r);
 	int flops = 6;

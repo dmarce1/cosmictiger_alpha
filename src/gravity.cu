@@ -11,6 +11,8 @@
 #include <cosmictiger/cuda.hpp>
 #include <cosmictiger/tree.hpp>
 
+#define MIN_KICK_WARP 10
+
 extern __constant__ kick_constants constant;
 
 CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type etype) {
@@ -273,7 +275,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 		float r3inv, r1inv;
 		__syncwarp();
 		int kmid;
-		if ((nactive % warpSize) < warpSize / 2) {
+		if ((nactive % warpSize) < MIN_KICK_WARP) {
 			kmid = nactive - (nactive % warpSize);
 		} else {
 			kmid = nactive;
@@ -429,7 +431,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 		}
 		__syncwarp();
 		int kmid;
-		if ((nactive % warpSize) < warpSize / 2) {
+		if ((nactive % warpSize) < MIN_KICK_WARP) {
 			kmid = nactive - (nactive % warpSize);
 		} else {
 			kmid = nactive;
