@@ -25,6 +25,9 @@ float zero_order_universe::conformal_time_to_scale_factor(float taumax) {
 	float dlogtau = 1.0e-3;
 	float a = amin;
 	float logtaumax = log(taumax);
+	const auto hubble = [this](float a) {
+		return hubble_function(a,params.hubble, params.omega_c + params.omega_b, params.omega_gam + params.omega_nu);
+	};
 	float logtaumin = log(1.f / (a * hubble(a)));
 	int N = (logtaumax - logtaumin) / dlogtau + 1;
 	dlogtau = (logtaumax - logtaumin) / N;
@@ -49,8 +52,7 @@ double zero_order_universe::redshift_to_density(double z) const {
 	float omega_m = params.omega_b + params.omega_c;
 	float omega_r = params.omega_gam + params.omega_nu;
 	const double omega_l = 1.0 - omega_m - omega_r;
-	const double H2 = sqr(params.hubble * constants::H0)
-			* (omega_r / (a * a * a * a) + omega_m / (a * a * a) + omega_l);
+	const double H2 = sqr(params.hubble * constants::H0) * (omega_r / (a * a * a * a) + omega_m / (a * a * a) + omega_l);
 	return omega_m * 3.0 * H2 / (8.0 * M_PI * constants::G);
 }
 
@@ -62,6 +64,9 @@ float zero_order_universe::scale_factor_to_conformal_time(float a) {
 	float logamax = logf(amax);
 	int N = (logamax - logamin) / dloga + 1;
 	dloga = (logamax - logamin) / (float) N;
+	const auto hubble = [this](float a) {
+		return hubble_function(a,params.hubble, params.omega_c + params.omega_b, params.omega_gam + params.omega_nu);
+	};
 	float tau = 1.f / (amin * hubble(amin));
 	for (int i = 0; i < N; i++) {
 		float loga = logamin + (float) i * dloga;
@@ -88,6 +93,9 @@ float zero_order_universe::redshift_to_time(float z) const {
 	int N = (logamax - logamin) / dloga + 1;
 	dloga = (logamax - logamin) / (float) N;
 	float t = 0.0;
+	const auto hubble = [this](float a) {
+		return hubble_function(a,params.hubble, params.omega_c + params.omega_b, params.omega_gam + params.omega_nu);
+	};
 	for (int i = 0; i < N; i++) {
 		float loga = logamin + (float) i * dloga;
 		float a = EXP(loga);
@@ -247,8 +255,8 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 		}
 		sound_speed2[i - 1] = cs2 / (c * c);
 		thomson[i] = sigmaT;
-		printf("%e %e %e %e\n", a, (nHp + nHep + 2 * nHepp) / (nH + nHp + 2 * (nHe + nHep + nHepp)), thomson[i],
-				sqrt(sound_speed2[i - 1]));
+		//printf("%e %e %e %e\n", a, (nHp + nHep + 2 * nHepp) / (nH + nHp + 2 * (nHe + nHep + nHepp)), thomson[i],
+		//sqrt(sound_speed2[i - 1]));
 	}
 	cs2 = (P - P1) / (rho_b - rho1);
 	sound_speed2[N - 1] = cs2 / c;
@@ -257,6 +265,6 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 	uni.amax = amax;
 	build_interpolation_function(&uni.sigma_T, thomson, (float) amin, (float) amax);
 	build_interpolation_function(&uni.cs2, sound_speed2, (float) amin, (float) amax);
-	uni.hubble = std::move(cosmic_hubble);
+//	uni.hubble = std::move(cosmic_hubble);
 }
 

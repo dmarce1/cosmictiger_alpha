@@ -80,6 +80,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	opts.omega_b = 0.05;
 	opts.omega_c = 0.25;
 	opts.Theta = 1.0;
+	opts.sigma8 = 0.83;
 	double omega_r = 32.0 * M_PI / 3.0 * constants::G * constants::sigma
 			* (1 + opts.Neff * (7. / 8.0) * std::pow(4. / 11., 4. / 3.)) * std::pow(constants::H0, -2)
 			* std::pow(constants::c, -3) * std::pow(2.73 * opts.Theta, 4) * std::pow(opts.hubble, -2);

@@ -16,7 +16,7 @@
 #define BLOCK const int& blocksize = blockDim.x
 #define THREAD const int& tid = threadIdx.x
 #define FENCE() __threadfence_block()
-#define SYNC() __syncwarp()
+#define SYNC() __syncthreads()
 #else
 #define BLOCK constexpr int blocksize = 1
 #define THREAD constexpr int tid = 0

@@ -29,6 +29,7 @@ struct options {
 	double z0;
 	double M;
 
+	double sigma8;
 	double Neff;
 	double Y;
 	double omega_m;

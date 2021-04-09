@@ -15,11 +15,16 @@ struct cosmic_params {
 	double Neff, Y, Theta, hubble;
 };
 
+
+CUDA_EXPORT inline float hubble_function(float a, float littleh, float omega_m, float omega_r) {
+	return littleh * cosmic_constants::H0
+			* sqrt(omega_r / (a * a * a * a) + omega_m / (a * a * a) + (1 - omega_r - omega_m));
+}
+
 struct zero_order_universe {
 	double amin;
 	double amax;
 	cosmic_params params;
-	nvstd::function<float(float)> hubble;
 	interp_functor<float> sigma_T;
 	interp_functor<float> cs2;
 

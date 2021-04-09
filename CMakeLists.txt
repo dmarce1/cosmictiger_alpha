@@ -50,6 +50,7 @@ set(cosmictiger_source_files
     src/expansion.cu
     src/groups.cu
     src/gravity.cu
+    src/initial.cu
     src/kick_return.cu
     src/math.cu
     src/tree.cu
@@ -84,6 +85,7 @@ set(cosmictiger_header_files
 	cosmictiger/fixed.hpp
 	cosmictiger/fast_future.hpp
 	cosmictiger/global.hpp
+    cosmictiger/initial.hpp
 	cosmictiger/hpx.hpp
 	cosmictiger/memory.hpp
 	cosmictiger/multipole.hpp
