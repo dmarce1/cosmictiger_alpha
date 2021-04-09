@@ -33,7 +33,7 @@ int hpx_main(int argc, char *argv[]) {
 		printf("Done initializing ewald\n");
 		global_init(opts, cuda);
 
-		zero_order_universe uni;
+/*		zero_order_universe uni;
 		cosmic_params params;
 		params.omega_b = global().opts.omega_b;
 		params.omega_c = global().opts.omega_c;
@@ -44,7 +44,7 @@ int hpx_main(int argc, char *argv[]) {
 		params.Theta = global().opts.Theta;
 		params.hubble = global().opts.hubble;
 		create_zero_order_universe(&uni, 1.0e6, params);
-		return hpx::finalize();
+		return hpx::finalize();*/
 
 		tree_data_initialize();
 		if (opts.test != "") {
