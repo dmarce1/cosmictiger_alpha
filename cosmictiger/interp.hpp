@@ -19,12 +19,19 @@ struct interp_functor {
 	T maxloga;
 	int N;
 	T dloga;
+
+	CUDA_EXPORT
 	T operator()(T a) const {
 		T loga = logf(a);
 		if (loga < minloga || loga > maxloga) {
 			printf("Error in interpolation_function out of range %e %e %e\n", a, amin, amax);
 		}
-		int i1 = std::min(std::max(1, int((loga - minloga) / (dloga))), N - 3);
+		int i1 = int((loga - minloga) / (dloga));
+		if (i1 > N - 3) {
+			i1 = N - 3;
+		} else if (i1 < 1) {
+			i1 = 1;
+		}
 		int i0 = i1 - 1;
 		int i2 = i1 + 1;
 		int i3 = i2 + 1;
@@ -37,11 +44,9 @@ struct interp_functor {
 	}
 };
 
-
-
 template<class T>
-__device__
-void build_interpolation_function(interp_functor<T>* f, const vector<T>& values, T amin, T amax) {
+CUDA_EXPORT
+inline void build_interpolation_function(interp_functor<T>* f, const vector<T>& values, T amin, T amax) {
 	T minloga = log(amin);
 	T maxloga = log(amax);
 	int N = values.size() - 1;
@@ -57,17 +62,15 @@ void build_interpolation_function(interp_functor<T>* f, const vector<T>& values,
 	*f = functor;
 }
 
-
-
 template<class T>
-__device__
-void build_interpolation_function(interp_functor<T>* f, T* values, T amin, T amax, int N) {
+CUDA_EXPORT
+inline void build_interpolation_function(interp_functor<T>* f, T* values, T amin, T amax, int N) {
 	T minloga = log(amin);
 	T maxloga = log(amax);
 	T dloga = (maxloga - minloga) / N;
 	interp_functor<T> functor;
 	functor.values.resize(N);
-	for( int i = 0; i < N; i++) {
+	for (int i = 0; i < N; i++) {
 		functor.values[i] = values[i];
 	}
 	functor.maxloga = maxloga;
@@ -78,6 +81,5 @@ void build_interpolation_function(interp_functor<T>* f, T* values, T amin, T ama
 	functor.N = N;
 	*f = functor;
 }
-
 
 #endif /* GPUTIGER_INTERP_HPP_ */

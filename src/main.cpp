@@ -34,7 +34,16 @@ int hpx_main(int argc, char *argv[]) {
 		global_init(opts, cuda);
 
 		zero_order_universe uni;
-		create_zero_order_universe(&uni, 1.0e6);
+		cosmic_params params;
+		params.omega_b = global().opts.omega_b;
+		params.omega_c = global().opts.omega_c;
+		params.omega_gam = global().opts.omega_gam;
+		params.omega_nu = global().opts.omega_nu;
+		params.Y = global().opts.Y;
+		params.Neff = global().opts.Neff;
+		params.Theta = global().opts.Theta;
+		params.hubble = global().opts.hubble;
+		create_zero_order_universe(&uni, 1.0e6, params);
 		return hpx::finalize();
 
 		tree_data_initialize();

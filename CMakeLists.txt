@@ -25,36 +25,36 @@ enable_language(CUDA)
 #set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -ffast-math -march=native")
 
 set(cosmictiger_source_files
-    src/zero_order.cpp
     src/chemistry.cpp
     src/cosmos.cpp
-    src/map.cpp
     src/cuda.cpp
-    src/drift.cu
     src/drift.cpp
-     src/driver.cpp
-    src/expansion.cu
-    src/ewald_indices.cu
+    src/drift.cu
+    src/driver.cpp
     src/global.cpp
     src/gravity.cpp
-    src/gravity.cu
-    src/groups.cu
     src/group_data.cpp
     src/groups.cpp
     src/hpx.cpp
+    src/kick_return.cpp
     src/main.cpp
+    src/map.cpp
     src/memory.cpp
     src/options.cpp
     src/particle.cpp
-    src/particle.cu
     src/rand.cpp
     src/tests.cpp
     src/tree.cpp
-    src/tree.cu
-    src/math.cu
+	src/boltzmann.cu
+    src/ewald_indices.cu
+    src/expansion.cu
+    src/groups.cu
+    src/gravity.cu
     src/kick_return.cu
+    src/math.cu
+    src/tree.cu
     src/tree_database.cu
-    src/kick_return.cpp
+    src/zero_order.cu
 )
 set(cosmictiger_header_files
 	cosmictiger/zero_verse.hpp

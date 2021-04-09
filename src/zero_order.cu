@@ -1,22 +1,25 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/zero_order.hpp>
 
+CUDA_EXPORT
 void zero_order_universe::compute_matter_fractions(float& Oc, float& Ob, float a) const {
-	float omega_m = global().opts.omega_b + global().opts.omega_c;
-	float omega_r = global().opts.omega_gam + global().opts.omega_nu;
+	float omega_m = params.omega_b + params.omega_c;
+	float omega_r = params.omega_gam + params.omega_nu;
 	float Om = omega_m / (omega_r / a + omega_m + (a * a * a) * ((float) 1.0 - omega_m - omega_r));
-	Ob = global().opts.omega_b * Om / omega_m;
-	Oc = global().opts.omega_c * Om / omega_m;
+	Ob = params.omega_b * Om / omega_m;
+	Oc = params.omega_c * Om / omega_m;
 }
 
+CUDA_EXPORT
 void zero_order_universe::compute_radiation_fractions(float& Ogam, float& Onu, float a) const {
-	float omega_m = global().opts.omega_b + global().opts.omega_c;
-	float omega_r = global().opts.omega_gam + global().opts.omega_nu;
+	float omega_m = params.omega_b + params.omega_c;
+	float omega_r = params.omega_gam + params.omega_nu;
 	float Or = omega_r / (omega_r + a * omega_m + (a * a * a * a) * ((float) 1.0 - omega_m - omega_r));
-	Ogam = global().opts.omega_gam * Or / omega_r;
-	Onu = global().opts.omega_nu * Or / omega_r;
+	Ogam = params.omega_gam * Or / omega_r;
+	Onu = params.omega_nu * Or / omega_r;
 }
 
+CUDA_EXPORT
 float zero_order_universe::conformal_time_to_scale_factor(float taumax) {
 	taumax *= constants::H0 / cosmic_constants::H0;
 	float dlogtau = 1.0e-3;
@@ -40,16 +43,18 @@ float zero_order_universe::conformal_time_to_scale_factor(float taumax) {
 	return a;
 }
 
+CUDA_EXPORT
 double zero_order_universe::redshift_to_density(double z) const {
 	const double a = 1.0 / (1.0 + z);
-	const double omega_m = global().opts.omega_b + global().opts.omega_c;
-	const double omega_r = global().opts.omega_nu + global().opts.omega_gam;
+	float omega_m = params.omega_b + params.omega_c;
+	float omega_r = params.omega_gam + params.omega_nu;
 	const double omega_l = 1.0 - omega_m - omega_r;
-	const double H2 = sqr(global().opts.hubble * constants::H0)
+	const double H2 = sqr(params.hubble * constants::H0)
 			* (omega_r / (a * a * a * a) + omega_m / (a * a * a) + omega_l);
 	return omega_m * 3.0 * H2 / (8.0 * M_PI * constants::G);
 }
 
+CUDA_EXPORT
 float zero_order_universe::scale_factor_to_conformal_time(float a) {
 	float amax = a;
 	float dloga = 1e-2;
@@ -74,6 +79,7 @@ float zero_order_universe::scale_factor_to_conformal_time(float a) {
 	return tau;
 }
 
+CUDA_EXPORT
 float zero_order_universe::redshift_to_time(float z) const {
 	float amax = 1.f / (1.f + z);
 	float dloga = 1e-3;
@@ -98,19 +104,20 @@ float zero_order_universe::redshift_to_time(float z) const {
 	return t;
 }
 
-void create_zero_order_universe(zero_order_universe* uni_ptr, double amax) {
+void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmic_params cpars) {
 	zero_order_universe& uni = *uni_ptr;
 	using namespace constants;
-	double omega_b = global().opts.omega_b;
-	double omega_c = global().opts.omega_c;
-	double omega_gam = global().opts.omega_gam;
-	double omega_nu = global().opts.omega_nu;
-	double omega_m = omega_b + omega_c;
+	uni.params = cpars;
+	double omega_b = cpars.omega_b;
+	double omega_c = cpars.omega_c;
+	double omega_gam = cpars.omega_gam;
+	double omega_nu = cpars.omega_nu;
+	double omega_m = cpars.omega_b + omega_c;
 	double omega_r = omega_gam + omega_nu;
-	double Theta = global().opts.Theta;
-	double littleh = global().opts.hubble;
-	double Neff = global().opts.Neff;
-	double Y = global().opts.Y;
+	double Theta = cpars.Theta;
+	double littleh = cpars.hubble;
+	double Neff = cpars.Neff;
+	double Y = cpars.Y;
 	double amin = Theta * Tcmb / (0.07 * 1e6 * evtoK);
 	double logamin = log(amin);
 	double logamax = log(amax);

@@ -8,29 +8,42 @@
 
 #include <cosmictiger/chemistry.hpp>
 #include <cosmictiger/interp.hpp>
+#include <cosmictiger/cuda.hpp>
+
+struct cosmic_params {
+	double omega_b, omega_c, omega_gam, omega_nu;
+	double Neff, Y, Theta, hubble;
+};
 
 struct zero_order_universe {
 	double amin;
 	double amax;
+	cosmic_params params;
 	nvstd::function<float(float)> hubble;
 	interp_functor<float> sigma_T;
 	interp_functor<float> cs2;
 
+	CUDA_EXPORT
 	void compute_matter_fractions(float& Oc, float& Ob, float a) const;
 
+	CUDA_EXPORT
 	void compute_radiation_fractions(float& Ogam, float& Onu, float a) const;
 
+	CUDA_EXPORT
 	float conformal_time_to_scale_factor(float taumax);
 
+	CUDA_EXPORT
 	float scale_factor_to_conformal_time(float a);
 
+	CUDA_EXPORT
 	float redshift_to_time(float z) const;
 
+	CUDA_EXPORT
 	double redshift_to_density(double z) const;
 };
 
 
-void create_zero_order_universe(zero_order_universe* uni_ptr, double amax);
+void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmic_params);
 
 class cosmos {
 	double a;
