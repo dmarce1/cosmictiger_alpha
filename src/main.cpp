@@ -8,6 +8,7 @@
 #include <cosmictiger/ewald_indices.hpp>
 #include <cosmictiger/driver.hpp>
 #include <cosmictiger/tree_database.hpp>
+#include <cosmictiger/zero_order.hpp>
 
 
 void yield() {
@@ -19,14 +20,23 @@ int hpx_main(int argc, char *argv[]) {
 	//  printf( "%li\n", sizeof(std::shared_ptr<int>));
 	//  printf( "%li\n", sizeof(sort_params));
 	printf("Size of cuda_kick_shmem is %li\n", sizeof(cuda_kick_shmem));
-	printf("Size of cuda_ewald_shmem is %li\n", sizeof(cuda_ewald_shmem));
+
+
+
+
 	if (process_options(argc, argv, opts)) {
+
 		hpx_init();
 		const auto cuda = cuda_init();
 		printf("Initializing ewald\n");
 		ewald_const::init();
 		printf("Done initializing ewald\n");
 		global_init(opts, cuda);
+
+		zero_order_universe uni;
+		create_zero_order_universe(&uni, 1.0e6);
+		return hpx::finalize();
+
 		tree_data_initialize();
 		if (opts.test != "") {
 			test_run(opts.test);

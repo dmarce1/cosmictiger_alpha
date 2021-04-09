@@ -1,7 +1,6 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/zero_order.hpp>
 
-
 void zero_order_universe::compute_matter_fractions(float& Oc, float& Ob, float a) const {
 	float omega_m = global().opts.omega_b + global().opts.omega_c;
 	float omega_r = global().opts.omega_gam + global().opts.omega_nu;
@@ -10,7 +9,6 @@ void zero_order_universe::compute_matter_fractions(float& Oc, float& Ob, float a
 	Oc = global().opts.omega_c * Om / omega_m;
 }
 
-
 void zero_order_universe::compute_radiation_fractions(float& Ogam, float& Onu, float a) const {
 	float omega_m = global().opts.omega_b + global().opts.omega_c;
 	float omega_r = global().opts.omega_gam + global().opts.omega_nu;
@@ -18,7 +16,6 @@ void zero_order_universe::compute_radiation_fractions(float& Ogam, float& Onu, f
 	Ogam = global().opts.omega_gam * Or / omega_r;
 	Onu = global().opts.omega_nu * Or / omega_r;
 }
-
 
 float zero_order_universe::conformal_time_to_scale_factor(float taumax) {
 	taumax *= constants::H0 / cosmic_constants::H0;
@@ -43,17 +40,15 @@ float zero_order_universe::conformal_time_to_scale_factor(float taumax) {
 	return a;
 }
 
-
-
 double zero_order_universe::redshift_to_density(double z) const {
 	const double a = 1.0 / (1.0 + z);
 	const double omega_m = global().opts.omega_b + global().opts.omega_c;
 	const double omega_r = global().opts.omega_nu + global().opts.omega_gam;
 	const double omega_l = 1.0 - omega_m - omega_r;
-	const double H2 = sqr(global().opts.hubble * constants::H0) * (omega_r/(a*a*a*a)+omega_m/(a*a*a)+omega_l);
+	const double H2 = sqr(global().opts.hubble * constants::H0)
+			* (omega_r / (a * a * a * a) + omega_m / (a * a * a) + omega_l);
 	return omega_m * 3.0 * H2 / (8.0 * M_PI * constants::G);
 }
-
 
 float zero_order_universe::scale_factor_to_conformal_time(float a) {
 	float amax = a;
@@ -79,7 +74,6 @@ float zero_order_universe::scale_factor_to_conformal_time(float a) {
 	return tau;
 }
 
-
 float zero_order_universe::redshift_to_time(float z) const {
 	float amax = 1.f / (1.f + z);
 	float dloga = 1e-3;
@@ -104,10 +98,8 @@ float zero_order_universe::redshift_to_time(float z) const {
 	return t;
 }
 
-
 void create_zero_order_universe(zero_order_universe* uni_ptr, double amax) {
 	zero_order_universe& uni = *uni_ptr;
-	;
 	using namespace constants;
 	double omega_b = global().opts.omega_b;
 	double omega_c = global().opts.omega_c;
@@ -122,7 +114,7 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax) {
 	double amin = Theta * Tcmb / (0.07 * 1e6 * evtoK);
 	double logamin = log(amin);
 	double logamax = log(amax);
-	int N = 4*1024;
+	int N = 4 * 1024;
 	double dloga = (logamax - logamin) / N;
 	vector<float> thomson(N + 1);
 	vector<float> sound_speed2(N + 1);
@@ -248,8 +240,8 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax) {
 		}
 		sound_speed2[i - 1] = cs2 / (c * c);
 		thomson[i] = sigmaT;
-//		printf("%e %e %e %e\n", a, (nHp + nHep + 2 * nHepp) / (nH + nHp + 2 * (nHe + nHep + nHepp)), thomson[i],
-///				sqrt(sound_speed2[i - 1]));
+		printf("%e %e %e %e\n", a, (nHp + nHep + 2 * nHepp) / (nH + nHp + 2 * (nHe + nHep + nHepp)), thomson[i],
+				sqrt(sound_speed2[i - 1]));
 	}
 	cs2 = (P - P1) / (rho_b - rho1);
 	sound_speed2[N - 1] = cs2 / c;

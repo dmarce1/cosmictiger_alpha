@@ -25,7 +25,8 @@ enable_language(CUDA)
 #set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -ffast-math -march=native")
 
 set(cosmictiger_source_files
-	src/sort.cu
+    src/zero_order.cpp
+    src/chemistry.cpp
     src/cosmos.cpp
     src/map.cpp
     src/cuda.cpp
@@ -50,11 +51,15 @@ set(cosmictiger_source_files
     src/tests.cpp
     src/tree.cpp
     src/tree.cu
+    src/math.cu
     src/kick_return.cu
     src/tree_database.cu
     src/kick_return.cpp
 )
 set(cosmictiger_header_files
+	cosmictiger/zero_verse.hpp
+	cosmictiger/interp.hpp
+	cosmictiger/chemistry.hpp
 	cosmictiger/cosmos.hpp
 	cosmictiger/sort.hpp
 	cosmictiger/drift.hpp
