@@ -119,10 +119,10 @@ void load_from_file(particle_set& parts, int& step, time_type& itime, double& a,
 		printf("Unable to open %s\n", filename.c_str());
 		abort();
 	}
-	fread(&step, sizeof(int), 1, fp);
-	fread(&itime, sizeof(time_type), 1, fp);
-	fread(&a, sizeof(double), 1, fp);
-	fread(&cosmicK, sizeof(double), 1, fp);
+	FREAD(&step, sizeof(int), 1, fp);
+	FREAD(&itime, sizeof(time_type), 1, fp);
+	FREAD(&a, sizeof(double), 1, fp);
+	FREAD(&cosmicK, sizeof(double), 1, fp);
 	parts.load_from_file(fp);
 	fclose(fp);
 	printf(" done\n");
@@ -175,6 +175,7 @@ void drive_cosmos() {
 	timer checkpt_tm;
 	checkpt_tm.start();
 	int silo_outs = 0;
+	double real_time = 0.0;
 	do {
 //		unified_allocator allocator;
 //		allocator.show_allocs();
@@ -239,7 +240,9 @@ void drive_cosmos() {
 		double a0 = a;
 		double datau1 = cosmos_dadtau(a);
 		double datau2 = cosmos_dadtau(a + datau1 * dt);
+		real_time += a * dt * 0.5;
 		a += (0.5 * datau1 + 0.5 * datau2) * dt;
+		real_time += a * dt * 0.5;
 		z = 1.0 / a - 1.0;
 		int rc = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, T0, drift_tm);
 		cosmicK += kin * (a - a0);
@@ -263,10 +266,13 @@ void drive_cosmos() {
 		double parts_per_leaf = (double) parts.size() / stats.nleaves;
 		double avg_depth = std::log(stats.nleaves) / std::log(2.0);
 //		if (full_eval) {
+		double tfac =  1.0 / 365.25 / 60.0 / 60.0 / 24.0 / global().opts.hubble * global().opts.code_to_s;
+		double years = real_time * tfac;
+		double dtyears = dt * tfac * a;
 		printf(
 				"%4i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 				iter, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r, max_rung,
-				time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm, kick_tm,
+				years, dtyears, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm, kick_tm,
 				drift_tm, total_time, science_rate);
 //		} else {
 //			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
@@ -278,7 +284,7 @@ void drive_cosmos() {
 			//			break;
 		}
 		iter++;
-	} while (z > 0.0);
+	} while (z > -0.999999);
 	double total_time = drift_total + sort_total + kick_total;
 	printf("Sort  time = %e (%.2f) %%\n", sort_total, sort_total / total_time * 100.0);
 	printf("Kick  time = %e (%.2f) %%\n", kick_total, kick_total / total_time * 100.0);

@@ -364,10 +364,6 @@ timer kick_timer;
 
 #define MIN_WORK 0
 
-int get_block_cutoff() {
-
-}
-
 hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
 	tree_ptr self = params.tptr;
@@ -391,8 +387,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				* global().cuda.devices[0].multiProcessorCount + 0.5;
 		size_t active_nodes = self.get_active_nodes();
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
-		if (active_parts < MIN_GPU_PARTS) {
+		int min_gpu_nodes = block_count / 8;
+		if (active_nodes < min_gpu_nodes) {
 			params.block_cutoff = 0;
+			printf( "CPU\n");
 		}
 		tree_database_set_readonly();
 		particles->prepare_kick();
@@ -653,7 +651,7 @@ void tree::gpu_daemon() {
 		timer.stop();
 		if (timer.read() > 0.05) {
 			printf("%c %i in queue: %i active: %i complete                                  \r", waiting_char[counter % 4],
-					gpu_queue.size(), blocks_active, blocks_completed);
+					(int) gpu_queue.size(), blocks_active, blocks_completed);
 			counter++;
 			timer.reset();
 		}

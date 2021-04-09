@@ -23,12 +23,21 @@ struct options {
 	double code_to_g;
 	double code_to_cm;
 	double code_to_cms;
-	double omega_m;
 	double hubble;
 	double H0;
 	double G;
 	double z0;
 	double M;
+
+	double Neff;
+	double Y;
+	double omega_m;
+	double omega_c;
+	double omega_b;
+	double omega_gam;
+	double omega_nu;
+	double Theta;
+
 	int map_size;
 	double silo_interval;
 	double map_freq;

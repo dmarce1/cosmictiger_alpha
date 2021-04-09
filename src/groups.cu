@@ -44,7 +44,6 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 	groups_shmem& shmem = *((groups_shmem*) shmem_ptr);
 	auto& self_parts = shmem.self;
 	auto& other_parts = shmem.others;
-	bool rc;
 	group_param_type& params = *params_ptr;
 	auto& checks = params.checks;
 	auto& parts = params.parts;

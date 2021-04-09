@@ -4,7 +4,6 @@
 #include <cosmictiger/math.hpp>
 #include <cosmictiger/ewald_indices.hpp>
 #include <cosmictiger/expansion.hpp>
-#include <cosmictiger/consts.hpp>
 
 template<class T>
 CUDA_EXPORT int green_deriv_ewald(expansion<T> &D, const T &d0, const T &d1, const T &d2, const T &d3, const T &d4,

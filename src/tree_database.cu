@@ -14,7 +14,7 @@ static std::atomic<int> next_chunk;
 void tree_data_initialize() {
 	gpu_tree_data_.ntrees = global().opts.nparts / global().opts.bucket_size;
 	gpu_tree_data_.ntrees = std::max(1 << ((int) std::ceil(std::log(gpu_tree_data_.ntrees) / std::log(2)) + 3),
-			1024 * 1024);
+			2*1024 * 1024);
 	gpu_tree_data_.nchunks = gpu_tree_data_.ntrees / chunk_size;
 
 	CUDA_CHECK(cudaMemAdvise(&gpu_tree_data_, sizeof(gpu_tree_data_), cudaMemAdviseSetReadMostly, 0));

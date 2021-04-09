@@ -390,7 +390,7 @@ static void sort() {
 		tm1.start();
 		//	parts.sort_range(0, i, 0.5, 0);
 		tm1.stop();
-		printf("%li %e\n", i, tm1.read());
+		printf("%i %e\n", i, tm1.read());
 		tm1.reset();
 	}
 

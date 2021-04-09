@@ -8,6 +8,8 @@
 #ifndef COSMICTIGER_VECTOR_HPP_
 #define COSMICTIGER_VECTOR_HPP_
 
+#include <cassert>
+
 #define vectorPOD 1
 
 #ifdef __CUDA_ARCH__

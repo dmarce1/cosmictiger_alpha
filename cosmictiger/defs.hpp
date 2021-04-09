@@ -8,6 +8,9 @@
 #ifndef COSMICTIGER_DEFS_HPP_
 #define COSMICTIGER_DEFS_HPP_
 
+#include <cstdio>
+#include <cstdlib>
+
 #define NDIM 3
 #define FULL_MASK 0xFFFFFFFF
 
@@ -52,7 +55,7 @@
 #define GROUP_SIZE MAX_BUCKET_SIZE
 #define GPU_QUEUE_SIZE (1024*1024)
 #define KICK_GRID_SIZE (256)
-#define MIN_GPU_PARTS 1024
+//#define MIN_GPU_PARTS (8*1024)
 
 #define MIN_DX (0.00000001f)
 #define MIN_RUNG 7
@@ -122,5 +125,15 @@ struct pair {
 #else
 #define LDG(a) (*(a))
 #endif
+
+
+#define FREAD(a,b,c,d) __safe_fread(a,b,c,d,__LINE__,__FILE__)
+
+static void __safe_fread(void* src, size_t size, size_t count, FILE* fp, int line, const char* file ) {
+	if( fread(src,size,count,fp)!=count) {
+		printf( "Attempt to read %li elements of size %li in %s on line %i failed.\n", count, size, file, line);
+		abort();
+	}
+}
 
 #endif /* COSMICTIGER_DEFS_HPP_ */

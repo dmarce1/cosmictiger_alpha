@@ -56,7 +56,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 				tm.stop();
 				if (tm.read() > 0.05) {
 					counter ++;
-					printf("%c %i in queue: %i active: %i complete                        \r", waiting_char[counter % 4], gpu_queue.size(), num_active,
+					printf("%c %i in queue: %i active: %i complete                        \r", waiting_char[counter % 4], (int) gpu_queue.size(), num_active,
 							num_completed);
 					counter++;
 					tm.reset();

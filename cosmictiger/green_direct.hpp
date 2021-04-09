@@ -3,7 +3,6 @@
 #include <cosmictiger/cuda.hpp>
 #include <cosmictiger/math.hpp>
 #include <cosmictiger/expansion.hpp>
-#include <cosmictiger/consts.hpp>
 
 
 #define DSCALE 1e4
