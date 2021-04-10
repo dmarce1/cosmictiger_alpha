@@ -1,0 +1,23 @@
+/*
+ * zeldovich.hpp
+ *
+ *  Created on: Jan 12, 2021
+ *      Author: dmarce1
+ */
+
+#ifndef ZELDOVICH_HPP_
+#define ZELDOVICH_HPP_
+
+#include <cosmictiger/vector.hpp>
+#include <cosmictiger/interp.hpp>
+#include <cosmictiger/math.hpp>
+#include <cosmictiger/fourier.hpp>
+
+enum zeldovich_t{ DENSITY, DISPLACEMENT, VELOCITY };
+
+#define ZELDOSIZE 256
+
+__global__ void zeldovich(cmplx* den, const cmplx* basis, const cmplx* rands,
+		const interp_functor<float>* P, float box_size, int N, int dim, zeldovich_t );
+
+#endif /* ZELDOVICH_HPP_ */

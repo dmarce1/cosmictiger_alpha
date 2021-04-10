@@ -76,80 +76,80 @@ class cmplx {
 	float x, y;
 public:
 	cmplx() = default;
-	__device__ cmplx(float a) {
+	CUDA_EXPORT cmplx(float a) {
 		x = a;
 		y = 0.f;
 	}
-	__device__ cmplx(float a, float b) {
+	CUDA_EXPORT cmplx(float a, float b) {
 		x = a;
 		y = b;
 	}
-	__device__ cmplx& operator+=(cmplx other) {
+	CUDA_EXPORT cmplx& operator+=(cmplx other) {
 		x += other.x;
 		y += other.y;
 		return *this;
 	}
-	__device__ cmplx& operator-=(cmplx other) {
+	CUDA_EXPORT cmplx& operator-=(cmplx other) {
 		x -= other.x;
 		y -= other.y;
 		return *this;
 	}
-	__device__ cmplx operator*(cmplx other) const {
+	CUDA_EXPORT cmplx operator*(cmplx other) const {
 		cmplx a;
 		a.x = x * other.x - y * other.y;
 		a.y = x * other.y + y * other.x;
 		return a;
 	}
-	__device__ cmplx operator/(cmplx other) const {
+	CUDA_EXPORT cmplx operator/(cmplx other) const {
 		return *this * other.conj() / other.norm();
 	}
-	__device__ cmplx operator/(float other) const {
+	CUDA_EXPORT cmplx operator/(float other) const {
 		cmplx b;
 		b.x = x / other;
 		b.y = y / other;
 		return b;
 	}
-	__device__ cmplx operator*(float other) const {
+	CUDA_EXPORT cmplx operator*(float other) const {
 		cmplx b;
 		b.x = x * other;
 		b.y = y * other;
 		return b;
 	}
-	__device__ cmplx operator+(cmplx other) const {
+	CUDA_EXPORT cmplx operator+(cmplx other) const {
 		cmplx a;
 		a.x = x + other.x;
 		a.y = y + other.y;
 		return a;
 	}
-	__device__ cmplx operator-(cmplx other) const {
+	CUDA_EXPORT cmplx operator-(cmplx other) const {
 		cmplx a;
 		a.x = x - other.x;
 		a.y = y - other.y;
 		return a;
 	}
-	__device__ cmplx conj() const {
+	CUDA_EXPORT cmplx conj() const {
 		cmplx a;
 		a.x = x;
 		a.y = -y;
 		return a;
 	}
-	__device__
+	CUDA_EXPORT
 	float real() const {
 		return x;
 	}
-	__device__
+	CUDA_EXPORT
 	float imag() const {
 		return y;
 	}
-	__device__
+	CUDA_EXPORT
 	float norm() const {
 		return ((*this) * conj()).real();
 	}
-	__device__
+	CUDA_EXPORT
 	float abs() const {
 		return sqrtf(norm());
 	}
-	__device__ cmplx operator-() const {
+	CUDA_EXPORT cmplx operator-() const {
 		cmplx a;
 		a.x = -x;
 		a.y = -y;
@@ -157,11 +157,11 @@ public:
 	}
 };
 
-__device__  inline cmplx operator*(float a, cmplx b) {
+CUDA_EXPORT  inline cmplx operator*(float a, cmplx b) {
 	return b * a;
 }
 
-__device__  inline cmplx expc(cmplx z) {
+CUDA_EXPORT  inline cmplx expc(cmplx z) {
 	float x, y;
 	float t = EXP(z.real());
 	sincosf(z.imag(), &y, &x);
@@ -241,7 +241,7 @@ void integrate(FUNC *fptr, REAL a, REAL b, REAL* result, REAL toler) {
 
 }
 
-__device__ inline float pow2(float r) {
+CUDA_EXPORT inline float pow2(float r) {
 	return r * r;
 }
 

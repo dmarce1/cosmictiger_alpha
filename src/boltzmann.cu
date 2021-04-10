@@ -251,13 +251,25 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 	}
 	__syncthreads();
 	if (thread == 0) {
-		build_interpolation_function(den_k_func, (den_k), expf(logkmin), expf(logkmax), N);
-		build_interpolation_function(vel_k_func, (vel_k), expf(logkmin), expf(logkmax), N);
+		printf("Matter and Velocity Power Spectrum\n");
+		for (int i = 0; i < N; i++) {
+			float k = expf(logkmin + (float) i * dlogk);
+			printf("%e %e %e\n", k, den_k[i], vel_k[i]);
+		}
+	}
+#ifdef __CUDA_ARCH__
+	build_interpolation_function(den_k_func, (den_k), expf(logkmin), expf(logkmax), N);
+	build_interpolation_function(vel_k_func, (vel_k), expf(logkmin), expf(logkmax), N);
+#endif
+	if (thread == 0) {
 		delete[] vel_k;
 		delete[] den_k;
+		for (int i = 0; i < N; i++) {
+			float k = expf(logkmin + (float) i * dlogk);
+			printf("%e %e %e\n", k, (*den_k_func)(k),den_k[i]);
+		}
 		//	CUDA_CHECK(cudaFree(den_k));
 		//	CUDA_CHECK(cudaFree(vel_k));
 	}
-
 }
 

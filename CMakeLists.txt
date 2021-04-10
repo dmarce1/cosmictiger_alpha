@@ -48,6 +48,7 @@ set(cosmictiger_source_files
 	src/boltzmann.cu
     src/ewald_indices.cu
     src/expansion.cu
+    src/fourier.cu
     src/groups.cu
     src/gravity.cu
     src/initial.cu
@@ -55,6 +56,7 @@ set(cosmictiger_source_files
     src/math.cu
     src/tree.cu
     src/tree_database.cu
+    src/zeldovich.cu
     src/zero_order.cu
 )
 set(cosmictiger_header_files
@@ -67,6 +69,7 @@ set(cosmictiger_header_files
 	cosmictiger/ewald_indices.hpp
 	cosmictiger/kick_return.hpp
 	cosmictiger/defs.hpp
+	cosmictiger/fourier.hpp
 	cosmictiger/green_direct.hpp
 	cosmictiger/green_ewald.hpp
 	cosmictiger/groups.hpp
@@ -98,6 +101,7 @@ set(cosmictiger_header_files
 	cosmictiger/map.hpp
 	cosmictiger/tree_database.hpp
 	cosmictiger/tree.hpp
+	cosmictiger/zeldovich.hpp
 )
 
 
@@ -136,7 +140,7 @@ target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                       --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
+                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
                         >)
                         
                         

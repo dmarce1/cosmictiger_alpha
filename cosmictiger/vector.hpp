@@ -53,7 +53,7 @@ class vector {
       }
    }
 public:
-#ifndef __CUDACC__
+#ifndef __CUDA_ARCH__
    std::function<void()> to_device(cudaStream_t stream) {
    //   assert(cap);
       dontfree = true;

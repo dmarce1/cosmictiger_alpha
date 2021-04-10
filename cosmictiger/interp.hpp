@@ -9,6 +9,7 @@
 #define GPUTIGER_INTERP_HPP_
 
 #include <cosmictiger/vector.hpp>
+#include <cuda.h>
 
 template<class T>
 struct interp_functor {
@@ -19,7 +20,16 @@ struct interp_functor {
 	T maxloga;
 	int N;
 	T dloga;
-
+#ifndef __CUDA_ARCH__
+	std::function<void()> to_device() {
+		cudaStream_t stream;
+		CUDA_CHECK(cudaStreamCreate(&stream));
+		auto f = values.to_device(stream);
+		CUDA_CHECK(cudaStreamSynchronize(stream));
+		CUDA_CHECK(cudaStreamDestroy(stream));
+		return f;
+	}
+#endif
 	CUDA_EXPORT
 	T operator()(T a) const {
 		T loga = logf(a);
@@ -50,7 +60,7 @@ inline void build_interpolation_function(interp_functor<T>* f, const vector<T>& 
 	T minloga = log(amin);
 	T maxloga = log(amax);
 	int N = values.size() - 1;
-	T dloga = (maxloga - minloga) / N;
+	T dloga = (maxloga - minloga) / (N-1);
 	interp_functor<T> functor;
 	functor.values = std::move(values);
 	functor.maxloga = maxloga;
@@ -62,24 +72,33 @@ inline void build_interpolation_function(interp_functor<T>* f, const vector<T>& 
 	*f = functor;
 }
 
+#ifdef __CUDA_ARCH__
 template<class T>
-CUDA_EXPORT
+__device__
 inline void build_interpolation_function(interp_functor<T>* f, T* values, T amin, T amax, int N) {
+	const int& tid = threadIdx.x;
+	const int& bsz = blockDim.x;
 	T minloga = log(amin);
 	T maxloga = log(amax);
-	T dloga = (maxloga - minloga) / N;
-	interp_functor<T> functor;
+	T dloga = (maxloga - minloga) / (N-1);
+	interp_functor<T>& functor = *f;
 	functor.values.resize(N);
-	for (int i = 0; i < N; i++) {
+	__syncthreads();
+	for (int i = tid; i < N; i += bsz) {
 		functor.values[i] = values[i];
 	}
-	functor.maxloga = maxloga;
-	functor.minloga = minloga;
-	functor.dloga = dloga;
-	functor.amin = amin;
-	functor.amax = amax;
-	functor.N = N;
-	*f = functor;
+	__syncthreads();
+	if( tid == 0 ) {
+		functor.maxloga = maxloga;
+		functor.minloga = minloga;
+		functor.dloga = dloga;
+		functor.amin = amin;
+		functor.amax = amax;
+		functor.N = N;
+	}
+	__syncthreads();
+
 }
+#endif
 
 #endif /* GPUTIGER_INTERP_HPP_ */

@@ -70,7 +70,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	}
 	opts.hsoft = 1.0 / pow(opts.nparts, 1.0 / 3.0) / 25.0;
 	opts.theta = 0.7;
-	opts.G = opts.M = 1.0;
+
 	if (opts.bucket_size > MAX_BUCKET_SIZE) {
 		printf("Bucket size of %i exceeds max of %i\n", opts.bucket_size, MAX_BUCKET_SIZE);
 		abort();
@@ -79,8 +79,22 @@ bool process_options(int argc, char *argv[], options &opts) {
 	opts.Y = 0.24;
 	opts.omega_b = 0.05;
 	opts.omega_c = 0.25;
+	opts.omega_m = opts.omega_b + opts.omega_c;
 	opts.Theta = 1.0;
 	opts.sigma8 = 0.83;
+	opts.code_to_cm = 7.104e26 * opts.parts_dim / 1024.0;
+	opts.z0 = 49.0;
+
+	const auto Gcgs = constants::G;
+	const auto ccgs = constants::c;
+	const auto Hcgs = constants::H0;
+	opts.code_to_s = opts.code_to_cm / opts.code_to_cms;
+	opts.H0 = Hcgs * opts.code_to_s;
+	opts.G = Gcgs / pow(opts.code_to_cm, 3) * opts.code_to_g
+			* pow(opts.code_to_s, 2);
+	double m_tot = opts.omega_m * 3.0 * opts.H0 * opts.H0 / (8 * M_PI * opts.G);
+	opts.M = m_tot / opts.nparts;
+
 	double omega_r = 32.0 * M_PI / 3.0 * constants::G * constants::sigma
 			* (1 + opts.Neff * (7. / 8.0) * std::pow(4. / 11., 4. / 3.)) * std::pow(constants::H0, -2)
 			* std::pow(constants::c, -3) * std::pow(2.73 * opts.Theta, 4) * std::pow(opts.hubble, -2);
