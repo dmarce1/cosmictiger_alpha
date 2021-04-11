@@ -153,8 +153,8 @@ void drive_cosmos() {
 	double parts_total;
 	double time_total;
 	if (!have_checkpoint) {
-		parts.load_particles("ics");
-		//initial_conditions(parts);
+		//parts.load_particles("ics");
+		initial_conditions(parts);
 		itime = 0;
 		iter = 0;
 		z = global().opts.z0;

@@ -83,17 +83,17 @@ void initial_conditions(particle_set& parts) {
 	float normalization = *result_ptr;
 
 	int block_size = min(BOLTZSIZE, Nk);
-/*		printf("\tComputing Einstain-Boltzmann interpolation solutions for power.dat\n");
+	/*		printf("\tComputing Einstain-Boltzmann interpolation solutions for power.dat\n");
 	 float dk = log(kmax / kmin) / (Nk - 1);
 	 printf("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	 einstein_boltzmann_interpolation_function<<<1, block_size>>>(den_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk, zeroverse_ptr->amin, 1.f);
 	 CUDA_CHECK(cudaDeviceSynchronize());
-*/
+	 */
 	const auto code_to_mpc = global().opts.code_to_cm / constants::mpc_to_cm;
-	printf( "code_to_mpc = %e\n", code_to_mpc);
+	printf("code_to_mpc = %e\n", code_to_mpc);
 
 	kmin = 2.0 * (float) M_PI / code_to_mpc;
-	kmax = sqrtf(3) * (kmin * (float) (global().opts.parts_dim));
+	kmax = (kmin * (float) (global().opts.parts_dim));
 	printf("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	Nk = 2 * global().opts.parts_dim;
 	block_size = min(BOLTZSIZE, Nk);
@@ -106,8 +106,16 @@ void initial_conditions(particle_set& parts) {
 	CUDA_CHECK(cudaDeviceSynchronize());
 
 	printf("\tComputing random number set\n");
-	generate_random_normals<<<1,RANDSIZE>>>(rands, N3);
-	CUDA_CHECK(cudaDeviceSynchronize());
+//	generate_random_normals<<<1,RANDSIZE>>>(rands, N3);
+	//CUDA_CHECK(cudaDeviceSynchronize());
+	for (int i = 0; i < N3; i++) {
+		float x1 = (rand() + 0.5) / RAND_MAX;
+		float y1 = (rand() + 0.5) / RAND_MAX;
+		float x = x1;
+		float y = 2.f * (float) M_PI * y1;
+//		printf( "%i %i\n", i, N);
+		rands[i] = sqrtf(-logf(fabsf(x))) * expc(cmplx(0, 1) * y);
+	}
 
 	printf("\tComputing over/under density\n");
 	zeldovich<<<1,ZELDOSIZE>>>(phi, basis, rands, den_k, code_to_mpc, N, 0, DENSITY);
@@ -155,15 +163,15 @@ void initial_conditions(particle_set& parts) {
 			}
 		}
 		printf("\t\tComputing %c velocities\n", 'x' + dim);
-		zeldovich<<<1,ZELDOSIZE>>>(phi, basis, rands, den_k, code_to_mpc, N, dim, VELOCITY);
-		CUDA_CHECK(cudaDeviceSynchronize());
-		fft3d(phi, basis, N);
+		//	zeldovich<<<1,ZELDOSIZE>>>(phi, basis, rands, den_k, code_to_mpc, N, dim, VELOCITY);
+//		CUDA_CHECK(cudaDeviceSynchronize());
+//		fft3d(phi, basis, N);
 		for (int i = 0; i < N; i++) {
 			for (int j = 0; j < N; j++) {
 				for (int k = 0; k < N; k++) {
 					const int l = N * (N * i + j) + k;
 					float v = phi[l].real();
-					parts.vel(l).a[dim] = v * a / code_to_mpc;
+					parts.vel(l).a[dim] = v * prefac * a / code_to_mpc;
 				}
 			}
 		}
