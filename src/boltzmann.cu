@@ -233,6 +233,8 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 	float oc = uni->params.omega_c;
 	float ob = uni->params.omega_b;
 	float om = oc + ob;
+	float littleh = uni->params.hubble;
+	float h3 = sqr(littleh) * littleh;
 	oc /= om;
 	ob /= om;
 	const auto hubble =
@@ -241,33 +243,27 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 			};
 	float H = hubble(astop);
 	for (int i = thread; i < N; i += block_size) {
-		float k = expf(logkmin + (float) i * dlogk);
+		float k = expf(logkmin + (float) i * dlogk) * littleh;
 		einstein_boltzmann_init(U + i, uni, k, norm, uni->amin);
 		float eps = k / (astop * H);
 		einstein_boltzmann(U + i, uni, k, astart, astop);
-		den_k[i] = sqr(ob * U[i][deltabi] + oc * U[i][deltaci]);
-		vel_k[i] = sqr(
-				(ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / k * H);
+		den_k[i] = sqr(ob * U[i][deltabi] + oc * U[i][deltaci]) * h3;
+		vel_k[i] = h3
+				* sqr((ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / k * H);
 	}
 	__syncthreads();
-	if (thread == 0) {
-		printf("Matter and Velocity Power Spectrum\n");
-		for (int i = 0; i < N; i++) {
-			float k = expf(logkmin + (float) i * dlogk);
-			printf("%e %e %e\n", k, den_k[i], vel_k[i]);
-		}
-	}
 #ifdef __CUDA_ARCH__
 	build_interpolation_function(den_k_func, (den_k), expf(logkmin), expf(logkmax), N);
 	build_interpolation_function(vel_k_func, (vel_k), expf(logkmin), expf(logkmax), N);
 #endif
 	if (thread == 0) {
-		delete[] vel_k;
-		delete[] den_k;
+//		printf("Matter and Velocity Power Spectrum\n");
 		for (int i = 0; i < N; i++) {
 			float k = expf(logkmin + (float) i * dlogk);
-			printf("%e %e %e\n", k, (*den_k_func)(k),den_k[i]);
+//			printf("%e %e %e\n", k, den_k[i], vel_k[i]);
 		}
+		delete[] vel_k;
+		delete[] den_k;
 		//	CUDA_CHECK(cudaFree(den_k));
 		//	CUDA_CHECK(cudaFree(vel_k));
 	}

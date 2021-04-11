@@ -15,7 +15,6 @@
 
 enum zeldovich_t{ DENSITY, DISPLACEMENT, VELOCITY };
 
-#define ZELDOSIZE 256
 
 __global__ void zeldovich(cmplx* den, const cmplx* basis, const cmplx* rands,
 		const interp_functor<float>* P, float box_size, int N, int dim, zeldovich_t );

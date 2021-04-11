@@ -45,7 +45,6 @@ void zeldovich(cmplx* phi, const cmplx* basis, const cmplx* rands, const interp_
 						break;
 					case DENSITY:
 						phi[index0] = rands[index0] * sqrtf(P(k)) * powf(box_size, -1.5);
-						break;
 					}
 					phi[index1] = phi[index0].conj();
 				}

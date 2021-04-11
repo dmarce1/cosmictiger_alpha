@@ -6,6 +6,7 @@
 #include <cosmictiger/cosmos.hpp>
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/map.hpp>
+#include <cosmictiger/initial.hpp>
 
 double T0;
 
@@ -153,6 +154,7 @@ void drive_cosmos() {
 	double time_total;
 	if (!have_checkpoint) {
 		parts.load_particles("ics");
+		//initial_conditions(parts);
 		itime = 0;
 		iter = 0;
 		z = global().opts.z0;
@@ -266,14 +268,14 @@ void drive_cosmos() {
 		double parts_per_leaf = (double) parts.size() / stats.nleaves;
 		double avg_depth = std::log(stats.nleaves) / std::log(2.0);
 //		if (full_eval) {
-		double tfac =  1.0 / 365.25 / 60.0 / 60.0 / 24.0 / global().opts.hubble * global().opts.code_to_s;
+		double tfac = 1.0 / 365.25 / 60.0 / 60.0 / 24.0 / global().opts.hubble * global().opts.code_to_s;
 		double years = real_time * tfac;
 		double dtyears = dt * tfac * a;
 		printf(
 				"%4i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 				iter, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r, max_rung,
-				years, dtyears, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm, kick_tm,
-				drift_tm, total_time, science_rate);
+				years, dtyears, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm,
+				kick_tm, drift_tm, total_time, science_rate);
 //		} else {
 //			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 //					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac,

@@ -54,6 +54,7 @@ set(cosmictiger_source_files
     src/initial.cu
     src/kick_return.cu
     src/math.cu
+    src/power.cu
     src/tree.cu
     src/tree_database.cu
     src/zeldovich.cu

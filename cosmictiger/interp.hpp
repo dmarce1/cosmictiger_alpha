@@ -59,7 +59,7 @@ CUDA_EXPORT
 inline void build_interpolation_function(interp_functor<T>* f, const vector<T>& values, T amin, T amax) {
 	T minloga = log(amin);
 	T maxloga = log(amax);
-	int N = values.size() - 1;
+	int N = values.size();
 	T dloga = (maxloga - minloga) / (N-1);
 	interp_functor<T> functor;
 	functor.values = std::move(values);

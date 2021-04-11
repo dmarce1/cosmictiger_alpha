@@ -390,7 +390,6 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		int min_gpu_nodes = block_count / 8;
 		if (active_nodes < min_gpu_nodes) {
 			params.block_cutoff = 0;
-			printf( "CPU\n");
 		}
 		tree_database_set_readonly();
 		particles->prepare_kick();

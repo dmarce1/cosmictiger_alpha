@@ -5,18 +5,18 @@
 
 __global__
 void fft_basis(cmplx* X, int N) {
-/*	const int& thread = threadIdx.x;
+	const int& thread = threadIdx.x;
 	const int& block_size = blockDim.x;
 	for (int i = thread; i < N / 2; i += block_size) {
 		float omega = 2.0f * (float) M_PI * (float) i / (float) N;
 		X[i] = expc(-cmplx(0, 1) * omega);
 	}
-	__syncthreads();*/
+	__syncthreads();
 }
 
 __global__
 void fft(cmplx* Y, const cmplx* expi, int N) {
-	/*const int& thread = threadIdx.x + blockIdx.x * blockDim.x;
+	const int& thread = threadIdx.x + blockIdx.x * blockDim.x;
 	const int& work_size = gridDim.x * blockDim.x;
 	int level = 0;
 	for (int i = N; i > 1; i >>= 1) {
@@ -55,12 +55,12 @@ void fft(cmplx* Y, const cmplx* expi, int N) {
 			}
 		}
 	}
-*/
+
 }
 
 __global__
 void transpose_xy(cmplx* Y, int N) {
-	/*const int& thread = threadIdx.x + blockIdx.x * blockDim.x;
+	const int& thread = threadIdx.x + blockIdx.x * blockDim.x;
 	const int& work_size = gridDim.x * blockDim.x;
 	for (int xy = thread; xy < N * N; xy += work_size) {
 		int xi = xy / N;
@@ -74,12 +74,12 @@ void transpose_xy(cmplx* Y, int N) {
 				Y[i2] = tmp;
 			}
 		}
-	}*/
+	}
 }
 
 __global__
 void transpose_xz(cmplx* Y, int N) {
-/*	const int& thread = threadIdx.x + blockIdx.x * blockDim.x;
+	const int& thread = threadIdx.x + blockIdx.x * blockDim.x;
 	const int& work_size = gridDim.x * blockDim.x;
 	for (int xy = thread; xy < N * N; xy += work_size) {
 		int xi = xy / N;
@@ -91,12 +91,12 @@ void transpose_xz(cmplx* Y, int N) {
 			Y[i1] = Y[i2];
 			Y[i2] = tmp;
 		}
-	}*/
+	}
 }
 
 __global__
 void transpose_yz(cmplx* Y, int N) {
-	/*const int& thread = threadIdx.x + blockIdx.x * blockDim.x;
+	const int& thread = threadIdx.x + blockIdx.x * blockDim.x;
 	const int& work_size = gridDim.x * blockDim.x;
 		for (int xy = thread; xy < N * N; xy += work_size) {
 			int xi = xy / N;
@@ -108,7 +108,7 @@ void transpose_yz(cmplx* Y, int N) {
 				Y[i1] = Y[i2];
 				Y[i2] = tmp;
 			}
-		}*/
+		}
 }
 
 
