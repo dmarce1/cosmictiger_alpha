@@ -55,6 +55,16 @@ __device__ void einstein_boltzmann_init(cos_state* uptr, const zero_order_univer
 							+ (float) 1.5 * (Ogam * U[deltagami] + Onu * U[deltanui]))) / (eps * eps);
 }
 
+__global__ void einstein_boltzman_kernel(cos_state* states, const zero_order_universe* uni_ptr, float* ks, float amin,
+		float amax, float norm) {
+	const int& tid = threadIdx.x;
+	const int& bid = blockIdx.x;
+	const int& bsz = blockDim.x;
+	const int myindex = bid * bsz + tid;
+	einstein_boltzmann_init(states + myindex, uni_ptr, ks[myindex], norm, amin);
+	einstein_boltzmann(states + myindex, uni_ptr, ks[myindex], amin, amax);
+}
+
 __device__
 void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, float k, float amin, float amax) {
 	const auto &uni = *uni_ptr;
@@ -202,38 +212,28 @@ void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, flo
 	}
 }
 
-__device__ void einstein_boltzmann_init_set(cos_state* U, zero_order_universe* uni, float kmin, float kmax, int N,
-		float amin, float normalization) {
-	float logkmin = logf(kmin);
-	float logkmax = logf(kmax);
-	float dlogk = (logkmax - logkmin) / (N - 1);
-	for (int i = threadIdx.x; i < N; i += blockDim.x) {
-		float k = expf(logkmin + (float) i * dlogk);
-		einstein_boltzmann_init(U + i, uni, k, normalization, uni->amin);
-	}
-	__syncthreads();
-}
-
-__global__
 void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func, interp_functor<float>* vel_k_func,
 		cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm, int N, float astart, float astop) {
-	int thread = threadIdx.x;
-	int block_size = blockDim.x;
-	__shared__ float* den_k;
-	__shared__ float* vel_k;
+	int block_size = 32;
+	N = ((N - 1) / block_size + 1) * block_size;
 	float dlogk = 1.0e-2;
 	float logkmin = logf(kmin) - dlogk;
 	float logkmax = logf(kmax) + dlogk;
 	dlogk = (logkmax - logkmin) / (float) (N - 1);
-	if (thread == 0) {
-		den_k = new float[N];
-		vel_k = new float[N];
+	float* ks;
+	CUDA_MALLOC(ks, N);
+	float littleh = uni->params.hubble;
+
+	for (int i = 0; i < N; i++) {
+		ks[i] = expf(logkmin + (float) i * dlogk) * littleh;
 	}
-	__syncthreads();
+	einstein_boltzman_kernel<<<N/block_size,block_size>>>(U, uni,ks, astart, astop, norm);
+	CUDA_CHECK(cudaDeviceSynchronize());
+
+	vector<float> den_k(N), vel_k(N);
 	float oc = uni->params.omega_c;
 	float ob = uni->params.omega_b;
 	float om = oc + ob;
-	float littleh = uni->params.hubble;
 	float h3 = sqr(littleh) * littleh;
 	oc /= om;
 	ob /= om;
@@ -242,30 +242,20 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 				return hubble_function(a,uni->params.hubble, uni->params.omega_c + uni->params.omega_b, uni->params.omega_gam + uni->params.omega_nu);
 			};
 	float H = hubble(astop);
-	for (int i = thread; i < N; i += block_size) {
-		float k = expf(logkmin + (float) i * dlogk) * littleh;
-		einstein_boltzmann_init(U + i, uni, k, norm, uni->amin);
+	for (int i = 0; i < N; i++) {
+		float k = ks[i];
 		float eps = k / (astop * H);
-		einstein_boltzmann(U + i, uni, k, astart, astop);
 		den_k[i] = sqr(ob * U[i][deltabi] + oc * U[i][deltaci]) * h3;
 		vel_k[i] = h3
-				* sqr((ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / k * H);
+				* sqr((ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / eps);
+	//	printf("%e %e\n", k, vel_k[i]);
 	}
-	__syncthreads();
-#ifdef __CUDA_ARCH__
-	build_interpolation_function(den_k_func, (den_k), expf(logkmin), expf(logkmax), N);
-	build_interpolation_function(vel_k_func, (vel_k), expf(logkmin), expf(logkmax), N);
-#endif
-	if (thread == 0) {
-//		printf("Matter and Velocity Power Spectrum\n");
-		for (int i = 0; i < N; i++) {
-			float k = expf(logkmin + (float) i * dlogk);
-//			printf("%e %e %e\n", k, den_k[i], vel_k[i]);
-		}
-		delete[] vel_k;
-		delete[] den_k;
-		//	CUDA_CHECK(cudaFree(den_k));
-		//	CUDA_CHECK(cudaFree(vel_k));
+	build_interpolation_function(den_k_func, (den_k), expf(logkmin), expf(logkmax));
+	build_interpolation_function(vel_k_func, (vel_k), expf(logkmin), expf(logkmax));
+	printf("Matter and Velocity Power Spectrum\n");
+	for (int i = 0; i < N; i++) {
+//		float k = expf(logkmin + (float) i * dlogk);
 	}
+	CUDA_FREE(ks);
 }
 

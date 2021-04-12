@@ -286,7 +286,7 @@ void drive_cosmos() {
 			//			break;
 		}
 		iter++;
-	} while (z > -0.999999);
+	} while (z > 0.0);
 	double total_time = drift_total + sort_total + kick_total;
 	printf("Sort  time = %e (%.2f) %%\n", sort_total, sort_total / total_time * 100.0);
 	printf("Kick  time = %e (%.2f) %%\n", kick_total, kick_total / total_time * 100.0);

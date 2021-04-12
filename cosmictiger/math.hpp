@@ -246,7 +246,7 @@ CUDA_EXPORT inline float pow2(float r) {
 }
 
 __global__
-void generate_random_normals(cmplx* nums, int N);
+void generate_random_normals(cmplx* nums, int N, int seed);
 
 #endif
 #endif /* GPUTIGER_MATH_HPP_ */

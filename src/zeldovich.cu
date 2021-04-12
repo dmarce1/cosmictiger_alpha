@@ -25,7 +25,7 @@ void zeldovich(cmplx* phi, const cmplx* basis, const cmplx* rands, const interp_
 		int j0 = j < N / 2 ? j : j - N;
 		float kx = 2.f * (float) M_PI / box_size * float(i0);
 		float ky = 2.f * (float) M_PI / box_size * float(j0);
-		for (int l = 0; l < N; l++) {
+		for (int l = 0; l < N / 2; l++) {
 			int l0 = l < N / 2 ? l : l - N;
 			int i2 = i0 * i0 + j0 * j0 + l0 * l0;
 			int index0 = N * (N * i + j) + l;

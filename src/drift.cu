@@ -19,7 +19,6 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 	mymomy = 0;
 	mymomz = 0;
 	for (size_t i = start + tid; i < stop; i += DRIFT_BLOCK_SIZE) {
-		//	printf( "%li %li %li\n", i - start, start-start, stop-start);
 		double x = parts.pos(0,i).to_double();
 		double y = parts.pos(1,i).to_double();
 		double z = parts.pos(2,i).to_double();

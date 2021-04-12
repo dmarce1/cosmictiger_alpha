@@ -1,5 +1,6 @@
-
 #include <cosmictiger/math.hpp>
+
+#include <curand_kernel.h>
 
 double find_root(std::function<double(double)> f) {
 	double x = 0.5;
@@ -25,29 +26,14 @@ double find_root(std::function<double(double)> f) {
 }
 
 __global__
-void generate_random_normals(cmplx* nums, int N) {
-	uint64_t mod = 1LL << 31LL;
-	uint64_t a1 = 1664525LL;
-	uint64_t a2 = 1103515245LL;
-	uint64_t c1 = 1013904223LL;
-	uint64_t c2 = 12345LL;
+void generate_random_normals(cmplx* nums, int N, int seed) {
+	curandState_t state;
 	const int& thread = threadIdx.x;
-	const int& block_size = blockDim.x;
-	uint32_t int1 = a1;
-	uint32_t int2 = a2;
-	for( int i = 0; i < 2*(block_size-thread); i++) {
-		int1 *= a1;
-		int2 *= a2;
-		int1 >>= 8;
-		int2 >>= 8;
-	}
-	int1 = int1 % mod;
-	int2 = int2 % mod;
-	for (int i = thread; i < N; i += block_size) {
-		int1 = (a1 * (uint64_t) int1 + c1) % mod;
-		int2 = (a2 * (uint64_t) int2 + c2) % mod;
-		float x1 = ((float) int1 + 0.5f) / (float) uint64_t(mod + uint64_t(1));
-		float y1 = ((float) int2 + 0.5f) / (float) uint64_t(mod + uint64_t(1));
+	curand_init(seed, thread, 0, &state);
+
+	for (int i = thread; i < N; i += blockDim.x) {
+		float x1 = curand_uniform(&state);
+		float y1 = curand_uniform(&state);
 		float x = x1;
 		float y = 2.f * (float) M_PI * y1;
 //		printf( "%i %i\n", i, N);
