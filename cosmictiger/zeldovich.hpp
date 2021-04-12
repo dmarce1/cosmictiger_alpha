@@ -13,10 +13,11 @@
 #include <cosmictiger/math.hpp>
 #include <cosmictiger/fourier.hpp>
 
-enum zeldovich_t{ DENSITY, DISPLACEMENT, VELOCITY };
+enum zeldovich_t {
+	DENSITY, DISPLACEMENT, VELOCITY
+};
 
-
-__global__ void zeldovich(cmplx* den, const cmplx* basis, const cmplx* rands,
-		const interp_functor<float>* P, float box_size, int N, int dim, zeldovich_t );
+__global__ void zeldovich(cmplx* den, const cmplx* rands, const interp_functor<float>* P, float box_size, int N,
+		int dim, zeldovich_t);
 
 #endif /* ZELDOVICH_HPP_ */

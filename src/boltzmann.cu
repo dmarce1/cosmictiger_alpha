@@ -56,13 +56,17 @@ __device__ void einstein_boltzmann_init(cos_state* uptr, const zero_order_univer
 }
 
 __global__ void einstein_boltzman_kernel(cos_state* states, const zero_order_universe* uni_ptr, float* ks, float amin,
-		float amax, float norm) {
+		float amax, float norm, int nmax, bool cont) {
 	const int& tid = threadIdx.x;
 	const int& bid = blockIdx.x;
 	const int& bsz = blockDim.x;
 	const int myindex = bid * bsz + tid;
-	einstein_boltzmann_init(states + myindex, uni_ptr, ks[myindex], norm, amin);
-	einstein_boltzmann(states + myindex, uni_ptr, ks[myindex], amin, amax);
+	if( myindex < nmax) {
+		if( !cont) {
+			einstein_boltzmann_init(states + myindex, uni_ptr, ks[myindex], norm, amin);
+		}
+		einstein_boltzmann(states + myindex, uni_ptr, ks[myindex], amin, amax);
+	}
 }
 
 __device__
@@ -213,9 +217,9 @@ void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, flo
 }
 
 void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func, interp_functor<float>* vel_k_func,
-		cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm, int N, float astart, float astop) {
+		cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm, int N, float astart, float astop, bool cont) {
 	int block_size = 32;
-	N = ((N - 1) / block_size + 1) * block_size;
+	int nblocks = (N-1) / block_size + 1;
 	float dlogk = 1.0e-2;
 	float logkmin = logf(kmin) - dlogk;
 	float logkmax = logf(kmax) + dlogk;
@@ -227,7 +231,7 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 	for (int i = 0; i < N; i++) {
 		ks[i] = expf(logkmin + (float) i * dlogk) * littleh;
 	}
-	einstein_boltzman_kernel<<<N/block_size,block_size>>>(U, uni,ks, astart, astop, norm);
+	einstein_boltzman_kernel<<<nblocks,block_size>>>(U, uni,ks, astart, astop, norm, N, cont);
 	CUDA_CHECK(cudaDeviceSynchronize());
 
 	vector<float> den_k(N), vel_k(N);

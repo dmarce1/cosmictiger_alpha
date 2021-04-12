@@ -59,6 +59,6 @@ __device__ void einstein_boltzmann_init_set(cos_state* U, zero_order_universe* u
 		float amin, float normalization);
 
 void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func, interp_functor<float>* vel_k_func,
-		cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm, int N, float astart, float astop);
+		cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm, int N, float astart, float astop, bool cont = false);
 
 #endif /* GPUTIGER_BOLTZMANN_HPP_ */

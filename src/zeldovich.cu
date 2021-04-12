@@ -9,7 +9,7 @@
 #include <cosmictiger/array.hpp>
 
 __global__
-void zeldovich(cmplx* phi, const cmplx* basis, const cmplx* rands, const interp_functor<float>* Pptr, float box_size,
+void zeldovich(cmplx* phi, const cmplx* rands, const interp_functor<float>* Pptr, float box_size,
 		int N, int dim, zeldovich_t type) {
 	const int& thread = threadIdx.x;
 	const int& block_size = blockDim.x;

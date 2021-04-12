@@ -28,7 +28,6 @@ void initial_conditions(particle_set& parts) {
 	cosmic_params params;
 	interp_functor<float>* den_k;
 	interp_functor<float>* vel_k;
-	cmplx* basis;
 	cmplx* phi;
 	cmplx* rands;
 	const size_t N = global().opts.parts_dim;
@@ -37,7 +36,6 @@ void initial_conditions(particle_set& parts) {
 
 	CUDA_MALLOC(phi, N3);
 	CUDA_MALLOC(rands, N3);
-	CUDA_MALLOC(basis, N / 2);
 	CUDA_MALLOC(den_k, 1);
 	CUDA_MALLOC(vel_k, 1);
 	CUDA_MALLOC(zeroverse_ptr, 1);
@@ -100,27 +98,21 @@ void initial_conditions(particle_set& parts) {
 	auto vel_destroy = vel_k->to_device();
 #endif
 
-	printf("\tComputing FFT basis\n");
-	fft_basis<<<1,FFTSIZE>>>(basis, N);
+	cudaFuncAttributes attrib;
+	CUDA_CHECK(cudaFuncGetAttributes(&attrib, generate_random_normals));
+	const int block_size = attrib.maxThreadsPerBlock;
+	int num_blocks;
+	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, generate_random_normals, block_size, 0));
+	num_blocks *= global().cuda.devices[0].multiProcessorCount;
+	num_blocks = std::min(global().cuda.devices[0].maxGridSize[0], num_blocks);
+	printf("\tComputing random number set with %i blocks and %i per block and %i registers per thread\n", num_blocks, block_size, attrib.numRegs);
+	generate_random_normals<<<num_blocks,block_size>>>(rands, N3, 1234);
 	CUDA_CHECK(cudaDeviceSynchronize());
-
-	printf("\tComputing random number set\n");
-	srand(time(NULL));
-	generate_random_normals<<<1,RANDSIZE>>>(rands, N3, 1234/*time(NULL)*/);
-	CUDA_CHECK(cudaDeviceSynchronize());
-/*	for (int i = 0; i < N3; i++) {
-		float x1 = (rand() + 0.5) / RAND_MAX;
-		float y1 = (rand() + 0.5) / RAND_MAX;
-		float x = x1;
-		float y = 2.f * (float) M_PI * y1;
-//		printf( "%i %i\n", i, N);
-		rands[i] = sqrtf(-logf(fabsf(x))) * expc(cmplx(0, 1) * y);
-	}*/
 
 	printf("\tComputing over/under density\n");
-	zeldovich<<<1,ZELDOSIZE>>>(phi, basis, rands, den_k, code_to_mpc, N, 0, DENSITY);
+	zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, 0, DENSITY);
 	CUDA_CHECK(cudaDeviceSynchronize());
-	fft3d(phi, basis, N);
+	fft3d(phi, N);
 	float drho = 0.0;
 	for (int i = 0; i < N3; i++) {
 		drho = std::max(drho, std::abs((phi[i].real())));
@@ -139,9 +131,9 @@ void initial_conditions(particle_set& parts) {
 	printf("Velocity prefactor is %e, Hubble(a) = %e, f(a) = %e\n", prefac, H, f);
 	for (int dim = 0; dim < NDIM; dim++) {
 		printf("\t\tComputing %c positions\n", 'x' + dim);
-		zeldovich<<<1,ZELDOSIZE>>>(phi, basis, rands, den_k, code_to_mpc, N, dim, DISPLACEMENT);
+		zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, dim, DISPLACEMENT);
 		CUDA_CHECK(cudaDeviceSynchronize());
-		fft3d(phi, basis, N);
+		fft3d(phi, N);
 		for (int i = 0; i < N3; i++) {
 			xdisp = std::max(xdisp, std::abs((phi[i].real())));
 		}
@@ -163,11 +155,11 @@ void initial_conditions(particle_set& parts) {
 			}
 		}
 		printf("\t\tComputing %c velocities\n", 'x' + dim);
-		zeldovich<<<1,ZELDOSIZE>>>(phi, basis, rands, vel_k, code_to_mpc, N, dim, VELOCITY);
+		zeldovich<<<1,ZELDOSIZE>>>(phi, rands, vel_k, code_to_mpc, N, dim, VELOCITY);
 		CUDA_CHECK(cudaDeviceSynchronize());
-		fft3d(phi, basis, N);
-		for( double k = kmin; k < kmax; k *=1.024) {
-	//		printf( "%e %e\n", k, (*den_k)(k));
+		fft3d(phi, N);
+		for (double k = kmin; k < kmax; k *= 1.024) {
+			//		printf( "%e %e\n", k, (*den_k)(k));
 		}
 		prefac = 1.0;
 		for (int i = 0; i < N; i++) {
@@ -175,7 +167,7 @@ void initial_conditions(particle_set& parts) {
 				for (int k = 0; k < N; k++) {
 					const int l = N * (N * i + j) + k;
 					float v = phi[l].real();
-					parts.vel(l).a[dim] = v * prefac * a;// / code_to_mpc;
+					parts.vel(l).a[dim] = v * prefac * a; // / code_to_mpc;
 				}
 			}
 		}
@@ -199,7 +191,6 @@ void initial_conditions(particle_set& parts) {
 	CUDA_FREE(states);
 	CUDA_FREE(vel_k);
 	CUDA_FREE(den_k);
-	CUDA_FREE(basis);
 	CUDA_FREE(rands);
 	CUDA_FREE(phi);
 	printf("Done initializing\n");

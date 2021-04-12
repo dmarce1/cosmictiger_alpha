@@ -28,10 +28,11 @@ double find_root(std::function<double(double)> f) {
 __global__
 void generate_random_normals(cmplx* nums, int N, int seed) {
 	curandState_t state;
-	const int& thread = threadIdx.x;
+	const int thread = threadIdx.x + blockDim.x * blockIdx.x;
+	const int db = blockDim.x * gridDim.x;
 	curand_init(seed, thread, 0, &state);
 
-	for (int i = thread; i < N; i += blockDim.x) {
+	for (int i = thread; i < N; i += db) {
 		float x1 = curand_uniform(&state);
 		float y1 = curand_uniform(&state);
 		float x = x1;

@@ -11,11 +11,8 @@
 #include <cosmictiger/math.hpp>
 
 
-__global__
-void fft_basis(cmplx* X, int N);
 
-
-void fft3d(cmplx* Y, const cmplx* expi, int N);
+void fft3d(cmplx* Y, int N);
 
 
 #endif /* FOURIER_HPP_ */
