@@ -7,15 +7,71 @@
 #include <cosmictiger/constants.hpp>
 
 #define SIGMA8SIZE 256
-#define FFTSIZE 256
-#define RANDSIZE 256
 #define ZELDOSIZE 256
+#define WARPSIZE 32
+
+__managed__ float max_phi;
 
 template<class T>
 __global__ void vector_free_kernel(vector<T>* vect) {
 	if (threadIdx.x == 0) {
 		vect->vector < T > ::~vector<T>();
 	}
+}
+
+__device__ static float atomicMax(float* address, float val) {
+	int* address_as_i = (int*) address;
+	int old = *address_as_i, assumed;
+	do {
+		assumed = old;
+		old = ::atomicCAS(address_as_i, assumed, __float_as_int(::fmaxf(val, __int_as_float(assumed))));
+	} while (assumed != old);
+	return __int_as_float(old);
+}
+
+__global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_mpc, int dim) {
+	int i = blockIdx.x;
+	int j = blockIdx.y;
+	int N = gridDim.x;
+	for (int k = threadIdx.x; k < N; k += blockDim.x) {
+		const int l = N * (N * i + j) + k;
+		const int I[NDIM] = { i, j, k };
+		float x = (((float) I[dim] + 0.5f) / (float) N);
+		x += phi[l].real() / code_to_mpc;
+		while (x > 1.0) {
+			x -= 1.0;
+		}
+		while (x < 0.0) {
+			x += 1.0;
+		}
+		parts.pos(dim, l) = x;
+	}
+}
+
+__global__ void phi_to_velocities(particle_set parts, cmplx* phi, float a, int dim) {
+	int i = blockIdx.x;
+	int j = blockIdx.y;
+	int N = gridDim.x;
+	for (int k = threadIdx.x; k < N; k += blockDim.x) {
+		const int l = N * (N * i + j) + k;
+		float v = phi[l].real();
+		parts.vel(l).a[dim] = v * a; // / code_to_mpc;
+	}
+}
+
+__global__ void phi_max(cmplx* phi, int N) {
+	int i = blockIdx.x;
+	int j = blockIdx.y;
+	float mymax = 0.0;
+	for (int k = threadIdx.x; k < N; k += blockDim.x) {
+		const int l = N * (N * i + j) + k;
+		mymax = fmaxf(mymax, phi[l].real());
+	}
+	for (int P = WARPSIZE / 2; P >= 1; P /= 2) {
+		auto tmp = __shfl_down_sync(0xFFFFFFFF, mymax, P);
+		mymax = fmaxf(tmp, mymax);
+	}
+	atomicMax(&max_phi, mymax);
 }
 
 void initial_conditions(particle_set& parts) {
@@ -105,7 +161,8 @@ void initial_conditions(particle_set& parts) {
 	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, generate_random_normals, block_size, 0));
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
 	num_blocks = std::min(global().cuda.devices[0].maxGridSize[0], num_blocks);
-	printf("\tComputing random number set with %i blocks and %i per block and %i registers per thread\n", num_blocks, block_size, attrib.numRegs);
+	printf("\tComputing random number set with %i blocks and %i per block and %i registers per thread\n", num_blocks,
+			block_size, attrib.numRegs);
 	generate_random_normals<<<num_blocks,block_size>>>(rands, N3, 1234);
 	CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -113,64 +170,37 @@ void initial_conditions(particle_set& parts) {
 	zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, 0, DENSITY);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	fft3d(phi, N);
-	float drho = 0.0;
-	for (int i = 0; i < N3; i++) {
-		drho = std::max(drho, std::abs((phi[i].real())));
-	}
-	printf("\t\tOver/under density is %e\n", drho);
+
+	dim3 gdim;
+	gdim.x = gdim.y = N;
+	gdim.z = 1;
+	max_phi = 0.0;
+	phi_max<<<gdim,WARPSIZE>>>(phi,N);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	float drho = max_phi;
+	printf("\t\tMaximum over/under density is %e\n", drho);
 
 	float xdisp = 0.0, vmax = 0.0;
 	const double omega_m = params.omega_b + params.omega_c;
 	const double omega_r = params.omega_nu + params.omega_gam;
 	const double a = ainit;
-	const double Om = omega_m / (omega_m + (a * a * a) * (1.0 - omega_m - omega_r) + omega_r / a);
-	const double f = std::pow(Om, 0.6);
-	const double H = global().opts.H0
-			* std::sqrt(omega_r / (a * a * a * a) + omega_m / (a * a * a) + 1.0 - omega_r - omega_m);
-	double prefac = f * H * a;
-	printf("Velocity prefactor is %e, Hubble(a) = %e, f(a) = %e\n", prefac, H, f);
 	for (int dim = 0; dim < NDIM; dim++) {
 		printf("\t\tComputing %c positions\n", 'x' + dim);
 		zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, dim, DISPLACEMENT);
 		CUDA_CHECK(cudaDeviceSynchronize());
 		fft3d(phi, N);
-		for (int i = 0; i < N3; i++) {
-			xdisp = std::max(xdisp, std::abs((phi[i].real())));
-		}
-		for (int i = 0; i < N; i++) {
-			for (int j = 0; j < N; j++) {
-				for (int k = 0; k < N; k++) {
-					const int l = N * (N * i + j) + k;
-					const int I[NDIM] = { i, j, k };
-					float x = (((float) I[dim] + 0.5f) / (float) N);
-					x += phi[l].real() / code_to_mpc;
-					while (x > 1.0) {
-						x -= 1.0;
-					}
-					while (x < 0.0) {
-						x += 1.0;
-					}
-					parts.pos(dim, l) = x;
-				}
-			}
-		}
+		max_phi = 0.0;
+		phi_max<<<gdim,WARPSIZE>>>(phi,N);
+		CUDA_CHECK(cudaDeviceSynchronize());
+		xdisp = std::max(xdisp, max_phi);
+		phi_to_positions<<<gdim,WARPSIZE>>>(parts.get_virtual_particle_set(), phi,code_to_mpc, dim);
+		CUDA_CHECK(cudaDeviceSynchronize());
 		printf("\t\tComputing %c velocities\n", 'x' + dim);
 		zeldovich<<<1,ZELDOSIZE>>>(phi, rands, vel_k, code_to_mpc, N, dim, VELOCITY);
 		CUDA_CHECK(cudaDeviceSynchronize());
 		fft3d(phi, N);
-		for (double k = kmin; k < kmax; k *= 1.024) {
-			//		printf( "%e %e\n", k, (*den_k)(k));
-		}
-		prefac = 1.0;
-		for (int i = 0; i < N; i++) {
-			for (int j = 0; j < N; j++) {
-				for (int k = 0; k < N; k++) {
-					const int l = N * (N * i + j) + k;
-					float v = phi[l].real();
-					parts.vel(l).a[dim] = v * prefac * a; // / code_to_mpc;
-				}
-			}
-		}
+		phi_to_velocities<<<gdim,WARPSIZE>>>(parts.get_virtual_particle_set(), phi,a, dim);
+		CUDA_CHECK(cudaDeviceSynchronize());
 	}
 	xdisp /= code_to_mpc / N;
 	printf("\t\tMaximum displacement is %e\n", xdisp);
