@@ -38,12 +38,14 @@ struct options {
 	double omega_gam;
 	double omega_nu;
 	double Theta;
+	double omega_r;
 
 	int map_size;
 	double silo_interval;
 	double map_freq;
 	int checkpt_freq;
 	std::string checkpt_file;
+	std::string config_file;
 	template<class A>
 	void serialize(A&& arc, unsigned) {
 		arc & config;

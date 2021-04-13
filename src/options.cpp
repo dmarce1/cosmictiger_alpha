@@ -23,11 +23,17 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("bucket_size", po::value<int>(&(opts.bucket_size))->default_value(MAX_BUCKET_SIZE), "bucket size") //
 	("checkpt_freq", po::value<int>(&(opts.checkpt_freq))->default_value(3600), "checkpoint frequency") //
 	("checkpt_file", po::value<std::string>(&(opts.checkpt_file))->default_value(""), "checkpoint restart") //
+	("config_file", po::value<std::string>(&(opts.config_file))->default_value(""), "configuration file") //
 	("cuda", po::value<bool>(&(opts.cuda))->default_value(true), "cuda on/off") //
 	("code_to_g", po::value<double>(&(opts.code_to_g))->default_value(1.99e33), "code to g") //
 	("code_to_cm", po::value<double>(&(opts.code_to_cm))->default_value(6.17e27), "code to cm") //
 	("code_to_cms", po::value<double>(&(opts.code_to_cms))->default_value(3e10), "code to cm/s") //
-	("omega_m", po::value<double>(&(opts.omega_m))->default_value(0.32), "") //
+	("omega_b", po::value<double>(&(opts.omega_b))->default_value(0.05), "") //
+	("omega_c", po::value<double>(&(opts.omega_c))->default_value(0.25), "") //
+	("Neff", po::value<double>(&(opts.Neff))->default_value(3.046), "") //
+	("Theta", po::value<double>(&(opts.Theta))->default_value(1.00), "") //
+	("Y", po::value<double>(&(opts.Y))->default_value(0.24), "") //
+	("sigma8", po::value<double>(&(opts.sigma8))->default_value(0.83), "") //
 	("hubble", po::value<double>(&(opts.hubble))->default_value(0.7), "") //
 	("silo_interval", po::value<double>(&(opts.silo_interval))->default_value(-1.), "interval between SILO outs") //
 	("map_size", po::value<int>(&(opts.map_size))->default_value(-1), "smallest dimension of Mollweide map (-1 = off)") //
@@ -35,6 +41,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 			"Map frequency, conformal time, 1 = age of universe") //
 	("parts_dim", po::value<size_t>(&(opts.parts_dim))->default_value(16), "number of particles = parts_dim^3") //
 	("test", po::value<std::string>(&(opts.test))->default_value(""), "test problem") //
+	("z0", po::value<double>(&(opts.z0))->default_value(49), "starting redshift") //
 			;
 
 	boost::program_options::variables_map vm;
@@ -57,15 +64,14 @@ bool process_options(int argc, char *argv[], options &opts) {
 			rc = true;
 		}
 	}
+
+
 	if (rc) {
 		po::notify(vm);
 		opts.nparts = opts.parts_dim * opts.parts_dim * opts.parts_dim;
 		{
-#define SHOW( opt ) std::cout << std::string( #opt ) << " = " << std::to_string(opts.opt) << '\n';
+#define SHOW( opt ) printf( "%s = %e\n",  #opt, (double) opts.opt)
 #define SHOW_STRING( opt ) std::cout << std::string( #opt ) << " = " << opts.opt << '\n';
-			SHOW_STRING(config);
-			SHOW_STRING(test);
-			SHOW(nparts);
 		}
 	}
 	opts.hsoft = 1.0 / pow(opts.nparts, 1.0 / 3.0) / 25.0;
@@ -75,15 +81,8 @@ bool process_options(int argc, char *argv[], options &opts) {
 		printf("Bucket size of %i exceeds max of %i\n", opts.bucket_size, MAX_BUCKET_SIZE);
 		abort();
 	}
-	opts.Neff = 3.046;
-	opts.Y = 0.24;
-	opts.omega_b = 0.05;
-	opts.omega_c = 0.25;
 	opts.omega_m = opts.omega_b + opts.omega_c;
-	opts.Theta = 1.0;
-	opts.sigma8 = 0.83;
 	opts.code_to_cm = 7.104e26 * opts.parts_dim / 1024.0;
-	opts.z0 = 49.0;
 
 	const auto Gcgs = constants::G;
 	const auto ccgs = constants::c;
@@ -100,6 +99,49 @@ bool process_options(int argc, char *argv[], options &opts) {
 			* std::pow(constants::c, -3) * std::pow(2.73 * opts.Theta, 4) * std::pow(opts.hubble, -2);
 	opts.omega_nu = omega_r * opts.Neff / (8.0 / 7.0 * std::pow(11.0 / 4.0, 4.0 / 3.0) + opts.Neff);
 	opts.omega_gam = omega_r - opts.omega_nu;
+	opts.omega_r = omega_r;
+
+
+	printf( "Simulation Options\n");
+
+	SHOW_STRING(config);
+	SHOW(map_size);
+	SHOW(silo_interval);
+	SHOW(map_freq);
+	SHOW(checkpt_freq);
+	SHOW_STRING(checkpt_file);
+	SHOW_STRING(config_file);
+	SHOW_STRING(test);
+	SHOW(parts_dim);
+	SHOW(nparts);
+	SHOW(bucket_size);
+	SHOW(cuda);
+	SHOW(hsoft);
+	SHOW(theta);
+
+	printf( "Units\n");
+	SHOW(code_to_s);
+	SHOW(code_to_g);
+	SHOW(code_to_cm);
+	SHOW(code_to_cms);
+	SHOW(H0);
+	SHOW(G);
+	SHOW(M);
+
+	printf( "Cosmological Options\n");
+	SHOW(hubble);
+	SHOW(z0);
+	SHOW(sigma8);
+	SHOW(Neff);
+	SHOW(Y);
+	SHOW(omega_m);
+	SHOW(omega_r);
+	SHOW(omega_c);
+	SHOW(omega_b);
+	SHOW(omega_gam);
+	SHOW(omega_nu);
+	SHOW(Theta);
+
 
 	return rc;
 }
