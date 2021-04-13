@@ -13,7 +13,7 @@ __device__ float sigma8_integrand::operator()(float x) const {
 	const float c0 = float(9) / (2. * float(M_PI) * float(M_PI)) / powf(R, 6);
 	float k = expf(x);
 	cos_state U;
-	einstein_boltzmann_init(&U, uni, k, 1., uni->amin);
+	einstein_boltzmann_init(&U, uni, k, 1., uni->amin, ns);
 	einstein_boltzmann(&U, uni, k, uni->amin, 1.);
 	float oc = zero_verse->params.omega_c;
 	float ob = zero_verse->params.omega_b;
@@ -24,7 +24,7 @@ __device__ float sigma8_integrand::operator()(float x) const {
 }
 
 __device__ void einstein_boltzmann_init(cos_state* uptr, const zero_order_universe* uni_ptr, float k,
-		float normalization, float a) {
+		float normalization, float a, float ns) {
 	cos_state& U = *uptr;
 	const zero_order_universe& uni = *uni_ptr;
 	float Oc, Ob, Ogam, Onu, Or;
@@ -34,7 +34,7 @@ __device__ void einstein_boltzmann_init(cos_state* uptr, const zero_order_univer
 	float hubble = hubble_function(a, uni.params.hubble, uni.params.omega_b + uni.params.omega_c,
 			uni.params.omega_gam + uni.params.omega_nu);
 	float eps = k / (a * hubble);
-	float C = (float) 1.0 * powf(eps, (float) -1.5) * normalization;
+	float C = normalization * powf(eps, -1.5f) * powf(eps, (ns - 1.f) * 0.5f);
 	float Rnu = Onu / Or;
 	U[taui] = (float) 1.0 / (a * hubble);
 	U[deltanui] = U[deltagami] = -(float) 2.0 / (float) 3.0 * C * eps * eps;
@@ -56,14 +56,14 @@ __device__ void einstein_boltzmann_init(cos_state* uptr, const zero_order_univer
 }
 
 __global__ void einstein_boltzman_kernel(cos_state* states, const zero_order_universe* uni_ptr, float* ks, float amin,
-		float amax, float norm, int nmax, bool cont) {
+		float amax, float norm, int nmax, bool cont, float ns) {
 	const int& tid = threadIdx.x;
 	const int& bid = blockIdx.x;
 	const int& bsz = blockDim.x;
 	const int myindex = bid * bsz + tid;
-	if( myindex < nmax) {
-		if( !cont) {
-			einstein_boltzmann_init(states + myindex, uni_ptr, ks[myindex], norm, amin);
+	if (myindex < nmax) {
+		if (!cont) {
+			einstein_boltzmann_init(states + myindex, uni_ptr, ks[myindex], norm, amin, ns);
 		}
 		einstein_boltzmann(states + myindex, uni_ptr, ks[myindex], amin, amax);
 	}
@@ -99,7 +99,7 @@ void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, flo
 		float dloga_r = (float) 2.0 * (float) 2.51 / lambda_r;
 		float dloga = min(min((float) 5e-2, min((float) 0.9 * dloga_i, (float) 0.1 * dloga_r)), logamax - loga);
 		float loga0 = loga;
-		const auto compute_expflicit =
+		const auto compute_explicit =
 				[&](int step) {
 					U0 = U;
 					cos_state dudt;
@@ -198,7 +198,7 @@ void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, flo
 					return dudt;
 				};
 
-		compute_expflicit(0);
+		compute_explicit(0);
 		float gamma = (float) 1.0 - (float) 1.0 / sqrtf((float) 2);
 
 		auto dudt1 = compute_implicit_dudt(loga + gamma * dloga, gamma * dloga);
@@ -210,16 +210,17 @@ void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, flo
 			U[f] += (dudt1[f] * ((float) -0.5 + (float) 2.0 * gamma) + dudt2[f] * (float) 0.5) * dloga;
 		}
 
-		compute_expflicit(1);
+		compute_explicit(1);
 
 		loga = loga0 + dloga;
 	}
 }
 
 void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func, interp_functor<float>* vel_k_func,
-		cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm, int N, float astart, float astop, bool cont) {
+		cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm, int N, float astart, float astop,
+		bool cont, float ns) {
 	int block_size = 32;
-	int nblocks = (N-1) / block_size + 1;
+	int nblocks = (N - 1) / block_size + 1;
 	float dlogk = 1.0e-2;
 	float logkmin = logf(kmin) - dlogk;
 	float logkmax = logf(kmax) + dlogk;
@@ -231,7 +232,7 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 	for (int i = 0; i < N; i++) {
 		ks[i] = expf(logkmin + (float) i * dlogk) * littleh;
 	}
-	einstein_boltzman_kernel<<<nblocks,block_size>>>(U, uni,ks, astart, astop, norm, N, cont);
+	einstein_boltzman_kernel<<<nblocks,block_size>>>(U, uni,ks, astart, astop, norm, N, cont, ns);
 	CUDA_CHECK(cudaDeviceSynchronize());
 
 	vector<float> den_k(N), vel_k(N);
@@ -252,14 +253,16 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 		den_k[i] = sqr(ob * U[i][deltabi] + oc * U[i][deltaci]) * h3;
 		vel_k[i] = h3
 				* sqr((ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / eps);
-	//	printf("%e %e\n", k, vel_k[i]);
+		//	printf("%e %e\n", k, vel_k[i]);
 	}
 	build_interpolation_function(den_k_func, (den_k), expf(logkmin), expf(logkmax));
 	build_interpolation_function(vel_k_func, (vel_k), expf(logkmin), expf(logkmax));
-	printf("Matter and Velocity Power Spectrum\n");
+	FILE* fp = fopen("power.dat", "wt");
 	for (int i = 0; i < N; i++) {
-//		float k = expf(logkmin + (float) i * dlogk);
+		float k = expf(logkmin + (float) i * dlogk);
+		fprintf(fp, "%e %e %e\n", k, den_k[i], vel_k[i]);
 	}
+	fclose(fp);
 	CUDA_FREE(ks);
 }
 

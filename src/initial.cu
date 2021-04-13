@@ -6,6 +6,8 @@
 #include <cosmictiger/zeldovich.hpp>
 #include <cosmictiger/constants.hpp>
 
+#include <unistd.h>
+
 #define SIGMA8SIZE 256
 #define FFTSIZE 256
 #define RANDSIZE 256
@@ -75,7 +77,8 @@ __global__ void phi_max_kernel(cmplx* phi, int N3, float* maxes) {
 
 float phi_max(cmplx* phi, int N3) {
 	int num_blocks;
-	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, generate_random_normals, PHIMAXSIZE, sizeof(float)*PHIMAXSIZE));
+	CUDA_CHECK(
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, generate_random_normals, PHIMAXSIZE, sizeof(float)*PHIMAXSIZE));
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
 	num_blocks = std::min(global().cuda.devices[0].maxGridSize[0], num_blocks);
 	float* maxes;
@@ -105,7 +108,7 @@ void initial_conditions(particle_set& parts) {
 	cmplx* phi;
 	cmplx* rands;
 	const size_t N = global().opts.parts_dim;
-	int Nk = 10 * N;
+	int Nk = 8 * 1024;
 	const size_t N3 = sqr(N) * N;
 
 	CUDA_MALLOC(phi, N3);
@@ -139,8 +142,10 @@ void initial_conditions(particle_set& parts) {
 	create_zero_order_universe(&uni, 1.0e6, params);
 	set_zeroverse(&uni);
 	printf("Done.\n");
+	const auto ns = global().opts.ns;
 	func_ptr->uni = zeroverse_ptr;
 	func_ptr->littleh = params.hubble;
+	func_ptr->ns = ns;
 	printf("Computing sigma8 normalization...");
 	fflush(stdout);
 	float kmin = (1e-4 * params.hubble);
@@ -161,12 +166,12 @@ void initial_conditions(particle_set& parts) {
 	const auto code_to_mpc = global().opts.code_to_cm / constants::mpc_to_cm;
 	printf("code_to_mpc = %e\n", code_to_mpc);
 
-	kmin = 2.0 * (float) M_PI / code_to_mpc;
-	kmax = (kmin * (float) (global().opts.parts_dim));
+	kmin = std::min(kmin, 2.0f * (float) M_PI / (float) code_to_mpc);
+	kmax = std::max(2.0f * (float) M_PI / (float) code_to_mpc * (float) (global().opts.parts_dim), kmax);
 	printf("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	const float ainit = 1.0f / (global().opts.z0 + 1.0f);
 	einstein_boltzmann_interpolation_function(den_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
-			zeroverse_ptr->amin, ainit);
+			zeroverse_ptr->amin, ainit, false, ns);
 #ifndef __CUDA_ARCH__
 	auto den_destroy = den_k->to_device();
 	auto vel_destroy = vel_k->to_device();
@@ -190,6 +195,15 @@ void initial_conditions(particle_set& parts) {
 	fft3d(phi, N);
 	float drho = phi_max(phi, N3);
 	printf("\t\tMaximum over/under density is %e\n", drho);
+	if (drho > 1.0) {
+		printf("The overdensity is high, consider using an ealier starting redshift\n");
+		printf("Pausing for 10 seconds\n");
+		sleep(10);
+	} else if (drho < 0.1) {
+		printf("The overdensity is low, consider using a later starting redshift\n");
+		printf("Pausing for 10 seconds\n");
+		sleep(10);
+	}
 
 	float xdisp = 0.0, vmax = 0.0;
 	const double omega_m = params.omega_b + params.omega_c;
@@ -236,6 +250,5 @@ void initial_conditions(particle_set& parts) {
 	CUDA_FREE(rands);
 	CUDA_FREE(phi);
 	printf("Done initializing\n");
-	abort();
 }
 

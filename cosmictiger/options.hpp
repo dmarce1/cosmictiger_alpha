@@ -27,6 +27,7 @@ struct options {
 	double H0;
 	double G;
 	double z0;
+	double ns;
 	double M;
 
 	double sigma8;
@@ -45,7 +46,6 @@ struct options {
 	double map_freq;
 	int checkpt_freq;
 	std::string checkpt_file;
-	std::string config_file;
 	template<class A>
 	void serialize(A&& arc, unsigned) {
 		arc & config;

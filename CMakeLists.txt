@@ -61,6 +61,7 @@ set(cosmictiger_source_files
     src/zero_order.cu
 )
 set(cosmictiger_header_files
+	cosmictiger/boltzmann.hpp
 	cosmictiger/zero_verse.hpp
 	cosmictiger/interp.hpp
 	cosmictiger/chemistry.hpp

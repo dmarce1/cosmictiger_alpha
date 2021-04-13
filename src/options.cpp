@@ -19,11 +19,10 @@ bool process_options(int argc, char *argv[], options &opts) {
 
 	command_opts.add_options()                                                                       //
 	("help", "produce help message")                                                                 //
-	("config", po::value<std::string>(&(opts.config))->default_value(""), "configuration file") //
 	("bucket_size", po::value<int>(&(opts.bucket_size))->default_value(MAX_BUCKET_SIZE), "bucket size") //
 	("checkpt_freq", po::value<int>(&(opts.checkpt_freq))->default_value(3600), "checkpoint frequency") //
 	("checkpt_file", po::value<std::string>(&(opts.checkpt_file))->default_value(""), "checkpoint restart") //
-	("config_file", po::value<std::string>(&(opts.config_file))->default_value(""), "configuration file") //
+	("config", po::value<std::string>(&(opts.config))->default_value(""), "configuration file") //
 	("cuda", po::value<bool>(&(opts.cuda))->default_value(true), "cuda on/off") //
 	("code_to_g", po::value<double>(&(opts.code_to_g))->default_value(1.99e33), "code to g") //
 	("code_to_cm", po::value<double>(&(opts.code_to_cm))->default_value(6.17e27), "code to cm") //
@@ -42,6 +41,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("parts_dim", po::value<size_t>(&(opts.parts_dim))->default_value(16), "number of particles = parts_dim^3") //
 	("test", po::value<std::string>(&(opts.test))->default_value(""), "test problem") //
 	("z0", po::value<double>(&(opts.z0))->default_value(49), "starting redshift") //
+	("ns", po::value<double>(&(opts.ns))->default_value(0.96), "spectral index") //
 			;
 
 	boost::program_options::variables_map vm;
@@ -58,7 +58,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 				rc = true;
 			} else {
 				printf("Configuration file %s not found!\n", opts.config.c_str());
-				rc = false;
+				return false;
 			}
 		} else {
 			rc = true;
@@ -110,7 +110,6 @@ bool process_options(int argc, char *argv[], options &opts) {
 	SHOW(map_freq);
 	SHOW(checkpt_freq);
 	SHOW_STRING(checkpt_file);
-	SHOW_STRING(config_file);
 	SHOW_STRING(test);
 	SHOW(parts_dim);
 	SHOW(nparts);
@@ -131,6 +130,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	printf( "Cosmological Options\n");
 	SHOW(hubble);
 	SHOW(z0);
+	SHOW(ns);
 	SHOW(sigma8);
 	SHOW(Neff);
 	SHOW(Y);

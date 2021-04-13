@@ -45,13 +45,14 @@ using cos_state = array<float,NFIELD>;
 void set_zeroverse(zero_order_universe* z);
 
 __device__ void einstein_boltzmann_init(cos_state* uptr, const zero_order_universe* uni_ptr, float k,
-		float normalization, float a);
+		float normalization, float a, float ns);
 __device__
 void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, float k, float amin, float amax);
 
 struct sigma8_integrand {
 	zero_order_universe* uni;
 	float littleh;
+	float ns;
 	__device__ float operator()(float x) const;
 };
 
@@ -59,6 +60,6 @@ __device__ void einstein_boltzmann_init_set(cos_state* U, zero_order_universe* u
 		float amin, float normalization);
 
 void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func, interp_functor<float>* vel_k_func,
-		cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm, int N, float astart, float astop, bool cont = false);
+		cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm, int N, float astart, float astop, bool cont, float ns);
 
 #endif /* GPUTIGER_BOLTZMANN_HPP_ */

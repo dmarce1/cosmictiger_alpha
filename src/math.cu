@@ -17,11 +17,11 @@ double find_root(std::function<double(double)> f) {
 		err = abs(dx / max(1.0, abs(x)));
 		x += 0.5 * dx;
 		iters++;
-		if (iters > 100000) {
+		if (iters > 1000000) {
 			printf("Finished early with error = %e\n", err);
 			break;
 		}
-	} while (err > 1.0e-12);
+	} while (err > 1.0e-6);
 	return x;
 }
 
