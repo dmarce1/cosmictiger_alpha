@@ -64,6 +64,9 @@ public:
 	inline simd_float(float d) {
 		v = _mm256_set_ps(d, d, d, d, d, d, d, d);
 	}
+	inline simd_float(float d0, float d1, float d2, float d3, float d4, float d5, float d6, float d7) {
+		v = _mm256_set_ps(d7, d6, d5, d4, d3, d2, d1, d0);
+	}
 	inline float sum() const {
 		float sum = 0.0f;
 		for (int i = 0; i < size(); i++) {
@@ -178,6 +181,8 @@ public:
 		rc.v = _mmx_and_ps(mask0, one.v);
 		return rc;
 	}
+
+	friend class simd_int;
 }SIMDALIGN;
 ;
 
@@ -194,6 +199,9 @@ public:
 	simd_int() = default;
 	inline ~simd_int() = default;
 	simd_int(const simd_int&) = default;
+	simd_int(simd_float r) {
+		v = _mm256_cvtps_epi32(r.v);
+	}
 	inline simd_int(int d) {
 		v = _mm256_set_epi32(d, d, d, d, d, d, d, d);
 	}

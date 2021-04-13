@@ -190,7 +190,7 @@ void drive_cosmos() {
 			checkpt_tm.start();
 		}
 		if (iter % 10 == 0) {
-			printf("%4s %4s %4s %4s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter",
+			printf("%4s %8s %4s %4s %4s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "mapped",
 					"maxd", "mind", "ed", "avgd", "ppl", "actv", "min", "max", "time", "dt", "theta", "a", "z", "pot", "kin",
 					"cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
 		}
@@ -246,7 +246,7 @@ void drive_cosmos() {
 		a += (0.5 * datau1 + 0.5 * datau2) * dt;
 		real_time += a * dt * 0.5;
 		z = 1.0 / a - 1.0;
-		int rc = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, T0, drift_tm);
+		int mapped_cnt = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, T0, drift_tm);
 		cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;
 		//	printf( "%e %e %e %e\n", a, pot, kin, cosmicK);
@@ -272,8 +272,8 @@ void drive_cosmos() {
 		double years = real_time * tfac;
 		double dtyears = dt * tfac * a;
 		printf(
-				"%4i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
-				iter, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r, max_rung,
+				"%4i %8i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+				iter, mapped_cnt, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r, max_rung,
 				years, dtyears, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm,
 				kick_tm, drift_tm, total_time, science_rate);
 //		} else {
