@@ -13,6 +13,7 @@ int cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, doub
 	rc = 0;
 	for (int bid = 0; bid < gsz; bid++) {
 		auto func = [bid, gsz, &parts, dt,a,ekin, momx, momy, momz, tau, tau_max]() {
+			auto map_ws = get_map_workspace();
 			const bool map = global().opts.map_size > 0;
 			const size_t nparts = parts.size();
 			const size_t start = bid * nparts / gsz;
@@ -50,7 +51,7 @@ int cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, doub
 				x1[1] = y;
 				x1[2] = z;
 				if( map ) {
-					myrc +=map_add_part(x0, x1, tau, dt, tau_max);
+					myrc +=map_add_part(x0, x1, tau, dt, tau_max, map_ws);
 				}
 				while (x >= 1.0) {
 					x -= 1.0;
@@ -74,6 +75,7 @@ int cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, doub
 				parts.pos(1, i) = y;
 				parts.pos(2, i) = z;
 			}
+			cleanup_map_workspace(map_ws);
 			std::lock_guard<mutex_type> lock(mtx);
 			*ekin += myekin;
 			*momx += mymomx;

@@ -9,45 +9,44 @@
 
 #include <chealpix.h>
 
-template<typename T>
-struct atomwrapper {
-	std::atomic<T> _a;
+static mutex_type mtx;
+static std::unordered_map<int, map_type> maps;
+static std::stack<map_workspace> workspaces;
 
-	atomwrapper() :
-			_a() {
+map_workspace get_map_workspace() {
+	std::lock_guard<mutex_type> lock(mtx);
+	if (workspaces.size() == 0) {
+		auto ws = std::make_shared<std::unordered_map<int, std::array<vector<float>, NDIM>>>();
+		workspaces.push(ws);
 	}
+	auto ws = workspaces.top();
+	workspaces.pop();
+	return ws;
+}
 
-	atomwrapper(const std::atomic<T> &a) :
-			_a(a.load()) {
+void cleanup_map_workspace(map_workspace ws) {
+	static const long Nside = global().opts.map_size;
+	for (auto i = ws->begin(); i != ws->end(); i++) {
+		if (i->second[0].size()) {
+			if( maps.find(i->first) == maps.end()) {
+				printf( "Map error %i\n", i->first);
+				abort();
+			}
+			healpix2_map(i->second[0], i->second[1], i->second[2], maps[i->first], Nside);
+			for (int dim = 0; dim < NDIM; dim++) {
+				i->second[dim] = vector<float>();
+			}
+		}
 	}
-
-	atomwrapper(const atomwrapper &other) :
-			_a(other._a.load()) {
-	}
-
-	atomwrapper& operator +=(T other) {
-		_a += other;
-		return *this;
-	}
-
-	atomwrapper &operator=(const atomwrapper &other) {
-		_a.store(other._a.load());
-	}
-
-	operator T() const {
-		return T(_a);
-	}
-};
-
-using map_type = std::vector<atomwrapper<std::int64_t>>;
-
-std::unordered_map<int, map_type> maps;
+	std::lock_guard<mutex_type> lock(mtx);
+	workspaces.push(ws);
+}
 
 void prepare_map(int i) {
 //	printf("preparing map %i\n", i);
 	auto& map = maps[i];
 	const auto npts = 12 * sqr(global().opts.map_size);
-	map = map_type(npts, atomwrapper<int64_t>(0));
+	map = std::make_shared<vector<float>>(npts, 0.0f);
 }
 
 void save_map(int i) {
@@ -55,7 +54,7 @@ void save_map(int i) {
 	std::string filename = std::string("map.") + std::to_string(i) + ".hpx";
 	std::vector<float> res;
 	for (int j = 0; j < npts; j++) {
-		res.push_back((float) int64_t(maps[i][j]));
+		res.push_back((*maps[i])[j]);
 	}
 	FILE* fp = fopen(filename.c_str(), "wb");
 	fwrite(res.data(), sizeof(float), npts, fp);
@@ -67,7 +66,7 @@ void load_and_save_maps(double tau, double tau_max) {
 	static int saved_index = 0;
 	const auto freq = global().opts.map_freq * tau_max;
 	int imin = tau / freq + 1;
-	int imax = (tau + 1.0) / freq + 1;
+	int imax = (tau + 1.1) / freq + 1;
 	for (int i = imin; i <= imax; i++) {
 		auto iter = maps.find(i);
 		if (iter == maps.end()) {
@@ -76,7 +75,7 @@ void load_and_save_maps(double tau, double tau_max) {
 	}
 	for (auto i = maps.begin(); i != maps.end(); i++) {
 		if (i->first < imin) {
-			printf( "Saving map %i\n", i->first);
+		//	printf("Saving map %i\n", i->first);
 			save_map(i->first);
 		}
 	}
@@ -94,8 +93,8 @@ void load_and_save_maps(double tau, double tau_max) {
 simd_float images[NDIM] = { simd_float(0, -1, 0, -1, 0, -1, 0, -1), simd_float(0, 0, -1, -1, 0, 0, -1, -1), simd_float(
 		0, 0, 0, 0, -1, -1, -1, -1) };
 
-int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, double tau, double dtau,
-		double tau_max) {
+int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, double tau, double dtau, double tau_max,
+		map_workspace& ws) {
 	static const auto map_freq = global().opts.map_freq * tau_max;
 	static const auto map_freq_inv = 1.0 / map_freq;
 	static const simd_float simd_c0 = simd_float(map_freq_inv);
@@ -128,13 +127,13 @@ int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, d
 					static const long Nside = global().opts.map_size;
 					double r = dist1[ci];
 					long ipring;
-					array<double, NDIM> this_x;
-					this_x[0] = x1[0][ci];
-					this_x[1] = x1[1][ci];
-					this_x[2] = x1[2][ci];
-					vec2pix_ring(Nside, &this_x[0], &ipring);
-					const std::int64_t dN = 100.0 / (r * r) + 0.5;
-					maps[j + 1][ipring] += dN;
+					auto& this_ws = (*ws)[j + 1];
+					for (int dim = 0; dim < NDIM; dim++) {
+						this_ws[dim].push_back(x1[dim][ci]);
+					}
+					/*				vec2pix_ring(Nside, &this_x[0], &ipring);
+					 const std::int64_t dN = 100.0 / (r * r) + 0.5;
+					 maps[j + 1][ipring] += dN;*/
 				}
 			}
 		}

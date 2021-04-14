@@ -53,6 +53,7 @@ set(cosmictiger_source_files
     src/gravity.cu
     src/initial.cu
     src/kick_return.cu
+    src/map.cu
     src/math.cu
     src/power.cu
     src/tree.cu

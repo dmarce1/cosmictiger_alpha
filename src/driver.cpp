@@ -214,9 +214,6 @@ void drive_cosmos() {
 			reset_list_sizes();
 			last_theta = theta;
 		}
-		if (global().opts.map_size > 0) {
-			load_and_save_maps(time * T0, T0);
-		}
 		const auto min_r = min_rung(itime);
 		size_t num_active;
 		tree_stats stats;
@@ -250,6 +247,9 @@ void drive_cosmos() {
 		a += (0.5 * datau1 + 0.5 * datau2) * dt;
 		real_time += a * dt * 0.5;
 		z = 1.0 / a - 1.0;
+		if (global().opts.map_size > 0) {
+			load_and_save_maps(time * T0, T0);
+		}
 		int mapped_cnt = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, T0, drift_tm);
 		cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;

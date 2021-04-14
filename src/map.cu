@@ -1,0 +1,131 @@
+#include <cosmictiger/defs.hpp>
+#include <cosmictiger/math.hpp>
+#include <cosmictiger/vector.hpp>
+#include <cosmictiger/map.hpp>
+#include <cosmictiger/global.hpp>
+
+void hpx_yield();
+
+/*************** MOST OF THESE ROUTINES ADAPTED FROM THE C HEALPIX LIBRARY *****************************/
+
+__constant__ float twothird = 2.0 / 3.0;
+__constant__ float pi = 3.141592653589793238462643383279502884197;
+__constant__ float twopi = 6.283185307179586476925286766559005768394;
+__constant__ float halfpi = 1.570796326794896619231321691639751442099;
+__constant__ float inv_halfpi = 0.6366197723675813430755350534900574;
+
+__device__
+inline float fmodulo(float v1, float v2);
+__device__
+inline int imodulo(int v1, int v2);
+__device__
+int ang2pix_ring_z_phi(int nside_, float z, float phi);
+__device__
+void vec2pix_ring(int nside, const float *vec, int *ipix);
+__global__
+void healpix_kernel(const float * __restrict__ x, const float * __restrict__ y, const float * __restrict__ z,
+		float * __restrict__ map, int Npts, int Nside);
+
+void healpix2_map(const vector<float>& x, const vector<float>& y, const vector<float>& z, map_type map, int Nside) {
+	auto stream = get_stream();
+	cudaFuncAttributes attribs;
+	CUDA_CHECK(cudaFuncGetAttributes(&attribs, healpix_kernel));
+	int num_blocks = global().cuda.devices[0].multiProcessorCount;
+	int num_threads = attribs.maxThreadsPerBlock;
+	if (num_blocks * num_threads > x.size()) {
+		num_blocks = ((x.size() - 1) / num_threads + 1) * num_threads;
+	}
+	healpix_kernel<<<num_blocks,num_threads,0,stream>>>(x.data(),y.data(),z.data(),map->data(),x.size(),Nside);
+	while (cudaStreamSynchronize(stream) != cudaSuccess) {
+		hpx_yield();
+	}
+	CUDA_CHECK(cudaStreamSynchronize(stream));
+	cleanup_stream(stream);
+}
+
+__global__
+void healpix_kernel(const float * __restrict__ x, const float * __restrict__ y, const float * __restrict__ z,
+		float * __restrict__ map, int Npts, int Nside) {
+	const int& tid = threadIdx.x;
+	const int& bsz = blockDim.x;
+	const int& bid = blockIdx.x;
+	const int& gsz = gridDim.x;
+	const int start = bid * Npts / gsz;
+	const int stop = (bid + 1) * Npts / gsz;
+	float vec[NDIM];
+	int ipix;
+	float mag;
+	for (int i = start + tid; i < stop; i += bsz) {
+		vec[0] = x[i];
+		vec[1] = y[i];
+		vec[2] = z[i];
+		mag = 1.f / fmaf(x[i], x[i], fmaf(y[i], y[i], sqr(z[i])));
+		vec2pix_ring(Nside, vec, &ipix);
+		atomicAdd(map + ipix, mag);
+	}
+}
+
+__device__
+inline float fmodulo(float v1, float v2) {
+	if (v1 >= 0) {
+		return (v1 < v2) ? v1 : fmodf(v1, v2);
+	} else {
+		float tmp = fmodf(v1, v2) + v2;
+		return (tmp == v2) ? 0. : tmp;
+	}
+}
+
+/*! Returns the remainder of the division \a v1/v2.
+ The result is non-negative.
+ \a v1 can be positive or negative; \a v2 must be positive. */
+__device__
+inline int imodulo(int v1, int v2) {
+	int v = v1 % v2;
+	return (v >= 0) ? v : v + v2;
+}
+
+__device__
+int ang2pix_ring_z_phi(int nside_, float z, float phi) {
+	float za = fabsf(z);
+	float tt = fmodulo(phi, twopi) * inv_halfpi; /* in [0,4) */
+
+	if (za <= twothird) /* Equatorial region */
+	{
+		float temp1 = nside_ * (0.5 + tt);
+		float temp2 = nside_ * z * 0.75;
+		int jp = (int) (temp1 - temp2); /* index of  ascending edge line */
+		int jm = (int) (temp1 + temp2); /* index of descending edge line */
+
+		/* ring number counted from z=2/3 */
+		int ir = nside_ + 1 + jp - jm; /* in {1,2n+1} */
+		int kshift = 1 - (ir & 1); /* kshift=1 if ir even, 0 otherwise */
+
+		int ip = (jp + jm - nside_ + kshift + 1) / 2; /* in {0,4n-1} */
+		ip = imodulo(ip, 4 * nside_);
+
+		return nside_ * (nside_ - 1) * 2 + (ir - 1) * 4 * nside_ + ip;
+	} else /* North & South polar caps */
+	{
+		float tp = tt - (int) (tt);
+		float tmp = nside_ * sqrt(3 * (1 - za));
+
+		int jp = (int) (tp * tmp); /* increasing edge line index */
+		int jm = (int) ((1.0 - tp) * tmp); /* decreasing edge line index */
+
+		int ir = jp + jm + 1; /* ring number counted from the closest pole */
+		int ip = (int) (tt * ir); /* in {0,4*ir-1} */
+		ip = imodulo(ip, 4 * ir);
+
+		if (z > 0)
+			return 2 * ir * (ir - 1) + ip;
+		else
+			return 12 * nside_ * nside_ - 2 * ir * (ir + 1) + ip;
+	}
+}
+
+__device__
+void vec2pix_ring(int nside, const float *vec, int *ipix) {
+	float vlen = sqrtf(fmaf(vec[0], vec[0], fmaf(vec[1], vec[1], vec[2] * vec[2])));
+	*ipix = ang2pix_ring_z_phi(nside, vec[2] / vlen, atan2(vec[1], vec[0]));
+}
+

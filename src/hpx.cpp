@@ -39,6 +39,11 @@ int hpx_rank() {
    return rank;
 }
 
+
+void hpx_yield() {
+	hpx::this_thread::yield();
+}
+
 const std::vector<hpx::id_type>& hpx_localities() {
    return localities;
 }

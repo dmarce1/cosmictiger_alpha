@@ -103,6 +103,22 @@ public:
       resize(_sz);
 //      reserve(1);
    }
+   CUDA_EXPORT inline vector( int _sz, T ele) {
+      THREAD;
+      BLOCK;
+      if (tid == 0) {
+         dontfree = false;
+         ptr = nullptr;
+         cap = 0;
+         sz = 0;
+      }
+      resize(_sz);
+      SYNC();
+      for( int i = tid; i < _sz; i+= blocksize) {
+      	(*this)[i] = ele;
+      }
+//      reserve(1);
+   }
    CUDA_EXPORT inline vector(const vector &other) {
       THREAD;
       BLOCK;
@@ -271,7 +287,7 @@ public:
       return ptr;
    }
    CUDA_EXPORT
-   inline const T& data() const {
+   inline const T* data() const {
       return ptr;
    }
    CUDA_EXPORT inline ~vector() {
