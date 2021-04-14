@@ -75,7 +75,7 @@ void load_and_save_maps(double tau, double tau_max) {
 		}
 	}
 	for (auto i = maps.begin(); i != maps.end(); i++) {
-		if (i->first < imin) {
+		if (i->first <= imin) {
 			save_map(i->first);
 		}
 	}
@@ -125,15 +125,12 @@ int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, d
 				for (int j = i0; j < i1; j++) {
 					rc++;
 					static const long Nside = global().opts.map_size;
-					for (int dim = 0; dim < NDIM; dim++) {
-						x0[dim] = 0.5 * (x0[dim] + x1[dim]);
-					}
-					double r = fma(x0[ci][0], x0[ci][0], fma(x0[ci][1], x0[ci][1], sqr(x0[ci][2])));
+					double r = dist1[ci];
 					long ipring;
 					array<double, NDIM> this_x;
-					this_x[0] = x0[ci][0];
-					this_x[1] = x0[ci][1];
-					this_x[2] = x0[ci][2];
+					this_x[0] = x1[0][ci];
+					this_x[1] = x1[1][ci];
+					this_x[2] = x1[2][ci];
 					vec2pix_ring(Nside, &this_x[0], &ipring);
 					const std::int64_t dN = 100.0 / (r * r) + 0.5;
 					maps[j + 1][ipring] += dN;
