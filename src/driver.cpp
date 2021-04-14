@@ -274,7 +274,7 @@ void drive_cosmos() {
 		printf(
 				"%4i %8i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 				iter, mapped_cnt, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r, max_rung,
-				years, dtyears, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm,
+				time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm,
 				kick_tm, drift_tm, total_time, science_rate);
 //		} else {
 //			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",

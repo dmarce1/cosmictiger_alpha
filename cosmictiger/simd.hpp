@@ -200,7 +200,7 @@ public:
 	inline ~simd_int() = default;
 	simd_int(const simd_int&) = default;
 	simd_int(simd_float r) {
-		v = _mm256_cvtps_epi32(r.v);
+		v = _mm256_cvtps_epi32(_mm256_floor_ps(r.v));
 	}
 	inline simd_int(int d) {
 		v = _mm256_set_epi32(d, d, d, d, d, d, d, d);
