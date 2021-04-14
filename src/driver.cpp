@@ -7,6 +7,7 @@
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/map.hpp>
 #include <cosmictiger/initial.hpp>
+#include <cosmictiger/groups.hpp>
 
 double T0;
 
@@ -132,6 +133,35 @@ void load_from_file(particle_set& parts, int& step, time_type& itime, double& ti
 
 }
 
+int find_groups(tree root, particle_set& parts, double& time) {
+	timer tm;
+	tm.start();
+	tree_ptr root_ptr;
+	root_ptr.dindex = 0;
+	group_param_type *params_ptr;
+	CUDA_MALLOC(params_ptr, 1);
+	new (params_ptr) group_param_type();
+	params_ptr->self = root_ptr;
+	params_ptr->link_len = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 2.0;
+	params_ptr->parts = parts.get_virtual_particle_set();
+	params_ptr->checks.push(root_ptr);
+	params_ptr->first_round = true;
+	printf("Finding Groups\n");
+	int iters = 1;
+	while (find_groups(params_ptr).get()) {
+		params_ptr->self = root_ptr;
+		params_ptr->checks.resize(0);
+		params_ptr->checks.push(root_ptr);
+		params_ptr->first_round = false;
+		iters++;
+	}
+	CUDA_FREE(params_ptr);
+	group_data_create(parts);
+	tm.stop();
+	time = tm.read();
+	return iters;
+}
+
 void drive_cosmos() {
 
 	bool have_checkpoint = global().opts.checkpt_file != "";
@@ -220,6 +250,11 @@ void drive_cosmos() {
 		tree root = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
 		const bool full_eval = min_r <= 7;
 		//	const bool full_eval = false;
+		double group_tm;
+		if( full_eval ) {
+			int iters = find_groups(root,parts,group_tm);
+			printf( "Finding groups took %e s and %i iterations\n", group_tm, iters);
+		}
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, kick_tm);
 		const auto silo_int = global().opts.silo_interval;
 		if (silo_int > 0) {
@@ -291,7 +326,6 @@ void drive_cosmos() {
 		}
 		iter++;
 	} while (z > 0.0);
-	load_and_save_maps(time * T0, T0);
 	double total_time = drift_total + sort_total + kick_total;
 	printf("Sort  time = %e (%.2f) %%\n", sort_total, sort_total / total_time * 100.0);
 	printf("Kick  time = %e (%.2f) %%\n", kick_total, kick_total / total_time * 100.0);

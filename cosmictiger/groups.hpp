@@ -15,6 +15,7 @@
 struct group_info_t {
 	array<double, NDIM> pos;
 	array<float, NDIM> vel;
+	int next_id;
 	float vtot;
 	float epot;
 	float ekin;
@@ -86,7 +87,7 @@ struct groups_shmem {
 	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> self;
 };
 
-void group_data_create(const particle_set& parts);
+void group_data_create(particle_set& parts);
 void group_data_reduce();
 void group_data_output(FILE* fp);
 void group_data_destroy();

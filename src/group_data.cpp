@@ -2,12 +2,13 @@
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/vector.hpp>
 #include <cosmictiger/hpx.hpp>
+#include <cosmictiger/timer.hpp>
 
 #define MIN_GROUP_SIZE 10
 
 using group_entry_t = std::pair<group_t,group_info_t>;
 
-static int table_size = 1024 * 1024;
+static int table_size = 1024;
 static vector<vector<group_entry_t>> table;
 static mutex_type mutex;
 
@@ -27,56 +28,93 @@ void group_data_destroy() {
 	table = decltype(table)();
 }
 
-void group_data_create(const particle_set& parts) {
-	table.resize(table_size);
-	for (size_t i = 0; i < parts.size(); i++) {
-		const group_t id = parts.group(i);
-		if (id != NO_GROUP) {
-			const int index1 = id % table_size;
-			int index2;
-			bool found = false;
-			for (int i = 0; i < table[index1].size(); i++) {
-				if (table[index1][i].first == id) {
-					index2 = i;
-					found = true;
-				}
-			}
-			if (!found) {
-				group_entry_t entry;
-				entry.first = id;
-				index2 = table[index1].size();
-				table[index1].push_back(entry);
-			}
-			group_info_t& data = table[index1][index2].second;
-			const auto vel = parts.vel(i);
-			for (int dim = 0; dim < NDIM; dim++) {
-				auto x = parts.pos(dim, i).to_double();
-				if( x > 0.6 ) {
-					printf( "%e\n", x);
-					abort();
-				}
-				if (data.count != 0 && std::abs(x - data.pos[dim]/data.count) > 0.5f) {
-					if (x > 0.5) {
-				//		x -= 1.0;
-					} else {
-				//		x += 1.0;
+void group_data_create(particle_set& parts) {
+	timer tm;
+	tm.start();
+	static std::atomic<int> ngroups;
+	static std::atomic<int> next_id(0);
+	const auto init_table = [&]() {
+		table = decltype(table)();
+		table.resize(table_size);
+		ngroups = 0;
+		for (size_t i = 0; i < parts.size(); i++) {
+			const group_t id = parts.group(i);
+			if (id != NO_GROUP) {
+				const int index1 = id % table_size;
+				int index2;
+				bool found = false;
+				for (int i = 0; i < table[index1].size(); i++) {
+					if (table[index1][i].first == id) {
+						index2 = i;
+						found = true;
 					}
 				}
-				data.pos[dim] += x;
-				data.vel[dim] += vel.a[dim];
-				data.ekin += sqr(vel.a[dim]) * 0.5f;
+				if (!found) {
+					ngroups++;
+					group_entry_t entry;
+					entry.first = id;
+					index2 = table[index1].size();
+					table[index1].push_back(entry);
+				}
+				table[index1][index2].second.count++;
 			}
-			data.count++;
-		}
+		}};
+
+	init_table();
+
+	int nthreads = 2 * hpx::thread::hardware_concurrency();
+	std::vector<hpx::future<void>> futs(nthreads);
+	for (int this_thread = 0; this_thread < nthreads; this_thread++) {
+		const auto func = [this_thread,nthreads]() {
+			for (int i = this_thread; i < table.size(); i += nthreads) {
+				int j = 0;
+				while (j < table[i].size()) {
+					if (table[i][j].second.count < MIN_GROUP_SIZE) {
+						table[i][j] = table[i].back();
+						table[i].pop_back();
+						ngroups--;
+					} else {
+						table[i][j].second.next_id = next_id++;
+						j++;
+					}
+				}
+			}};
+		futs[this_thread] = hpx::async(func);
 	}
+	hpx::wait_all(futs.begin(), futs.end());
+	for (int this_thread = 0; this_thread < nthreads; this_thread++) {
+		const auto func = [this_thread,nthreads,&parts]() {
+			size_t start = this_thread*parts.size() / nthreads;
+			size_t stop = (this_thread+1)*parts.size()/nthreads;
+			for (size_t i = start; i < stop; i ++) {
+				const auto id = parts.group(i);
+				const int index1 = id % table_size;
+				bool found = false;
+				for( int j = 0; j < table[index1].size(); j++) {
+					if( table[index1][j].first == id ) {
+						parts.group(i) = table[index1][j].second.next_id;
+						found = true;
+						break;
+					}
+				}
+				if( !found ) {
+					parts.group(i) = NO_GROUP;
+				}
+			}
+		};
+		futs[this_thread] = hpx::async(func);
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+
+	init_table();
+
+	tm.stop();
+	printf("Took %e to create group data %i groups found\n", tm.read(), (int) ngroups);
 }
 
 void group_data_output(FILE* fp) {
 	for (int index1 = 0; index1 < table.size(); index1++) {
 		for (int index2 = 0; index2 < table[index1].size(); index2++) {
-			group_t& id = table[index1][index2].first;
-			group_info_t& data = table[index1][index2].second;
-			fprintf(fp, "%12lli %5i %e %e %e %e\n", id, data.count, data.pos[0], data.pos[1], data.pos[2], data.vtot);
 		}
 	}
 }
@@ -86,25 +124,6 @@ void group_data_reduce() {
 		int index2 = 0;
 		while (index2 < table[index1].size()) {
 			group_info_t& data = table[index1][index2].second;
-			if (data.count < MIN_GROUP_SIZE) {
-				table[index1][index2] = table[index1].back();
-				table[index1].pop_back();
-			} else {
-				data.vtot = 0.0;
-				for (int dim = 0; dim < NDIM; dim++) {
-					data.pos[dim] /= data.count;
-					data.vel[dim] /= data.count;
-					data.vtot += sqr(data.vel[dim]);
-			/*		while(data.pos[dim] > 1.0) {
-						data.pos[dim] -= 1.0;
-					}
-					while(data.pos[dim] < 0.0) {
-						data.pos[dim] += 1.0;
-					}*/
-				}
-				data.vtot = std::sqrt(data.vtot);
-				index2++;
-			}
 		}
 	}
 }

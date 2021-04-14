@@ -35,6 +35,9 @@ void healpix2_map(const vector<float>& x, const vector<float>& y, const vector<f
 	if (num_blocks * num_threads > x.size()) {
 		num_blocks = ((x.size() - 1) / num_threads + 1) * num_threads;
 	}
+	CUDA_CHECK(cudaMemPrefetchAsync(x.data(), sizeof(float) * x.size(), 0, stream));
+	CUDA_CHECK(cudaMemPrefetchAsync(y.data(), sizeof(float) * y.size(), 0, stream));
+	CUDA_CHECK(cudaMemPrefetchAsync(z.data(), sizeof(float) * z.size(), 0, stream));
 	healpix_kernel<<<num_blocks,num_threads,0,stream>>>(x.data(),y.data(),z.data(),map->data(),x.size(),Nside);
 	while (cudaStreamSynchronize(stream) != cudaSuccess) {
 		hpx_yield();
