@@ -114,8 +114,8 @@ int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, d
 	}
 	dist0 = sqrt(fma(x0[0], x0[0], fma(x0[1], x0[1], sqr(x0[2]))));
 	dist1 = sqrt(fma(x1[0], x1[0], fma(x1[1], x1[1], sqr(x1[2]))));
-	simd_float tau0 = simd_tau0;// + dist0;
-	simd_float tau1 = simd_tau1;// + dist1;
+	simd_float tau0 = simd_tau0 + dist0;
+	simd_float tau1 = simd_tau1 + dist1;
 	simd_int I0 = tau0 * simd_c0;
 	simd_int I1 = tau1 * simd_c0;
 	for (int ci = 0; ci < 8; ci++) {
