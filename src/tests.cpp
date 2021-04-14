@@ -53,7 +53,7 @@ static void tree_test() {
 	}
 }
 
-void load_from_file(particle_set& parts, int& step, time_type& itime, double& a, double& cosmicK);
+void load_from_file(particle_set& parts, int& step, time_type& itime, double& time, double& a, double& cosmicK);
 void kick_test() {
 	printf("Doing kick test\n");
 	printf("Generating particles\n");
@@ -63,8 +63,8 @@ void kick_test() {
 	} else {
 		int step;
 		time_type itime;
-		double a, cosmicK;
-		load_from_file(parts,step,itime,a,cosmicK);
+		double a, cosmicK, time;
+		load_from_file(parts,step,itime,time,a,cosmicK);
 	}
 	// parts.generate_grid();
 //	parts.generate_random();

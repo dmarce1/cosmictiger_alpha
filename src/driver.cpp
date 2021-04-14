@@ -94,7 +94,7 @@ int drift(particle_set& parts, double dt, double a0, double a1, double*ekin, dou
 
 #define EVAL_FREQ 25
 
-void save_to_file(particle_set& parts, int step, time_type itime, double a, double cosmicK) {
+void save_to_file(particle_set& parts, int step, time_type itime, double time, double a, double cosmicK) {
 	std::string filename = std::string("checkpoint.") + std::to_string(step) + std::string(".dat");
 	printf("Saving %s...", filename.c_str());
 	fflush(stdout);
@@ -105,6 +105,7 @@ void save_to_file(particle_set& parts, int step, time_type itime, double a, doub
 	}
 	fwrite(&step, sizeof(int), 1, fp);
 	fwrite(&itime, sizeof(time_type), 1, fp);
+	fwrite(&time, sizeof(double), 1, fp);
 	fwrite(&a, sizeof(double), 1, fp);
 	fwrite(&cosmicK, sizeof(double), 1, fp);
 	parts.save_to_file(fp);
@@ -112,7 +113,7 @@ void save_to_file(particle_set& parts, int step, time_type itime, double a, doub
 	printf(" done\n");
 }
 
-void load_from_file(particle_set& parts, int& step, time_type& itime, double& a, double& cosmicK) {
+void load_from_file(particle_set& parts, int& step, time_type& itime, double& time, double& a, double& cosmicK) {
 	std::string filename = global().opts.checkpt_file;
 	printf("Loading %s...", filename.c_str());
 	FILE* fp = fopen(filename.c_str(), "rb");
@@ -122,6 +123,7 @@ void load_from_file(particle_set& parts, int& step, time_type& itime, double& a,
 	}
 	FREAD(&step, sizeof(int), 1, fp);
 	FREAD(&itime, sizeof(time_type), 1, fp);
+	FREAD(&time, sizeof(double), 1, fp);
 	FREAD(&a, sizeof(double), 1, fp);
 	FREAD(&cosmicK, sizeof(double), 1, fp);
 	parts.load_from_file(fp);
@@ -152,6 +154,7 @@ void drive_cosmos() {
 	double esum0;
 	double parts_total;
 	double time_total;
+	double time;
 	if (!have_checkpoint) {
 		//parts.load_particles("ics");
 		initial_conditions(parts);
@@ -159,8 +162,9 @@ void drive_cosmos() {
 		iter = 0;
 		z = global().opts.z0;
 		a = 1.0 / (z + 1.0);
+		time = 0.0;
 	} else {
-		load_from_file(parts, iter, itime, a, cosmicK);
+		load_from_file(parts, iter, itime, time, a, cosmicK);
 		z = 1.0 / a - 1.0;
 	}
 	parts_total = 0.0;
@@ -185,7 +189,7 @@ void drive_cosmos() {
 		if (checkpt_tm.read() > global().opts.checkpt_freq) {
 			checkpt_tm.reset();
 			checkpt_tm.start();
-			save_to_file(parts, iter, itime, a, cosmicK);
+			save_to_file(parts, iter, itime, time, a, cosmicK);
 		} else {
 			checkpt_tm.start();
 		}
@@ -239,6 +243,7 @@ void drive_cosmos() {
 			pot = 0.5 * kr.phis / a;
 		}
 		double dt = T0 / double(size_t(1) << max_rung);
+		time += dt / T0;
 		double a0 = a;
 		double datau1 = cosmos_dadtau(a);
 		double datau2 = cosmos_dadtau(a + datau1 * dt);
