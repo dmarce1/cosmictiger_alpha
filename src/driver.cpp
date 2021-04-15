@@ -142,7 +142,7 @@ int find_groups(tree root, particle_set& parts, double& time) {
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) group_param_type();
 	params_ptr->self = root_ptr;
-	params_ptr->link_len = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 6.0;
+	params_ptr->link_len = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) * 0.2;
 	params_ptr->parts = parts.get_virtual_particle_set();
 	params_ptr->checks.push(root_ptr);
 	params_ptr->first_round = true;
@@ -156,8 +156,10 @@ int find_groups(tree root, particle_set& parts, double& time) {
 		params_ptr->first_round = false;
 		iters++;
 	}
+	params_ptr->~group_param_type();
 	CUDA_FREE(params_ptr);
 	group_data_create(parts);
+	tree_free_neighbors();
 	tm.stop();
 	time = tm.read();
 	return iters;
@@ -213,6 +215,7 @@ void drive_cosmos() {
 	checkpt_tm.start();
 	int silo_outs = 0;
 	double real_time = 0.0;
+	double tree_use;
 	do {
 //		unified_allocator allocator;
 //		allocator.show_allocs();
@@ -225,9 +228,9 @@ void drive_cosmos() {
 			checkpt_tm.start();
 		}
 		if (iter % 10 == 0) {
-			printf("%4s %8s %4s %4s %4s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "iter", "mapped",
-					"maxd", "mind", "ed", "avgd", "ppl", "actv", "min", "max", "time", "dt", "theta", "a", "z", "pot", "kin",
-					"cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
+			printf("%4s %8s %4s %4s %4s %9s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n",
+					"iter", "mapped", "maxd", "mind", "ed", "avgd", "ppl", "actv", "arena", "min", "max", "time", "dt",
+					"theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
 		}
 		static double last_theta = -1.0;
 		int& bucket_size = global().opts.bucket_size;
@@ -252,10 +255,11 @@ void drive_cosmos() {
 		const bool full_eval = min_r <= 7;
 		//	const bool full_eval = false;
 		double group_tm;
-		if( full_eval ) {
-			int iters = find_groups(root,parts,group_tm);
-			printf( "Finding groups took %e s and %i iterations\n", group_tm, iters);
+		if (full_eval && global().opts.groups) {
+			int iters = find_groups(root, parts, group_tm);
+			printf("Finding groups took %e s and %i iterations\n", group_tm, iters);
 		}
+		tree_use = tree_data_use();
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, kick_tm);
 		const auto silo_int = global().opts.silo_interval;
 		if (silo_int > 0) {
@@ -312,10 +316,10 @@ void drive_cosmos() {
 		double years = real_time * tfac;
 		double dtyears = dt * tfac * a;
 		printf(
-				"%4i %8i %4i %4i %4i %9.3f %9.2e %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
-				iter, mapped_cnt, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct, min_r, max_rung,
-				time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm,
-				kick_tm, drift_tm, total_time, science_rate);
+				"%4i %8i %4i %4i %4i %9.3f %9.2e %9.2f%% %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+				iter, mapped_cnt, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct,
+				tree_use * 100.0, min_r, max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac,
+				cosmicK * partfac, sum, sort_tm, kick_tm, drift_tm, total_time, science_rate);
 //		} else {
 //			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 //					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac,

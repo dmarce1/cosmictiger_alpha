@@ -6,6 +6,7 @@
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/range.hpp>
+#include <cosmictiger/unrolled.hpp>
 
 class tree;
 struct kick_params_type;
@@ -75,10 +76,10 @@ struct tree_ptr {
 	void set_range(const range&) const;
 
 	CUDA_EXPORT
-	const vector<tree_ptr>& get_neighbors() const;
+	const unrolled<tree_ptr>& get_neighbors() const;
 
 	CUDA_EXPORT
-	vector<tree_ptr>& get_neighbors_ref();
+	unrolled<tree_ptr>& get_neighbors_ref() const;
 
 #ifndef __CUDACC__
 	hpx::future<void> find_groups_phase1(group_param_type*, bool);
@@ -148,13 +149,14 @@ void tree_data_set_range(int i, const range& r);
 void tree_data_clear();
 
 CUDA_EXPORT
-const vector<tree_ptr>& tree_data_get_neighbors(int i);
+const unrolled<tree_ptr>& tree_data_get_neighbors(int i);
 
 CUDA_EXPORT
-vector<tree_ptr>& tree_data_get_neighbors_ref(int i);
+unrolled<tree_ptr>& tree_data_get_neighbors_ref(int i);
 
 
 std::pair<int, int> tree_data_allocate();
+double tree_data_use();
 
 class tree_allocator {
 	std::pair<int, int> current_alloc;
@@ -270,12 +272,12 @@ inline void tree_ptr::set_range(const range& r) const {
 }
 
 CUDA_EXPORT
-inline const vector<tree_ptr>& tree_ptr::get_neighbors() const {
+inline const unrolled<tree_ptr>& tree_ptr::get_neighbors() const {
 	return tree_data_get_neighbors(dindex);
 }
 
 CUDA_EXPORT
-inline vector<tree_ptr>& tree_ptr::get_neighbors_ref(){
+inline unrolled<tree_ptr>& tree_ptr::get_neighbors_ref() const {
 	return tree_data_get_neighbors_ref(dindex);
 }
 
@@ -303,7 +305,7 @@ struct tree_database_t {
 	tree_data_t* data;
 	range* ranges;
 	size_t* active_parts;
-	vector<tree_ptr>* neighbors;
+	unrolled<tree_ptr>* neighbors;
 	int ntrees;
 	int nchunks;
 };
@@ -561,7 +563,7 @@ void tree_data_set_range(int i, const range& r) {
 }
 
 CUDA_EXPORT
-inline vector<tree_ptr>& tree_data_get_neighbors_ref(int i)  {
+inline unrolled<tree_ptr>& tree_data_get_neighbors_ref(int i)  {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
@@ -573,7 +575,7 @@ inline vector<tree_ptr>& tree_data_get_neighbors_ref(int i)  {
 }
 
 CUDA_EXPORT
-inline const vector<tree_ptr>& tree_data_get_neighbors(int i)  {
+inline const unrolled<tree_ptr>& tree_data_get_neighbors(int i)  {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
@@ -587,3 +589,5 @@ inline const vector<tree_ptr>& tree_data_get_neighbors(int i)  {
 void tree_database_set_readonly();
 
 void tree_database_unset_readonly();
+
+void tree_free_neighbors();

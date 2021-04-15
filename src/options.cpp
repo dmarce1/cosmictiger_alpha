@@ -24,6 +24,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("checkpt_file", po::value<std::string>(&(opts.checkpt_file))->default_value(""), "checkpoint restart") //
 	("config", po::value<std::string>(&(opts.config))->default_value(""), "configuration file") //
 	("cuda", po::value<bool>(&(opts.cuda))->default_value(true), "cuda on/off") //
+	("groups", po::value<bool>(&(opts.groups))->default_value(false), "do groups") //
 	("code_to_g", po::value<double>(&(opts.code_to_g))->default_value(1.99e33), "code to g") //
 	("code_to_cm", po::value<double>(&(opts.code_to_cm))->default_value(6.17e27), "code to cm") //
 	("code_to_cms", po::value<double>(&(opts.code_to_cms))->default_value(3e10), "code to cm/s") //
@@ -115,6 +116,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	SHOW(nparts);
 	SHOW(bucket_size);
 	SHOW(cuda);
+	SHOW(groups);
 	SHOW(hsoft);
 	SHOW(theta);
 

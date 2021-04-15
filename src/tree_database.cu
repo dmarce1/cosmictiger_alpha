@@ -14,7 +14,7 @@ static std::atomic<int> next_chunk;
 void tree_data_initialize() {
 	gpu_tree_data_.ntrees = global().opts.nparts / global().opts.bucket_size;
 	gpu_tree_data_.ntrees = std::max(1 << ((int) std::ceil(std::log(gpu_tree_data_.ntrees) / std::log(2)) + 3),
-			2*1024 * 1024);
+			1024 * 1024);
 	gpu_tree_data_.nchunks = gpu_tree_data_.ntrees / chunk_size;
 
 	CUDA_CHECK(cudaMemAdvise(&gpu_tree_data_, sizeof(gpu_tree_data_), cudaMemAdviseSetReadMostly, 0));
@@ -27,18 +27,18 @@ void tree_data_initialize() {
 	CUDA_MALLOC(gpu_tree_data_.ranges, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.neighbors, gpu_tree_data_.ntrees);
-	for( int i = 0; i < gpu_tree_data_.ntrees; i++) {
-		new(gpu_tree_data_.neighbors + i) vector<tree_ptr>();
+	if (global().opts.groups) {
+		CUDA_MALLOC(gpu_tree_data_.neighbors, gpu_tree_data_.ntrees);
+		for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
+			new (gpu_tree_data_.neighbors + i) unrolled<tree_ptr>();
+		}
 	}
-
 
 	tree_data_clear();
 
 	cpu_tree_data_ = gpu_tree_data_;
 
 }
-
 
 void tree_database_set_readonly() {
 #ifdef USE_READMOSTLY
@@ -54,7 +54,6 @@ void tree_database_unset_readonly() {
 #endif
 }
 
-
 void tree_data_clear() {
 	next_chunk = 0;
 	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
@@ -62,15 +61,26 @@ void tree_data_clear() {
 	}
 }
 
-std::pair<int,int> tree_data_allocate() {
-	std::pair<int,int> rc;
+void tree_free_neighbors() {
+	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
+		gpu_tree_data_.neighbors[i].unrolled<tree_ptr>::~unrolled<tree_ptr>();
+		new (gpu_tree_data_.neighbors + i) unrolled<tree_ptr>();
+	}
+}
+
+std::pair<int, int> tree_data_allocate() {
+	std::pair<int, int> rc;
 	const int chunk = next_chunk++;
-	if( chunk >= gpu_tree_data_.nchunks) {
+	if (chunk >= gpu_tree_data_.nchunks) {
 		printf("Fatal error - tree arena full!\n");
 		abort();
 	}
 	rc.first = chunk * chunk_size;
 	rc.second = rc.first + chunk_size;
 	return rc;
+}
+
+double tree_data_use() {
+	return (double) next_chunk / (double) gpu_tree_data_.nchunks;
 }
 

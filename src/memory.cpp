@@ -28,11 +28,11 @@ void* cuda_allocator::allocate(size_t sz) {
 //   printf( "%li %i\n", freelist[index].size(), index);
 	if (freelist[index].empty()) {
 
-//   	printf( "Allocating %li bytes on device\n", chunk_size * total_sz);
+		//   	printf( "Allocating %li bytes on device\n", chunk_size * total_sz);
 		CUDA_CHECK(cudaMalloc(&ptr, chunk_size * total_sz));
 //      printf( "Done Allocating %li bytes on device\n", chunk_size * total_sz);
 		for (int i = 0; i < chunk_size; i++) {
-			freelist[index].push((char*)ptr + i * total_sz);
+			freelist[index].push((char*) ptr + i * total_sz);
 		}
 	}
 	ptr = freelist[index].top();
@@ -68,8 +68,8 @@ void unified_allocator::show_allocs() {
 
 void* unified_allocator::allocate(size_t sz) {
 	/*uint8_t* ptr;
-	CUDA_MALLOC(ptr,sz);
-	return ptr;*/
+	 CUDA_MALLOC(ptr,sz);
+	 return ptr;*/
 
 	size_t total_sz = 1;
 	int index = 0;
@@ -81,15 +81,17 @@ void* unified_allocator::allocate(size_t sz) {
 	if (alloc_counts.find(total_sz) == alloc_counts.end()) {
 		alloc_counts[total_sz] = 0;
 	}
-	size_t chunk_size = std::max(std::min((size_t) 32, 64 * 1024 * 1024 / (size_t) total_sz), (size_t) 1);
+	size_t chunk_size = std::max(
+			std::min(std::max((size_t) 32, (size_t) 1024 / sz), 64 * 1024 * 1024 / (size_t) total_sz), (size_t) 1);
 	freelist.resize(std::max((int) freelist.size(), index + 1));
 	void *ptr;
 	char* cptr;
 	if (freelist[index].empty()) {
+		//printf("Allocating %li bytes on device\n", total_sz);
 		CUDA_MALLOC(cptr, chunk_size * total_sz);
 		ptr = cptr;
 		for (int i = 0; i < chunk_size; i++) {
-			freelist[index].push((char*)ptr + i * total_sz);
+			freelist[index].push((char*) ptr + i * total_sz);
 		}
 		allocated += chunk_size * total_sz;
 	}
@@ -110,7 +112,7 @@ void unified_allocator::deallocate(void *ptr) {
 	const auto index = delete_indexes[ptr];
 	alloc_counts[1 << index]--;
 	freelist[index].push(ptr);
-	}
+}
 
 std::vector<std::stack<void*>> unified_allocator::freelist;
 mutex_type unified_allocator::mtx;

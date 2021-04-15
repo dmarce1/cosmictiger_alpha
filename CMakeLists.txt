@@ -63,15 +63,16 @@ set(cosmictiger_source_files
 )
 set(cosmictiger_header_files
 	cosmictiger/boltzmann.hpp
-	cosmictiger/zero_verse.hpp
-	cosmictiger/interp.hpp
 	cosmictiger/chemistry.hpp
 	cosmictiger/cosmos.hpp
-	cosmictiger/sort.hpp
+	cosmictiger/unrolled.hpp
+	cosmictiger/defs.hpp
 	cosmictiger/drift.hpp
 	cosmictiger/ewald_indices.hpp
+	cosmictiger/interp.hpp
 	cosmictiger/kick_return.hpp
-	cosmictiger/defs.hpp
+	cosmictiger/sort.hpp
+	cosmictiger/zero_verse.hpp
 	cosmictiger/fourier.hpp
 	cosmictiger/green_direct.hpp
 	cosmictiger/green_ewald.hpp

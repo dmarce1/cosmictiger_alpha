@@ -59,7 +59,7 @@ hpx::future<void> find_groups_phase1(group_param_type* params_ptr) {
 	const auto myrange = self.get_range();
 	const auto iamleaf = self.is_leaf();
 	checks.resize(param_checks.size());
-	for( int i = 0; i < param_checks.size(); i++) {
+	for (int i = 0; i < param_checks.size(); i++) {
 		checks[i] = param_checks[i];
 	}
 	bool opened;
@@ -82,23 +82,24 @@ hpx::future<void> find_groups_phase1(group_param_type* params_ptr) {
 		}
 		checks.swap(next_checks);
 	} while (iamleaf && opened);
-	for( int i = 0; i < opened_checks.size(); i++) {
+	for (int i = 0; i < opened_checks.size(); i++) {
 		checks.push_back(opened_checks[i]);
 	}
-//	printf( "%i\n", checks.size());
 	if (iamleaf) {
-		vector<tree_ptr>& neighbors = self.get_neighbors_ref();
-		neighbors.swap(checks);
+		unrolled<tree_ptr>& neighbors = self.get_neighbors_ref();
+		neighbors.clear();
+		for (int i = 0; i < checks.size(); i++) {
+			neighbors.push_top(checks[i]);
+		}
 		std::lock_guard<mutex_type> lock(mutex);
 		group_leaves.push_back(self);
 		return hpx::make_ready_future();
 	} else {
 		param_checks.resize(checks.size());
-		for( int i = 0; i < param_checks.size(); i++) {
+		for (int i = 0; i < param_checks.size(); i++) {
 			param_checks[i] = checks[i];
 		}
 		std::array<hpx::future<void>, NCHILD> futs;
-		bool found_link;
 		auto mychildren = self.get_children();
 		params.checks.push_top();
 		params.self = mychildren[LEFT];

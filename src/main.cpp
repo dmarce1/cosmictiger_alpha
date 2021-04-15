@@ -10,6 +10,7 @@
 #include <cosmictiger/driver.hpp>
 #include <cosmictiger/tree_database.hpp>
 #include <cosmictiger/zero_order.hpp>
+#include <cosmictiger/unrolled.hpp>
 
 
 void yield() {

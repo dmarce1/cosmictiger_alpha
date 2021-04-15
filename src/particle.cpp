@@ -55,6 +55,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 	offset_ = offset;
 	size_ = size;
 	virtual_ = false;
+	printf( "Allocating space for particles\n");
 	CUDA_MALLOC(xptr_[0], size);
 	CUDA_MALLOC(xptr_[1], size);
 	CUDA_MALLOC(xptr_[2], size);
@@ -69,6 +70,7 @@ particle_set::particle_set(size_t size, size_t offset) {
 	for (int i = 0; i < size; i++) {
 		uptr_[i].p.r = 0;
 	}
+	printf( "Done\n");
 }
 
 void particle_set::load_from_file(FILE* fp) {

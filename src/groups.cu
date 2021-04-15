@@ -47,8 +47,8 @@ __global__ void cuda_find_groups_kernel_phase2(group_param_type* params_ptr, con
 	const auto start = bid * Nleaves / gsz;
 	const auto stop = (bid + 1) * Nleaves / gsz;
 	for (int l = start; l < stop; l++) {
-		const auto& self = leaves[l];
-		const auto& checks = self.get_neighbors();
+		auto self = leaves[l];
+		auto checks = self.get_neighbors();
 		auto myparts = self.get_parts();
 		int mysize = myparts.second - myparts.first;
 		auto linklen2 = sqr(params.link_len);
@@ -61,8 +61,8 @@ __global__ void cuda_find_groups_kernel_phase2(group_param_type* params_ptr, con
 		}
 		do {
 			found_link = 0;
-			for (int i = 0; i < checks.size(); i++) {
-				const auto other_pair = checks[i].get_parts();
+			for (auto i = checks.begin(); i != checks.end(); ++i) {
+				const auto other_pair = (*i).get_parts();
 				const int other_size = other_pair.second - other_pair.first;
 				for (int k = tid; k < other_size; k += warpSize) {
 					for (int dim = 0; dim < NDIM; dim++) {

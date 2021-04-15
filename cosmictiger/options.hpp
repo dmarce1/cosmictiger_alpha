@@ -41,6 +41,7 @@ struct options {
 	double Theta;
 	double omega_r;
 
+	bool groups;
 	int map_size;
 	double silo_interval;
 	double map_freq;
