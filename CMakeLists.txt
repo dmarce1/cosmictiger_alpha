@@ -45,6 +45,7 @@ set(cosmictiger_source_files
     src/rand.cpp
     src/tests.cpp
     src/tree.cpp
+    src/tree_database.cpp
 	src/boltzmann.cu
     src/ewald_indices.cu
     src/expansion.cu

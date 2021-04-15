@@ -147,6 +147,7 @@ CUDA_EXPORT
 void tree_data_set_range(int i, const range& r);
 
 void tree_data_clear();
+void tree_database_destroy_neighbors(unrolled<tree_ptr>& neighbors);
 
 CUDA_EXPORT
 const unrolled<tree_ptr>& tree_data_get_neighbors(int i);

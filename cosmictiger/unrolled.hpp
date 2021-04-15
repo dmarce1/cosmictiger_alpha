@@ -32,8 +32,10 @@ private:
 	static unrolled_entry* allocate() {
 		std::lock_guard<mutex_type> lock(mtx);
 		if (freelist.empty()) {
+			printf( "Allocating 64k\n");
 			unrolled_entry* new_entries;
 			CUDA_MALLOC(new_entries, allocation_size);
+			allocations.push(new_entries);
 			for (int i = 0; i < allocation_size; i++) {
 				freelist.push(new_entries + i);
 			}
@@ -48,15 +50,19 @@ private:
 		freelist.push(d);
 	}
 #endif
-	static void free_all() {
-		for (int i = 0; i < allocations.size(); i++) {
-			CUDA_FREE(allocations[i]);
-		}
-	}
 	unrolled_entry* head;
 	unrolled_entry* tail;
 	int size_;
 public:
+	static void free_all() {
+		while (allocations.size()) {
+			CUDA_FREE(allocations.top());
+			allocations.pop();
+		}
+		while(freelist.size()) {
+			freelist.pop();
+		}
+	}
 	class iterator {
 	private:
 		unrolled_entry* current;
@@ -83,9 +89,8 @@ public:
 		inline T operator*() const {
 			return current->data[index];
 		}
-		friend class unrolled<T>;
-	};
-	CUDA_EXPORT
+		friend class unrolled<T> ;
+	};CUDA_EXPORT
 	inline iterator begin() {
 		iterator i;
 		i.current = head;
@@ -146,6 +151,11 @@ public:
 			deallocate(freeme);
 		}
 		size_--;
+	}
+#else
+	CUDA_EXPORT
+	~unrolled() {
+		printf( "Error - calling unrolled destructor from CUDACC\n");
 	}
 #endif
 };

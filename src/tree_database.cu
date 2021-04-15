@@ -63,7 +63,10 @@ void tree_data_clear() {
 
 void tree_free_neighbors() {
 	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
-		gpu_tree_data_.neighbors[i].unrolled<tree_ptr>::~unrolled<tree_ptr>();
+		tree_database_destroy_neighbors(gpu_tree_data_.neighbors[i]);
+	}
+//	unrolled<tree_ptr>::free_all();
+	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
 		new (gpu_tree_data_.neighbors + i) unrolled<tree_ptr>();
 	}
 }

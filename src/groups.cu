@@ -48,7 +48,7 @@ __global__ void cuda_find_groups_kernel_phase2(group_param_type* params_ptr, con
 	const auto stop = (bid + 1) * Nleaves / gsz;
 	for (int l = start; l < stop; l++) {
 		auto self = leaves[l];
-		auto checks = self.get_neighbors();
+		auto& checks = self.get_neighbors_ref();
 		auto myparts = self.get_parts();
 		int mysize = myparts.second - myparts.first;
 		auto linklen2 = sqr(params.link_len);
