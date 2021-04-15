@@ -28,6 +28,9 @@ void tree_data_initialize() {
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.neighbors, gpu_tree_data_.ntrees);
+	for( int i = 0; i < gpu_tree_data_.ntrees; i++) {
+		new(gpu_tree_data_.neighbors + i) vector<tree_ptr>();
+	}
 
 
 	tree_data_clear();
