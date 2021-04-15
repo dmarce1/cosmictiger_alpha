@@ -87,11 +87,8 @@ hpx::future<void> find_groups_phase1(group_param_type* params_ptr) {
 	}
 //	printf( "%i\n", checks.size());
 	if (iamleaf) {
-		vector<tree_ptr> neighbors(checks.size());
-		for (int i = 0; i < checks.size(); i++) {
-			neighbors[i] = checks[i];
-		}
-		self.set_neighbors(std::move(neighbors));
+		vector<tree_ptr>& neighbors = self.get_neighbors_ref();
+		neighbors.swap(checks);
 		std::lock_guard<mutex_type> lock(mutex);
 		group_leaves.push_back(self);
 		return hpx::make_ready_future();

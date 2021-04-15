@@ -78,7 +78,7 @@ struct tree_ptr {
 	const vector<tree_ptr>& get_neighbors() const;
 
 	CUDA_EXPORT
-	void set_neighbors(vector<tree_ptr>&&);
+	vector<tree_ptr>& get_neighbors_ref();
 
 #ifndef __CUDACC__
 	hpx::future<void> find_groups_phase1(group_param_type*, bool);
@@ -151,7 +151,7 @@ CUDA_EXPORT
 const vector<tree_ptr>& tree_data_get_neighbors(int i);
 
 CUDA_EXPORT
-void tree_data_set_neighbors(int i, vector<tree_ptr>&&);
+vector<tree_ptr>& tree_data_get_neighbors_ref(int i);
 
 
 std::pair<int, int> tree_data_allocate();
@@ -275,9 +275,10 @@ inline const vector<tree_ptr>& tree_ptr::get_neighbors() const {
 }
 
 CUDA_EXPORT
-inline void tree_ptr::set_neighbors(vector<tree_ptr>&& n) {
-	tree_data_set_neighbors(dindex, std::move(n));
+inline vector<tree_ptr>& tree_ptr::get_neighbors_ref(){
+	return tree_data_get_neighbors_ref(dindex);
 }
+
 
 struct multipole_pos {
 	multipole multi;
@@ -560,7 +561,7 @@ void tree_data_set_range(int i, const range& r) {
 }
 
 CUDA_EXPORT
-inline const vector<tree_ptr>& tree_data_get_neighbors(int i)  {
+inline vector<tree_ptr>& tree_data_get_neighbors_ref(int i)  {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
@@ -572,7 +573,7 @@ inline const vector<tree_ptr>& tree_data_get_neighbors(int i)  {
 }
 
 CUDA_EXPORT
-inline void tree_data_set_neighbors(int i, vector<tree_ptr>&& n) {
+inline const vector<tree_ptr>& tree_data_get_neighbors(int i)  {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
@@ -580,7 +581,7 @@ inline void tree_data_set_neighbors(int i, vector<tree_ptr>&& n) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.neighbors[i] = std::move(n);
+	return tree_data_.neighbors[i];
 }
 
 void tree_database_set_readonly();

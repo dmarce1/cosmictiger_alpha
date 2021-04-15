@@ -8,9 +8,22 @@
 
 using group_entry_t = std::pair<group_t,group_info_t>;
 
-static int table_size = 1024;
+static int table_size = 1;
 static vector<vector<group_entry_t>> table;
 static mutex_type mutex;
+static int table_entry_count;
+
+void group_data_rehash() {
+	auto old_table = std::move(table);
+	table_size *= 2;
+	table.resize(table_size);
+	for( int i = 0; i < old_table.size(); i++) {
+		for( int j = 0; j < old_table[i].size(); j++) {
+			int index1 = old_table[i][j].first % table_size;
+			table[index1].push_back(old_table[i][j]);
+		}
+	}
+}
 
 bool group_data_get_entry(group_t id, group_info_t& entry) {
 	const int index = id % table_size;
@@ -32,9 +45,11 @@ void group_data_create(particle_set& parts) {
 	timer tm;
 	tm.start();
 	static std::atomic<int> ngroups;
-	static std::atomic<int> next_id(0);
+	static std::atomic<int> next_id;
+	next_id = 0;
 	const auto init_table = [&]() {
 		table = decltype(table)();
+		table_entry_count = 0;
 		table.resize(table_size);
 		ngroups = 0;
 		for (size_t i = 0; i < parts.size(); i++) {
@@ -55,8 +70,13 @@ void group_data_create(particle_set& parts) {
 					entry.first = id;
 					index2 = table[index1].size();
 					table[index1].push_back(entry);
+					table_entry_count++;
 				}
 				table[index1][index2].second.count++;
+				if( table_entry_count > table.size()) {
+					printf( "Rehashing\n");
+					group_data_rehash();
+				}
 			}
 		}};
 
