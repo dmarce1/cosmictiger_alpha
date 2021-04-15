@@ -12,8 +12,7 @@ struct kick_params_type;
 struct group_param_type;
 
 struct tree_ptr {
-	int dindex;
-	CUDA_EXPORT
+	int dindex;CUDA_EXPORT
 	inline bool operator==(const tree_ptr &other) const {
 		return dindex == other.dindex;
 	}
@@ -75,8 +74,14 @@ struct tree_ptr {
 	CUDA_EXPORT
 	void set_range(const range&) const;
 
+	CUDA_EXPORT
+	const vector<tree_ptr>& get_neighbors() const;
+
+	CUDA_EXPORT
+	void set_neighbors(vector<tree_ptr>&&);
+
 #ifndef __CUDACC__
-	hpx::future<bool> find_groups(group_param_type*, bool);
+	hpx::future<void> find_groups_phase1(group_param_type*, bool);
 	hpx::future<void> kick(kick_params_type*, bool);
 #endif
 };
@@ -142,10 +147,17 @@ void tree_data_set_range(int i, const range& r);
 
 void tree_data_clear();
 
-std::pair<int,int> tree_data_allocate();
+CUDA_EXPORT
+const vector<tree_ptr>& tree_data_get_neighbors(int i);
+
+CUDA_EXPORT
+void tree_data_set_neighbors(int i, vector<tree_ptr>&&);
+
+
+std::pair<int, int> tree_data_allocate();
 
 class tree_allocator {
-	std::pair<int,int> current_alloc;
+	std::pair<int, int> current_alloc;
 	int next;
 public:
 	tree_allocator() {
@@ -154,7 +166,7 @@ public:
 	}
 	int allocate() {
 		next++;
-		if( next == current_alloc.second) {
+		if (next == current_alloc.second) {
 			current_alloc = tree_data_allocate();
 			next = current_alloc.first;
 		}
@@ -257,6 +269,16 @@ inline void tree_ptr::set_range(const range& r) const {
 	tree_data_set_range(dindex, r);
 }
 
+CUDA_EXPORT
+inline const vector<tree_ptr>& tree_ptr::get_neighbors() const {
+	return tree_data_get_neighbors(dindex);
+}
+
+CUDA_EXPORT
+inline void tree_ptr::set_neighbors(vector<tree_ptr>&& n) {
+	tree_data_set_neighbors(dindex, std::move(n));
+}
+
 struct multipole_pos {
 	multipole multi;
 	array<fixed32, NDIM> pos;
@@ -280,6 +302,7 @@ struct tree_database_t {
 	tree_data_t* data;
 	range* ranges;
 	size_t* active_parts;
+	vector<tree_ptr>* neighbors;
 	int ntrees;
 	int nchunks;
 };
@@ -447,11 +470,11 @@ CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_parts(int i) {
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	union parts_union {
-		pair<size_t,size_t> parts;
+		pair<size_t, size_t> parts;
 		int4 ints;
 	};
 	parts_union p;
-	p.ints = LDG((int4*)(tree_data_.parts + i));
+	p.ints = LDG((int4* )(tree_data_.parts + i));
 	return p.parts;
 }
 
@@ -534,6 +557,30 @@ void tree_data_set_range(int i, const range& r) {
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.ranges[i] = r;
+}
+
+CUDA_EXPORT
+inline const vector<tree_ptr>& tree_data_get_neighbors(int i)  {
+#ifdef __CUDACC__
+	auto& tree_data_ = gpu_tree_data_;
+#else
+	auto& tree_data_ = cpu_tree_data_;
+#endif
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	return tree_data_.neighbors[i];
+}
+
+CUDA_EXPORT
+inline void tree_data_set_neighbors(int i, vector<tree_ptr>&& n) {
+#ifdef __CUDACC__
+	auto& tree_data_ = gpu_tree_data_;
+#else
+	auto& tree_data_ = cpu_tree_data_;
+#endif
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	tree_data_.neighbors[i] = std::move(n);
 }
 
 void tree_database_set_readonly();

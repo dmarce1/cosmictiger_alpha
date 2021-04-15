@@ -205,7 +205,9 @@ void group_test() {
 	fflush(stdout);
 	timer tm;
 	tm.start();
-	while (find_groups(params_ptr).get()) {
+	find_groups_phase1(params_ptr).get();
+	while (find_groups_phase2(params_ptr)) {
+		printf( "Iterating\n");
 		params_ptr->self = root_ptr;
 		params_ptr->checks.resize(0);
 		params_ptr->checks.push(root_ptr);
@@ -218,10 +220,10 @@ void group_test() {
 	printf("Groups found in %e s\n", tm.read());
 	tm.reset();
 	tm.start();
-	group_data_create(parts);
+/*	group_data_create(parts);
 	group_data_reduce();
 	group_data_output(stdout);
-	group_data_destroy();
+	group_data_destroy();*/
 	tm.stop();
 	printf("Table created in %e s\n", tm.read());
 

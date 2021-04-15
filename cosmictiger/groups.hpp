@@ -45,6 +45,7 @@ struct group_param_type {
 	tree_ptr self;
 	float link_len;
 	vector<tree_ptr> next_checks;
+	vector<tree_ptr> tmp;
 	vector<tree_ptr> opened_checks;
 	stack_vector<tree_ptr> checks;
 	bool first_round;
@@ -76,15 +77,14 @@ struct group_param_type {
 };
 
 #ifndef __CUDACC__
-hpx::future<bool> find_groups(group_param_type*);
+hpx::future<void> find_groups_phase1(group_param_type*);
+bool find_groups_phase2(group_param_type* params);
 #endif
-
-__device__ bool cuda_find_groups(group_param_type*);
-std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** params, int, cudaStream_t stream);
+bool call_cuda_find_groups_phase2(group_param_type* params, const vector<tree_ptr>& leaves);
 
 struct groups_shmem {
-	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> others;
-	array<array<fixed32, MAX_BUCKET_SIZE>, NDIM> self;
+	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> others;
+	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> self;
 };
 
 void group_data_create(particle_set& parts);

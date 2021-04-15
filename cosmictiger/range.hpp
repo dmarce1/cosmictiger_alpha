@@ -26,33 +26,32 @@ struct range {
 		arc & end;
 	}
 	CUDA_EXPORT
-	bool intersects(const range& other) const {
+	inline bool intersects(const range& other) const {
 		bool rc = true;
+		int nedges = 0;
 		for (int dim = 0; dim < NDIM; dim++) {
-			if (end[dim] != 1.0) {
-				if (end[dim] < other.begin[dim]) {
+			if (end[dim] < other.begin[dim]) {
+				if( !(begin[dim] == 0.0 && other.end[dim] == 1.0)) {
 					rc = false;
 					break;
+				} else {
+					nedges++;
 				}
-			} else {
-				if (other.begin[dim] != 0.0) {
-					rc = false;
-					break;
-				}
+			} else if( end[dim] == other.begin[dim]) {
+				nedges++;
 			}
-			if (other.end[dim] != 1.0) {
-				if (begin[dim] > other.end[dim]) {
+			if (begin[dim] > other.end[dim]) {
+				if( !(end[dim] == 1.0 && other.begin[dim] == 0.0)) {
 					rc = false;
 					break;
+				} else {
+					nedges++;
 				}
-			} else {
-				if (begin[dim] != 0.0) {
-					rc = false;
-					break;
-				}
+			} else if( begin[dim] == other.end[dim]) {
+				nedges++;
 			}
 		}
-		return rc;
+		return rc && nedges <= 1;
 	}
 	inline std::array<std::array<fixed64, NDIM>, NCORNERS> get_corners() {
 		std::array<std::array<fixed64, NDIM>, NCORNERS> v;

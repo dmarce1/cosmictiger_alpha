@@ -142,13 +142,14 @@ int find_groups(tree root, particle_set& parts, double& time) {
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) group_param_type();
 	params_ptr->self = root_ptr;
-	params_ptr->link_len = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 2.0;
+	params_ptr->link_len = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) / 6.0;
 	params_ptr->parts = parts.get_virtual_particle_set();
 	params_ptr->checks.push(root_ptr);
 	params_ptr->first_round = true;
 	printf("Finding Groups\n");
 	int iters = 1;
-	while (find_groups(params_ptr).get()) {
+	find_groups_phase1(params_ptr).get();
+	while (find_groups_phase2(params_ptr)) {
 		params_ptr->self = root_ptr;
 		params_ptr->checks.resize(0);
 		params_ptr->checks.push(root_ptr);
