@@ -13,16 +13,11 @@ static mutex_type mutex;
 
 hpx::future<void> tree_ptr::find_groups_phase1(group_param_type* params_ptr, bool thread) {
 	group_param_type &params = *params_ptr;
-	static std::atomic<int> used_threads(0);
 	static unified_allocator alloc;
 	const auto myparts = get_parts();
 	int counter = 0;
-	if (thread) {
-		const int max_threads = 2 * hpx::threads::hardware_concurrency();
-		if (used_threads++ > max_threads) {
-			used_threads--;
-			thread = false;
-		}
+	if (myparts.second - myparts.first < params_ptr->block_cutoff) {
+		thread = false;
 	}
 	if (thread) {
 		group_param_type *new_params;
@@ -32,7 +27,6 @@ hpx::future<void> tree_ptr::find_groups_phase1(group_param_type* params_ptr, boo
 		auto func = [new_params]() {
 			auto rc = ::find_groups_phase1(new_params);
 			rc.get();
-			used_threads--;
 			new_params->group_param_type::~group_param_type();
 			alloc.deallocate(new_params);
 		};
@@ -48,6 +42,7 @@ hpx::future<void> find_groups_phase1(group_param_type* params_ptr) {
 	tree_ptr self = params.self;
 	if (params.depth == 0) {
 		group_leaves.resize(0);
+		params.block_cutoff = parts.size() / std::max((int) 1, (int) (hpx::thread::hardware_concurrency() / 4));
 		parts.init_groups();
 	}
 

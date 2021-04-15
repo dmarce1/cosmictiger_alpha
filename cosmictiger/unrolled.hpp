@@ -18,7 +18,7 @@ template<class T>
 class unrolled {
 private:
 	static constexpr int entry_size = 27;
-	static constexpr int allocation_size = 512;
+	static constexpr int allocation_size = 4*1024;
 	struct unrolled_entry {
 		array<T, entry_size> data;
 		unrolled_entry* next;
@@ -28,11 +28,10 @@ private:
 	static std::stack<unrolled_entry*> freelist;
 	static std::stack<unrolled_entry*> allocations;
 #ifndef __CUDACC__
-	static mutex_type mtx;
+	static hpx::lcos::local::spinlock mtx;
 	static unrolled_entry* allocate() {
-		std::lock_guard<mutex_type> lock(mtx);
+		std::lock_guard<hpx::lcos::local::spinlock> lock(mtx);
 		if (freelist.empty()) {
-			printf( "Allocating 64k\n");
 			unrolled_entry* new_entries;
 			CUDA_MALLOC(new_entries, allocation_size);
 			allocations.push(new_entries);
@@ -46,7 +45,7 @@ private:
 		return ptr;
 	}
 	static void deallocate(unrolled_entry* d) {
-		std::lock_guard<mutex_type> lock(mtx);
+		std::lock_guard<hpx::lcos::local::spinlock> lock(mtx);
 		freelist.push(d);
 	}
 #endif
@@ -168,7 +167,7 @@ std::stack<typename unrolled<T>::unrolled_entry*> unrolled<T>::allocations;
 
 #ifndef __CUDACC__
 template<class T>
-mutex_type unrolled<T>::mtx;
+hpx::lcos::local::spinlock unrolled<T>::mtx;
 #endif
 
 #endif /* DEQUE_HPP_ */
