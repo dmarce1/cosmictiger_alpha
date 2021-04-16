@@ -109,7 +109,7 @@ void particle_set::save_to_file(FILE* fp) {
 	for (int dim = 0; dim < NDIM; dim++) {
 		fwrite(xptr_[dim], sizeof(fixed32), size(), fp);
 	}
-	fwrite(uptr_, sizeof(std::array<float,NDIM>), size(), fp);
+	fwrite(uptr_, sizeof(std::array<float, NDIM>), size(), fp);
 	fwrite(rptr_, sizeof(rung_t), size(), fp);
 	if (global().opts.groups) {
 		fwrite(idptr_, sizeof(group_t), size(), fp);
@@ -134,9 +134,9 @@ void particle_set::generate_random() {
 			pos(0, i) = rand_fixed32();
 			pos(1, i) = rand_fixed32();
 			pos(2, i) = rand_fixed32();
-			vel(0,i) = 0.f;
-			vel(1,i) = 0.f;
-			vel(2,i) = 0.f;
+			vel(0, i) = 0.f;
+			vel(1, i) = 0.f;
+			vel(2, i) = 0.f;
 		}
 		set_rung(0, i);
 	}
@@ -151,9 +151,9 @@ void particle_set::generate_grid() {
 				pos(0, iii) = (i + 0.5) / dim;
 				pos(1, iii) = (j + 0.5) / dim;
 				pos(2, iii) = (k + 0.5) / dim;
-				vel(0,i) = 0.f;
-				vel(1,i) = 0.f;
-				vel(2,i) = 0.f;
+				vel(0, i) = 0.f;
+				vel(1, i) = 0.f;
+				vel(2, i) = 0.f;
 				set_rung(0, i);
 			}
 		}
@@ -227,8 +227,7 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 					std::swap(x[hi], x[lo]);
 					std::swap(y[hi], y[lo]);
 					std::swap(z[hi], z[lo]);
-					std::swap(uptr_[hi][0], uptr_[lo][0]);
-					std::swap(uptr_[hi][1], uptr_[lo][1]);
+					std::swap(*((double*) uptr_[hi].data()), *((double*) uptr_[hi].data()));
 					std::swap(uptr_[hi][2], uptr_[lo][2]);
 					std::swap(rptr_[hi], rptr_[lo]);
 					if (groups) {
@@ -312,9 +311,9 @@ void particle_set::load_particles(std::string filename) {
 		FREAD(&vx, sizeof(float), 1, fp);
 		FREAD(&vy, sizeof(float), 1, fp);
 		FREAD(&vz, sizeof(float), 1, fp);
-		vel(0,i) = vx * std::pow(c0, 1.5);
-		vel(1,i) = vy * std::pow(c0, 1.5);
-		vel(2,i) = vz * std::pow(c0, 1.5);
+		vel(0, i) = vx * std::pow(c0, 1.5);
+		vel(1, i) = vy * std::pow(c0, 1.5);
+		vel(2, i) = vz * std::pow(c0, 1.5);
 		set_rung(0, i);
 	}
 	FREAD(&dummy, sizeof(dummy), 1, fp);
@@ -341,7 +340,7 @@ void particle_set::silo_out(const char* filename) const {
 		std::vector<float> v(size_);
 		for (int dim = 0; dim < NDIM; dim++) {
 			for (int i = 0; i < size_; i++) {
-				v[i] = vel(dim,i);
+				v[i] = vel(dim, i);
 			}
 			std::string name = "v";
 			name.push_back(char('x' + dim));
