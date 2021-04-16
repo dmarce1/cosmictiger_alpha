@@ -381,7 +381,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		size_t dummy, total_mem;
 		CUDA_CHECK(cudaMemGetInfo(&dummy, &total_mem));
 		total_mem /= 8;
-		size_t used_mem = (sizeof(vel_type) + sizeof(fixed32) * NDIM) * particles->size();
+		size_t used_mem = (sizeof(rung_t) + NDIM * sizeof(float) + sizeof(fixed32) * NDIM) * particles->size();
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
 		const int block_count = oversubscription * global().cuda_kick_occupancy
 				* global().cuda.devices[0].multiProcessorCount + 0.5;
@@ -589,9 +589,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				if (this_rung >= params.rung) {
 					float dt = params.t0 / (1 << this_rung);
 					if (!params.first) {
-						particles->vel(k + parts.first).p.x += 0.5 * dt * F[0][k];
-						particles->vel(k + parts.first).p.y += 0.5 * dt * F[1][k];
-						particles->vel(k + parts.first).p.z += 0.5 * dt * F[2][k];
+						particles->vel(0,k + parts.first) += 0.5 * dt * F[0][k];
+						particles->vel(1,k + parts.first) += 0.5 * dt * F[1][k];
+						particles->vel(2,k + parts.first) += 0.5 * dt * F[2][k];
 					}
 					float fmag = 0.0;
 					for (int dim = 0; dim < NDIM; dim++) {
@@ -604,9 +604,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 							std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1), params.rung),
 							MIN_RUNG);
 					dt = params.t0 / (1 << new_rung);
-					particles->vel(k + parts.first).p.x += 0.5 * dt * F[0][k];
-					particles->vel(k + parts.first).p.y += 0.5 * dt * F[1][k];
-					particles->vel(k + parts.first).p.z += 0.5 * dt * F[2][k];
+					particles->vel(0,k + parts.first) += 0.5 * dt * F[0][k];
+					particles->vel(1,k + parts.first) += 0.5 * dt * F[1][k];
+					particles->vel(2,k + parts.first) += 0.5 * dt * F[2][k];
 					max_rung = std::max(max_rung, new_rung);
 					particles->set_rung(new_rung, k + parts.first);
 				}

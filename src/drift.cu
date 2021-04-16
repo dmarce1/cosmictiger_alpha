@@ -22,9 +22,9 @@ CUDA_KERNEL drift_kernel(particle_set parts, double dt, double a, double* ekin, 
 		double x = parts.pos(0,i).to_double();
 		double y = parts.pos(1,i).to_double();
 		double z = parts.pos(2,i).to_double();
-		const float vx = parts.vel(i).p.x;
-		const float vy = parts.vel(i).p.y;
-		const float vz = parts.vel(i).p.z;
+		const float vx = parts.vel(0,i);
+		const float vy = parts.vel(1,i);
+		const float vz = parts.vel(2,i);
 		const float ux = vx * ainv;
 		const float uy = vy * ainv;
 		const float uz = vz * ainv;

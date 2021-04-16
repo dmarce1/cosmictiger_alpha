@@ -367,9 +367,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				if (this_rung >= constant.rung) {
 					float dt = halft0 * rung_dt[this_rung];
 					const auto index = k + myparts.first;
-					auto& vx = parts.vel(index).p.x;
-					auto& vy = parts.vel(index).p.y;
-					auto& vz = parts.vel(index).p.z;
+					auto& vx = parts.vel(0,index);
+					auto& vy = parts.vel(1,index);
+					auto& vz = parts.vel(2,index);
 					if (!constant.first) {
 						vx = fmaf(dt, F[0][k], vx);
 						vy = fmaf(dt, F[1][k], vy);

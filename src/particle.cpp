@@ -9,7 +9,6 @@
 #include <unordered_map>
 #include <algorithm>
 
-
 void particle_set::prepare_sort() {
 #ifdef USE_READMOSTLY
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -55,12 +54,15 @@ particle_set::particle_set(size_t size, size_t offset) {
 	offset_ = offset;
 	size_ = size;
 	virtual_ = false;
-	printf( "Allocating space for particles\n");
+	printf("Allocating space for particles\n");
 	CUDA_MALLOC(xptr_[0], size);
 	CUDA_MALLOC(xptr_[1], size);
 	CUDA_MALLOC(xptr_[2], size);
 	CUDA_MALLOC(uptr_, size);
-	CUDA_MALLOC(idptr_, size);
+	CUDA_MALLOC(rptr_, size);
+	if (global().opts.groups) {
+		CUDA_MALLOC(idptr_, size);
+	}
 #ifdef TEST_FORCE
 	CUDA_MALLOC(gptr_[0], size);
 	CUDA_MALLOC(gptr_[1], size);
@@ -68,9 +70,10 @@ particle_set::particle_set(size_t size, size_t offset) {
 	CUDA_MALLOC(eptr_, size);
 #endif
 	for (int i = 0; i < size; i++) {
-		uptr_[i].p.r = 0;
+		//	uptr_[i].p.r = 0;
+		rptr_[i] = 0;
 	}
-	printf( "Done\n");
+	printf("Done\n");
 }
 
 void particle_set::load_from_file(FILE* fp) {
@@ -86,7 +89,11 @@ void particle_set::load_from_file(FILE* fp) {
 	for (int dim = 0; dim < NDIM; dim++) {
 		FREAD(xptr_[dim], sizeof(fixed32), size(), fp);
 	}
-	FREAD(uptr_, sizeof(vel_type), size(), fp);
+	FREAD(uptr_, sizeof(array<float,NDIM>), size(), fp);
+	FREAD(rptr_, sizeof(rung_t), size(), fp);
+	if (global().opts.groups) {
+		FREAD(idptr_, sizeof(group_t), size(), fp);
+	}
 }
 
 void particle_set::save_to_file(FILE* fp) {
@@ -102,7 +109,11 @@ void particle_set::save_to_file(FILE* fp) {
 	for (int dim = 0; dim < NDIM; dim++) {
 		fwrite(xptr_[dim], sizeof(fixed32), size(), fp);
 	}
-	fwrite(uptr_, sizeof(vel_type), size(), fp);
+	fwrite(uptr_, sizeof(std::array<float,NDIM>), size(), fp);
+	fwrite(rptr_, sizeof(rung_t), size(), fp);
+	if (global().opts.groups) {
+		fwrite(idptr_, sizeof(group_t), size(), fp);
+	}
 }
 
 //
@@ -123,9 +134,9 @@ void particle_set::generate_random() {
 			pos(0, i) = rand_fixed32();
 			pos(1, i) = rand_fixed32();
 			pos(2, i) = rand_fixed32();
-			vel(i).p.x = 0.f;
-			vel(i).p.y = 0.f;
-			vel(i).p.z = 0.f;
+			vel(0,i) = 0.f;
+			vel(1,i) = 0.f;
+			vel(2,i) = 0.f;
 		}
 		set_rung(0, i);
 	}
@@ -140,9 +151,9 @@ void particle_set::generate_grid() {
 				pos(0, iii) = (i + 0.5) / dim;
 				pos(1, iii) = (j + 0.5) / dim;
 				pos(2, iii) = (k + 0.5) / dim;
-				vel(i).p.x = 0.f;
-				vel(i).p.y = 0.f;
-				vel(i).p.z = 0.f;
+				vel(0,i) = 0.f;
+				vel(1,i) = 0.f;
+				vel(2,i) = 0.f;
 				set_rung(0, i);
 			}
 		}
@@ -207,6 +218,7 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 	auto& x = xptr_[0];
 	auto& y = xptr_[1];
 	auto& z = xptr_[2];
+	const bool groups = global().opts.groups;
 	while (lo < hi) {
 		if (xptr_dim[lo] >= xmid) {
 			while (lo != hi) {
@@ -215,8 +227,13 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 					std::swap(x[hi], x[lo]);
 					std::swap(y[hi], y[lo]);
 					std::swap(z[hi], z[lo]);
-					std::swap(uptr_[hi], uptr_[lo]);
-//					std::swap(rptr_[hi], rptr_[lo]);
+					std::swap(uptr_[hi][0], uptr_[lo][0]);
+					std::swap(uptr_[hi][1], uptr_[lo][1]);
+					std::swap(uptr_[hi][2], uptr_[lo][2]);
+					std::swap(rptr_[hi], rptr_[lo]);
+					if (groups) {
+						std::swap(idptr_[hi], idptr_[lo]);
+					}
 					break;
 				}
 			}
@@ -295,9 +312,9 @@ void particle_set::load_particles(std::string filename) {
 		FREAD(&vx, sizeof(float), 1, fp);
 		FREAD(&vy, sizeof(float), 1, fp);
 		FREAD(&vz, sizeof(float), 1, fp);
-		vel(i).p.x = vx * std::pow(c0, 1.5);
-		vel(i).p.y = vy * std::pow(c0, 1.5);
-		vel(i).p.z = vz * std::pow(c0, 1.5);
+		vel(0,i) = vx * std::pow(c0, 1.5);
+		vel(1,i) = vy * std::pow(c0, 1.5);
+		vel(2,i) = vz * std::pow(c0, 1.5);
 		set_rung(0, i);
 	}
 	FREAD(&dummy, sizeof(dummy), 1, fp);
@@ -305,10 +322,10 @@ void particle_set::load_particles(std::string filename) {
 }
 
 void particle_set::silo_out(const char* filename) const {
-	printf( "outputing in SILO format...\n");
+	printf("outputing in SILO format...\n");
 	auto db = DBCreate(filename, DB_CLOBBER, DB_LOCAL, NULL, DB_PDB);
 
-	printf( "positions\n");
+	printf("positions\n");
 	{
 		std::vector<float> x(size_), y(size_), z(size_);
 		for (int i = 0; i < size_; i++) {
@@ -319,19 +336,19 @@ void particle_set::silo_out(const char* filename) const {
 		float* coords[NDIM] = { x.data(), y.data(), z.data() };
 		DBPutPointmesh(db, "points", NDIM, coords, size_, DB_FLOAT, NULL);
 	}
-	printf( "velocities\n");
+	printf("velocities\n");
 	{
 		std::vector<float> v(size_);
 		for (int dim = 0; dim < NDIM; dim++) {
 			for (int i = 0; i < size_; i++) {
-				v[i] = vel(i).a[dim];
+				v[i] = vel(dim,i);
 			}
 			std::string name = "v";
 			name.push_back(char('x' + dim));
 			DBPutPointvar1(db, name.c_str(), "points", v.data(), size_, DB_FLOAT, NULL);
 		}
 	}
-	printf( "rungs\n");
+	printf("rungs\n");
 	{
 		std::vector<short> r(size_);
 		for (int i = 0; i < size_; i++) {
@@ -339,7 +356,7 @@ void particle_set::silo_out(const char* filename) const {
 		}
 		DBPutPointvar1(db, "rung", "points", r.data(), size_, DB_SHORT, NULL);
 	}
-	printf( "groups\n");
+	printf("groups\n");
 	{
 		std::vector<long long> g(size_);
 		for (int i = 0; i < size_; i++) {

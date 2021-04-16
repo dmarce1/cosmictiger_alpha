@@ -46,7 +46,7 @@ __global__ void phi_to_velocities(particle_set parts, cmplx* phi, float a, int d
 	for (int k = threadIdx.x; k < N; k += blockDim.x) {
 		const int l = N * (N * i + j) + k;
 		float v = phi[l].real();
-		parts.vel(l).a[dim] = v * a; // / code_to_mpc;
+		parts.vel(dim,l) = v * a; // / code_to_mpc;
 	}
 }
 
@@ -82,7 +82,6 @@ float phi_max(cmplx* phi, int N3) {
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
 	num_blocks = std::min(global().cuda.devices[0].maxGridSize[0], num_blocks);
 	float* maxes;
-	static int count = 0;
 	CUDA_MALLOC(maxes, num_blocks);
 	phi_max_kernel<<<num_blocks,PHIMAXSIZE>>>(phi,N3,maxes);
 	CUDA_CHECK(cudaDeviceSynchronize());
@@ -90,14 +89,12 @@ float phi_max(cmplx* phi, int N3) {
 	for (int i = 0; i < num_blocks; i++) {
 		num = std::max(num, maxes[i]);
 	}
-	assert(count++ < 20);
 	CUDA_FREE(maxes);
 	return num;
 }
 
 void initial_conditions(particle_set& parts) {
 
-	int numBlocks;
 	sigma8_integrand *func_ptr;
 	zero_order_universe* zeroverse_ptr;
 	float* result_ptr;
@@ -205,7 +202,7 @@ void initial_conditions(particle_set& parts) {
 		sleep(10);
 	}
 
-	float xdisp = 0.0, vmax = 0.0;
+	float xdisp = 0.0;
 	const double omega_m = params.omega_b + params.omega_c;
 	const double omega_r = params.omega_nu + params.omega_gam;
 	const double a = ainit;
