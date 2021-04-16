@@ -98,6 +98,7 @@ private:
 	static std::vector<std::stack<void*>> freelist;
 	static std::unordered_map<void*, int> delete_indexes;
 	static std::stack<void*> allocs;
+	static size_t allocated;
 #ifndef __CUDACC__
 	static mutex_type mtx;
 #endif

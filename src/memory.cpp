@@ -54,6 +54,10 @@ std::unordered_map<void*, int> cuda_allocator::delete_indexes;
 std::stack<void*> unified_allocator::allocs;
 
 void unified_allocator::reset() {
+	if( allocated != 0 ) {
+		printf( "Attempt to reset unified allocator without freeing all memory!\n");
+		abort();
+	}
 	freelist = decltype(freelist)();
 	delete_indexes = decltype(delete_indexes)();
 	for (int i = 0; i < allocs.size(); i++) {
@@ -89,6 +93,7 @@ void* unified_allocator::allocate(size_t sz) {
 	ptr = freelist[index].top();
 	delete_indexes[ptr] = index;
 	freelist[index].pop();
+	allocated += (1 << index);
 	return ptr;
 }
 
@@ -100,6 +105,7 @@ void unified_allocator::deallocate(void *ptr) {
 		abort();
 	}
 	const auto index = delete_indexes[ptr];
+	allocated -= (1 << index);
 	freelist[index].push(ptr);
 }
 
@@ -107,4 +113,5 @@ std::vector<std::stack<void*>> unified_allocator::freelist;
 mutex_type unified_allocator::mtx;
 
 std::unordered_map<void*, int> unified_allocator::delete_indexes;
+size_t unified_allocator::allocated = 0;
 

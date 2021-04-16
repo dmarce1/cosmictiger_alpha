@@ -2,7 +2,6 @@
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/timer.hpp>
 
-
 static vector<tree_ptr> group_leaves;
 static mutex_type mutex;
 
@@ -37,7 +36,7 @@ hpx::future<void> find_groups_phase1(group_param_type* params_ptr) {
 	tree_ptr self = params.self;
 	if (params.depth == 0) {
 		group_leaves.resize(0);
-		params.block_cutoff = parts.size() / std::max((int) 1, (int) (hpx::thread::hardware_concurrency()/4));
+		params.block_cutoff = parts.size() / std::max((int) 1, (int) (hpx::thread::hardware_concurrency() / 4));
 	}
 
 	auto& param_checks = params.checks;
@@ -107,5 +106,9 @@ hpx::future<void> find_groups_phase1(group_param_type* params_ptr) {
 }
 
 bool find_groups_phase2(group_param_type* params) {
-	return call_cuda_find_groups_phase2(params, group_leaves);
+	bool rc = call_cuda_find_groups_phase2(params, group_leaves);
+	if (!rc) {
+		group_leaves = decltype(group_leaves)();
+	}
+	return rc;
 }

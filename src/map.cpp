@@ -67,7 +67,7 @@ void load_and_save_maps(double tau, double tau_max) {
 	const auto freq = global().opts.map_freq * tau_max;
 	int imin = tau / freq + 1;
 	int imax = (tau + 1.1) / freq + 1;
-	for (int i = imin; i <= imax; i++) {
+	for (int i = imin; i < imax; i++) {
 		auto iter = maps.find(i);
 		if (iter == maps.end()) {
 			prepare_map(i);

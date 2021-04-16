@@ -164,6 +164,7 @@ struct kick_params_type {
 	float hsoft;
 	bool full_eval;
 	bool first;
+	bool groups;
 	int rung;
 	bool cpu_block;
 	float t0;
@@ -185,10 +186,12 @@ struct kick_params_type {
 		G = other.G;
 		M = other.M;
 		tptr = other.tptr;
+		groups = other.groups;
 		return *this;
 	}
 
 	inline kick_params_type() {
+		groups = false;
 		depth = 0;
 		theta = 0.4;
 		eta = 0.2 / std::sqrt(2);

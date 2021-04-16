@@ -10,26 +10,20 @@
 
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/particle.hpp>
+#include <cosmictiger/hpx.hpp>
 
 
 struct group_info_t {
+	group_t id;
 	array<double, NDIM> pos;
 	array<float, NDIM> vel;
-	int count;
+	std::shared_ptr<std::atomic<int>> count;
 	float epot;
 	float ekin;
 	float rmax;
 	float ravg;
 	group_info_t() {
-		for( int dim = 0; dim < NDIM; dim++) {
-			pos[dim] = 0.0;
-			vel[dim] = 0.0;
-		}
-		epot = 0.0;
-		ekin = 0.0;
-		count = 0;
-		rmax = 0.0;
-		ravg = 0.0;
+		count = std::make_shared<std::atomic<int>>(0);
 	}
 };
 
