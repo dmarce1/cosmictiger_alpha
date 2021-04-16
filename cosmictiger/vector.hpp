@@ -154,36 +154,18 @@ public:
    inline vector& operator=(vector &&other) {
       THREAD;
       if (tid == 0) {
-         if (ptr && !dontfree) {
-#ifndef __CUDA_ARCH__
-            unified_allocator alloc;
-            alloc.deallocate(ptr);
-#else
-            CUDA_FREE(ptr);
-#endif
-         }
-         ptr = other.ptr;
-         sz = other.sz;
-         cap = other.cap;
-         dontfree = other.dontfree;
-         other.ptr = nullptr;
-         other.sz = 0;
-         other.cap = 0;
-         other.dontfree = false;
+         swap(other);
       }
       return *this;
    }
    CUDA_EXPORT inline vector(vector &&other) {
       THREAD;
       if (tid == 0) {
-         dontfree = other.dontfree;
-         ptr = other.ptr;
-         sz = other.sz;
-         cap = other.cap;
-         other.ptr = nullptr;
-         other.sz = 0;
-         other.cap = 0;
-         other.dontfree = false;
+         dontfree = false;
+         sz = 0;
+         ptr = nullptr;
+         cap = 0;
+         swap(other);
       }
    }
    CUDA_EXPORT
@@ -193,10 +175,10 @@ public:
       BLOCK;
       if (new_cap > cap) {
          int i = 1;
-         while (i < new_cap) {
+         while (i / sizeof(T) < new_cap) {
             i *= 2;
          }
-         new_cap = i;
+         new_cap = i / sizeof(T);
 #ifdef __CUDA_ARCH__
  //       printf( "INcreasing capacity from %i to %i\n", cap, new_cap);
 #endif

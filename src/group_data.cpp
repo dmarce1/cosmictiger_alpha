@@ -45,8 +45,6 @@ void group_data_create(particle_set& parts) {
 	timer tm;
 	tm.start();
 	static std::atomic<int> ngroups;
-	static std::atomic<int> next_id;
-	next_id = 0;
 	const auto init_table = [&]() {
 		table = decltype(table)();
 		table_entry_count = 0;
@@ -81,7 +79,7 @@ void group_data_create(particle_set& parts) {
 		}};
 
 	init_table();
-
+	int ngroup_init = ngroups;
 	int nthreads = 2 * hpx::thread::hardware_concurrency();
 	std::vector<hpx::future<void>> futs(nthreads);
 	for (int this_thread = 0; this_thread < nthreads; this_thread++) {
@@ -94,7 +92,6 @@ void group_data_create(particle_set& parts) {
 						table[i].pop_back();
 						ngroups--;
 					} else {
-						table[i][j].second.next_id = next_id++;
 						j++;
 					}
 				}
@@ -102,34 +99,8 @@ void group_data_create(particle_set& parts) {
 		futs[this_thread] = hpx::async(func);
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	for (int this_thread = 0; this_thread < nthreads; this_thread++) {
-		const auto func = [this_thread,nthreads,&parts]() {
-			size_t start = this_thread*parts.size() / nthreads;
-			size_t stop = (this_thread+1)*parts.size()/nthreads;
-			for (size_t i = start; i < stop; i ++) {
-				const auto id = parts.group(i);
-				const int index1 = id % table_size;
-				bool found = false;
-				for( int j = 0; j < table[index1].size(); j++) {
-					if( table[index1][j].first == id ) {
-						parts.group(i) = table[index1][j].second.next_id;
-						found = true;
-						break;
-					}
-				}
-				if( !found ) {
-					parts.group(i) = NO_GROUP;
-				}
-			}
-		};
-		futs[this_thread] = hpx::async(func);
-	}
-	hpx::wait_all(futs.begin(), futs.end());
-
-	init_table();
-
 	tm.stop();
-	printf("Took %e to create group data %i groups found\n", tm.read(), (int) ngroups);
+	printf("Took %e to create group data %i groups found %i made cutoff\n", tm.read(), ngroup_init, (int) ngroups);
 }
 
 void group_data_output(FILE* fp) {

@@ -135,8 +135,8 @@ sort_return tree::sort(sort_params params) {
 #endif
 	sort_return rc;
 	array<tree_ptr, NCHILD> children;
-	if (parts.second - parts.first > global().opts.bucket_size
-			|| (params.depth < params.min_depth && parts.second - parts.first > 0)) {
+	const int max_part = params.group_sort ? GROUP_BUCKET_SIZE : global().opts.bucket_size;
+	if (parts.second - parts.first > max_part || (params.depth < params.min_depth && parts.second - parts.first > 0)) {
 		std::array<fast_future<sort_return>, NCHILD> futs;
 		{
 			const auto size = parts.second - parts.first;

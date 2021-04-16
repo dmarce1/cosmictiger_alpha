@@ -11,7 +11,8 @@
 
 double T0;
 
-tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm) {
+tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm,
+		bool group_sort = false) {
 	timer time;
 	time.start();
 	tree::set_particle_set(&parts);
@@ -29,6 +30,7 @@ tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_act
 	params.tptr = root_ptr;
 	params.min_rung = min_rung;
 	params.theta = theta;
+	params.group_sort = group_sort;
 	sort_return rc = root.sort(params);
 	num_active = rc.active_parts;
 	time.stop();
@@ -71,7 +73,6 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool f
 	root.kick(params_ptr).get();
 
 	tree::cleanup();
-	managed_allocator<tree>::cleanup();
 	if (full_eval) {
 		kick_return_show();
 	}
@@ -133,9 +134,14 @@ void load_from_file(particle_set& parts, int& step, time_type& itime, double& ti
 
 }
 
-int find_groups(tree root, particle_set& parts, double& time) {
+int find_groups(particle_set& parts, double& time) {
 	timer tm;
 	tm.start();
+	double sort_tm;
+	size_t num_active;
+	tree_stats stats;
+	tree root = build_tree(parts, 0, 1.0, num_active, stats, sort_tm, true);
+
 	tree_ptr root_ptr;
 	root_ptr.dindex = 0;
 	group_param_type *params_ptr;
@@ -162,6 +168,7 @@ int find_groups(tree root, particle_set& parts, double& time) {
 	tree_free_neighbors();
 	tm.stop();
 	time = tm.read();
+	tree::cleanup();
 	return iters;
 }
 
@@ -251,14 +258,14 @@ void drive_cosmos() {
 		const auto min_r = min_rung(itime);
 		size_t num_active;
 		tree_stats stats;
-		tree root = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
 		const bool full_eval = min_r <= 7;
 		//	const bool full_eval = false;
 		double group_tm;
 		if (full_eval && global().opts.groups) {
-			int iters = find_groups(root, parts, group_tm);
+			int iters = find_groups(parts, group_tm);
 			printf("Finding groups took %e s and %i iterations\n", group_tm, iters);
 		}
+		tree root = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
 		tree_use = tree_data_use();
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, kick_tm);
 		const auto silo_int = global().opts.silo_interval;

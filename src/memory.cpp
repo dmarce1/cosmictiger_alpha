@@ -81,13 +81,12 @@ void* unified_allocator::allocate(size_t sz) {
 	if (alloc_counts.find(total_sz) == alloc_counts.end()) {
 		alloc_counts[total_sz] = 0;
 	}
-	size_t chunk_size = std::max(
-			std::min(std::max((size_t) 32, (size_t) 1024 / sz), 64 * 1024 * 1024 / (size_t) total_sz), (size_t) 1);
+	size_t chunk_size = std::max(std::min((size_t)1024, 64 * 1024 * 1024 / (size_t) total_sz), (size_t) 1);
 	freelist.resize(std::max((int) freelist.size(), index + 1));
 	void *ptr;
 	char* cptr;
 	if (freelist[index].empty()) {
-		//printf("Allocating %li bytes on device\n", total_sz);
+		printf("Allocating %li bytes UNIFIED\n", total_sz);
 		CUDA_MALLOC(cptr, chunk_size * total_sz);
 		ptr = cptr;
 		for (int i = 0; i < chunk_size; i++) {

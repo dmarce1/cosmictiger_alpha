@@ -309,6 +309,7 @@ struct tree_database_t {
 	unrolled<tree_ptr>* neighbors;
 	int ntrees;
 	int nchunks;
+	int chunk_size;
 };
 
 #ifdef TREE_DATABASE_CU

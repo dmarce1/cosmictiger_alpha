@@ -188,6 +188,7 @@ void group_test() {
 
 	root_ptr.dindex = 0;
 	params.tptr = root_ptr;
+	params.group_sort = true;
 	root.sort(params);
 	tm_sort.stop();
 	tm_kick.start();

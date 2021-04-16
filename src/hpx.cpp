@@ -14,6 +14,10 @@ static int hpx_size_;
 static std::vector<hpx::id_type> localities;
 static std::pair<hpx::id_type, hpx::id_type> mychildren;
 
+int hardware_concurrency() {
+	return hpx::thread::hardware_concurrency();
+}
+
 void hpx_init() {
    int left, right;
    localities = hpx::find_all_localities();

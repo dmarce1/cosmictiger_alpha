@@ -49,6 +49,7 @@ struct sort_params {
 	pair<size_t, size_t> parts;
 	int min_rung;
 	tree_ptr tptr;
+	bool group_sort;
 	std::shared_ptr<tree_allocator> alloc;
 	template<class A>
 	void serialization(A &&arc, unsigned) {
@@ -57,6 +58,7 @@ struct sort_params {
 
 	sort_params() {
 		depth = -1;
+		group_sort = true;
 	}
 
 	bool iamroot() const {
@@ -82,6 +84,7 @@ struct sort_params {
 			child[i].min_depth = min_depth;
 			child[i].min_rung = min_rung;
 			child[i].alloc = alloc;
+			child[i].group_sort = group_sort;
 		}
 		return child;
 	}

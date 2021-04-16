@@ -2,11 +2,6 @@
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/timer.hpp>
 
-struct gpu_groups {
-	group_param_type* params;
-	size_t part_begin;
-	hpx::lcos::local::promise<bool> promise;
-};
 
 static vector<tree_ptr> group_leaves;
 static mutex_type mutex;
@@ -42,7 +37,7 @@ hpx::future<void> find_groups_phase1(group_param_type* params_ptr) {
 	tree_ptr self = params.self;
 	if (params.depth == 0) {
 		group_leaves.resize(0);
-		params.block_cutoff = parts.size() / std::max((int) 1, (int) (hpx::thread::hardware_concurrency() / 4));
+		params.block_cutoff = parts.size() / std::max((int) 1, (int) (hpx::thread::hardware_concurrency()/4));
 		parts.init_groups();
 	}
 

@@ -61,6 +61,7 @@ __global__ void cuda_find_groups_kernel_phase2(group_param_type* params_ptr, con
 		}
 		do {
 			found_link = 0;
+
 			for (auto i = checks.begin(); i != checks.end(); ++i) {
 				const auto other_pair = (*i).get_parts();
 				const int other_size = other_pair.second - other_pair.first;

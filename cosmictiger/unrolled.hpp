@@ -18,7 +18,7 @@ template<class T>
 class unrolled {
 private:
 	static constexpr int entry_size = 27;
-	static constexpr int allocation_size = 4*1024;
+	static constexpr int allocation_size = 8*1024;
 	struct unrolled_entry {
 		array<T, entry_size> data;
 		unrolled_entry* next;
@@ -33,6 +33,7 @@ private:
 		std::lock_guard<hpx::lcos::local::spinlock> lock(mtx);
 		if (freelist.empty()) {
 			unrolled_entry* new_entries;
+			printf( "Allocating unrolled\n");
 			CUDA_MALLOC(new_entries, allocation_size);
 			allocations.push(new_entries);
 			for (int i = 0; i < allocation_size; i++) {
@@ -117,8 +118,10 @@ public:
 		clear();
 	}
 	inline void clear() {
-		while (size()) {
-			pop_top();
+		while (head) {
+			auto next = head->next;
+			deallocate(head);
+			head = next;
 		}
 	}
 	inline void push_top(const T& data) {

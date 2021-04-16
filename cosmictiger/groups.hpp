@@ -15,13 +15,10 @@
 struct group_info_t {
 	array<double, NDIM> pos;
 	array<float, NDIM> vel;
-	int next_id;
-	float vtot;
+	int count;
 	float epot;
 	float ekin;
-	int count;
 	float rmax;
-	float r50;
 	float ravg;
 	group_info_t() {
 		for( int dim = 0; dim < NDIM; dim++) {
@@ -32,9 +29,7 @@ struct group_info_t {
 		ekin = 0.0;
 		count = 0;
 		rmax = 0.0;
-		r50 = 0.0;
 		ravg = 0.0;
-		vtot = 0.0;
 	}
 };
 

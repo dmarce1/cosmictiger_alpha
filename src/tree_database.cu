@@ -7,19 +7,27 @@
 #include <cmath>
 #include <atomic>
 
-static constexpr int chunk_size = 2048;
+static const int min_trees = 1024 * 1024;
 
 static std::atomic<int> next_chunk;
 
+int hardware_concurrency();
+
 void tree_data_initialize() {
+	gpu_tree_data_.chunk_size = 1;
 	gpu_tree_data_.ntrees = global().opts.nparts / global().opts.bucket_size;
 	gpu_tree_data_.ntrees = std::max(1 << ((int) std::ceil(std::log(gpu_tree_data_.ntrees) / std::log(2)) + 3),
-			1024 * 1024);
-	gpu_tree_data_.nchunks = gpu_tree_data_.ntrees / chunk_size;
+			min_trees);
+	const int target_chunk_size = gpu_tree_data_.ntrees / (16 * OVERSUBSCRIPTION * hardware_concurrency());
+	while (gpu_tree_data_.chunk_size < target_chunk_size) {
+		gpu_tree_data_.chunk_size *= 2;
+	}
+	gpu_tree_data_.nchunks = gpu_tree_data_.ntrees / gpu_tree_data_.chunk_size;
 
 	CUDA_CHECK(cudaMemAdvise(&gpu_tree_data_, sizeof(gpu_tree_data_), cudaMemAdviseSetReadMostly, 0));
 
-	printf("Allocating %i trees in %i chunks of %i each\n", gpu_tree_data_.ntrees, gpu_tree_data_.nchunks, chunk_size);
+	printf("Allocating %i trees in %i chunks of %i each\n", gpu_tree_data_.ntrees, gpu_tree_data_.nchunks,
+			gpu_tree_data_.chunk_size);
 
 	CUDA_MALLOC(gpu_tree_data_.data, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.parts, gpu_tree_data_.ntrees);
@@ -65,7 +73,7 @@ void tree_free_neighbors() {
 	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
 		tree_database_destroy_neighbors(gpu_tree_data_.neighbors[i]);
 	}
-//	unrolled<tree_ptr>::free_all();
+	unrolled<tree_ptr>::free_all();
 	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
 		new (gpu_tree_data_.neighbors + i) unrolled<tree_ptr>();
 	}
@@ -78,8 +86,8 @@ std::pair<int, int> tree_data_allocate() {
 		printf("Fatal error - tree arena full!\n");
 		abort();
 	}
-	rc.first = chunk * chunk_size;
-	rc.second = rc.first + chunk_size;
+	rc.first = chunk * gpu_tree_data_.chunk_size;
+	rc.second = rc.first + gpu_tree_data_.chunk_size;
 	return rc;
 }
 
