@@ -175,10 +175,10 @@ public:
       BLOCK;
       if (new_cap > cap) {
          int i = 1;
-         while (i / sizeof(T) < new_cap) {
+         while (i < new_cap) {
             i *= 2;
          }
-         new_cap = i / sizeof(T);
+         new_cap = i;
 #ifdef __CUDA_ARCH__
  //       printf( "INcreasing capacity from %i to %i\n", cap, new_cap);
 #endif

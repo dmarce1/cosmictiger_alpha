@@ -52,9 +52,12 @@ struct particle_set {
 	void generate_grid();CUDA_EXPORT
 	group_t group(size_t) const;CUDA_EXPORT
 	group_t& group(size_t);CUDA_EXPORT
+	group_t last_group(size_t) const;CUDA_EXPORT
+	group_t& last_group(size_t);CUDA_EXPORT
 	size_t size() const {
 		return size_;
 	}
+	void finish_groups();
 	void init_groups();CUDA_EXPORT
 	float force(int dim, size_t index) const;CUDA_EXPORT
 	float& force(int dim, size_t index);CUDA_EXPORT
@@ -68,6 +71,7 @@ private:
 	array<float,NDIM>* uptr_;
 	rung_t* rptr_;
 	group_t* idptr_;
+	group_t* lidptr_;
 	array<float*, NDIM> gptr_;
 	float* eptr_;
 	size_t size_;
@@ -80,6 +84,7 @@ public:
 		particle_set v;
 		v.rptr_ = rptr_;
 		v.idptr_ = idptr_;
+		v.lidptr_ = lidptr_;
 		v.uptr_ = uptr_;
 		for (int dim = 0; dim < NDIM; dim++) {
 			v.xptr_[dim] = xptr_[dim];
@@ -185,6 +190,14 @@ CUDA_EXPORT inline group_t particle_set::group(size_t index) const {
 
 CUDA_EXPORT inline group_t& particle_set::group(size_t index) {
 	return idptr_[index];
+}
+
+CUDA_EXPORT inline group_t particle_set::last_group(size_t index) const {
+	return lidptr_[index];
+}
+
+CUDA_EXPORT inline group_t& particle_set::last_group(size_t index) {
+	return lidptr_[index];
 }
 
 #endif /* COSMICTIGER_PARTICLE_HPP_ */

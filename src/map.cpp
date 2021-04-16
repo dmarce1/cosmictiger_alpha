@@ -43,10 +43,12 @@ void cleanup_map_workspace(map_workspace ws) {
 }
 
 void prepare_map(int i) {
-//	printf("preparing map %i\n", i);
+	printf("preparing map %i\n", i);
 	auto& map = maps[i];
 	const auto npts = 12 * sqr(global().opts.map_size);
-	map = std::make_shared<vector<float>>(npts, 0.0f);
+	float* ptr;
+	CUDA_MALLOC(ptr,npts);
+	map = std::make_shared<float*>(ptr);
 }
 
 void save_map(int i) {
@@ -56,6 +58,8 @@ void save_map(int i) {
 	for (int j = 0; j < npts; j++) {
 		res.push_back((*maps[i])[j]);
 	}
+	CUDA_FREE(*maps[i]);
+	maps.erase(i);
 	FILE* fp = fopen(filename.c_str(), "wb");
 	fwrite(res.data(), sizeof(float), npts, fp);
 	fclose(fp);

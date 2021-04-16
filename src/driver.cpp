@@ -142,6 +142,9 @@ int find_groups(particle_set& parts, double& time) {
 	tree_stats stats;
 	tree root = build_tree(parts, 0, 1.0, num_active, stats, sort_tm, true);
 
+	unified_allocator alloc;
+	alloc.reset();
+
 	tree_ptr root_ptr;
 	root_ptr.dindex = 0;
 	group_param_type *params_ptr;
@@ -154,6 +157,7 @@ int find_groups(particle_set& parts, double& time) {
 	params_ptr->first_round = true;
 	printf("Finding Groups\n");
 	int iters = 1;
+	parts.init_groups();
 	find_groups_phase1(params_ptr).get();
 	while (find_groups_phase2(params_ptr)) {
 		params_ptr->self = root_ptr;
@@ -164,8 +168,9 @@ int find_groups(particle_set& parts, double& time) {
 	}
 	params_ptr->~group_param_type();
 	CUDA_FREE(params_ptr);
-	group_data_create(parts);
 	tree_free_neighbors();
+	group_data_create(parts);
+	parts.finish_groups();
 	tm.stop();
 	time = tm.read();
 	tree::cleanup();
@@ -268,6 +273,9 @@ void drive_cosmos() {
 		tree root = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
 		tree_use = tree_data_use();
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, kick_tm);
+		if (full_eval && global().opts.groups) {
+			group_data_destroy();
+		}
 		const auto silo_int = global().opts.silo_interval;
 		if (silo_int > 0) {
 			if (full_eval) {

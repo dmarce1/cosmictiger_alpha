@@ -38,7 +38,6 @@ void* cuda_allocator::allocate(size_t sz) {
 	ptr = freelist[index].top();
 	delete_indexes[ptr] = index;
 	freelist[index].pop();
-//  printf( "%li\n", (int) allocated);
 	return ptr;
 }
 
@@ -46,24 +45,21 @@ void cuda_allocator::deallocate(void *ptr) {
 	std::lock_guard<mutex_type> lock(mtx);
 	const auto index = delete_indexes[ptr];
 	freelist[index].push(ptr);
-//   printf( "%li\n", (int) allocated);
 }
 
 std::vector<std::stack<void*>> cuda_allocator::freelist;
 mutex_type cuda_allocator::mtx;
-size_t cuda_allocator::allocated = 0;
 
 std::unordered_map<void*, int> cuda_allocator::delete_indexes;
-std::unordered_map<int, int> unified_allocator::alloc_counts;
+std::stack<void*> unified_allocator::allocs;
 
-void unified_allocator::show_allocs() {
-	printf("Allocations:\n");
-	for (auto i = alloc_counts.begin(); i != alloc_counts.end(); i++) {
-		if (i->second) {
-			printf("%i %i\n", i->second, i->first);
-		}
+void unified_allocator::reset() {
+	freelist = decltype(freelist)();
+	delete_indexes = decltype(delete_indexes)();
+	for (int i = 0; i < allocs.size(); i++) {
+		CUDA_FREE(allocs.top());
+		allocs.pop();
 	}
-	printf("%li MB in use\n", allocated / 1024 / 1024);
 }
 
 void* unified_allocator::allocate(size_t sz) {
@@ -78,26 +74,21 @@ void* unified_allocator::allocate(size_t sz) {
 		index++;
 	}
 	std::lock_guard<mutex_type> lock(mtx);
-	if (alloc_counts.find(total_sz) == alloc_counts.end()) {
-		alloc_counts[total_sz] = 0;
-	}
-	size_t chunk_size = std::max(std::min((size_t)1024, 64 * 1024 * 1024 / (size_t) total_sz), (size_t) 1);
+	size_t chunk_size = std::max(std::min((size_t) 1024, 64 * 1024 * 1024 / (size_t) total_sz), (size_t) 1);
 	freelist.resize(std::max((int) freelist.size(), index + 1));
 	void *ptr;
 	char* cptr;
 	if (freelist[index].empty()) {
-		printf("Allocating %li bytes UNIFIED\n", total_sz);
 		CUDA_MALLOC(cptr, chunk_size * total_sz);
+		allocs.push(cptr);
 		ptr = cptr;
 		for (int i = 0; i < chunk_size; i++) {
 			freelist[index].push((char*) ptr + i * total_sz);
 		}
-		allocated += chunk_size * total_sz;
 	}
 	ptr = freelist[index].top();
 	delete_indexes[ptr] = index;
 	freelist[index].pop();
-	alloc_counts[total_sz]++;
 	return ptr;
 }
 
@@ -109,13 +100,11 @@ void unified_allocator::deallocate(void *ptr) {
 		abort();
 	}
 	const auto index = delete_indexes[ptr];
-	alloc_counts[1 << index]--;
 	freelist[index].push(ptr);
 }
 
 std::vector<std::stack<void*>> unified_allocator::freelist;
 mutex_type unified_allocator::mtx;
-size_t unified_allocator::allocated = 0;
 
 std::unordered_map<void*, int> unified_allocator::delete_indexes;
 

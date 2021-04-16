@@ -45,9 +45,15 @@ void particle_set::prepare_drift() {
 }
 
 void particle_set::init_groups() {
+	CUDA_MALLOC(lidptr_, size());
 	for (int i = 0; i < size(); i++) {
+		lidptr_[i] = idptr_[i];
 		idptr_[i] = NO_GROUP;
 	}
+}
+
+void particle_set::finish_groups() {
+	CUDA_FREE(lidptr_);
 }
 
 particle_set::particle_set(size_t size, size_t offset) {
@@ -70,8 +76,12 @@ particle_set::particle_set(size_t size, size_t offset) {
 	CUDA_MALLOC(eptr_, size);
 #endif
 	for (int i = 0; i < size; i++) {
-		//	uptr_[i].p.r = 0;
 		rptr_[i] = 0;
+	}
+	if (global().opts.groups) {
+		for (int i = 0; i < size; i++) {
+			idptr_[i] = NO_GROUP;
+		}
 	}
 	printf("Done\n");
 }
@@ -227,7 +237,7 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 					std::swap(x[hi], x[lo]);
 					std::swap(y[hi], y[lo]);
 					std::swap(z[hi], z[lo]);
-					std::swap(*((double*) uptr_[hi].data()), *((double*) uptr_[hi].data()));
+					std::swap(*((int64_t*) uptr_[hi].data()), *((int64_t*) uptr_[hi].data()));
 					std::swap(uptr_[hi][2], uptr_[lo][2]);
 					std::swap(rptr_[hi], rptr_[lo]);
 					if (groups) {

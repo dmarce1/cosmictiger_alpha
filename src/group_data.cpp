@@ -41,6 +41,7 @@ void group_data_destroy() {
 	table = decltype(table)();
 }
 
+
 void group_data_create(particle_set& parts) {
 	timer tm;
 	tm.start();

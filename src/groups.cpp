@@ -38,7 +38,6 @@ hpx::future<void> find_groups_phase1(group_param_type* params_ptr) {
 	if (params.depth == 0) {
 		group_leaves.resize(0);
 		params.block_cutoff = parts.size() / std::max((int) 1, (int) (hpx::thread::hardware_concurrency()/4));
-		parts.init_groups();
 	}
 
 	auto& param_checks = params.checks;

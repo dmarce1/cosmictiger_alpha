@@ -33,7 +33,6 @@ private:
 		std::lock_guard<hpx::lcos::local::spinlock> lock(mtx);
 		if (freelist.empty()) {
 			unrolled_entry* new_entries;
-			printf( "Allocating unrolled\n");
 			CUDA_MALLOC(new_entries, allocation_size);
 			allocations.push(new_entries);
 			for (int i = 0; i < allocation_size; i++) {

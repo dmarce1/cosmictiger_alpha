@@ -185,7 +185,7 @@ void group_test() {
 	params.theta = global().opts.theta;
 	params.min_rung = 0;
 	tree_ptr root_ptr;
-
+	parts.init_groups();
 	root_ptr.dindex = 0;
 	params.tptr = root_ptr;
 	params.group_sort = true;
