@@ -11,17 +11,18 @@
 
 static mutex_type mtx;
 static std::unordered_map<int, map_type> maps;
-static std::stack<map_workspace> workspaces;
+//static std::stack<map_workspace> workspaces;
 
 map_workspace get_map_workspace() {
-	std::lock_guard<mutex_type> lock(mtx);
-	if (workspaces.size() == 0) {
+//	std::lock_guard<mutex_type> lock(mtx);
+	return std::make_shared<std::unordered_map<int, std::array<vector<float>, NDIM>>>();
+/*	if (workspaces.size() == 0) {
 		auto ws = std::make_shared<std::unordered_map<int, std::array<vector<float>, NDIM>>>();
 		workspaces.push(ws);
 	}
 	auto ws = workspaces.top();
 	workspaces.pop();
-	return ws;
+	return ws;*/
 }
 
 void cleanup_map_workspace(map_workspace ws) {
@@ -38,8 +39,8 @@ void cleanup_map_workspace(map_workspace ws) {
 			}
 		}
 	}
-	std::lock_guard<mutex_type> lock(mtx);
-	workspaces.push(ws);
+//	std::lock_guard<mutex_type> lock(mtx);
+//	workspaces.push(ws);
 }
 
 void prepare_map(int i) {
@@ -54,15 +55,10 @@ void prepare_map(int i) {
 void save_map(int i) {
 	const auto npts = 12 * sqr(global().opts.map_size);
 	std::string filename = std::string("map.") + std::to_string(i) + ".hpx";
-	std::vector<float> res;
-	for (int j = 0; j < npts; j++) {
-		res.push_back((*maps[i])[j]);
-	}
-	CUDA_FREE(*maps[i]);
-	maps.erase(i);
 	FILE* fp = fopen(filename.c_str(), "wb");
-	fwrite(res.data(), sizeof(float), npts, fp);
+	fwrite(*maps[i], sizeof(float), npts, fp);
 	fclose(fp);
+	CUDA_FREE(*maps[i]);
 }
 
 void load_and_save_maps(double tau, double tau_max) {
@@ -79,7 +75,7 @@ void load_and_save_maps(double tau, double tau_max) {
 	}
 	for (auto i = maps.begin(); i != maps.end(); i++) {
 		if (i->first < imin) {
-		//	printf("Saving map %i\n", i->first);
+			printf("Saving map %i\n", i->first);
 			save_map(i->first);
 		}
 	}
