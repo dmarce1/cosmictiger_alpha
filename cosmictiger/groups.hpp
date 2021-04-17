@@ -25,7 +25,7 @@ struct group_info_t {
 	float ekin;
 	float rmax;
 	float ravg;
-	float r50;
+	float reff;
 	std::vector<float> radii;
 	std::map<group_t,std::shared_ptr<int>> parents;
 	std::shared_ptr<std::atomic<int>> mtx;
@@ -82,7 +82,7 @@ struct groups_shmem {
 };
 
 void group_data_create(particle_set& parts);
-void group_data_reduce();
+void group_data_save(double scale, int filename);
 void group_data_output(FILE* fp);
 void group_data_destroy();
 vector<bucket_t>& group_table();

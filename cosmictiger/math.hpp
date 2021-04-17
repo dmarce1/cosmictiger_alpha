@@ -24,12 +24,10 @@
 #define FMA fma
 #endif
 
-
 template<class T>
 CUDA_EXPORT inline T sqr(T a) {
-   return a * a;
+	return a * a;
 }
-
 
 CUDA_DEVICE inline float erfcexp(const float &x, float *e) {				// 18 + FLOP_DIV + FLOP_EXP
 	const float p(0.3275911f);
@@ -47,8 +45,6 @@ CUDA_DEVICE inline float erfcexp(const float &x, float *e) {				// 18 + FLOP_DIV
 	return FMA(a1, t1, FMA(a2, t2, FMA(a3, t3, FMA(a4, t4, a5 * t5)))) * *e; 			// 10
 }
 
-
-
 /*
  * math.hpp
  *
@@ -65,9 +61,9 @@ CUDA_DEVICE inline float erfcexp(const float &x, float *e) {				// 18 + FLOP_DIV
 #include <cosmictiger/vector.hpp>
 
 /*#define POW(a,b) powf(a,b)
-#define LOG(a) logf(a)
-#define EXP(a) expf(a)
-#define SQRT(a) sqrtf(a)*/
+ #define LOG(a) logf(a)
+ #define EXP(a) expf(a)
+ #define SQRT(a) sqrtf(a)*/
 #define COS(a) cosf(a)
 #define SIN(a) sinf(a)
 //#define SINCOS(a,b,c) sincosf(a,b,c)
@@ -76,58 +72,69 @@ class cmplx {
 	float x, y;
 public:
 	cmplx() = default;
-	CUDA_EXPORT cmplx(float a) {
+	CUDA_EXPORT
+	cmplx(float a) {
 		x = a;
 		y = 0.f;
 	}
-	CUDA_EXPORT cmplx(float a, float b) {
+	CUDA_EXPORT
+	cmplx(float a, float b) {
 		x = a;
 		y = b;
 	}
-	CUDA_EXPORT cmplx& operator+=(cmplx other) {
+	CUDA_EXPORT
+	cmplx& operator+=(cmplx other) {
 		x += other.x;
 		y += other.y;
 		return *this;
 	}
-	CUDA_EXPORT cmplx& operator-=(cmplx other) {
+	CUDA_EXPORT
+	cmplx& operator-=(cmplx other) {
 		x -= other.x;
 		y -= other.y;
 		return *this;
 	}
-	CUDA_EXPORT cmplx operator*(cmplx other) const {
+	CUDA_EXPORT
+	cmplx operator*(cmplx other) const {
 		cmplx a;
 		a.x = x * other.x - y * other.y;
 		a.y = x * other.y + y * other.x;
 		return a;
 	}
-	CUDA_EXPORT cmplx operator/(cmplx other) const {
+	CUDA_EXPORT
+	cmplx operator/(cmplx other) const {
 		return *this * other.conj() / other.norm();
 	}
-	CUDA_EXPORT cmplx operator/(float other) const {
+	CUDA_EXPORT
+	cmplx operator/(float other) const {
 		cmplx b;
 		b.x = x / other;
 		b.y = y / other;
 		return b;
 	}
-	CUDA_EXPORT cmplx operator*(float other) const {
+	CUDA_EXPORT
+	cmplx operator*(float other) const {
 		cmplx b;
 		b.x = x * other;
 		b.y = y * other;
 		return b;
 	}
-	CUDA_EXPORT cmplx operator+(cmplx other) const {
+	CUDA_EXPORT
+	cmplx operator+(cmplx other) const {
 		cmplx a;
 		a.x = x + other.x;
 		a.y = y + other.y;
 		return a;
 	}
-	CUDA_EXPORT cmplx operator-(cmplx other) const {
+	CUDA_EXPORT
+	cmplx operator-(cmplx other) const {
 		cmplx a;
 		a.x = x - other.x;
 		a.y = y - other.y;
 		return a;
 	}
-	CUDA_EXPORT cmplx conj() const {
+	CUDA_EXPORT
+	cmplx conj() const {
 		cmplx a;
 		a.x = x;
 		a.y = -y;
@@ -142,6 +149,14 @@ public:
 		return y;
 	}
 	CUDA_EXPORT
+	float& real() {
+		return x;
+	}
+	CUDA_EXPORT
+	float& imag() {
+		return y;
+	}
+	CUDA_EXPORT
 	float norm() const {
 		return ((*this) * conj()).real();
 	}
@@ -149,7 +164,8 @@ public:
 	float abs() const {
 		return sqrtf(norm());
 	}
-	CUDA_EXPORT cmplx operator-() const {
+	CUDA_EXPORT
+	cmplx operator-() const {
 		cmplx a;
 		a.x = -x;
 		a.y = -y;
@@ -157,11 +173,11 @@ public:
 	}
 };
 
-CUDA_EXPORT  inline cmplx operator*(float a, cmplx b) {
+CUDA_EXPORT inline cmplx operator*(float a, cmplx b) {
 	return b * a;
 }
 
-CUDA_EXPORT  inline cmplx expc(cmplx z) {
+CUDA_EXPORT inline cmplx expc(cmplx z) {
 	float x, y;
 	float t = EXP(z.real());
 	sincosf(z.imag(), &y, &x);
@@ -198,14 +214,14 @@ void integrate(FUNC *fptr, REAL a, REAL b, REAL* result, REAL toler) {
 		sum2 = REAL(0);
 		REAL dx = (b - a) / REAL(N - 1);
 		sum1 = sum2 = 0.0;
-		constexpr REAL wt1[3] = { 6.0 / 8.0, 9.0 / 8.0, 9.0 / 8.0 };
-		constexpr REAL wt2[6] = { 82.0 / 140.0, 216.0 / 140.0, 27.0 / 140.0, 272.0 / 140.0, 27.0 / 140.0, 216.0 / 140.0 };
+		constexpr REAL wt1[3] = {6.0 / 8.0, 9.0 / 8.0, 9.0 / 8.0};
+		constexpr REAL wt2[6] = {82.0 / 140.0, 216.0 / 140.0, 27.0 / 140.0, 272.0 / 140.0, 27.0 / 140.0, 216.0 / 140.0};
 		for (int i = thread; i < N; i += block_size) {
 			REAL x = a + REAL(i) * dx;
 			REAL this_f = f(x);
 			sum2 += this_f * dx * wt2[i % 6] * (i == 0 || i == N - 1 ? REAL(0.5) : REAL(1));
 			sum1 += this_f * dx * wt1[i % 3] * (i == 0 || i == N - 1 ? REAL(0.5) : REAL(1));
-					}
+		}
 		sums1[thread] = sum1;
 		sums2[thread] = sum2;
 		__syncthreads();
@@ -230,7 +246,7 @@ void integrate(FUNC *fptr, REAL a, REAL b, REAL* result, REAL toler) {
 		}
 		N = 2 * (N - 1) + 1;
 		__syncthreads();
-	} while (err > toler);
+	}while (err > toler);
 	__syncthreads();
 	if (thread == 0) {
 		delete[] sums1;

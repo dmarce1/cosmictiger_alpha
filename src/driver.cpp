@@ -8,6 +8,7 @@
 #include <cosmictiger/map.hpp>
 #include <cosmictiger/initial.hpp>
 #include <cosmictiger/groups.hpp>
+#include <cosmictiger/power.hpp>
 
 double T0;
 #define NTIMESTEP 100.0
@@ -41,7 +42,7 @@ tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_act
 
 }
 
-int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool first_call, double& tm) {
+int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool first_call, bool groups, double& tm) {
 	timer time;
 	time.start();
 	tree_ptr root_ptr;
@@ -57,6 +58,7 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool f
 	params_ptr->full_eval = full_eval;
 	params_ptr->theta = theta;
 	params_ptr->scale = a;
+	params_ptr->groups = groups;
 	array<fixed32, NDIM> Lpos;
 	expansion<float> L;
 	for (int i = 0; i < LP; i++) {
@@ -269,14 +271,26 @@ void drive_cosmos() {
 		const bool full_eval = min_r <= 0;
 		//	const bool full_eval = false;
 		double group_tm;
-		if (full_eval && global().opts.groups) {
-			int iters = find_groups(parts, group_tm);
-			printf("Finding groups took %e s and %i iterations\n", group_tm, iters);
+		bool groups = global().opts.groups;
+		bool power = global().opts.power;
+		if (full_eval && (power || groups)) {
+			unified_allocator alloc;
+			alloc.reset();
+			if (power) {
+				printf("Computing mass power spectrum\n");
+				compute_power_spectrum(parts, time + 0.5);
+			}
+			if (groups) {
+				int iters = find_groups(parts, group_tm);
+				printf("Finding groups took %e s and %i iterations\n", group_tm, iters);
+			}
 		}
 		tree root = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
 		tree_use = tree_data_use();
-		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, kick_tm);
+		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, global().opts.groups && full_eval,
+				kick_tm);
 		if (full_eval && global().opts.groups) {
+			group_data_save(a, time + 0.5);
 			group_data_destroy();
 		}
 		const auto silo_int = global().opts.silo_interval;

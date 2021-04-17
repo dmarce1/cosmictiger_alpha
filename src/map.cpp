@@ -1,6 +1,7 @@
 #include <cosmictiger/map.hpp>
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/global.hpp>
+#include <cosmictiger/timer.hpp>
 #include <cosmictiger/simd.hpp>
 
 #include <cosmictiger/math.hpp>
@@ -67,7 +68,7 @@ void cleanup_map_workspace(map_workspace ws) {
 }
 
 void prepare_map(int i) {
-	printf("preparing map %i\n", i);
+//	printf("preparing map %i\n", i);
 	auto& map = maps[i];
 	const auto npts = 12 * sqr(global().opts.map_size);
 	float* ptr;
@@ -98,8 +99,12 @@ void load_and_save_maps(double tau, double tau_max) {
 	}
 	for (auto i = maps.begin(); i != maps.end(); i++) {
 		if (i->first < imin) {
-			printf("Saving map %i\n", i->first);
+			timer tm;
+			tm.start();
+			printf("                                               \rSaving map %i\n", i->first);
 			save_map(i->first);
+			tm.stop();
+			printf( "Done. Took %e s\n", tm.read());
 		}
 	}
 	auto i = maps.begin();

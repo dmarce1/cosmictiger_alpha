@@ -42,6 +42,7 @@ struct options {
 	double omega_r;
 
 	bool groups;
+	bool power;
 	int map_size;
 	double silo_interval;
 	double map_freq;

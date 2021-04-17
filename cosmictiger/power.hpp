@@ -10,8 +10,8 @@
 
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/cuda.hpp>
+#include <cosmictiger/particle.hpp>
 
-CUDA_EXPORT
-float eisenstein_and_hu(float k, float omega_c, float omega_b, float hubble);
+void compute_power_spectrum(particle_set& parts, int filenum);
 
 #endif /* POWER_HPP_ */
