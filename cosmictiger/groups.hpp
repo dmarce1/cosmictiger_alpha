@@ -19,6 +19,7 @@ struct group_info_t {
 	group_t id;
 	array<double, NDIM> pos;
 	array<float, NDIM> vel;
+	array<float, NDIM> vdisp;
 	int count;
 	float epot;
 	float ekin;
@@ -88,6 +89,8 @@ vector<bucket_t>& group_table();
 int& group_table_size();
 
 __device__
-void groups_kick_update(group_t id, float phi);
+void gpu_groups_kick_update(group_t id, float phi);
+
+void cpu_groups_kick_update(group_t id, float phi);
 
 #endif /* GROUPS_HPP_ */

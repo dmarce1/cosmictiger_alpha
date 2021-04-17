@@ -4,11 +4,28 @@
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/timer.hpp>
 
+#include <unordered_map>
+
 #define MIN_GROUP_SIZE 10
+
+using spinlock_type = hpx::lcos::local::spinlock;
+static spinlock_type table_cpu_mutex;
+static std::unordered_map<group_t,float> table_cpu_phis;
+
+void cpu_groups_kick_update(group_t id, float phi) {
+	if (id != NO_GROUP) {
+		std::lock_guard<spinlock_type> lock(table_cpu_mutex);
+		if( table_cpu_phis.find(id) == table_cpu_phis.end()) {
+			table_cpu_phis[id] = 0.0;
+		}
+		table_cpu_phis[id] += phi;
+	}
+}
 
 void group_data_destroy() {
 	auto& table = group_table();
 	table = vector<bucket_t>();
+	table_cpu_phis = decltype(table_cpu_phis)();
 }
 
 void group_data_create(particle_set& parts) {
@@ -43,6 +60,7 @@ void group_data_create(particle_set& parts) {
 				info.ekin = 0.0;
 				info.epot = 0.0;
 				for (int dim = 0; dim < NDIM; dim++) {
+					info.vdisp[dim] = 0.0;
 					info.pos[dim] = 0.0;
 					info.vel[dim] = 0.0;
 				}
@@ -147,7 +165,12 @@ void group_data_create(particle_set& parts) {
 							const auto dx = parts.pos(0,j).to_double() - entry.pos[0];
 							const auto dy = parts.pos(1,j).to_double() - entry.pos[1];
 							const auto dz = parts.pos(2,j).to_double() - entry.pos[2];
+							for( int dim = 0; dim < NDIM; dim++) {
+								const float dv = parts.vel(dim,j) - entry.vel[dim];
+								entry.vdisp[dim] += dv * dv;
+							}
 							const auto r = sqrt(fmaf(dx,dx,fmaf(dy,dy,sqr(dz))));
+
 							entry.ravg += r;
 							entry.rmax = std::max(entry.rmax,r);
 							entry.radii.push_back(r);
@@ -171,6 +194,9 @@ void group_data_create(particle_set& parts) {
 					auto& entry = table[i][j];
 					std::sort(entry.radii.begin(),entry.radii.end());
 					const auto N = entry.radii.size();
+					for( int dim = 0; dim < NDIM; dim++) {
+						entry.vdisp[dim] = std::sqrt(entry.vdisp[dim]) / entry.count;
+					}
 					if( N % 2 == 0) {
 						entry.r50 = (entry.radii[N/2-1] + entry.radii[N/2])*0.5;
 					} else {

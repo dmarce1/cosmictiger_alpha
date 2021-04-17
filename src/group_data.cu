@@ -20,7 +20,7 @@ int& group_table_size() {
 }
 
 __device__
-void groups_kick_update(group_t id, float phi) {
+void gpu_groups_kick_update(group_t id, float phi) {
 	if (id != NO_GROUP) {
 		const int index1 = id % table_size;
 		bool found = false;

@@ -59,7 +59,7 @@
 //#define MIN_GPU_PARTS (8*1024)
 
 #define MIN_DX (0.00000001f)
-#define MIN_RUNG 7
+#define MIN_RUNG 0
 
 #define DRIFT_BLOCK_SIZE 1024
 

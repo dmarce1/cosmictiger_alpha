@@ -5,7 +5,7 @@
 #include <cosmictiger/simd.hpp>
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/kick_return.hpp>
-#include <cosmictiger/sort.hpp>
+#include <cosmictiger/groups.hpp>
 #include <cosmictiger/tree_database.hpp>
 
 #include <set>
@@ -560,7 +560,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
 		for (int k = 0; k < parts.second - parts.first; k++) {
-			const auto this_rung = particles->rung(k + parts.first);
+			const size_t index = k + parts.first;
+			const auto this_rung = particles->rung(index);
 			if (this_rung >= params.rung || params.full_eval) {
 				array<float, NDIM> g;
 				float this_phi;
@@ -580,6 +581,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					F[dim][k] *= params.G * params.M;
 				}
 				phi[k] *= params.G * params.M;
+				if (params.groups) {
+					cpu_groups_kick_update(particles->group(index), phi[k]);
+				}
 #ifdef TEST_FORCE
 				for (int dim = 0; dim < NDIM; dim++) {
 					particles->force(dim, k + parts.first) = F[dim][k];
@@ -589,9 +593,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				if (this_rung >= params.rung) {
 					float dt = params.t0 / (1 << this_rung);
 					if (!params.first) {
-						particles->vel(0,k + parts.first) += 0.5 * dt * F[0][k];
-						particles->vel(1,k + parts.first) += 0.5 * dt * F[1][k];
-						particles->vel(2,k + parts.first) += 0.5 * dt * F[2][k];
+						particles->vel(0, index) += 0.5 * dt * F[0][k];
+						particles->vel(1, index) += 0.5 * dt * F[1][k];
+						particles->vel(2, index) += 0.5 * dt * F[2][k];
 					}
 					float fmag = 0.0;
 					for (int dim = 0; dim < NDIM; dim++) {
@@ -604,17 +608,17 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 							std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1), params.rung),
 							MIN_RUNG);
 					dt = params.t0 / (1 << new_rung);
-					particles->vel(0,k + parts.first) += 0.5 * dt * F[0][k];
-					particles->vel(1,k + parts.first) += 0.5 * dt * F[1][k];
-					particles->vel(2,k + parts.first) += 0.5 * dt * F[2][k];
+					particles->vel(0, index) += 0.5 * dt * F[0][k];
+					particles->vel(1, index) += 0.5 * dt * F[1][k];
+					particles->vel(2, index) += 0.5 * dt * F[2][k];
 					max_rung = std::max(max_rung, new_rung);
-					particles->set_rung(new_rung, k + parts.first);
+					particles->set_rung(new_rung, index);
 				}
 				if (params.full_eval) {
 					kick_return_update_pot_cpu(phi[k], F[0][k], F[1][k], F[2][k]);
 				}
 			}
-			kick_return_update_rung_cpu(particles->rung(k + parts.first));
+			kick_return_update_rung_cpu(particles->rung(index));
 
 		}
 		//	rc.rung = max_rung;

@@ -10,6 +10,7 @@
 #include <cosmictiger/groups.hpp>
 
 double T0;
+#define NTIMESTEP 100.0
 
 tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm,
 		bool group_sort = false) {
@@ -216,13 +217,13 @@ void drive_cosmos() {
 	}
 	parts_total = 0.0;
 	time_total = 0.0;
-	T0 = cosmos_conformal_age(1.0 / (1.0 + global().opts.z0));
+	T0 = cosmos_conformal_age(1.0 / (1.0 + global().opts.z0)) / NTIMESTEP;
 	timer tm;
 	tm.start();
 	double kin, momx, momy, momz;
 	double partfac = 1.0 / global().opts.nparts;
 	if (!have_checkpoint) {
-		drift(parts, 0.0, a, a, &kin, &momx, &momy, &momz, 0.0, T0, drift_tm);
+		drift(parts, 0.0, a, a, &kin, &momx, &momy, &momz, 0.0, NTIMESTEP * T0, drift_tm);
 		printf("Starting ekin = %e\n", a * kin * partfac);
 	}
 	timer checkpt_tm;
@@ -265,7 +266,7 @@ void drive_cosmos() {
 		const auto min_r = min_rung(itime);
 		size_t num_active;
 		tree_stats stats;
-		const bool full_eval = min_r <= 7;
+		const bool full_eval = min_r <= 0;
 		//	const bool full_eval = false;
 		double group_tm;
 		if (full_eval && global().opts.groups) {
@@ -305,9 +306,9 @@ void drive_cosmos() {
 		real_time += a * dt * 0.5;
 		z = 1.0 / a - 1.0;
 		if (global().opts.map_size > 0) {
-			load_and_save_maps(time * T0, T0);
+			load_and_save_maps(time * T0, NTIMESTEP * T0);
 		}
-		int mapped_cnt = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, T0, drift_tm);
+		int mapped_cnt = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, NTIMESTEP * T0, drift_tm);
 		cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;
 		//	printf( "%e %e %e %e\n", a, pot, kin, cosmicK);

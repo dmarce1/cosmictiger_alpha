@@ -3,6 +3,7 @@
 
 #define TREECU
 #include <cosmictiger/tree.hpp>
+#include <cosmictiger/groups.hpp>
 #include <cosmictiger/interactions.hpp>
 #include <functional>
 #include <cosmictiger/gravity.hpp>
@@ -340,7 +341,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		const float& halft0 = constant.halft0;
 		const auto& minrung = constant.minrung;
 		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
-			const auto this_rung = parts.rung(k + myparts.first);
+			const auto index = k + myparts.first;
+			const auto this_rung = parts.rung(index);
 			if (this_rung >= constant.rung || constant.full_eval) {
 				array<float, NDIM> g;
 				float this_phi;
@@ -358,6 +360,10 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					F[dim][k] *= GM;
 				}
 				phi[k] *= GM;
+				if (constant.groups) {
+					const int id = parts.group(index);
+					gpu_groups_kick_update(id, phi[k]);
+				}
 #ifdef TEST_FORCE
 				for (int dim = 0; dim < NDIM; dim++) {
 					parts.force(dim, k + myparts.first) = F[dim][k];
@@ -366,7 +372,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 #endif
 				if (this_rung >= constant.rung) {
 					float dt = halft0 * rung_dt[this_rung];
-					const auto index = k + myparts.first;
 					auto& vx = parts.vel(0,index);
 					auto& vy = parts.vel(1,index);
 					auto& vz = parts.vel(2,index);
