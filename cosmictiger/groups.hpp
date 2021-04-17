@@ -27,6 +27,9 @@ struct group_info_t {
 	}
 };
 
+
+using bucket_t = vector<group_info_t>;
+
 void group_info_add(group_t id, const array<fixed32, NDIM>& pos, const array<float, NDIM>& vel);
 
 struct group_param_type {
@@ -70,6 +73,11 @@ void group_data_create(particle_set& parts);
 void group_data_reduce();
 void group_data_output(FILE* fp);
 void group_data_destroy();
+vector<bucket_t>& group_table();
+int& group_table_size();
+
+
+
 
 
 #endif /* GROUPS_HPP_ */

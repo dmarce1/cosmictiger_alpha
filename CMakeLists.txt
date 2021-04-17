@@ -50,6 +50,7 @@ set(cosmictiger_source_files
     src/ewald_indices.cu
     src/expansion.cu
     src/fourier.cu
+    src/group_data.cu
     src/groups.cu
     src/gravity.cu
     src/initial.cu

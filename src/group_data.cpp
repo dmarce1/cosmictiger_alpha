@@ -6,24 +6,17 @@
 
 #define MIN_GROUP_SIZE 10
 
-static int table_size = 1024;
-
-using bucket_t = vector<group_info_t>;
-
-static vector<bucket_t> table;
-static int table_entry_count;
-
-void group_data_rehash() {
-}
 
 void group_data_destroy() {
-	table = decltype(table)();
+	auto& table = group_table();
+	table = vector<bucket_t>();
 }
 
 void group_data_create(particle_set& parts) {
 	timer tm;
 	tm.start();
-
+	static auto& table = group_table();
+	auto& table_size = group_table_size();
 	const int nthreads = 2 * hpx::thread::hardware_concurrency();
 	std::vector<hpx::future<void>> futs;
 	const size_t parts_per_thread = parts.size() / nthreads;
@@ -61,7 +54,7 @@ void group_data_create(particle_set& parts) {
 				ngroups++;
 				if (ngroups == table_size * 2) {
 					printf("Rehashing to table_size %i\n", 2 * table_size);
-					decltype(table) old_table;
+					vector<bucket_t> old_table;
 					old_table.swap(table);
 					table_size *= 2;
 					table.resize(table_size);
@@ -79,7 +72,7 @@ void group_data_create(particle_set& parts) {
 		last1 = id;
 	}
 	for (int i = 0; i < parts.size(); i += parts_per_thread) {
-		const auto func = [i,&parts,parts_per_thread]() {
+		const auto func = [i,&parts,parts_per_thread,table_size]() {
 			const auto jend = std::min(i + parts_per_thread,parts.size());
 			for( int j = i; j < jend; j++) {
 				const auto id = parts.group(j);
