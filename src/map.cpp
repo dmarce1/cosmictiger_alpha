@@ -68,7 +68,7 @@ void cleanup_map_workspace(map_workspace ws) {
 }
 
 void prepare_map(int i) {
-//	printf("preparing map %i\n", i);
+	printf("preparing map %i\n", i);
 	auto& map = maps[i];
 	const auto npts = 12 * sqr(global().opts.map_size);
 	float* ptr;
@@ -90,7 +90,7 @@ void load_and_save_maps(double tau, double tau_max) {
 	static int saved_index = 0;
 	const auto freq = global().opts.map_freq * tau_max;
 	int imin = tau / freq + 1;
-	int imax = (tau + 1.1) / freq + 1;
+	int imax = (tau + 1.2) / freq + 1;
 	for (int i = imin; i < imax; i++) {
 		auto iter = maps.find(i);
 		if (iter == maps.end()) {

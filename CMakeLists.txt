@@ -146,7 +146,7 @@ target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                        -lineinfo --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
+                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
                         >)
                         
                         
