@@ -8,6 +8,11 @@ void set_zeroverse(zero_order_universe* z) {
 	new (zero_verse) zero_order_universe(*z);
 }
 
+void free_zeroverse() {
+	zero_verse->~zero_order_universe();
+	CUDA_FREE(zero_verse);
+}
+
 __device__ float sigma8_integrand::operator()(float x) const {
 	const float R = 8 / littleh;
 	const float c0 = float(9) / (2. * float(M_PI) * float(M_PI)) / powf(R, 6);

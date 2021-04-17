@@ -55,7 +55,7 @@ std::stack<void*> unified_allocator::allocs;
 
 void unified_allocator::reset() {
 	if( allocated != 0 ) {
-		printf( "Attempt to reset unified allocator without freeing all memory!\n");
+		printf( "Attempt to reset unified allocator without freeing all memory, %li left allocated.\n", allocated);
 		abort();
 	}
 	freelist = decltype(freelist)();

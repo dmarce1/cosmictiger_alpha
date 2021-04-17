@@ -238,6 +238,10 @@ void initial_conditions(particle_set& parts) {
 	vector_free_kernel<<<1,1>>>(&den_k->values);
 	vector_free_kernel<<<1,1>>>(&uni.sigma_T.values);
 	vector_free_kernel<<<1,1>>>(&uni.cs2.values);
+
+	den_k->~interp_functor<float>();
+	vel_k->~interp_functor<float>();
+	zeroverse_ptr->~zero_order_universe();
 	CUDA_FREE(zeroverse_ptr);
 	CUDA_FREE(result_ptr);
 	CUDA_FREE(func_ptr);
@@ -246,6 +250,7 @@ void initial_conditions(particle_set& parts) {
 	CUDA_FREE(den_k);
 	CUDA_FREE(rands);
 	CUDA_FREE(phi);
+	free_zeroverse();
 	printf("Done initializing\n");
 }
 

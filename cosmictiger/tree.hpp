@@ -293,6 +293,7 @@ struct kick_constants {
 	int minrung;
 	bool full_eval;
 	bool first;
+	bool groups;
 };
 
 void cuda_set_kick_constants(kick_constants consts);

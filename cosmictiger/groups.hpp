@@ -76,6 +76,8 @@ void group_data_destroy();
 vector<bucket_t>& group_table();
 int& group_table_size();
 
+__device__
+void groups_kick_update(group_t id, float phi);
 
 
 

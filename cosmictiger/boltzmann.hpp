@@ -43,6 +43,7 @@
 using cos_state = array<float,NFIELD>;
 
 void set_zeroverse(zero_order_universe* z);
+void free_zeroverse();
 
 __device__ void einstein_boltzmann_init(cos_state* uptr, const zero_order_universe* uni_ptr, float k,
 		float normalization, float a, float ns);
