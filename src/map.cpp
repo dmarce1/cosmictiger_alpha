@@ -13,24 +13,46 @@ static mutex_type mtx;
 static std::unordered_map<int, map_type> maps;
 //static std::stack<map_workspace> workspaces;
 
+void maps_to_file(FILE*fp) {
+	const auto npts = 12 * sqr(global().opts.map_size);
+	int nmaps = maps.size();
+	fwrite(&nmaps, sizeof(int), 1, fp);
+	for (auto i = maps.begin(); i != maps.end(); i++) {
+		fwrite(*(i->second), sizeof(float), npts, fp);
+	}
+}
+
+void maps_from_file(FILE*fp) {
+	const auto npts = 12 * sqr(global().opts.map_size);
+	int nmaps;
+	if (!feof(fp)) {
+		FREAD(&nmaps, sizeof(int), 1, fp);
+		for (int i = 0; i < nmaps; i++) {
+			float* ptr;
+			CUDA_MALLOC(ptr, npts);
+			maps[i] = std::make_shared<float*>(ptr);
+		}
+	}
+}
+
 map_workspace get_map_workspace() {
 //	std::lock_guard<mutex_type> lock(mtx);
 	return std::make_shared<std::unordered_map<int, std::array<vector<float>, NDIM>>>();
-/*	if (workspaces.size() == 0) {
-		auto ws = std::make_shared<std::unordered_map<int, std::array<vector<float>, NDIM>>>();
-		workspaces.push(ws);
-	}
-	auto ws = workspaces.top();
-	workspaces.pop();
-	return ws;*/
+	/*	if (workspaces.size() == 0) {
+	 auto ws = std::make_shared<std::unordered_map<int, std::array<vector<float>, NDIM>>>();
+	 workspaces.push(ws);
+	 }
+	 auto ws = workspaces.top();
+	 workspaces.pop();
+	 return ws;*/
 }
 
 void cleanup_map_workspace(map_workspace ws) {
 	static const long Nside = global().opts.map_size;
 	for (auto i = ws->begin(); i != ws->end(); i++) {
 		if (i->second[0].size()) {
-			if( maps.find(i->first) == maps.end()) {
-				printf( "Map error %i\n", i->first);
+			if (maps.find(i->first) == maps.end()) {
+				printf("Map error %i\n", i->first);
 				abort();
 			}
 			healpix2_map(i->second[0], i->second[1], i->second[2], maps[i->first], Nside);
@@ -48,7 +70,7 @@ void prepare_map(int i) {
 	auto& map = maps[i];
 	const auto npts = 12 * sqr(global().opts.map_size);
 	float* ptr;
-	CUDA_MALLOC(ptr,npts);
+	CUDA_MALLOC(ptr, npts);
 	map = std::make_shared<float*>(ptr);
 }
 

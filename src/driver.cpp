@@ -111,6 +111,7 @@ void save_to_file(particle_set& parts, int step, time_type itime, double time, d
 	fwrite(&a, sizeof(double), 1, fp);
 	fwrite(&cosmicK, sizeof(double), 1, fp);
 	parts.save_to_file(fp);
+	maps_from_file(fp);
 	fclose(fp);
 	printf(" done\n");
 }
@@ -129,6 +130,7 @@ void load_from_file(particle_set& parts, int& step, time_type& itime, double& ti
 	FREAD(&a, sizeof(double), 1, fp);
 	FREAD(&cosmicK, sizeof(double), 1, fp);
 	parts.load_from_file(fp);
+	maps_to_file(fp);
 	fclose(fp);
 	printf(" done\n");
 

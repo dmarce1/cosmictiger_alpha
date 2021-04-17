@@ -15,7 +15,7 @@ int hardware_concurrency();
 
 void tree_data_initialize() {
 	gpu_tree_data_.chunk_size = 1;
-	gpu_tree_data_.ntrees = 4 * global().opts.nparts / GROUP_BUCKET_SIZE;
+	gpu_tree_data_.ntrees = 43 * global().opts.nparts / GROUP_BUCKET_SIZE / 12;
 	gpu_tree_data_.ntrees = std::max(gpu_tree_data_.ntrees, min_trees);
 	const int target_chunk_size = gpu_tree_data_.ntrees / (16 * OVERSUBSCRIPTION * hardware_concurrency());
 	while (gpu_tree_data_.chunk_size < target_chunk_size) {
