@@ -6,7 +6,6 @@
 
 #define MIN_GROUP_SIZE 10
 
-
 void group_data_destroy() {
 	auto& table = group_table();
 	table = vector<bucket_t>();
@@ -40,7 +39,7 @@ void group_data_create(particle_set& parts) {
 			}
 			if (!found) {
 				group_info_t info;
-				*info.count = 0;
+				info.count = 0;
 				info.ekin = 0.0;
 				info.epot = 0.0;
 				for (int dim = 0; dim < NDIM; dim++) {
@@ -80,8 +79,30 @@ void group_data_create(particle_set& parts) {
 					int index = id % table_size;
 					auto& entries = table[index];
 					for( int k = 0; k < entries.size(); k++) {
-						if( entries[k].id == id) {
-							(*entries[k].count)++;
+						auto& entry = entries[k];
+						if( entry.id == id) {
+							std::lock_guard<group_info_t> lock(entry);
+							array<fixed32,NDIM> pos;
+							for( int dim = 0; dim < NDIM; dim++) {
+								double pos = parts.pos(dim,j).to_double();
+								if( entry.count) {
+									const auto diff = pos - entry.pos[dim] / entry.count;
+									if( diff > 0.5 ) {
+										pos -= 1.0;
+									} else if( diff < -0.5) {
+										pos += 1.0;
+									}
+									entry.pos[dim] += pos;
+								}
+								const float vx = parts.vel(0,j);
+								const float vy = parts.vel(1,j);
+								const float vz = parts.vel(2,j);
+								entry.ekin += 0.5f * fmaf(vx,vx,fmaf(vy,vy,sqr(vz)));
+								entry.vel[0] += vx;
+								entry.vel[1] += vy;
+								entry.vel[2] += vz;
+							}
+							entry.count++;
 							break;
 						}
 					}
@@ -91,20 +112,77 @@ void group_data_create(particle_set& parts) {
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	futs.resize(0);
 	for (int i = 0; i < table.size(); i++) {
 		auto& entries = table[i];
 		int j = 0;
 		while (j < entries.size()) {
-			if (*entries[j].count < MIN_GROUP_SIZE) {
-				entries[j] = std::move(entries.back());
+			auto& entry = entries[j];
+			if (entry.count < MIN_GROUP_SIZE) {
+				entry = std::move(entries.back());
 				entries.pop_back();
 				ngroups--;
 			} else {
+				for (int dim = 0; dim < NDIM; dim++) {
+					entry.pos[dim] /= entry.count;
+					entry.vel[dim] /= entry.count;
+				}
 				j++;
 			}
 		}
 	}
+	futs.resize(0);
+	for (int i = 0; i < parts.size(); i += parts_per_thread) {
+		const auto func = [i,&parts,parts_per_thread,table_size]() {
+			const auto jend = std::min(i + parts_per_thread,parts.size());
+			for( int j = i; j < jend; j++) {
+				const auto id = parts.group(j);
+				if( id != NO_GROUP) {
+					int index = id % table_size;
+					auto& entries = table[index];
+					for( int k = 0; k < entries.size(); k++) {
+						auto& entry = entries[k];
+						if( entry.id == id) {
+							const auto lastid = parts.last_group(j);
+							std::lock_guard<group_info_t> lock(entry);
+							const auto dx = parts.pos(0,j).to_double() - entry.pos[0];
+							const auto dy = parts.pos(1,j).to_double() - entry.pos[1];
+							const auto dz = parts.pos(2,j).to_double() - entry.pos[2];
+							const auto r = sqrt(fmaf(dx,dx,fmaf(dy,dy,sqr(dz))));
+							entry.ravg += r;
+							entry.rmax = std::max(entry.rmax,r);
+							entry.radii.push_back(r);
+							if(entry.parents.find(lastid) == entry.parents.end()) {
+								entry.parents.insert(std::make_pair(lastid,std::make_shared<int>(0)));
+							}
+							(*(entry.parents[lastid]))++;
+						}
+					}
+				}
+			}
+		};
+		futs.push_back(hpx::async(func));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+	futs.resize(0);
+	for (int tid = 0; tid < nthreads; tid++) {
+		const auto func = [tid,nthreads]() {
+			for( int i = tid; i < table.size(); i+= nthreads) {
+				for( int j = 0; j < table[i].size(); j++) {
+					auto& entry = table[i][j];
+					std::sort(entry.radii.begin(),entry.radii.end());
+					const auto N = entry.radii.size();
+					if( N % 2 == 0) {
+						entry.r50 = (entry.radii[N/2-1] + entry.radii[N/2])*0.5;
+					} else {
+						entry.r50 = entry.radii[N/2];
+					}
+					entry.radii = std::vector<float>();
+				}
+			}
+		};
+		futs.push_back(hpx::async(func));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
 	tm.stop();
 	printf("Took %e to create group data found %li groups\n", tm.read(), (size_t) ngroups);
 }

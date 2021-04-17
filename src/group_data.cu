@@ -1,7 +1,7 @@
 #include <cosmictiger/groups.hpp>
 
 __managed__ vector<bucket_t>* table_ptr;
-__managed__ int table_size = 1024;
+__managed__ int table_size = 1;
 
 struct table_helper {
 	table_helper() {

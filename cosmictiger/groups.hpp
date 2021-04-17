@@ -12,21 +12,34 @@
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/hpx.hpp>
 
+#include <map>
+
 
 struct group_info_t {
 	group_t id;
 	array<double, NDIM> pos;
 	array<float, NDIM> vel;
-	std::shared_ptr<std::atomic<int>> count;
+	int count;
 	float epot;
 	float ekin;
 	float rmax;
 	float ravg;
+	float r50;
+	std::vector<float> radii;
+	std::map<group_t,std::shared_ptr<int>> parents;
+	std::shared_ptr<std::atomic<int>> mtx;
 	group_info_t() {
-		count = std::make_shared<std::atomic<int>>(0);
+		mtx = std::make_shared<std::atomic<int>>(0);
+	}
+	void lock() {
+		while ((*mtx)++ != 0) {
+			(*mtx)--;
+		}
+	}
+	void unlock() {
+		(*mtx)--;
 	}
 };
-
 
 using bucket_t = vector<group_info_t>;
 
@@ -43,8 +56,6 @@ struct group_param_type {
 	bool first_round;
 	int depth;
 	size_t block_cutoff;
-
-
 
 	group_param_type& operator=(const group_param_type& other) {
 		checks = other.checks.copy_top();
@@ -78,8 +89,5 @@ int& group_table_size();
 
 __device__
 void groups_kick_update(group_t id, float phi);
-
-
-
 
 #endif /* GROUPS_HPP_ */
