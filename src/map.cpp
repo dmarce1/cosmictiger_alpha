@@ -31,6 +31,7 @@ void maps_from_file(FILE*fp) {
 			float* ptr;
 			CUDA_MALLOC(ptr, npts);
 			maps[i] = std::make_shared<float*>(ptr);
+			FREAD(*(maps[i]), sizeof(float), npts, fp);
 		}
 	}
 }
