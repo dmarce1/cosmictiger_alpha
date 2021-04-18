@@ -35,6 +35,9 @@
       ABORT();                                                                               \
    }
 
+void* cuda_unified_alloc(size_t sz, const char* file, int line);
+void cuda_unified_free(void* ptr);
+
 #ifdef __CUDA_ARCH__
 #define CUDA_FREE(ptr)                                                                                       \
       if( ptr == nullptr ) {                                                                                 \
@@ -49,11 +52,7 @@
          printf( "Attempt to free null pointer. File: %s Line %i\n", __FILE__, __LINE__);                    \
          ABORT();                                                                                            \
       } else {                                                                                               \
-         const auto ec = cudaFree(ptr);                                                                      \
-         if( ec != cudaSuccess ) {                                                                           \
-            printf( "CUDA error \"%s\" File: %s Line: %i\n",  cudaGetErrorString(ec), __FILE__, __LINE__);   \
-            ABORT();                                                                                         \
-         }                                                                                                   \
+    	  cuda_unified_free(ptr);  \
       }
 #endif
 
@@ -68,10 +67,9 @@ CUDA_EXPORT inline void cuda_malloc(T **ptr, int64_t nele, const char *file, int
 	*ptr = (T*) malloc(nele * sizeof(T));
 	MEM_CHECK_POINTER(*ptr, file, line);
 #else
-	// printf( "Callc\n");
-	const auto ec = cudaMallocManaged(ptr, nele * sizeof(T));
+// printf( "Callc\n");
+	*ptr = (T*) cuda_unified_alloc(nele * sizeof(T), file, line);
 	MEM_CHECK_POINTER(*ptr, file, line);
-	MEM_CHECK_ERROR(ec, file, line);
 #endif
 }
 

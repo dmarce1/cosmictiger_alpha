@@ -174,7 +174,6 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 	params_ptr->~group_param_type();
 	CUDA_FREE(params_ptr);
 	auto fut = group_data_create(parts);
-	parts.finish_groups();
 	tm.stop();
 	time = tm.read();
 	tree::cleanup();
@@ -276,10 +275,15 @@ void drive_cosmos() {
 		double group_tm;
 		bool groups = global().opts.groups;
 		bool power = global().opts.power;
+		unified_allocator alloc;
 		if (full_eval && (power || groups)) {
+			if (groups) {
+				if (group_fut.valid()) {
+					group_fut.get();
+		//			alloc.reset();
+				}
+			}
 			if (power) {
-				unified_allocator alloc;
-				alloc.reset();
 				timer tm;
 				printf("Computing matter power spectrum\n");
 				tm.start();
@@ -288,9 +292,6 @@ void drive_cosmos() {
 				printf( "Took %e seconds\n", tm.read());
 			}
 			if (groups) {
-				if (group_fut.valid()) {
-					group_fut.get();
-				}
 				auto rc = find_groups(parts, group_tm);
 				printf("Finding groups took %e s and %i iterations\n", group_tm, rc.first);
 				group_fut = std::move(rc.second);

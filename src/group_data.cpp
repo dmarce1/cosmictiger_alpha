@@ -216,6 +216,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
+	parts.finish_groups();
 	tm4.stop();
 	auto fut =
 			hpx::async(

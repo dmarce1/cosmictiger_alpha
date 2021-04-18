@@ -150,9 +150,6 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 	tree_ptr self = params.self;
 	if (params.depth == 0) {
 		parts_covered = 0;
-		if (params.first_round) {
-			parts.init_groups();
-		}
 		gpu_queue.resize(0);
 		size_t dummy, total_mem;
 		CUDA_CHECK(cudaMemGetInfo(&dummy, &total_mem));
