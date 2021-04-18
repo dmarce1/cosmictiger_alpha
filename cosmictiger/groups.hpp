@@ -46,13 +46,13 @@ using bucket_t = vector<group_info_t>;
 void group_info_add(group_t id, const array<fixed32, NDIM>& pos, const array<float, NDIM>& vel);
 
 struct group_param_type {
-	particle_set parts;
-	tree_ptr self;
-	float link_len;
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> tmp;
 	vector<tree_ptr> opened_checks;
 	stack_vector<tree_ptr> checks;
+	particle_set parts;
+	tree_ptr self;
+	float link_len;
 	bool first_round;
 	int depth;
 	size_t block_cutoff;
@@ -85,7 +85,15 @@ std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** para
 
 struct groups_shmem {
 	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> others;
-	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> self;
+	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> self_parts;
+	vector<tree_ptr> next_checks;
+	vector<tree_ptr> tmp;
+	vector<tree_ptr> opened_checks;
+	stack_vector<tree_ptr> checks;
+	particle_set parts;
+	float link_len;
+	int depth;
+
 };
 
 #ifndef __CUDACC__

@@ -19,6 +19,7 @@ void maps_to_file(FILE*fp) {
 	int nmaps = maps.size();
 	fwrite(&nmaps, sizeof(int), 1, fp);
 	for (auto i = maps.begin(); i != maps.end(); i++) {
+		fwrite(&(i->first), sizeof(int), 1, fp);
 		fwrite(*(i->second), sizeof(float), npts, fp);
 	}
 }
@@ -31,8 +32,10 @@ void maps_from_file(FILE*fp) {
 		for (int i = 0; i < nmaps; i++) {
 			float* ptr;
 			CUDA_MALLOC(ptr, npts);
-			maps[i] = std::make_shared<float*>(ptr);
-			FREAD(*(maps[i]), sizeof(float), npts, fp);
+			int index = 0;
+			FREAD(&index, sizeof(int), 1, fp);
+			maps[index] = std::make_shared<float*>(ptr);
+			FREAD(*(maps[index]), sizeof(float), npts, fp);
 		}
 	}
 }
@@ -91,6 +94,7 @@ void load_and_save_maps(double tau, double tau_max) {
 	const auto freq = global().opts.map_freq * tau_max;
 	int imin = tau / freq + 1;
 	int imax = (tau + 1.2) / freq + 1;
+//	printf( "imin %i max %i\n", imin, imax);
 	for (int i = imin; i < imax; i++) {
 		auto iter = maps.find(i);
 		if (iter == maps.end()) {

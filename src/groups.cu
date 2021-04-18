@@ -27,33 +27,46 @@ std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** para
 	};
 }
 
-__device__ bool cuda_find_groups(group_param_type* params_ptr);
+__device__ bool cuda_find_groups(tree_ptr self);
 
 __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
+	extern int __shared__ shmem_ptr[];
+	groups_shmem& shmem = *((groups_shmem*) shmem_ptr);
 	const auto& tid = threadIdx.x;
 	const auto& bid = blockIdx.x;
-	const bool this_rc = cuda_find_groups(params[bid]);
+	auto& param = *params[bid];
 	if (tid == 0) {
-		auto& param = *params[bid];
-		param.call_destructors();
-	//	param.~group_param_type();
+		memcpy(&shmem.checks, &param.checks, sizeof(shmem.checks));
+		memcpy(&shmem.tmp, &param.tmp, sizeof(shmem.checks));
+		memcpy(&shmem.opened_checks, &param.opened_checks, sizeof(shmem.checks));
+		memcpy(&shmem.next_checks, &param.next_checks, sizeof(shmem.checks));
+		shmem.parts = param.parts;
+		shmem.link_len = param.link_len;
+		shmem.depth = param.depth;
+
+	}
+	const bool this_rc = cuda_find_groups(param.self);
+	if (tid == 0) {
+	//	param.call_destructors();
+		shmem.checks.~stack_vector<tree_ptr>();
+		shmem.tmp.~vector<tree_ptr>();
+		shmem.opened_checks.~vector<tree_ptr>();
+		shmem.next_checks.~vector<tree_ptr>();
+						//	param.~group_param_type();
 		rc[bid] = this_rc;
 	}
 }
 
-__device__ bool cuda_find_groups(group_param_type* params_ptr) {
+__device__ bool cuda_find_groups(tree_ptr self) {
 	const auto& tid = threadIdx.x;
 	extern int __shared__ shmem_ptr[];
 	groups_shmem& shmem = *((groups_shmem*) shmem_ptr);
-	auto& self_parts = shmem.self;
+	auto& self_parts = shmem.self_parts;
 	auto& other_parts = shmem.others;
-	group_param_type& params = *params_ptr;
-	auto& checks = params.checks;
-	auto& parts = params.parts;
-	auto& next_checks = params.next_checks;
-	auto& opened_checks = params.opened_checks;
-
-	auto self = params.self;
+	auto& checks = shmem.checks;
+	auto& parts = shmem.parts;
+	auto& next_checks = shmem.next_checks;
+	auto& opened_checks = shmem.opened_checks;
 
 	const auto myrange = self.get_range();
 	const auto iamleaf = self.is_leaf();
@@ -123,7 +136,7 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 	__syncwarp();
 	if (iamleaf) {
 		const auto myparts = self.get_parts();
-		const auto linklen2 = sqr(params.link_len);
+		const auto linklen2 = sqr(shmem.link_len);
 		const int mysize = myparts.second - myparts.first;
 		for (int i = tid; i < mysize; i += warpSize) {
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -179,21 +192,17 @@ __device__ bool cuda_find_groups(group_param_type* params_ptr) {
 		return iters > 1;
 	} else {
 		auto mychildren = self.get_children();
-		params.checks.push_top();
+		shmem.checks.push_top();
 		if (tid == 0) {
-			params.self = mychildren[LEFT];
-			params.depth++;
+			shmem.depth++;
 		}
 		__syncwarp();
-		const auto rc1 = cuda_find_groups(params_ptr);
-		params.checks.pop_top();
-		if (tid == 0) {
-			params.self = mychildren[RIGHT];
-		}
+		const auto rc1 = cuda_find_groups(mychildren[LEFT]);
+		shmem.checks.pop_top();
 		__syncwarp();
-		const auto rc2 = cuda_find_groups(params_ptr);
+		const auto rc2 = cuda_find_groups(mychildren[RIGHT]);
 		if (tid == 0) {
-			params.depth--;
+			shmem.depth--;
 		}
 		__syncwarp();
 		return rc1 || rc2;

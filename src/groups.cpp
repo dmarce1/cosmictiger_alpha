@@ -2,11 +2,6 @@
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/timer.hpp>
 
-
-
-
-
-
 struct gpu_groups {
 	group_param_type* params;
 	size_t part_begin;
@@ -24,7 +19,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 	static const bool use_cuda = global().opts.cuda;
 	const auto myparts = get_parts();
 	int counter = 0;
-	if ( use_cuda && myparts.second - myparts.first <= params.block_cutoff) {
+	if (use_cuda && myparts.second - myparts.first <= params.block_cutoff) {
 		group_param_type *new_params;
 		new_params = (group_param_type*) alloc.allocate(sizeof(group_param_type));
 		new (new_params) group_param_type();
@@ -55,9 +50,9 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 			while (gpu_queue.size() || completions.size()) {
 				tm.stop();
 				if (tm.read() > 0.05) {
-					counter ++;
-					printf("%c %li in queue: %i active: %i complete                        \r", waiting_char[counter % 4], gpu_queue.size(), num_active,
-							num_completed);
+					counter++;
+					printf("%c %li in queue: %i active: %i complete                        \r", waiting_char[counter % 4],
+							gpu_queue.size(), num_active, num_completed);
 					counter++;
 					tm.reset();
 				}
@@ -77,6 +72,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 					for (int i = 0; i < this_kernel->size(); i++) {
 //					printf( "Setting up %i of %i\n", i, this_kernel->size());
 						all_params[i] = (*this_kernel)[i].params;
+						deleters.push_back(all_params[i]->tmp.to_device(stream));
 						deleters.push_back(all_params[i]->next_checks.to_device(stream));
 						deleters.push_back(all_params[i]->opened_checks.to_device(stream));
 						deleters.push_back(all_params[i]->checks.to_device(stream));
@@ -95,6 +91,9 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 								(*this_kernel)[i].promise.set_value(rc[i]);
 							}
 							unified_allocator alloc;
+							for( int i = 0; i < this_kernel->size(); i++) {
+								alloc.deallocate(all_params[i]);
+							}
 							alloc.deallocate(all_params);
 							cleanup_stream(stream);
 						}
