@@ -34,12 +34,6 @@ void tree_data_initialize() {
 	CUDA_MALLOC(gpu_tree_data_.ranges, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
-	if (global().opts.groups) {
-		CUDA_MALLOC(gpu_tree_data_.neighbors, gpu_tree_data_.ntrees);
-		for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
-			new (gpu_tree_data_.neighbors + i) unrolled<tree_ptr>();
-		}
-	}
 
 	tree_data_clear();
 
@@ -68,15 +62,6 @@ void tree_data_clear() {
 	}
 }
 
-void tree_free_neighbors() {
-	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
-		tree_database_destroy_neighbors(gpu_tree_data_.neighbors[i]);
-	}
-	unrolled<tree_ptr>::free_all();
-	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
-		new (gpu_tree_data_.neighbors + i) unrolled<tree_ptr>();
-	}
-}
 
 std::pair<int, int> tree_data_allocate() {
 	std::pair<int, int> rc;

@@ -206,8 +206,8 @@ void group_test() {
 	fflush(stdout);
 	timer tm;
 	tm.start();
-	find_groups_phase1(params_ptr).get();
-	while (find_groups_phase2(params_ptr)) {
+//	find_groups_phase1(params_ptr).get();
+	while (find_groups(params_ptr).get()) {
 		printf( "Iterating\n");
 		params_ptr->self = root_ptr;
 		params_ptr->checks.resize(0);

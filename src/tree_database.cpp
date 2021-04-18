@@ -5,6 +5,3 @@
 #include <cosmictiger/memory.hpp>
 
 
-void tree_database_destroy_neighbors(unrolled<tree_ptr>& neighbors) {
-	neighbors.~unrolled();
-}

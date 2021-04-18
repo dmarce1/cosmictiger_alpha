@@ -6,8 +6,6 @@
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/range.hpp>
-#include <cosmictiger/unrolled.hpp>
-
 class tree;
 struct kick_params_type;
 struct group_param_type;
@@ -75,14 +73,9 @@ struct tree_ptr {
 	CUDA_EXPORT
 	void set_range(const range&) const;
 
-	CUDA_EXPORT
-	const unrolled<tree_ptr>& get_neighbors() const;
-
-	CUDA_EXPORT
-	unrolled<tree_ptr>& get_neighbors_ref() const;
 
 #ifndef __CUDACC__
-	hpx::future<void> find_groups_phase1(group_param_type*, bool);
+	hpx::future<bool> find_groups(group_param_type*, bool);
 	hpx::future<void> kick(kick_params_type*, bool);
 #endif
 };
@@ -147,13 +140,7 @@ CUDA_EXPORT
 void tree_data_set_range(int i, const range& r);
 
 void tree_data_clear();
-void tree_database_destroy_neighbors(unrolled<tree_ptr>& neighbors);
 
-CUDA_EXPORT
-const unrolled<tree_ptr>& tree_data_get_neighbors(int i);
-
-CUDA_EXPORT
-unrolled<tree_ptr>& tree_data_get_neighbors_ref(int i);
 
 
 std::pair<int, int> tree_data_allocate();
@@ -272,15 +259,6 @@ inline void tree_ptr::set_range(const range& r) const {
 	tree_data_set_range(dindex, r);
 }
 
-CUDA_EXPORT
-inline const unrolled<tree_ptr>& tree_ptr::get_neighbors() const {
-	return tree_data_get_neighbors(dindex);
-}
-
-CUDA_EXPORT
-inline unrolled<tree_ptr>& tree_ptr::get_neighbors_ref() const {
-	return tree_data_get_neighbors_ref(dindex);
-}
 
 
 struct multipole_pos {
@@ -306,7 +284,6 @@ struct tree_database_t {
 	tree_data_t* data;
 	range* ranges;
 	size_t* active_parts;
-	unrolled<tree_ptr>* neighbors;
 	int ntrees;
 	int nchunks;
 	int chunk_size;
@@ -564,32 +541,7 @@ void tree_data_set_range(int i, const range& r) {
 	tree_data_.ranges[i] = r;
 }
 
-CUDA_EXPORT
-inline unrolled<tree_ptr>& tree_data_get_neighbors_ref(int i)  {
-#ifdef __CUDACC__
-	auto& tree_data_ = gpu_tree_data_;
-#else
-	auto& tree_data_ = cpu_tree_data_;
-#endif
-	assert(i >= 0);
-	assert(i < tree_data_.ntrees);
-	return tree_data_.neighbors[i];
-}
-
-CUDA_EXPORT
-inline const unrolled<tree_ptr>& tree_data_get_neighbors(int i)  {
-#ifdef __CUDACC__
-	auto& tree_data_ = gpu_tree_data_;
-#else
-	auto& tree_data_ = cpu_tree_data_;
-#endif
-	assert(i >= 0);
-	assert(i < tree_data_.ntrees);
-	return tree_data_.neighbors[i];
-}
-
 void tree_database_set_readonly();
 
 void tree_database_unset_readonly();
 
-void tree_free_neighbors();

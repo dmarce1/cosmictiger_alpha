@@ -41,6 +41,13 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	table.resize(table_size);
 	group_t last1, last2;
 	last1 = last2 = NO_GROUP;
+	static timer tm1, tm2, tm3, tm4, tm5;
+	tm1.reset();
+	tm2.reset();
+	tm3.reset();
+	tm4.reset();
+	tm5.reset();
+	tm1.start();
 	for (int j = 0; j < parts.size(); j++) {
 		const auto id = parts.group(j);
 		if (id != NO_GROUP && id != last1 && id != last2) {
@@ -88,6 +95,8 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		last2 = last1;
 		last1 = id;
 	}
+	tm1.stop();
+	tm2.start();
 	for (int i = 0; i < parts.size(); i += parts_per_thread) {
 		const auto func = [i,&parts,parts_per_thread,table_size, &table]() {
 			const auto jend = std::min(i + parts_per_thread,parts.size());
@@ -130,6 +139,8 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
+	tm2.stop();
+	tm3.start();
 	for (int i = 0; i < table.size(); i++) {
 		auto& entries = table[i];
 		int j = 0;
@@ -148,6 +159,8 @@ hpx::future<void> group_data_create(particle_set& parts) {
 			}
 		}
 	}
+	tm3.stop();
+	tm4.start();
 	futs.resize(0);
 	for (int i = 0; i < parts.size(); i += parts_per_thread) {
 		const auto func = [i,&parts,parts_per_thread,table_size,&table]() {
@@ -203,36 +216,40 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-
-	auto fut = hpx::async([nthreads,table]() {
-		std::vector<hpx::future<void>> futs;
-		for (int tid = 0; tid < nthreads; tid++) {
-			const auto func = [tid,nthreads]() {
-				auto& table = group_table();
-				for( int i = tid; i < table.size(); i+= nthreads) {
-					for( int j = 0; j < table[i].size(); j++) {
-						auto& entry = table[i][j];
-						std::sort(entry.radii.begin(),entry.radii.end());
-						const auto N = entry.radii.size();
-						for( int dim = 0; dim < NDIM; dim++) {
-							entry.vdisp[dim] = std::sqrt(entry.vdisp[dim]/ entry.count);
+	tm4.stop();
+	auto fut =
+			hpx::async(
+					[nthreads,table,ngroups]() {
+						timer tm5;
+						tm5.start();
+						std::vector<hpx::future<void>> futs;
+						for (int tid = 0; tid < nthreads; tid++) {
+							const auto func = [tid,nthreads]() {
+								auto& table = group_table();
+								for( int i = tid; i < table.size(); i+= nthreads) {
+									for( int j = 0; j < table[i].size(); j++) {
+										auto& entry = table[i][j];
+										std::sort(entry.radii.begin(),entry.radii.end());
+										const auto N = entry.radii.size();
+										for( int dim = 0; dim < NDIM; dim++) {
+											entry.vdisp[dim] = std::sqrt(entry.vdisp[dim]/ entry.count);
+										}
+										if( N % 2 == 0) {
+											entry.reff = (entry.radii[N/2-1] + entry.radii[N/2])*0.5;
+										} else {
+											entry.reff = entry.radii[N/2];
+										}
+										entry.ravg /= entry.count;
+										entry.radii = std::vector<float>();
+									}
+								}
+							};
+							futs.push_back(hpx::async(func));
 						}
-						if( N % 2 == 0) {
-							entry.reff = (entry.radii[N/2-1] + entry.radii[N/2])*0.5;
-						} else {
-							entry.reff = entry.radii[N/2];
-						}
-						entry.ravg /= entry.count;
-						entry.radii = std::vector<float>();
-					}
-				}
-			};
-			futs.push_back(hpx::async(func));
-		}
-		hpx::wait_all(futs.begin(), futs.end());
-	});
-	tm.stop();
-	printf("Took %e to create group data found %li groups\n", tm.read(), (size_t) ngroups);
+						hpx::wait_all(futs.begin(), futs.end());
+						tm5.stop();
+						printf("Took %e %e %e %e %e to create group data found %li groups\n", tm1.read(), tm2.read(),tm3.read(),tm4.read(),tm5.read(), (size_t) ngroups);
+					});
 	return fut;
 }
 

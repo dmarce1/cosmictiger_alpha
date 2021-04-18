@@ -14,7 +14,6 @@
 
 #include <map>
 
-
 struct group_info_t {
 	group_t id;
 	array<double, NDIM> pos;
@@ -27,7 +26,7 @@ struct group_info_t {
 	float ravg;
 	float reff;
 	std::vector<float> radii;
-	std::map<group_t,std::shared_ptr<int>> parents;
+	std::map<group_t, std::shared_ptr<int>> parents;
 	std::shared_ptr<std::atomic<int>> mtx;
 	group_info_t() {
 		mtx = std::make_shared<std::atomic<int>>(0);
@@ -58,6 +57,14 @@ struct group_param_type {
 	int depth;
 	size_t block_cutoff;
 
+	CUDA_EXPORT
+	void call_destructors() {
+		next_checks.~vector<tree_ptr>();
+		tmp.~vector<tree_ptr>();
+		opened_checks.~vector<tree_ptr>();
+		checks.~stack_vector<tree_ptr>();
+	}
+
 	group_param_type& operator=(const group_param_type& other) {
 		checks = other.checks.copy_top();
 		parts = other.parts;
@@ -71,10 +78,10 @@ struct group_param_type {
 };
 
 #ifndef __CUDACC__
-hpx::future<void> find_groups_phase1(group_param_type*);
-bool find_groups_phase2(group_param_type* params);
+hpx::future<bool> find_groups(group_param_type* params_ptr);
 #endif
-bool call_cuda_find_groups_phase2(group_param_type* params, const vector<tree_ptr>& leaves);
+std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** params, int params_size,
+		cudaStream_t stream);
 
 struct groups_shmem {
 	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> others;

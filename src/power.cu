@@ -70,7 +70,6 @@ void compute_power_spectrum(particle_set& parts, int filenum) {
 	int num_blocks;
 	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, power_spectrum_init, block_size, 0));
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
-	printf("Calling power_spectrum_init with %i blocks and %i per block\n", num_blocks, block_size);
 	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_set(),den,N,(double) N3 / (double)parts.size());
 	CUDA_CHECK(cudaDeviceSynchronize());
 	fft3d(den, N);

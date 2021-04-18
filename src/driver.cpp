@@ -145,10 +145,12 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 	double sort_tm;
 	size_t num_active;
 	tree_stats stats;
+	printf("Finding Groups\n");
+
 	tree root = build_tree(parts, 0, 1.0, num_active, stats, sort_tm, true);
 
-	unified_allocator alloc;
-	alloc.reset();
+	//unified_allocator alloc;
+//	alloc.reset();
 
 	tree_ptr root_ptr;
 	root_ptr.dindex = 0;
@@ -160,11 +162,9 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 	params_ptr->parts = parts.get_virtual_particle_set();
 	params_ptr->checks.push(root_ptr);
 	params_ptr->first_round = true;
-	printf("Finding Groups\n");
 	int iters = 1;
 	parts.init_groups();
-	find_groups_phase1(params_ptr).get();
-	while (find_groups_phase2(params_ptr)) {
+	while (find_groups(params_ptr).get()) {
 		params_ptr->self = root_ptr;
 		params_ptr->checks.resize(0);
 		params_ptr->checks.push(root_ptr);
@@ -173,7 +173,6 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 	}
 	params_ptr->~group_param_type();
 	CUDA_FREE(params_ptr);
-	tree_free_neighbors();
 	auto fut = group_data_create(parts);
 	parts.finish_groups();
 	tm.stop();
@@ -278,11 +277,15 @@ void drive_cosmos() {
 		bool groups = global().opts.groups;
 		bool power = global().opts.power;
 		if (full_eval && (power || groups)) {
-			unified_allocator alloc;
-			alloc.reset();
 			if (power) {
-				printf("Computing mass power spectrum\n");
+				unified_allocator alloc;
+				alloc.reset();
+				timer tm;
+				printf("Computing matter power spectrum\n");
+				tm.start();
 				compute_power_spectrum(parts, time + 0.5);
+				tm.stop();
+				printf( "Took %e seconds\n", tm.read());
 			}
 			if (groups) {
 				if (group_fut.valid()) {
