@@ -104,7 +104,7 @@ public:
 
 CUDA_EXPORT
 inline fixed32 particle_set::pos_ldg(int dim, size_t index) const {
-	assert(index >= 0);
+
 	assert(index < size_);
 	union fixed_union {
 		fixed32 f;
@@ -117,20 +117,20 @@ inline fixed32 particle_set::pos_ldg(int dim, size_t index) const {
 
 CUDA_EXPORT
 inline fixed32 particle_set::pos(int dim, size_t index) const {
-	assert(index >= 0);
+
 	assert(index < size_);
 	return xptr_[dim][index];
 }
 
 inline float particle_set::vel(int dim, size_t index) const {
-	assert(index >= 0);
+
 	assert(index < size_);
 	return uptr_[index][dim];
 }
 
 CUDA_EXPORT
 inline rung_t particle_set::rung(size_t index) const {
-	assert(index >= 0);
+
 	assert(index < size_);
 	/*if (rptr_[index] != uptr_[index].p.r) {
 		printf("%i %i\n", rptr_[index], uptr_[index].p.r);
@@ -141,21 +141,21 @@ inline rung_t particle_set::rung(size_t index) const {
 
 CUDA_EXPORT
 inline fixed32& particle_set::pos(int dim, size_t index) {
-	assert(index >= 0);
+
 	assert(index < size_);
 	return xptr_[dim][index];
 }
 
 CUDA_EXPORT
 inline float& particle_set::vel(int dim, size_t index) {
-	assert(index >= 0);
+
 	assert(index < size_);
 	return uptr_[index][dim];
 }
 
 CUDA_EXPORT
 inline void particle_set::set_rung(rung_t t, size_t index) {
-	assert(index >= 0);
+
 	assert(index < size_);
 	rptr_[index] = t;
 	//uptr_[index].p.r = t;

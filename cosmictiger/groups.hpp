@@ -81,7 +81,9 @@ struct groups_shmem {
 	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> self;
 };
 
-void group_data_create(particle_set& parts);
+#ifndef __CUDACC__
+hpx::future<void> group_data_create(particle_set& parts);
+#endif
 void group_data_save(double scale, int filename);
 void group_data_output(FILE* fp);
 void group_data_destroy();

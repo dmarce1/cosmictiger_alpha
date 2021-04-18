@@ -28,10 +28,10 @@ void group_data_destroy() {
 	table_cpu_phis = decltype(table_cpu_phis)();
 }
 
-void group_data_create(particle_set& parts) {
+hpx::future<void> group_data_create(particle_set& parts) {
 	timer tm;
 	tm.start();
-	static auto& table = group_table();
+	auto& table = group_table();
 	auto& table_size = group_table_size();
 	const int nthreads = 2 * hpx::thread::hardware_concurrency();
 	std::vector<hpx::future<void>> futs;
@@ -89,7 +89,7 @@ void group_data_create(particle_set& parts) {
 		last1 = id;
 	}
 	for (int i = 0; i < parts.size(); i += parts_per_thread) {
-		const auto func = [i,&parts,parts_per_thread,table_size]() {
+		const auto func = [i,&parts,parts_per_thread,table_size, &table]() {
 			const auto jend = std::min(i + parts_per_thread,parts.size());
 			for( int j = i; j < jend; j++) {
 				const auto id = parts.group(j);
@@ -150,7 +150,7 @@ void group_data_create(particle_set& parts) {
 	}
 	futs.resize(0);
 	for (int i = 0; i < parts.size(); i += parts_per_thread) {
-		const auto func = [i,&parts,parts_per_thread,table_size]() {
+		const auto func = [i,&parts,parts_per_thread,table_size,&table]() {
 			const auto jend = std::min(i + parts_per_thread,parts.size());
 			for( int j = i; j < jend; j++) {
 				auto& id = parts.group(j);
@@ -203,32 +203,37 @@ void group_data_create(particle_set& parts) {
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	futs.resize(0);
-	for (int tid = 0; tid < nthreads; tid++) {
-		const auto func = [tid,nthreads]() {
-			for( int i = tid; i < table.size(); i+= nthreads) {
-				for( int j = 0; j < table[i].size(); j++) {
-					auto& entry = table[i][j];
-					std::sort(entry.radii.begin(),entry.radii.end());
-					const auto N = entry.radii.size();
-					for( int dim = 0; dim < NDIM; dim++) {
-						entry.vdisp[dim] = std::sqrt(entry.vdisp[dim]/ entry.count);
+
+	auto fut = hpx::async([nthreads,table]() {
+		std::vector<hpx::future<void>> futs;
+		for (int tid = 0; tid < nthreads; tid++) {
+			const auto func = [tid,nthreads]() {
+				auto& table = group_table();
+				for( int i = tid; i < table.size(); i+= nthreads) {
+					for( int j = 0; j < table[i].size(); j++) {
+						auto& entry = table[i][j];
+						std::sort(entry.radii.begin(),entry.radii.end());
+						const auto N = entry.radii.size();
+						for( int dim = 0; dim < NDIM; dim++) {
+							entry.vdisp[dim] = std::sqrt(entry.vdisp[dim]/ entry.count);
+						}
+						if( N % 2 == 0) {
+							entry.reff = (entry.radii[N/2-1] + entry.radii[N/2])*0.5;
+						} else {
+							entry.reff = entry.radii[N/2];
+						}
+						entry.ravg /= entry.count;
+						entry.radii = std::vector<float>();
 					}
-					if( N % 2 == 0) {
-						entry.reff = (entry.radii[N/2-1] + entry.radii[N/2])*0.5;
-					} else {
-						entry.reff = entry.radii[N/2];
-					}
-					entry.ravg /= entry.count;
-					entry.radii = std::vector<float>();
 				}
-			}
-		};
-		futs.push_back(hpx::async(func));
-	}
-	hpx::wait_all(futs.begin(), futs.end());
+			};
+			futs.push_back(hpx::async(func));
+		}
+		hpx::wait_all(futs.begin(), futs.end());
+	});
 	tm.stop();
 	printf("Took %e to create group data found %li groups\n", tm.read(), (size_t) ngroups);
+	return fut;
 }
 
 void group_data_save(double scale, int filenum) {
@@ -263,6 +268,10 @@ void group_data_save(double scale, int filenum) {
 	for (int i = 0; i < table.size(); i++) {
 		for (int j = 0; j < table[i].size(); j++) {
 			auto& entry = table[i][j];
+			auto iter = table_cpu_phis.find(entry.id);
+			if (iter != table_cpu_phis.end()) {
+				entry.epot += iter->second;
+			}
 			entry.epot *= 0.5;
 			entry.ekin *= ainv;
 			avg_ekin += entry.ekin;

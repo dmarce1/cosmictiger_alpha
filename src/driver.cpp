@@ -139,7 +139,7 @@ void load_from_file(particle_set& parts, int& step, time_type& itime, double& ti
 
 }
 
-int find_groups(particle_set& parts, double& time) {
+std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time) {
 	timer tm;
 	tm.start();
 	double sort_tm;
@@ -174,12 +174,12 @@ int find_groups(particle_set& parts, double& time) {
 	params_ptr->~group_param_type();
 	CUDA_FREE(params_ptr);
 	tree_free_neighbors();
-	group_data_create(parts);
+	auto fut = group_data_create(parts);
 	parts.finish_groups();
 	tm.stop();
 	time = tm.read();
 	tree::cleanup();
-	return iters;
+	return std::make_pair(iters, std::move(fut));
 }
 
 void drive_cosmos() {
@@ -233,6 +233,7 @@ void drive_cosmos() {
 	int silo_outs = 0;
 	double real_time = 0.0;
 	double tree_use;
+	hpx::future<void> group_fut;
 	do {
 //		unified_allocator allocator;
 //		allocator.show_allocs();
@@ -240,6 +241,9 @@ void drive_cosmos() {
 		if (checkpt_tm.read() > global().opts.checkpt_freq) {
 			checkpt_tm.reset();
 			checkpt_tm.start();
+			if (group_fut.valid()) {
+				group_fut.get();
+			}
 			save_to_file(parts, iter, itime, time, a, cosmicK);
 		} else {
 			checkpt_tm.start();
@@ -281,8 +285,12 @@ void drive_cosmos() {
 				compute_power_spectrum(parts, time + 0.5);
 			}
 			if (groups) {
-				int iters = find_groups(parts, group_tm);
-				printf("Finding groups took %e s and %i iterations\n", group_tm, iters);
+				if (group_fut.valid()) {
+					group_fut.get();
+				}
+				auto rc = find_groups(parts, group_tm);
+				printf("Finding groups took %e s and %i iterations\n", group_tm, rc.first);
+				group_fut = std::move(rc.second);
 			}
 		}
 		tree root = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
@@ -290,8 +298,11 @@ void drive_cosmos() {
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, global().opts.groups && full_eval,
 				kick_tm);
 		if (full_eval && global().opts.groups) {
-			group_data_save(a, time + 0.5);
-			group_data_destroy();
+			group_fut = group_fut.then([a,time](hpx::future<void> fut) {
+				fut.get();
+				group_data_save(a, time + 0.5);
+				group_data_destroy();
+			});
 		}
 		const auto silo_int = global().opts.silo_interval;
 		if (silo_int > 0) {
