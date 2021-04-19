@@ -41,13 +41,20 @@ struct group_info_t {
 	}
 };
 
+
+struct group_list_sizes {
+	int opened;
+	int next;
+};
+
+group_list_sizes get_group_list_sizes();
+
 using bucket_t = vector<group_info_t>;
 
 void group_info_add(group_t id, const array<fixed32, NDIM>& pos, const array<float, NDIM>& vel);
 
 struct group_param_type {
 	vector<tree_ptr> next_checks;
-	vector<tree_ptr> tmp;
 	vector<tree_ptr> opened_checks;
 	stack_vector<tree_ptr> checks;
 	particle_set parts;
@@ -57,10 +64,11 @@ struct group_param_type {
 	int depth;
 	size_t block_cutoff;
 
+
+
 	CUDA_EXPORT
 	void call_destructors() {
 		next_checks.~vector<tree_ptr>();
-		tmp.~vector<tree_ptr>();
 		opened_checks.~vector<tree_ptr>();
 		checks.~stack_vector<tree_ptr>();
 	}
@@ -87,7 +95,6 @@ struct groups_shmem {
 	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> others;
 	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> self_parts;
 	vector<tree_ptr> next_checks;
-	vector<tree_ptr> tmp;
 	vector<tree_ptr> opened_checks;
 	stack_vector<tree_ptr> checks;
 	particle_set parts;

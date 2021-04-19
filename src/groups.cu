@@ -8,6 +8,10 @@
 
 __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params);
 
+
+__managed__ group_list_sizes sizes = { 0, 0 };
+
+
 std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** params, int params_size,
 		cudaStream_t stream) {
 	bool* rc;
@@ -29,6 +33,11 @@ std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** para
 
 __device__ bool cuda_find_groups(tree_ptr self);
 
+
+group_list_sizes get_group_list_sizes() {
+	return sizes;
+}
+
 __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
 	extern int __shared__ shmem_ptr[];
 	groups_shmem& shmem = *((groups_shmem*) shmem_ptr);
@@ -37,7 +46,6 @@ __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
 	auto& param = *params[bid];
 	if (tid == 0) {
 		memcpy(&shmem.checks, &param.checks, sizeof(shmem.checks));
-		memcpy(&shmem.tmp, &param.tmp, sizeof(shmem.checks));
 		memcpy(&shmem.opened_checks, &param.opened_checks, sizeof(shmem.checks));
 		memcpy(&shmem.next_checks, &param.next_checks, sizeof(shmem.checks));
 		shmem.parts = param.parts;
@@ -47,12 +55,13 @@ __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
 	}
 	const bool this_rc = cuda_find_groups(param.self);
 	if (tid == 0) {
-	//	param.call_destructors();
+		//	param.call_destructors();
+		atomicMax(&sizes.opened, shmem.opened_checks.capacity());
+		atomicMax(&sizes.next, shmem.next_checks.capacity());
 		shmem.checks.~stack_vector<tree_ptr>();
-		shmem.tmp.~vector<tree_ptr>();
 		shmem.opened_checks.~vector<tree_ptr>();
 		shmem.next_checks.~vector<tree_ptr>();
-						//	param.~group_param_type();
+		//	param.~group_param_type();
 		rc[bid] = this_rc;
 	}
 }

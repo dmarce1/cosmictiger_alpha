@@ -69,10 +69,12 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 					unified_allocator alloc;
 					all_params = (group_param_type**) alloc.allocate(sizeof(group_param_type*) * this_kernel->size());
 					std::vector<std::function<void()>> deleters;
+					const auto sizes = get_group_list_sizes();
 					for (int i = 0; i < this_kernel->size(); i++) {
 //					printf( "Setting up %i of %i\n", i, this_kernel->size());
 						all_params[i] = (*this_kernel)[i].params;
-						deleters.push_back(all_params[i]->tmp.to_device(stream));
+						all_params[i]->opened_checks.reserve(sizes.opened);
+						all_params[i]->next_checks.reserve(sizes.next);
 						deleters.push_back(all_params[i]->next_checks.to_device(stream));
 						deleters.push_back(all_params[i]->opened_checks.to_device(stream));
 						deleters.push_back(all_params[i]->checks.to_device(stream));
