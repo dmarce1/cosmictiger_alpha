@@ -63,6 +63,11 @@ set(cosmictiger_source_files
     src/zeldovich.cu
     src/zero_order.cu
 )
+                        
+                       
+                        
+                        
+
 set(cosmictiger_header_files
 	cosmictiger/boltzmann.hpp
 	cosmictiger/chemistry.hpp
@@ -148,6 +153,8 @@ target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
                         >)
-                        
-                        
-                        
+
+#SET_SOURCE_FILES_PROPERTIES( src/gravity.cu PROPERTIES COMPILE_FLAGS -G )
+SET_SOURCE_FILES_PROPERTIES( src/map.cu PROPERTIES COMPILE_FLAGS -G )
+#SET_SOURCE_FILES_PROPERTIES( src/tree.cu PROPERTIES COMPILE_FLAGS -G )
+ 

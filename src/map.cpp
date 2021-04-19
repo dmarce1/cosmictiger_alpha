@@ -93,7 +93,7 @@ void load_and_save_maps(double tau, double tau_max) {
 	static int saved_index = 0;
 	const auto freq = global().opts.map_freq * tau_max;
 	int imin = tau / freq + 1;
-	int imax = (tau + 1.2) / freq + 1;
+	int imax = (tau + 1.3) / freq + 1;
 //	printf( "imin %i max %i\n", imin, imax);
 	for (int i = imin; i < imax; i++) {
 		auto iter = maps.find(i);

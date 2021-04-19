@@ -62,7 +62,7 @@ void cuda_unified_free(void* ptr);
 #define FREE(ptr) free(ptr)
 
 template<class T>
-CUDA_EXPORT inline void cuda_malloc(T **ptr, int64_t nele, const char *file, int line) {
+CUDA_EXPORT inline void cuda_malloc(T **ptr, int nele, const char *file, int line) {
 #ifdef __CUDA_ARCH__
 	*ptr = (T*) malloc(nele * sizeof(T));
 	MEM_CHECK_POINTER(*ptr, file, line);

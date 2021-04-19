@@ -20,18 +20,18 @@ static mutex_type mtx;
 void* cuda_unified_alloc(size_t sz, const char* file, int line) {
 	char* ptr;
 	CUDA_CHECK(cudaMallocManaged(&ptr, sz));
-//	std::lock_guard<mutex_type> lock(mtx);
-//	alloc_map[ptr] = sz;
-//	allocated += sz;
-//	printf("%e GB allocated %s %i\n", allocated / 1024.0 / 1024 / 1024, file, line);
+	std::lock_guard<mutex_type> lock(mtx);
+	alloc_map[ptr] = sz;
+	allocated += sz;
+	//printf("%li KB  allocated %e total GB allocated %s %i\n", sz/1024, allocated / 1024.0 / 1024 / 1024, file, line);
 	return ptr;
 }
 
 void cuda_unified_free(void* ptr) {
 	CUDA_CHECK(cudaFree(ptr));
-//	std::lock_guard<mutex_type> lock(mtx);
-//	allocated -= alloc_map[ptr];
-//	alloc_map.erase(ptr);
+	std::lock_guard<mutex_type> lock(mtx);
+	allocated -= alloc_map[ptr];
+	alloc_map.erase(ptr);
 }
 
 void* cuda_allocator::allocate(size_t sz) {
@@ -92,23 +92,23 @@ void unified_allocator::reset() {
 		 CUDA_MALLOC(ptr,sz);
 		 return ptr;*/
 
-		size_t total_sz = 1;
+		size_t chunk_size= 1;
 		int index = 0;
-		while (total_sz < sz) {
-			total_sz *= 2;
+		while (chunk_size< sz) {
+			chunk_size*= 2;
 			index++;
 		}
 		std::lock_guard<mutex_type> lock(mtx);
-		size_t chunk_size = std::max(std::min((size_t) 1024, 64 * 1024 * 1024 / (size_t) total_sz), (size_t) 1);
+		size_t nchunks = std::max(1024 * 1024 / (size_t) chunk_size, (size_t) 1);
 		freelist.resize(std::max((int) freelist.size(), index + 1));
 		void *ptr;
 		char* cptr;
 		if (freelist[index].empty()) {
-			CUDA_MALLOC(cptr, chunk_size * total_sz);
+			CUDA_MALLOC(cptr, nchunks * chunk_size);
 			allocs.push(cptr);
 			ptr = cptr;
-			for (int i = 0; i < chunk_size; i++) {
-				freelist[index].push((char*) ptr + i * total_sz);
+			for (int i = 0; i < nchunks; i++) {
+				freelist[index].push((char*) ptr + i * chunk_size);
 			}
 		}
 		ptr = freelist[index].top();

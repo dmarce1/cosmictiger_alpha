@@ -239,9 +239,6 @@ void drive_cosmos() {
 		if (checkpt_tm.read() > global().opts.checkpt_freq) {
 			checkpt_tm.reset();
 			checkpt_tm.start();
-			if (group_fut.valid()) {
-				group_fut.get();
-			}
 			save_to_file(parts, iter, itime, time, a, cosmicK);
 		} else {
 			checkpt_tm.start();
@@ -277,19 +274,14 @@ void drive_cosmos() {
 		bool power = global().opts.power;
 		unified_allocator alloc;
 		if (full_eval && (power || groups)) {
-			if (groups) {
-				if (group_fut.valid()) {
-					group_fut.get();
-		//			alloc.reset();
-				}
-			}
+			alloc.reset();
 			if (power) {
 				timer tm;
 				printf("Computing matter power spectrum\n");
 				tm.start();
 				compute_power_spectrum(parts, time + 0.5);
 				tm.stop();
-				printf( "Took %e seconds\n", tm.read());
+				printf("Took %e seconds\n", tm.read());
 			}
 			if (groups) {
 				auto rc = find_groups(parts, group_tm);
@@ -302,11 +294,10 @@ void drive_cosmos() {
 		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, global().opts.groups && full_eval,
 				kick_tm);
 		if (full_eval && global().opts.groups) {
-			group_fut = group_fut.then([a,time](hpx::future<void> fut) {
-				fut.get();
-				group_data_save(a, time + 0.5);
-				group_data_destroy();
-			});
+			group_fut.get();
+			group_data_save(a, time + 0.5);
+			group_data_destroy();
+			alloc.reset();
 		}
 		const auto silo_int = global().opts.silo_interval;
 		if (silo_int > 0) {

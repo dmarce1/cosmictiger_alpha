@@ -49,12 +49,12 @@ void healpix2_map(const vector<float>& x, const vector<float>& y, const vector<f
 __global__
 void healpix_kernel(const float * __restrict__ x, const float * __restrict__ y, const float * __restrict__ z,
 		float * __restrict__ map, int Npts, int Nside) {
-	const int& tid = threadIdx.x;
-	const int& bsz = blockDim.x;
-	const int& bid = blockIdx.x;
-	const int& gsz = gridDim.x;
-	const int start = bid * Npts / gsz;
-	const int stop = (bid + 1) * Npts / gsz;
+	const int tid = threadIdx.x;
+	const int bsz = blockDim.x;
+	const int bid = blockIdx.x;
+	const int gsz = gridDim.x;
+	const int start = size_t(bid) * size_t(Npts) / size_t(gsz);
+	const int stop = size_t(bid + 1) * size_t(Npts) / size_t(gsz);
 	float vec[NDIM];
 	int ipix;
 	float mag;
@@ -64,6 +64,10 @@ void healpix_kernel(const float * __restrict__ x, const float * __restrict__ y, 
 		vec[2] = z[i];
 		mag = 1.f / fmaf(x[i], x[i], fmaf(y[i], y[i], sqr(z[i])));
 		vec2pix_ring(Nside, vec, &ipix);
+		if (ipix >= 12 * Nside * Nside) {
+			printf("Pixel out of range!\n");
+			__trap();
+		}
 		atomicAdd(map + ipix, mag);
 	}
 }
