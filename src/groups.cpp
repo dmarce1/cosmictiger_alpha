@@ -175,7 +175,8 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 		next_checks.resize(0);
 		for (int i = 0; i < checks.size(); i++) {
 			const auto other_range = checks[i].get_range();
-			if (myrange.intersects(other_range)) {
+			const bool other_flag = checks[i].last_group_flag();
+			if (other_flag && myrange.intersects(other_range)) {
 				if (checks[i].is_leaf()) {
 					opened_checks.push_back(checks[i]);
 				} else {
@@ -225,23 +226,34 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 				}
 			}
 		}
+		self.group_flag() = found_link;
 		return hpx::make_ready_future(found_link);
 	} else {
-		std::array<hpx::future<bool>, NCHILD> futs;
-		bool found_link;
-		auto mychildren = self.get_children();
-		params.checks.push_top();
-		params.self = mychildren[LEFT];
-		params.depth++;
-		futs[LEFT] = mychildren[LEFT].find_groups(params_ptr, true);
-		params.checks.pop_top();
-		params.self = mychildren[RIGHT];
-		futs[RIGHT] = mychildren[RIGHT].find_groups(params_ptr, false);
-		params.depth--;
-		return hpx::when_all(futs.begin(), futs.end()).then([](hpx::future<std::vector<hpx::future<bool>>> futfut) {
-			auto futs = futfut.get();
-			const bool rcr = futs[RIGHT].get();
-			return futs[LEFT].get() || rcr;
-		});
+		if (checks.size()) {
+			std::array<hpx::future<bool>, NCHILD> futs;
+			bool found_link;
+			auto mychildren = self.get_children();
+			params.checks.push_top();
+			params.self = mychildren[LEFT];
+			params.depth++;
+			futs[LEFT] = mychildren[LEFT].find_groups(params_ptr, true);
+			params.checks.pop_top();
+			params.self = mychildren[RIGHT];
+			futs[RIGHT] = mychildren[RIGHT].find_groups(params_ptr, false);
+			params.depth--;
+			return hpx::when_all(futs.begin(), futs.end()).then(
+					[self](hpx::future<std::vector<hpx::future<bool>>> futfut) {
+						auto futs = futfut.get();
+						const bool rcr = futs[RIGHT].get();
+						const bool rc = futs[LEFT].get() || rcr;
+						self.group_flag() = rc;
+						return rc;
+					});
+		} else {
+			const auto myparts = self.get_parts();
+			self.group_flag() = false;
+			parts_covered += myparts.second - myparts.first;
+			return hpx::make_ready_future(false);
+		}
 	}
 }

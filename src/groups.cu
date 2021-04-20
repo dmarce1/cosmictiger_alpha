@@ -8,9 +8,7 @@
 
 __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params);
 
-
 __managed__ group_list_sizes sizes = { 0, 0 };
-
 
 std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** params, int params_size,
 		cudaStream_t stream) {
@@ -32,7 +30,6 @@ std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** para
 }
 
 __device__ bool cuda_find_groups(tree_ptr self);
-
 
 group_list_sizes get_group_list_sizes() {
 	return sizes;
@@ -76,6 +73,7 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 	auto& parts = shmem.parts;
 	auto& next_checks = shmem.next_checks;
 	auto& opened_checks = shmem.opened_checks;
+	bool rc;
 
 	const auto myrange = self.get_range();
 	const auto iamleaf = self.is_leaf();
@@ -95,8 +93,10 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 			mylist = NOLIST;
 			if (i < checks.size()) {
 				const int intersects = myrange.intersects(checks[i].get_range());
+				const int other_flag = checks[i].last_group_flag();
+				const int use = other_flag * intersects;
 				const int isleaf = checks[i].is_leaf();
-				mylist = intersects * ((1 - isleaf) * NEXT) + (1 - intersects) * NOLIST;
+				mylist = use * ((1 - isleaf) * NEXT) + (1 - use) * NOLIST;
 				indices[mylist] = 1;
 			}
 			for (int P = 1; P < warpSize; P *= 2) {
@@ -130,7 +130,7 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 		__syncwarp();
 		for (int i = tid; i < next_checks.size(); i += warpSize) {
 			const auto children = next_checks[i].get_children();
-			assert(2*i+RIGHT < checks.size());
+			assert(2 * i + RIGHT < checks.size());
 			checks[NCHILD * i + LEFT] = children[LEFT];
 			checks[NCHILD * i + RIGHT] = children[RIGHT];
 		}
@@ -198,23 +198,29 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 			}
 			iters++;
 		} while (__reduce_add_sync(FULL_MASK, found_link) != 0);
-		return iters > 1;
+		rc = iters > 1;
 	} else {
-		auto mychildren = self.get_children();
-		shmem.checks.push_top();
-		if (tid == 0) {
-			shmem.depth++;
+		if (shmem.checks.size()) {
+			auto mychildren = self.get_children();
+			shmem.checks.push_top();
+			if (tid == 0) {
+				shmem.depth++;
+			}
+			__syncwarp();
+			const auto rc1 = cuda_find_groups(mychildren[LEFT]);
+			shmem.checks.pop_top();
+			__syncwarp();
+			const auto rc2 = cuda_find_groups(mychildren[RIGHT]);
+			if (tid == 0) {
+				shmem.depth--;
+			}
+			__syncwarp();
+			rc = rc1 || rc2;
+		} else {
+			rc = false;
 		}
-		__syncwarp();
-		const auto rc1 = cuda_find_groups(mychildren[LEFT]);
-		shmem.checks.pop_top();
-		__syncwarp();
-		const auto rc2 = cuda_find_groups(mychildren[RIGHT]);
-		if (tid == 0) {
-			shmem.depth--;
-		}
-		__syncwarp();
-		return rc1 || rc2;
 	}
+	self.group_flag() = rc;
+	return rc;
 
 }

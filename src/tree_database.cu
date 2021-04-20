@@ -34,11 +34,28 @@ void tree_data_initialize() {
 	CUDA_MALLOC(gpu_tree_data_.ranges, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
+	CUDA_MALLOC(gpu_tree_data_.group_flags, gpu_tree_data_.ntrees);
+	CUDA_MALLOC(gpu_tree_data_.last_group_flags, gpu_tree_data_.ntrees);
 
 	tree_data_clear();
 
 	cpu_tree_data_ = gpu_tree_data_;
 
+}
+
+void tree_database_reset_group_flags() {
+	for( int i = 0; i < gpu_tree_data_.ntrees; i++) {
+		gpu_tree_data_.group_flags[i] = 1;
+	}
+	for( int i = 0; i < gpu_tree_data_.ntrees; i++) {
+		gpu_tree_data_.last_group_flags[i] = 1;
+	}
+}
+
+void tree_database_set_last_group_flags() {
+	for( int i = 0; i < gpu_tree_data_.ntrees; i++) {
+		gpu_tree_data_.last_group_flags[i] = gpu_tree_data_.group_flags[i];
+	}
 }
 
 void tree_database_set_readonly() {

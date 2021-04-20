@@ -209,8 +209,10 @@ void group_test() {
 	fflush(stdout);
 	timer tm;
 	tm.start();
+	tree_database_reset_group_flags();
 //	find_groups_phase1(params_ptr).get();
 	while (find_groups(params_ptr).get()) {
+		tree_database_set_last_group_flags();
 		printf( "Iterating\n");
 		params_ptr->self = root_ptr;
 		params_ptr->checks.resize(0);

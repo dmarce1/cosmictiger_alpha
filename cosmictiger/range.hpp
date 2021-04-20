@@ -7,13 +7,13 @@
 #define NCORNERS (1<<NDIM)
 
 struct range {
-	array<double, NDIM> begin;
-	array<double, NDIM> end;
+	array<float, NDIM> begin;
+	array<float, NDIM> end;
 
 	inline bool contains(std::array<fixed32, NDIM> v) const {
 		bool rc = true;
 		for (int dim = 0; dim < NDIM; dim++) {
-			if (v[dim].to_double() < begin[dim] || v[dim].to_double() > end[dim]) {
+			if (v[dim].to_float() < begin[dim] || v[dim].to_float() > end[dim]) {
 				rc = false;
 				break;
 			}

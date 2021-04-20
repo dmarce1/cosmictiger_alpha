@@ -154,6 +154,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 
 	tree_ptr root_ptr;
 	root_ptr.dindex = 0;
+	tree_database_reset_group_flags();
 	group_param_type *params_ptr;
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) group_param_type();
@@ -165,6 +166,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 	int iters = 1;
 	parts.init_groups();
 	while (find_groups(params_ptr).get()) {
+		tree_database_set_last_group_flags();
 		params_ptr->self = root_ptr;
 		params_ptr->checks.resize(0);
 		params_ptr->checks.push(root_ptr);
