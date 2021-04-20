@@ -175,15 +175,7 @@ void initial_conditions(particle_set& parts) {
 #endif
 
 	cudaFuncAttributes attrib;
-	CUDA_CHECK(cudaFuncGetAttributes(&attrib, generate_random_normals));
-	const int block_size = attrib.maxThreadsPerBlock;
-	int num_blocks;
-	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, generate_random_normals, block_size, 0));
-	num_blocks *= global().cuda.devices[0].multiProcessorCount;
-	num_blocks = std::min(global().cuda.devices[0].maxGridSize[0], num_blocks);
-	printf("\tComputing random number set with %i blocks and %i per block and %i registers per thread\n", num_blocks,
-			block_size, attrib.numRegs);
-	generate_random_normals<<<num_blocks,block_size>>>(rands, N3, 1234);
+	generate_random_normals<<<32,32>>>(rands, N3, 1234);
 	CUDA_CHECK(cudaDeviceSynchronize());
 
 	printf("\tComputing over/under density\n");

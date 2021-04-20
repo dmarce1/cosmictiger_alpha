@@ -292,9 +292,9 @@ void drive_cosmos() {
 		}
 		tree root = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
 		tree_use = tree_data_use();
-		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, global().opts.groups && full_eval,
+		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, groups && full_eval,
 				kick_tm);
-		if (full_eval && global().opts.groups) {
+		if (full_eval && groups) {
 			group_fut.get();
 			group_data_save(a, time + 0.5);
 			group_data_destroy();

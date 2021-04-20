@@ -27,8 +27,8 @@ void* cuda_unified_alloc(size_t sz, const char* file, int line) {
 	char* ptr;
 	CUDA_CHECK(cudaMallocManaged(&ptr, sz));
 //	std::lock_guard<mutex_type> lock(mtx);
-//	alloc_map[ptr] = sz;
-//	allocated += sz;
+	alloc_map[ptr] = sz;
+	allocated += sz;
 //	linenumbers[ptr] = line;
 //	filenames[ptr] = std::string(file);
 	//printf("%li KB  allocated %e total GB allocated %s %i\n", sz/1024, allocated / 1024.0 / 1024 / 1024, file, line);
@@ -44,10 +44,10 @@ void cuda_unified_show_outstanding() {
 void cuda_unified_free(void* ptr) {
 	CUDA_CHECK(cudaFree(ptr));
 	//std::lock_guard<mutex_type> lock(mtx);
-	//allocated -= alloc_map[ptr];
+	allocated -= alloc_map[ptr];
 	//filenames.erase(ptr);
 	//linenumbers.erase(ptr);
-	//alloc_map.erase(ptr);
+	alloc_map.erase(ptr);
 }
 
 void* cuda_allocator::allocate(size_t sz) {
