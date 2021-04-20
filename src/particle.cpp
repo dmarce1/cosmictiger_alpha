@@ -45,8 +45,8 @@ void particle_set::prepare_drift() {
 }
 
 void particle_set::init_groups() {
-	lidptr1_ = new uint16_t[size()];
-	lidptr2_ = new uint32_t[size()];
+	lidptr1_ = new uint32_t[size()];
+	lidptr2_ = new uint16_t[size()];
 	for (int i = 0; i < size(); i++) {
 		set_last_group(i, group(i));
 		group(i) = NO_GROUP;
