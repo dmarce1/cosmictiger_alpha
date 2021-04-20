@@ -29,7 +29,7 @@ int hpx_main(int argc, char *argv[]) {
 		ewald_const::init();
 		printf("Done initializing ewald\n");
 		global_init(opts, cuda);
-		tree_data_initialize();
+//		tree_data_initialize();
 		if (opts.test != "") {
 			test_run(opts.test);
 		} else {

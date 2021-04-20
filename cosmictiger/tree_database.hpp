@@ -85,7 +85,9 @@ struct tree_ptr {
 #endif
 };
 
-void tree_data_initialize();
+void tree_data_initialize_kick();
+void tree_data_initialize_groups();
+void tree_data_free_all();
 void tree_database_reset_group_flags();
 void tree_database_set_last_group_flags();
 
@@ -153,8 +155,6 @@ CUDA_EXPORT
 void tree_data_set_range(int i, const range& r);
 
 void tree_data_clear();
-
-
 
 std::pair<int, int> tree_data_allocate();
 double tree_data_use();
@@ -280,8 +280,6 @@ CUDA_EXPORT inline int8_t& tree_ptr::last_group_flag() const {
 	return tree_data_last_group_flag(dindex);
 }
 
-
-
 struct multipole_pos {
 	multipole multi;
 	array<fixed32, NDIM> pos;
@@ -313,7 +311,7 @@ struct tree_database_t {
 };
 
 #ifdef TREE_DATABASE_CU
-__managed__ tree_database_t gpu_tree_data_;
+__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
 tree_database_t cpu_tree_data_;
 #else
 extern __managed__ tree_database_t gpu_tree_data_;
@@ -564,8 +562,7 @@ void tree_data_set_range(int i, const range& r) {
 	tree_data_.ranges[i] = r;
 }
 
-CUDA_EXPORT inline
-int8_t& tree_data_group_flag(int i) {
+CUDA_EXPORT inline int8_t& tree_data_group_flag(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
@@ -576,8 +573,7 @@ int8_t& tree_data_group_flag(int i) {
 	return tree_data_.group_flags[i];
 }
 
-CUDA_EXPORT inline
-int8_t& tree_data_last_group_flag(int i) {
+CUDA_EXPORT inline int8_t& tree_data_last_group_flag(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else

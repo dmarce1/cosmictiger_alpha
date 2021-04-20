@@ -18,6 +18,17 @@ tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_act
 	timer time;
 	time.start();
 	tree::set_particle_set(&parts);
+	static bool last_was_group_sort = true;
+	static int last_bucket_size = global().opts.bucket_size;
+	int bucket_size = global().opts.bucket_size;
+	if ((last_was_group_sort || bucket_size != last_bucket_size) && !group_sort) {
+		tree_data_initialize_kick();
+		last_was_group_sort = false;
+	} else if (group_sort) {
+		last_was_group_sort = true;
+		tree_data_initialize_groups();
+	}
+	last_bucket_size = bucket_size;
 	static particle_set *parts_ptr = nullptr;
 	if (parts_ptr == nullptr) {
 		CUDA_MALLOC(parts_ptr, sizeof(particle_set));
@@ -174,6 +185,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 		iters++;
 	}
 	params_ptr->~group_param_type();
+//	tree_data_free_all();
 	CUDA_FREE(params_ptr);
 	alloc.reset();
 	auto fut = group_data_create(parts);
@@ -247,8 +259,9 @@ void drive_cosmos() {
 			checkpt_tm.start();
 		}
 		if (iter % 10 == 0) {
-			printf("%9s %4s %9s %4s %4s %4s %9s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "GB",
-					"iter", "mapped", "maxd", "mind", "ed", "avgd", "ppl", "actv", "arena", "min", "max", "time", "dt",
+			printf(
+					"%9s %4s %9s %4s %4s %4s %9s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n",
+					"GB", "iter", "mapped", "maxd", "mind", "ed", "avgd", "ppl", "actv", "arena", "min", "max", "time", "dt",
 					"theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
 		}
 		static double last_theta = -1.0;
@@ -279,12 +292,16 @@ void drive_cosmos() {
 		if (full_eval && (power || groups)) {
 			alloc.reset();
 			if (power) {
+				tree_data_free_all();
 				timer tm;
 				printf("Computing matter power spectrum\n");
 				tm.start();
 				compute_power_spectrum(parts, time + 0.5);
 				tm.stop();
 				printf("Took %e seconds\n", tm.read());
+				if (!groups) {
+					tree_data_initialize_kick();
+				}
 			}
 			if (groups) {
 				auto rc = find_groups(parts, group_tm);
@@ -294,8 +311,7 @@ void drive_cosmos() {
 		}
 		tree root = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
 		tree_use = tree_data_use();
-		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, groups && full_eval,
-				kick_tm);
+		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, groups && full_eval, kick_tm);
 		if (full_eval && groups) {
 			group_fut.get();
 			group_data_save(a, time + 0.5);
@@ -358,9 +374,10 @@ void drive_cosmos() {
 		double dtyears = dt * tfac * a;
 		printf(
 				"%9.2e %4i %9i %4i %4i %4i %9.3f %9.2e %9.2f%% %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
-				cuda_unified_total()/1024.0/1024/1024, iter, mapped_cnt, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct,
-				tree_use * 100.0, min_r, max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac,
-				cosmicK * partfac, sum, sort_tm, kick_tm, drift_tm, total_time, science_rate);
+				cuda_unified_total() / 1024.0 / 1024 / 1024, iter, mapped_cnt, stats.max_depth, stats.min_depth,
+				stats.e_depth, avg_depth, parts_per_leaf, act_pct, tree_use * 100.0, min_r, max_rung, time, dt, theta, a0,
+				z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm, kick_tm, drift_tm, total_time,
+				science_rate);
 //		} else {
 //			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 //					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac,

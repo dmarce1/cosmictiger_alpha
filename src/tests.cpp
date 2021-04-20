@@ -33,6 +33,7 @@ static void tree_test() {
 		sort_params params;
 		params.min_rung = 0;
 		params.theta = global().opts.theta;
+		tree_data_initialize_kick();
 		root.sort(params);
 		managed_allocator<sort_params>::cleanup();
 		tm.stop();
@@ -88,6 +89,7 @@ void kick_test() {
 
 		root_ptr.dindex = 0;
 		params.tptr = root_ptr;
+		tree_data_initialize_kick();
 		root.sort(params);
 		tm_sort.stop();
 		tm_kick.start();
@@ -191,6 +193,7 @@ void group_test() {
 	params.group_sort = true;
 	parts.init_groups();
 	printf( "Sorting\n");
+	tree_data_initialize_groups();
 	root.sort(params);
 	printf( "Done Sorting\n");
 	tm_sort.stop();
@@ -253,6 +256,7 @@ void drift_test() {
 		sort_params params;
 		params.theta = global().opts.theta;
 		params.min_rung = 0;
+		tree_data_initialize_kick();
 		root.sort(params);
 		tm_sort.stop();
 		tm_kick.start();
@@ -344,7 +348,7 @@ void force_test() {
 
 	root_ptr.dindex = 0;
 	params.tptr = root_ptr;
-	root.sort(params);
+	tree_data_initialize_kick();
 	root.sort(params);
 	//  root_ptr.rank = hpx_rank();
 	// printf( "%li", size_t(WORKSPACE_SIZE));
