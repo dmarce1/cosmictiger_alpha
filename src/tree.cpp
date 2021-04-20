@@ -158,147 +158,159 @@ sort_return tree::sort(sort_params params) {
 				futs[ci] = create_child(child_params[ci], ci == LEFT);
 			}
 		}
+
 		std::array<multipole, NCHILD> Mc;
 		std::array<array<fixed32, NDIM>, NCHILD> Xc;
 		std::array<float, NCHILD> Rc;
 		multipole M;
-		rc.active_parts = 0;
-		rc.active_nodes = 1;
-		rc.stats.nparts = 0;
-		rc.stats.max_depth = 0;
-		rc.stats.min_depth = TREE_MAX_DEPTH;
-		rc.stats.nnodes = 1;
-		rc.stats.nleaves = 0;
+		if (!params.group_sort) {
+			rc.active_parts = 0;
+			rc.active_nodes = 1;
+			rc.stats.nparts = 0;
+			rc.stats.max_depth = 0;
+			rc.stats.min_depth = TREE_MAX_DEPTH;
+			rc.stats.nnodes = 1;
+			rc.stats.nleaves = 0;
+		}
 		for (int ci = 0; ci < NCHILD; ci++) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
-			Mc[ci] = this_rc.check.get_multi();
-			Xc[ci] = this_rc.check.get_pos();
-			rc.active_parts += this_rc.active_parts;
-			rc.active_nodes += this_rc.active_nodes;
-			rc.stats.nparts += this_rc.stats.nparts;
-			rc.stats.nleaves += this_rc.stats.nleaves;
-			rc.stats.nnodes += this_rc.stats.nnodes;
-			rc.stats.max_depth = std::max(rc.stats.max_depth, this_rc.stats.max_depth);
-			rc.stats.min_depth = std::min(rc.stats.min_depth, this_rc.stats.min_depth);
-		}
-		if (rc.active_nodes == 1) {
-			rc.active_nodes = 0;
-		}
-		std::array<double, NDIM> com = { 0, 0, 0 };
-		const auto &MR = Mc[RIGHT];
-		const auto &ML = Mc[LEFT];
-		M() = ML() + MR();
-		double rleft = 0.0;
-		double rright = 0.0;
-		array<fixed32, NDIM> pos;
-		std::array<double, NDIM> xl, xr;
-		for (int dim = 0; dim < NDIM; dim++) {
-			xl[dim] = Xc[LEFT][dim].to_double();
-			xr[dim] = Xc[RIGHT][dim].to_double();
-		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			auto& Xl = xl[dim];
-			auto& Xr = xr[dim];
-			com[dim] = (ML() * Xl + MR() * Xr) / (ML() + MR());
-			Xl -= com[dim];
-			Xr -= com[dim];
-			rleft += sqr(Xl);
-			rright += sqr(Xr);
-			pos[dim] = com[dim];
-		}
-		M = (ML >> xl) + (MR >> xr);
-		rleft = std::sqrt(rleft) + children[LEFT].get_radius();
-		rright = std::sqrt(rright) + children[RIGHT].get_radius();
-		float radius = std::max(rleft, rright);
-		float rmax = 0.0;
-		const auto corners = params.box.get_corners();
-		for (int ci = 0; ci < NCORNERS; ci++) {
-			double d = 0.0;
-			for (int dim = 0; dim < NDIM; dim++) {
-				d += sqr(com[dim] - corners[ci][dim].to_double());
+			if (!params.group_sort) {
+				Mc[ci] = this_rc.check.get_multi();
+				Xc[ci] = this_rc.check.get_pos();
+				rc.active_parts += this_rc.active_parts;
+				rc.active_nodes += this_rc.active_nodes;
+				rc.stats.nparts += this_rc.stats.nparts;
+				rc.stats.nleaves += this_rc.stats.nleaves;
+				rc.stats.nnodes += this_rc.stats.nnodes;
+				rc.stats.max_depth = std::max(rc.stats.max_depth, this_rc.stats.max_depth);
+				rc.stats.min_depth = std::min(rc.stats.min_depth, this_rc.stats.min_depth);
 			}
-			rmax = std::max((float) std::sqrt(d), rmax);
 		}
-		radius = std::min(radius, rmax);
+		if (!params.group_sort) {
+			if (rc.active_nodes == 1) {
+				rc.active_nodes = 0;
+			}
+			std::array<double, NDIM> com = { 0, 0, 0 };
+			const auto &MR = Mc[RIGHT];
+			const auto &ML = Mc[LEFT];
+			M() = ML() + MR();
+			double rleft = 0.0;
+			double rright = 0.0;
+			array<fixed32, NDIM> pos;
+			std::array<double, NDIM> xl, xr;
+			for (int dim = 0; dim < NDIM; dim++) {
+				xl[dim] = Xc[LEFT][dim].to_double();
+				xr[dim] = Xc[RIGHT][dim].to_double();
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				auto& Xl = xl[dim];
+				auto& Xr = xr[dim];
+				com[dim] = (ML() * Xl + MR() * Xr) / (ML() + MR());
+				Xl -= com[dim];
+				Xr -= com[dim];
+				rleft += sqr(Xl);
+				rright += sqr(Xr);
+				pos[dim] = com[dim];
+			}
+			M = (ML >> xl) + (MR >> xr);
+			rleft = std::sqrt(rleft) + children[LEFT].get_radius();
+			rright = std::sqrt(rright) + children[RIGHT].get_radius();
+			float radius = std::max(rleft, rright);
+			float rmax = 0.0;
+			const auto corners = params.box.get_corners();
+			for (int ci = 0; ci < NCORNERS; ci++) {
+				double d = 0.0;
+				for (int dim = 0; dim < NDIM; dim++) {
+					d += sqr(com[dim] - corners[ci][dim].to_double());
+				}
+				rmax = std::max((float) std::sqrt(d), rmax);
+			}
+			radius = std::min(radius, rmax);
 
-		//    printf("x      = %e\n", pos[0].to_float());
-		//   printf("y      = %e\n", pos[1].to_float());
-		//  printf("z      = %e\n", pos[2].to_float());
-		// printf("radius = %e\n", radius);
-		self.set_pos(pos);
-		self.set_radius(radius);
-		self.set_multi(M);
+			//    printf("x      = %e\n", pos[0].to_float());
+			//   printf("y      = %e\n", pos[1].to_float());
+			//  printf("z      = %e\n", pos[2].to_float());
+			// printf("radius = %e\n", radius);
+			self.set_pos(pos);
+			self.set_radius(radius);
+			self.set_multi(M);
+		}
 		self.set_leaf(false);
 		self.set_children(children);
 	} else {
-		std::array<double, NDIM> com = { 0, 0, 0 };
-		array<fixed32, NDIM> pos;
-		if (parts.second - parts.first != 0) {
-			for (auto i = parts.first; i < parts.second; i++) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					com[dim] += particles->pos(dim, i).to_double();
-				}
-			}
-			for (int dim = 0; dim < NDIM; dim++) {
-				com[dim] /= (parts.second - parts.first);
-				pos[dim] = com[dim];
-
-			}
-		} else {
-			for (int dim = 0; dim < NDIM; dim++) {
-				com[dim] = (box.begin[dim] + box.end[dim]) * 0.5;
-			}
-		}
-		multipole M;
-		M = 0.0;
-		float radius = 0.0;
-		for (auto i = parts.first; i < parts.second; i++) {
-			double this_radius = 0.0;
-			M() += 1.0;
-			for (int n = 0; n < NDIM; n++) {
-				const auto xn = particles->pos(n, i).to_double() - com[n];
-				this_radius += xn * xn;
-				for (int m = n; m < NDIM; m++) {
-					const auto xm = particles->pos(m, i).to_double() - com[m];
-					const auto xnm = xn * xm;
-					M(n, m) += xnm;
-					for (int l = m; l > NDIM; l++) {
-						const auto xl = particles->pos(l, i).to_double() - com[l];
-						M(n, m, l) -= xnm * xl;
+		if (!params.group_sort) {
+			std::array<double, NDIM> com = { 0, 0, 0 };
+			array<fixed32, NDIM> pos;
+			if (parts.second - parts.first != 0) {
+				for (auto i = parts.first; i < parts.second; i++) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						com[dim] += particles->pos(dim, i).to_double();
 					}
 				}
+				for (int dim = 0; dim < NDIM; dim++) {
+					com[dim] /= (parts.second - parts.first);
+					pos[dim] = com[dim];
+
+				}
+			} else {
+				for (int dim = 0; dim < NDIM; dim++) {
+					com[dim] = (box.begin[dim] + box.end[dim]) * 0.5;
+				}
 			}
-			this_radius = std::sqrt(this_radius);
-			radius = std::max(radius, (float) (this_radius));
-		}
-		rc.active_parts = 0;
-		rc.active_nodes = 0;
-		for (size_t k = parts.first; k < parts.second; k++) {
-			if (particles->rung(k) >= params.min_rung) {
-				rc.active_parts++;
-				rc.active_nodes = 1;
+			multipole M;
+			M = 0.0;
+			float radius = 0.0;
+			for (auto i = parts.first; i < parts.second; i++) {
+				double this_radius = 0.0;
+				M() += 1.0;
+				for (int n = 0; n < NDIM; n++) {
+					const auto xn = particles->pos(n, i).to_double() - com[n];
+					this_radius += xn * xn;
+					for (int m = n; m < NDIM; m++) {
+						const auto xm = particles->pos(m, i).to_double() - com[m];
+						const auto xnm = xn * xm;
+						M(n, m) += xnm;
+						for (int l = m; l > NDIM; l++) {
+							const auto xl = particles->pos(l, i).to_double() - com[l];
+							M(n, m, l) -= xnm * xl;
+						}
+					}
+				}
+				this_radius = std::sqrt(this_radius);
+				radius = std::max(radius, (float) (this_radius));
 			}
+			rc.active_parts = 0;
+			rc.active_nodes = 0;
+			for (size_t k = parts.first; k < parts.second; k++) {
+				if (particles->rung(k) >= params.min_rung) {
+					rc.active_parts++;
+					rc.active_nodes = 1;
+				}
+			}
+			rc.stats.nparts = parts.second - parts.first;
+			rc.stats.max_depth = rc.stats.min_depth = params.depth;
+			rc.stats.nnodes = 1;
+			rc.stats.nleaves = 1;
+			self.set_pos(pos);
+			self.set_radius(radius);
+			self.set_multi(M);
 		}
-		rc.stats.nparts = parts.second - parts.first;
-		rc.stats.max_depth = rc.stats.min_depth = params.depth;
-		rc.stats.nnodes = 1;
-		rc.stats.nleaves = 1;
 		for (int ci = 0; ci < NCHILD; ci++) {
 			children[ci].dindex = -1;
 		}
-		self.set_pos(pos);
-		self.set_radius(radius);
-		self.set_multi(M);
 		self.set_leaf(true);
 		self.set_children(children);
 	}
-	active_parts = rc.active_parts;
-	active_nodes = rc.active_nodes;
-	self.set_active_parts(active_parts);
-	self.set_active_nodes(active_nodes);
-	self.set_range(box);
-	rc.stats.e_depth = params.min_depth;
+	if (!params.group_sort) {
+		active_parts = rc.active_parts;
+		active_nodes = rc.active_nodes;
+		self.set_active_parts(active_parts);
+		self.set_active_nodes(active_nodes);
+		rc.stats.e_depth = params.min_depth;
+	} else {
+		self.set_range(box);
+	}
 	return rc;
 }
 
