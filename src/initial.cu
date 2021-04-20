@@ -174,7 +174,6 @@ void initial_conditions(particle_set& parts) {
 	auto vel_destroy = vel_k->to_device();
 #endif
 
-	cudaFuncAttributes attrib;
 	generate_random_normals<<<32,32>>>(rands, N3, 1234);
 	CUDA_CHECK(cudaDeviceSynchronize());
 

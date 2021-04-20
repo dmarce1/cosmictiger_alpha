@@ -189,7 +189,10 @@ void group_test() {
 	root_ptr.dindex = 0;
 	params.tptr = root_ptr;
 	params.group_sort = true;
+	parts.init_groups();
+	printf( "Sorting\n");
 	root.sort(params);
+	printf( "Done Sorting\n");
 	tm_sort.stop();
 	tm_kick.start();
 	//  root_ptr.rank = hpx_rank();

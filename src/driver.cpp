@@ -150,7 +150,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 	tree root = build_tree(parts, 0, 1.0, num_active, stats, sort_tm, true);
 
 	unified_allocator alloc;
-//	alloc.reset();
+	alloc.reset();
 
 	tree_ptr root_ptr;
 	root_ptr.dindex = 0;
@@ -298,7 +298,7 @@ void drive_cosmos() {
 			group_fut.get();
 			group_data_save(a, time + 0.5);
 			group_data_destroy();
-//			alloc.reset();
+			alloc.reset();
 		}
 		const auto silo_int = global().opts.silo_interval;
 		if (silo_int > 0) {

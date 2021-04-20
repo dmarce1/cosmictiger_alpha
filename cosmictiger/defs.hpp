@@ -40,7 +40,6 @@
 #define KICK_PP_MAX size_t(8*32)
 #define MAX_BUCKET_SIZE 160
 
-
 #define MIN_ACTIVE_PER_BLOCK 16
 #define MAX_RUNG 24
 #define TREE_MAX_DEPTH 54
@@ -69,13 +68,10 @@
 #define FLOP_EXP 5
 #define FLOP_SINCOS 8
 
-
-
 //#define HIPRECISION
 
 #define SINK_BIAS 1.5f
 #define MIN_PC_PARTS 17
-
 
 #define NCHILD 2
 //#define PARALLEL_RADIX
@@ -120,19 +116,19 @@ struct pair {
 	B second;
 };
 
-
 #ifdef __CUDA_ARCH__
 #define LDG(a) __ldg(a)
 #else
 #define LDG(a) (*(a))
 #endif
 
-
 #define FREAD(a,b,c,d) __safe_fread(a,b,c,d,__LINE__,__FILE__)
 
-static void __safe_fread(void* src, size_t size, size_t count, FILE* fp, int line, const char* file ) {
-	if( fread(src,size,count,fp)!=count) {
-		printf( "Attempt to read %li elements of size %li in %s on line %i failed.\n", count, size, file, line);
+static void __safe_fread(void* src, size_t size, size_t count, FILE* fp, int line, const char* file) {
+	auto read = fread(src, size, count, fp);
+	if (read != count) {
+		printf("Attempt to read %li elements of size %li in %s on line %i failed - only %li elements read.\n", count,
+				size, file, line, read);
 		abort();
 	}
 }

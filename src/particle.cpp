@@ -99,13 +99,22 @@ void particle_set::load_from_file(FILE* fp) {
 	FREAD(&global().opts.G, sizeof(global().opts.G), 1, fp);
 	FREAD(&global().opts.M, sizeof(global().opts.M), 1, fp);
 	for (int dim = 0; dim < NDIM; dim++) {
+		printf( "%c positions...", 'x' + dim);
+		fflush(stdout);
 		FREAD(xptr_[dim], sizeof(fixed32), size(), fp);
 	}
+	printf( "velocities...");
+	fflush(stdout);
 	FREAD(uptr_, sizeof(array<float,NDIM>), size(), fp);
+	printf( "rungs...");
+	fflush(stdout);
 	FREAD(rptr_, sizeof(rung_t), size(), fp);
+	printf( "groups...");
+	fflush(stdout);
 	if (global().opts.groups) {
 		FREAD(idptr_, sizeof(group_t), size(), fp);
 	}
+	printf( "\n");
 }
 
 void particle_set::save_to_file(FILE* fp) {

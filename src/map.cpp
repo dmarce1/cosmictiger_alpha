@@ -29,7 +29,10 @@ void maps_from_file(FILE*fp) {
 	int nmaps;
 	if (!feof(fp)) {
 		FREAD(&nmaps, sizeof(int), 1, fp);
+		printf( "Loading %i maps in progress\n", nmaps);
 		for (int i = 0; i < nmaps; i++) {
+			printf( "%i ", i);
+			fflush(stdout);
 			float* ptr;
 			CUDA_MALLOC(ptr, npts);
 			int index = 0;
@@ -37,6 +40,7 @@ void maps_from_file(FILE*fp) {
 			maps[index] = std::make_shared<float*>(ptr);
 			FREAD(*(maps[index]), sizeof(float), npts, fp);
 		}
+		printf( "\n");
 	}
 }
 

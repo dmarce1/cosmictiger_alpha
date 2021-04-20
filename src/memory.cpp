@@ -18,6 +18,7 @@ static std::unordered_map<void*, size_t> alloc_map;
 static std::unordered_map<void*, int> linenumbers;
 static std::unordered_map<void*, std::string> filenames;
 static mutex_type mtx;
+#include <sys/sysinfo.h>
 
 size_t cuda_unified_total() {
 	return allocated;
@@ -26,6 +27,10 @@ size_t cuda_unified_total() {
 void* cuda_unified_alloc(size_t sz, const char* file, int line) {
 	char* ptr;
 	CUDA_CHECK(cudaMallocManaged(&ptr, sz));
+	if( ptr == nullptr) {
+		printf( "Unable to allocated unified memory\n");
+		abort();
+	}
 //	std::lock_guard<mutex_type> lock(mtx);
 	alloc_map[ptr] = sz;
 	allocated += sz;
