@@ -35,8 +35,11 @@
       ABORT();                                                                               \
    }
 
+size_t cuda_unified_total();
 void* cuda_unified_alloc(size_t sz, const char* file, int line);
 void cuda_unified_free(void* ptr);
+void cuda_unified_show_outstanding();
+
 
 #ifdef __CUDA_ARCH__
 #define CUDA_FREE(ptr)                                                                                       \

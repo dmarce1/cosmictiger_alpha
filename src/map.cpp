@@ -52,13 +52,25 @@ map_workspace get_map_workspace() {
 	 return ws;*/
 }
 
+
+void prepare_map(int i) {
+	printf("preparing map %i\n", i);
+	auto& map = maps[i];
+	const auto npts = 12 * sqr(global().opts.map_size);
+	float* ptr;
+	CUDA_MALLOC(ptr, npts);
+	map = std::make_shared<float*>(ptr);
+}
+
 void cleanup_map_workspace(map_workspace ws) {
 	static const long Nside = global().opts.map_size;
 	for (auto i = ws->begin(); i != ws->end(); i++) {
 		if (i->second[0].size()) {
-			if (maps.find(i->first) == maps.end()) {
-				printf("Map error %i\n", i->first);
-				abort();
+			{
+				std::lock_guard<mutex_type> lock(mtx);
+				if (maps.find(i->first) == maps.end()) {
+					prepare_map(i->first);
+				}
 			}
 			healpix2_map(i->second[0], i->second[1], i->second[2], maps[i->first], Nside);
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -68,15 +80,6 @@ void cleanup_map_workspace(map_workspace ws) {
 	}
 //	std::lock_guard<mutex_type> lock(mtx);
 //	workspaces.push(ws);
-}
-
-void prepare_map(int i) {
-	printf("preparing map %i\n", i);
-	auto& map = maps[i];
-	const auto npts = 12 * sqr(global().opts.map_size);
-	float* ptr;
-	CUDA_MALLOC(ptr, npts);
-	map = std::make_shared<float*>(ptr);
 }
 
 void save_map(int i) {
@@ -93,14 +96,8 @@ void load_and_save_maps(double tau, double tau_max) {
 	static int saved_index = 0;
 	const auto freq = global().opts.map_freq * tau_max;
 	int imin = tau / freq + 1;
-	int imax = (tau + 1.3) / freq + 1;
+	int imax = (tau + 1.2) / freq + 1;
 //	printf( "imin %i max %i\n", imin, imax);
-	for (int i = imin; i < imax; i++) {
-		auto iter = maps.find(i);
-		if (iter == maps.end()) {
-			prepare_map(i);
-		}
-	}
 	for (auto i = maps.begin(); i != maps.end(); i++) {
 		if (i->first < imin) {
 			timer tm;

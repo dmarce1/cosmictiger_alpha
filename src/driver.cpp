@@ -149,7 +149,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 
 	tree root = build_tree(parts, 0, 1.0, num_active, stats, sort_tm, true);
 
-	//unified_allocator alloc;
+	unified_allocator alloc;
 //	alloc.reset();
 
 	tree_ptr root_ptr;
@@ -173,6 +173,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 	}
 	params_ptr->~group_param_type();
 	CUDA_FREE(params_ptr);
+	alloc.reset();
 	auto fut = group_data_create(parts);
 	tm.stop();
 	time = tm.read();
@@ -244,7 +245,7 @@ void drive_cosmos() {
 			checkpt_tm.start();
 		}
 		if (iter % 10 == 0) {
-			printf("%4s %8s %4s %4s %4s %9s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n",
+			printf("%9s %4s %9s %4s %4s %4s %9s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n", "GB",
 					"iter", "mapped", "maxd", "mind", "ed", "avgd", "ppl", "actv", "arena", "min", "max", "time", "dt",
 					"theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
 		}
@@ -297,7 +298,7 @@ void drive_cosmos() {
 			group_fut.get();
 			group_data_save(a, time + 0.5);
 			group_data_destroy();
-			alloc.reset();
+//			alloc.reset();
 		}
 		const auto silo_int = global().opts.silo_interval;
 		if (silo_int > 0) {
@@ -354,8 +355,8 @@ void drive_cosmos() {
 		double years = real_time * tfac;
 		double dtyears = dt * tfac * a;
 		printf(
-				"%4i %8i %4i %4i %4i %9.3f %9.2e %9.2f%% %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
-				iter, mapped_cnt, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct,
+				"%9.2e %4i %9i %4i %4i %4i %9.3f %9.2e %9.2f%% %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+				cuda_unified_total()/1024.0/1024/1024, iter, mapped_cnt, stats.max_depth, stats.min_depth, stats.e_depth, avg_depth, parts_per_leaf, act_pct,
 				tree_use * 100.0, min_r, max_rung, time, dt, theta, a0, z, a * pot * partfac, a * kin * partfac,
 				cosmicK * partfac, sum, sort_tm, kick_tm, drift_tm, total_time, science_rate);
 //		} else {

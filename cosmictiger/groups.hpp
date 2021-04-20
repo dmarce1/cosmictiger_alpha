@@ -23,8 +23,10 @@ struct group_info_t {
 	float epot;
 	float ekin;
 	float rmax;
+	float r2;
 	float ravg;
 	float reff;
+	float qxx, qxy, qxz, qyy, qyz, qzz;
 	std::vector<float> radii;
 	std::map<group_t, std::shared_ptr<int>> parents;
 	std::shared_ptr<std::atomic<int>> mtx;

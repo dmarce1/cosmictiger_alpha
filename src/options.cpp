@@ -37,9 +37,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("sigma8", po::value<double>(&(opts.sigma8))->default_value(0.83), "") //
 	("hubble", po::value<double>(&(opts.hubble))->default_value(0.7), "") //
 	("silo_interval", po::value<double>(&(opts.silo_interval))->default_value(-1.), "interval between SILO outs") //
-	("map_size", po::value<int>(&(opts.map_size))->default_value(-1), "smallest dimension of Mollweide map (-1 = off)") //
-	("map_freq", po::value<double>(&(opts.map_freq))->default_value(1. / 128.),
-			"Map frequency, conformal time, 1 = age of universe") //
+	("maps", po::value<bool>(&(opts.maps))->default_value(false), "generate healpix maps") //
 	("parts_dim", po::value<size_t>(&(opts.parts_dim))->default_value(16), "number of particles = parts_dim^3") //
 	("test", po::value<std::string>(&(opts.test))->default_value(""), "test problem") //
 	("z0", po::value<double>(&(opts.z0))->default_value(49), "starting redshift") //
@@ -67,7 +65,6 @@ bool process_options(int argc, char *argv[], options &opts) {
 		}
 	}
 
-
 	if (rc) {
 		po::notify(vm);
 		opts.nparts = opts.parts_dim * opts.parts_dim * opts.parts_dim;
@@ -91,8 +88,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	const auto Hcgs = constants::H0;
 	opts.code_to_s = opts.code_to_cm / opts.code_to_cms;
 	opts.H0 = Hcgs * opts.code_to_s;
-	opts.G = Gcgs / pow(opts.code_to_cm, 3) * opts.code_to_g
-			* pow(opts.code_to_s, 2);
+	opts.G = Gcgs / pow(opts.code_to_cm, 3) * opts.code_to_g * pow(opts.code_to_s, 2);
 	double m_tot = opts.omega_m * 3.0 * opts.H0 * opts.H0 / (8 * M_PI * opts.G);
 	opts.M = m_tot / opts.nparts;
 
@@ -103,13 +99,18 @@ bool process_options(int argc, char *argv[], options &opts) {
 	opts.omega_gam = omega_r - opts.omega_nu;
 	opts.omega_r = omega_r;
 
-
-	printf( "Simulation Options\n");
+	if (opts.maps) {
+		opts.map_size = 2 * opts.parts_dim;
+	} else {
+		opts.map_size = -1;
+	}
+	opts.map_freq = 0.01;
+	printf("Simulation Options\n");
 
 	SHOW_STRING(config);
 	SHOW(map_size);
 	SHOW(silo_interval);
-	SHOW(map_freq);
+	SHOW(maps);
 	SHOW(checkpt_freq);
 	SHOW_STRING(checkpt_file);
 	SHOW_STRING(test);
@@ -122,7 +123,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	SHOW(power);
 	SHOW(theta);
 
-	printf( "Units\n");
+	printf("Units\n");
 	SHOW(code_to_s);
 	SHOW(code_to_g);
 	SHOW(code_to_cm);
@@ -131,7 +132,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	SHOW(G);
 	SHOW(M);
 
-	printf( "Cosmological Options\n");
+	printf("Cosmological Options\n");
 	SHOW(hubble);
 	SHOW(z0);
 	SHOW(ns);
@@ -145,7 +146,6 @@ bool process_options(int argc, char *argv[], options &opts) {
 	SHOW(omega_gam);
 	SHOW(omega_nu);
 	SHOW(Theta);
-
 
 	return rc;
 }

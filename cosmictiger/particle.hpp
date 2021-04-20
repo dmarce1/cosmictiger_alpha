@@ -19,7 +19,7 @@
 
 struct range;
 
-#define NO_GROUP (~(0x0LL))
+#define NO_GROUP (0x7FFFFFFFFFFF)
 
 using group_t = unsigned long long int;
 
@@ -52,8 +52,8 @@ struct particle_set {
 	void generate_grid();CUDA_EXPORT
 	group_t group(size_t) const;CUDA_EXPORT
 	group_t& group(size_t);CUDA_EXPORT
-	group_t last_group(size_t) const;CUDA_EXPORT
-	group_t& last_group(size_t);CUDA_EXPORT
+	group_t get_last_group(size_t) const;CUDA_EXPORT
+	void set_last_group(size_t,group_t);CUDA_EXPORT
 	size_t size() const {
 		return size_;
 	}
@@ -71,7 +71,8 @@ private:
 	array<float,NDIM>* uptr_;
 	rung_t* rptr_;
 	group_t* idptr_;
-	group_t* lidptr_;
+	uint32_t* lidptr1_;
+	uint16_t* lidptr2_;
 	array<float*, NDIM> gptr_;
 	float* eptr_;
 	size_t size_;
@@ -84,7 +85,8 @@ public:
 		particle_set v;
 		v.rptr_ = rptr_;
 		v.idptr_ = idptr_;
-		v.lidptr_ = lidptr_;
+		v.lidptr1_ = lidptr1_;
+		v.lidptr2_ = lidptr2_;
 		v.uptr_ = uptr_;
 		for (int dim = 0; dim < NDIM; dim++) {
 			v.xptr_[dim] = xptr_[dim];
@@ -192,12 +194,13 @@ CUDA_EXPORT inline group_t& particle_set::group(size_t index) {
 	return idptr_[index];
 }
 
-CUDA_EXPORT inline group_t particle_set::last_group(size_t index) const {
-	return lidptr_[index];
+CUDA_EXPORT inline group_t particle_set::get_last_group(size_t index) const {
+	return lidptr1_[index] | (group_t(lidptr2_[index]) << 32ULL);
 }
 
-CUDA_EXPORT inline group_t& particle_set::last_group(size_t index) {
-	return lidptr_[index];
+CUDA_EXPORT inline void particle_set::set_last_group(size_t index, group_t g) {
+	lidptr1_[index] = g & 0xFFFFFFFFULL;
+	lidptr2_[index] = g >> 32ULL;
 }
 
 #endif /* COSMICTIGER_PARTICLE_HPP_ */

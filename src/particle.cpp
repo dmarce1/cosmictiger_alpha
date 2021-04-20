@@ -45,15 +45,17 @@ void particle_set::prepare_drift() {
 }
 
 void particle_set::init_groups() {
-	CUDA_MALLOC(lidptr_, size());
+	CUDA_MALLOC(lidptr1_, size());
+	CUDA_MALLOC(lidptr2_, size());
 	for (int i = 0; i < size(); i++) {
-		lidptr_[i] = idptr_[i];
-		idptr_[i] = NO_GROUP;
+		set_last_group(i,group(i));
+		group(i) = NO_GROUP;
 	}
 }
 
 void particle_set::finish_groups() {
-	CUDA_FREE(lidptr_);
+	CUDA_FREE(lidptr1_);
+	CUDA_FREE(lidptr2_);
 }
 
 particle_set::particle_set(size_t size, size_t offset) {
