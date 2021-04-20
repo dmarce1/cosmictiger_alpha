@@ -45,17 +45,17 @@ void particle_set::prepare_drift() {
 }
 
 void particle_set::init_groups() {
-	CUDA_MALLOC(lidptr1_, size());
-	CUDA_MALLOC(lidptr2_, size());
+	lidptr1_ = new uint16_t[size()];
+	lidptr2_ = new uint32_t[size()];
 	for (int i = 0; i < size(); i++) {
-		set_last_group(i,group(i));
+		set_last_group(i, group(i));
 		group(i) = NO_GROUP;
 	}
 }
 
 void particle_set::finish_groups() {
-	CUDA_FREE(lidptr1_);
-	CUDA_FREE(lidptr2_);
+	delete[] lidptr1_;
+	delete[] lidptr2_;
 }
 
 particle_set::particle_set(size_t size, size_t offset) {
@@ -99,22 +99,22 @@ void particle_set::load_from_file(FILE* fp) {
 	FREAD(&global().opts.G, sizeof(global().opts.G), 1, fp);
 	FREAD(&global().opts.M, sizeof(global().opts.M), 1, fp);
 	for (int dim = 0; dim < NDIM; dim++) {
-		printf( "%c positions...", 'x' + dim);
+		printf("%c positions...", 'x' + dim);
 		fflush(stdout);
 		FREAD(xptr_[dim], sizeof(fixed32), size(), fp);
 	}
-	printf( "velocities...");
+	printf("velocities...");
 	fflush(stdout);
 	FREAD(uptr_, sizeof(array<float,NDIM>), size(), fp);
-	printf( "rungs...");
+	printf("rungs...");
 	fflush(stdout);
 	FREAD(rptr_, sizeof(rung_t), size(), fp);
-	printf( "groups...");
+	printf("groups...");
 	fflush(stdout);
 	if (global().opts.groups) {
 		FREAD(idptr_, sizeof(group_t), size(), fp);
 	}
-	printf( "\n");
+	printf("\n");
 }
 
 void particle_set::save_to_file(FILE* fp) {
@@ -130,7 +130,7 @@ void particle_set::save_to_file(FILE* fp) {
 	for (int dim = 0; dim < NDIM; dim++) {
 		fwrite(xptr_[dim], sizeof(fixed32), size(), fp);
 	}
-	fwrite(uptr_, sizeof(std::array<float,NDIM>), size(), fp);
+	fwrite(uptr_, sizeof(std::array<float, NDIM>), size(), fp);
 	fwrite(rptr_, sizeof(rung_t), size(), fp);
 	if (global().opts.groups) {
 		fwrite(idptr_, sizeof(group_t), size(), fp);
@@ -155,9 +155,9 @@ void particle_set::generate_random() {
 			pos(0, i) = rand_fixed32();
 			pos(1, i) = rand_fixed32();
 			pos(2, i) = rand_fixed32();
-			vel(0,i) = 0.f;
-			vel(1,i) = 0.f;
-			vel(2,i) = 0.f;
+			vel(0, i) = 0.f;
+			vel(1, i) = 0.f;
+			vel(2, i) = 0.f;
 		}
 		set_rung(0, i);
 	}
@@ -172,9 +172,9 @@ void particle_set::generate_grid() {
 				pos(0, iii) = (i + 0.5) / dim;
 				pos(1, iii) = (j + 0.5) / dim;
 				pos(2, iii) = (k + 0.5) / dim;
-				vel(0,i) = 0.f;
-				vel(1,i) = 0.f;
-				vel(2,i) = 0.f;
+				vel(0, i) = 0.f;
+				vel(1, i) = 0.f;
+				vel(2, i) = 0.f;
 				set_rung(0, i);
 			}
 		}
@@ -333,9 +333,9 @@ void particle_set::load_particles(std::string filename) {
 		FREAD(&vx, sizeof(float), 1, fp);
 		FREAD(&vy, sizeof(float), 1, fp);
 		FREAD(&vz, sizeof(float), 1, fp);
-		vel(0,i) = vx * std::pow(c0, 1.5);
-		vel(1,i) = vy * std::pow(c0, 1.5);
-		vel(2,i) = vz * std::pow(c0, 1.5);
+		vel(0, i) = vx * std::pow(c0, 1.5);
+		vel(1, i) = vy * std::pow(c0, 1.5);
+		vel(2, i) = vz * std::pow(c0, 1.5);
 		set_rung(0, i);
 	}
 	FREAD(&dummy, sizeof(dummy), 1, fp);
@@ -362,7 +362,7 @@ void particle_set::silo_out(const char* filename) const {
 		std::vector<float> v(size_);
 		for (int dim = 0; dim < NDIM; dim++) {
 			for (int i = 0; i < size_; i++) {
-				v[i] = vel(dim,i);
+				v[i] = vel(dim, i);
 			}
 			std::string name = "v";
 			name.push_back(char('x' + dim));
