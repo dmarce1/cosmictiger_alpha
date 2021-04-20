@@ -23,6 +23,10 @@ struct range;
 
 using group_t = unsigned long long int;
 
+struct rungbits {
+	uint8_t lo : 4;
+	uint8_t hi : 4;
+};
 
 #include <cosmictiger/array.hpp>
 #include <atomic>
@@ -64,13 +68,14 @@ struct particle_set {
 	float pot(size_t index) const;CUDA_EXPORT
 	float& pot(size_t index);
 	void silo_out(const char* filename) const;
-#ifndef __CUDACC__
+	#ifndef __CUDACC__
 private:
 #endif
 	array<fixed32*, NDIM> xptr_;
 	array<float,NDIM>* uptr_;
 	rung_t* rptr_;
 	group_t* idptr_;
+	rungbits* srptr_;
 	uint32_t* lidptr1_;
 	uint16_t* lidptr2_;
 	array<float*, NDIM> gptr_;

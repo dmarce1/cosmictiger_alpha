@@ -75,7 +75,8 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 	auto& opened_checks = shmem.opened_checks;
 	bool rc;
 
-	const auto myrange = self.get_range();
+	auto myrange = self.get_range();
+	myrange.expand(shmem.link_len);
 	const auto iamleaf = self.is_leaf();
 	opened_checks.resize(0);
 	array<vector<tree_ptr>*, NLISTS> lists;
@@ -173,7 +174,7 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 						dx0 = distance(self_parts[0][j], other_parts[0][k]);
 						dx1 = distance(self_parts[1][j], other_parts[1][k]);
 						dx2 = distance(self_parts[2][j], other_parts[2][k]);
-						const float dist2 = fma(dx0, dx0, fma(dx1, dx1, sqr(dx2)));
+						const float dist2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2)));
 						if (dist2 < linklen2 && dist2 != 0.0) {
 							const auto j0 = j + myparts.first;
 							const auto k0 = k + other_pair.first;
@@ -182,7 +183,7 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 							if (atomicCAS(&id1, NO_GROUP, j0) == NO_GROUP) {
 								found_link++;
 							}
-							if (atomicCAS(&id2, NO_GROUP, j0) == NO_GROUP) {
+							if (atomicCAS(&id2, NO_GROUP, k0) == NO_GROUP) {
 								found_link++;
 							}
 							if (atomicMin(&id1, id2) != id2) {

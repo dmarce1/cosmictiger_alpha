@@ -185,7 +185,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 		iters++;
 	}
 	params_ptr->~group_param_type();
-//	tree_data_free_all();
+	tree_data_free_all();
 	CUDA_FREE(params_ptr);
 	alloc.reset();
 	auto fut = group_data_create(parts);

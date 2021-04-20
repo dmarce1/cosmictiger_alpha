@@ -172,7 +172,8 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 	auto& next_checks = params.next_checks;
 	auto& opened_checks = params.opened_checks;
 
-	const auto myrange = self.get_range();
+	auto myrange = self.get_range();
+	myrange.expand(params.link_len);
 	const auto iamleaf = self.is_leaf();
 	opened_checks.resize(0);
 	do {
