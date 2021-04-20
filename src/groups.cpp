@@ -12,13 +12,95 @@ static std::vector<gpu_groups> gpu_queue;
 static mutex_type mutex;
 static std::atomic<size_t> parts_covered;
 
+void send_groups_to_gpu() {
+	static char waiting_char[4] = { '-', '\\', '|', '/' };
+	std::sort(gpu_queue.begin(), gpu_queue.end(), [](const gpu_groups& a,const gpu_groups& b) {
+		return a.part_begin < b.part_begin;
+	});
+	std::vector<std::function<bool()>> completions;
+	const int max_oc = 16 * global().cuda.devices[0].multiProcessorCount;
+	static int num_active;
+	static int num_completed;
+	int counter = 0;
+	int max_active = 2 * max_oc;
+	timer tm;
+	num_completed = 0;
+	num_active = 0;
+	while (gpu_queue.size() || completions.size()) {
+		tm.stop();
+		if (tm.read() > 0.05) {
+			counter++;
+			printf("%c %li in queue: %i active: %i complete                        \r", waiting_char[counter % 4],
+					gpu_queue.size(), num_active, num_completed);
+			counter++;
+			tm.reset();
+		}
+		tm.start();
+		if (gpu_queue.size() && num_active + max_oc <= max_active) {
+			cudaStream_t stream = get_stream();
+			auto this_kernel = std::make_shared<std::vector<gpu_groups>>();
+			int sz = std::min(max_oc, (int) gpu_queue.size());
+			for (int i = 0; i < sz; i++) {
+				this_kernel->push_back(std::move(gpu_queue.back()));
+				gpu_queue.pop_back();
+			}
+			group_param_type** all_params;
+			unified_allocator alloc;
+			all_params = (group_param_type**) alloc.allocate(sizeof(group_param_type*) * this_kernel->size());
+			std::vector<std::function<void()>> deleters;
+			const auto sizes = get_group_list_sizes();
+			for (int i = 0; i < this_kernel->size(); i++) {
+//					printf( "Setting up %i of %i\n", i, this_kernel->size());
+				all_params[i] = (*this_kernel)[i].params;
+				all_params[i]->opened_checks.reserve(sizes.opened);
+				all_params[i]->next_checks.reserve(sizes.next);
+				deleters.push_back(all_params[i]->next_checks.to_device(stream));
+				deleters.push_back(all_params[i]->opened_checks.to_device(stream));
+				deleters.push_back(all_params[i]->checks.to_device(stream));
+			}
+			num_active += this_kernel->size();
+			auto cfunc = call_cuda_find_groups(all_params, this_kernel->size(), stream);
+			completions.push_back([cfunc,deleters, all_params, this_kernel, stream]() {
+				auto rc = cfunc();
+				if( rc.size()) {
+					num_completed += this_kernel->size();
+					num_active -= this_kernel->size();
+					for( int i = 0; i < deleters.size(); i++) {
+						deleters[i]();
+					}
+					for( int i = 0; i < rc.size(); i++) {
+						(*this_kernel)[i].promise.set_value(rc[i]);
+					}
+					unified_allocator alloc;
+					for( int i = 0; i < this_kernel->size(); i++) {
+						alloc.deallocate(all_params[i]);
+					}
+					alloc.deallocate(all_params);
+					cleanup_stream(stream);
+				}
+				return rc.size();
+			});
+		}
+		while (completions.size()) {
+			int i = 0;
+			while (i < completions.size()) {
+				if (completions[i]()) {
+					completions[i] = completions.back();
+					completions.pop_back();
+				} else {
+					i++;
+				}
+			}
+		}
+	}
+}
+
 hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool thread) {
 	group_param_type &params = *params_ptr;
 	static std::atomic<int> used_threads(0);
 	static unified_allocator alloc;
 	static const bool use_cuda = global().opts.cuda;
 	const auto myparts = get_parts();
-	int counter = 0;
 	if (use_cuda && myparts.second - myparts.first <= params.block_cutoff) {
 		group_param_type *new_params;
 		new_params = (group_param_type*) alloc.allocate(sizeof(group_param_type));
@@ -35,85 +117,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 		}
 		parts_covered += myparts.second - myparts.first;
 		if (parts_covered == params.parts.size()) {
-			static char waiting_char[4] = { '-', '\\', '|', '/' };
-			std::sort(gpu_queue.begin(), gpu_queue.end(), [](const gpu_groups& a,const gpu_groups& b) {
-				return a.part_begin < b.part_begin;
-			});
-			std::vector<std::function<bool()>> completions;
-			const int max_oc = 16 * global().cuda.devices[0].multiProcessorCount;
-			static int num_active;
-			static int num_completed;
-			int max_active = 2 * max_oc;
-			timer tm;
-			num_completed = 0;
-			num_active = 0;
-			while (gpu_queue.size() || completions.size()) {
-				tm.stop();
-				if (tm.read() > 0.05) {
-					counter++;
-					printf("%c %li in queue: %i active: %i complete                        \r", waiting_char[counter % 4],
-							gpu_queue.size(), num_active, num_completed);
-					counter++;
-					tm.reset();
-				}
-				tm.start();
-				if (gpu_queue.size() && num_active + max_oc <= max_active) {
-					cudaStream_t stream = get_stream();
-					auto this_kernel = std::make_shared<std::vector<gpu_groups>>();
-					int sz = std::min(max_oc, (int) gpu_queue.size());
-					for (int i = 0; i < sz; i++) {
-						this_kernel->push_back(std::move(gpu_queue.back()));
-						gpu_queue.pop_back();
-					}
-					group_param_type** all_params;
-					unified_allocator alloc;
-					all_params = (group_param_type**) alloc.allocate(sizeof(group_param_type*) * this_kernel->size());
-					std::vector<std::function<void()>> deleters;
-					const auto sizes = get_group_list_sizes();
-					for (int i = 0; i < this_kernel->size(); i++) {
-//					printf( "Setting up %i of %i\n", i, this_kernel->size());
-						all_params[i] = (*this_kernel)[i].params;
-						all_params[i]->opened_checks.reserve(sizes.opened);
-						all_params[i]->next_checks.reserve(sizes.next);
-						deleters.push_back(all_params[i]->next_checks.to_device(stream));
-						deleters.push_back(all_params[i]->opened_checks.to_device(stream));
-						deleters.push_back(all_params[i]->checks.to_device(stream));
-					}
-					num_active += this_kernel->size();
-					auto cfunc = call_cuda_find_groups(all_params, this_kernel->size(), stream);
-					completions.push_back([cfunc,deleters, all_params, this_kernel, stream]() {
-						auto rc = cfunc();
-						if( rc.size()) {
-							num_completed += this_kernel->size();
-							num_active -= this_kernel->size();
-							for( int i = 0; i < deleters.size(); i++) {
-								deleters[i]();
-							}
-							for( int i = 0; i < rc.size(); i++) {
-								(*this_kernel)[i].promise.set_value(rc[i]);
-							}
-							unified_allocator alloc;
-							for( int i = 0; i < this_kernel->size(); i++) {
-								alloc.deallocate(all_params[i]);
-							}
-							alloc.deallocate(all_params);
-							cleanup_stream(stream);
-						}
-						return rc.size();
-					});
-				}
-				while (completions.size()) {
-					int i = 0;
-					while (i < completions.size()) {
-						if (completions[i]()) {
-							completions[i] = completions.back();
-							completions.pop_back();
-						} else {
-							i++;
-						}
-					}
-				}
-			}
+			send_groups_to_gpu();
 		}
 		return std::move(fut);
 
@@ -253,6 +257,9 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 			const auto myparts = self.get_parts();
 			self.group_flag() = false;
 			parts_covered += myparts.second - myparts.first;
+			if (parts_covered == params.parts.size()) {
+				send_groups_to_gpu();
+			}
 			return hpx::make_ready_future(false);
 		}
 	}
