@@ -177,15 +177,14 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 					dx1 = distance(self_parts[1][j], other_parts[1][k]);
 					dx2 = distance(self_parts[2][j], other_parts[2][k]);
 					const float dist2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2)));
-					if (dist2 < linklen2 && dist2 != 0.0) {
+					if (dist2 < linklen2) {
 						const auto j0 = j + myparts.first;
 						const auto k0 = k + other_pair.first;
 						auto& id1 = parts.group(j0);
 						const auto id2 = parts.group(k0);
-						if (atomicCAS(&id1, NO_GROUP, j0) == NO_GROUP) {
-							rc++;
-						}
-						if (atomicMin(&id1, id2) != id1) {
+						const auto oldid1 = id1;
+						id1 = min((id1 == NO_GROUP) ? j0 : id1, id2);
+						if (oldid1 != id1) {
 							rc++;
 						}
 					}
@@ -204,18 +203,15 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 						dx1 = distance(self_parts[1][j], self_parts[1][k]);
 						dx2 = distance(self_parts[2][j], self_parts[2][k]);
 						const float dist2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2)));
-						if (dist2 < linklen2 && dist2 != 0.0) {
+						if (dist2 < linklen2 && j != k) {
 							const auto j0 = j + myparts.first;
 							const auto k0 = k + myparts.first;
 							auto& id1 = parts.group(j0);
 							const auto id2 = parts.group(k0);
-							if (atomicCAS(&id1, NO_GROUP, j0) == NO_GROUP) {
+							const auto oldid1 = id1;
+							id1 = min((id1 == NO_GROUP) ? j0 : id1, id2);
+							if (oldid1 != id1) {
 								rc++;
-								found_link++;
-							}
-							if (atomicMin(&id1, id2) != id1) {
-								rc++;
-								found_link++;
 							}
 						}
 					}
