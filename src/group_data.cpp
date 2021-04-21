@@ -44,15 +44,18 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	std::unordered_map<group_t, int> counts;
 	for (int j = 0; j < parts.size(); j++) {
 		const auto id = parts.group(j);
-		if (id != NO_GROUP && id != last1 && id != last2) {
-			if (counts.find(id) == counts.end()) {
-				counts[id] = 0;
+		if (id != NO_GROUP) {
+			auto iter = counts.find(id);
+			if (iter == counts.end()) {
+				counts[id] = 1;
+				ngroups++;
+			} else {
+				iter->second++;
 			}
-			counts[id]++;
 		}
-		last2 = last1;
-		last1 = id;
 	}
+	printf( "%i groups initially\n", ngroups);
+	ngroups = 0;
 	for (int i = 0; i < parts.size(); i += parts_per_thread) {
 		const auto func = [i, &parts,&counts,parts_per_thread]() {
 			const auto jend = std::min(parts.size(),i+parts_per_thread);

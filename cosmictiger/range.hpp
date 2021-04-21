@@ -7,13 +7,13 @@
 #define NCORNERS (1<<NDIM)
 
 struct range {
-	array<double, NDIM> begin;
-	array<double, NDIM> end;
+	array<float, NDIM> begin;
+	array<float, NDIM> end;
 
 	inline bool contains(std::array<fixed32, NDIM> v) const {
 		bool rc = true;
 		for (int dim = 0; dim < NDIM; dim++) {
-			if (v[dim].to_double() < begin[dim] || v[dim].to_double() > end[dim]) {
+			if (v[dim].to_float() < begin[dim] || v[dim].to_float() > end[dim]) {
 				rc = false;
 				break;
 			}
@@ -26,7 +26,7 @@ struct range {
 		arc & end;
 	}
 	CUDA_EXPORT
-	inline void expand(double len) {
+	inline void expand(float len) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			begin[dim] -= len;
 			end[dim] += len;
@@ -42,9 +42,9 @@ struct range {
 			bool this_rc;
 			if (min(end[dim], other.end[dim]) - max(begin[dim], other.begin[dim]) >= 0.0) {
 				this_rc = true;
-			} else if (min(end[dim] + 1.0, other.end[dim]) - max(begin[dim] + 1.0, other.begin[dim]) >= 0.0) {
+			} else if (min(end[dim] + 1.0f, other.end[dim]) - max(begin[dim] + 1.0f, other.begin[dim]) >= 0.0) {
 				this_rc = true;
-			} else if (min(end[dim] - 1.0, other.end[dim]) - max(begin[dim] - 1.0, other.begin[dim]) >= 0.0) {
+			} else if (min(end[dim] - 1.0f, other.end[dim]) - max(begin[dim] - 1.0f, other.begin[dim]) >= 0.0) {
 				this_rc = true;
 			} else {
 				this_rc = false;

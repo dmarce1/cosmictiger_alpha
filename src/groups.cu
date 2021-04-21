@@ -50,7 +50,9 @@ __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
 		shmem.depth = param.depth;
 
 	}
+	__syncwarp();
 	const bool this_rc = cuda_find_groups(param.self);
+	__syncwarp();
 	if (tid == 0) {
 		//	param.call_destructors();
 		atomicMax(&sizes.opened, shmem.opened_checks.capacity());
@@ -73,7 +75,6 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 	auto& parts = shmem.parts;
 	auto& next_checks = shmem.next_checks;
 	auto& opened_checks = shmem.opened_checks;
-	bool rc;
 
 	auto myrange = self.get_range();
 	myrange.expand(shmem.link_len);
@@ -86,6 +87,7 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 	lists[NEXT] = &next_checks;
 	lists[OPEN] = &opened_checks;
 	int mylist;
+	int rc;
 	do {
 		next_checks.resize(0);
 		const int cimax = ((checks.size() - 1) / warpSize + 1) * warpSize;
@@ -94,7 +96,7 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 			mylist = NOLIST;
 			if (i < checks.size()) {
 				const int intersects = myrange.intersects(checks[i].get_range());
-				const int other_flag = checks[i].last_group_flag();
+				const int other_flag = int(bool(checks[i].last_group_flag()));
 				const int use = other_flag * intersects;
 				const int isleaf = checks[i].is_leaf();
 				mylist = use * ((1 - isleaf) * NEXT) + (1 - use) * NOLIST;
@@ -154,42 +156,65 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 			}
 		}
 
-		int found_link, iters;
-		iters = 0;
+		int found_link;
+		rc = 0;
+		for (int i = 0; i < checks.size(); i++) {
+			if (checks[i] == self) {
+				continue;
+			}
+			const auto other_pair = checks[i].get_parts();
+			const int other_size = other_pair.second - other_pair.first;
+			for (int k = tid; k < other_size; k += warpSize) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					other_parts[dim][k] = parts.pos(dim, k + other_pair.first);
+				}
+			}
+			__syncwarp();
+			for (int j = tid; j < mysize; j += warpSize) {
+				for (int k = 0; k != other_size; k++) {
+					float dx0, dx1, dx2;
+					dx0 = distance(self_parts[0][j], other_parts[0][k]);
+					dx1 = distance(self_parts[1][j], other_parts[1][k]);
+					dx2 = distance(self_parts[2][j], other_parts[2][k]);
+					const float dist2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2)));
+					if (dist2 < linklen2 && dist2 != 0.0) {
+						const auto j0 = j + myparts.first;
+						const auto k0 = k + other_pair.first;
+						auto& id1 = parts.group(j0);
+						const auto id2 = parts.group(k0);
+						if (atomicCAS(&id1, NO_GROUP, j0) == NO_GROUP) {
+							rc++;
+						}
+						if (atomicMin(&id1, id2) != id1) {
+							rc++;
+						}
+					}
+				}
+			}
+			__syncwarp();
+		}
 		do {
 			found_link = 0;
 			for (int i = 0; i < checks.size(); i++) {
-				const auto other_pair = checks[i].get_parts();
-				const int other_size = other_pair.second - other_pair.first;
-				for (int k = tid; k < other_size; k += warpSize) {
-					for (int dim = 0; dim < NDIM; dim++) {
-						other_parts[dim][k] = parts.pos(dim, k + other_pair.first);
-					}
-				}
 				__syncwarp();
 				for (int j = tid; j < mysize; j += warpSize) {
-					for (int k = 0; k != other_size; k++) {
-
+					for (int k = 0; k != mysize; k++) {
 						float dx0, dx1, dx2;
-						dx0 = distance(self_parts[0][j], other_parts[0][k]);
-						dx1 = distance(self_parts[1][j], other_parts[1][k]);
-						dx2 = distance(self_parts[2][j], other_parts[2][k]);
+						dx0 = distance(self_parts[0][j], self_parts[0][k]);
+						dx1 = distance(self_parts[1][j], self_parts[1][k]);
+						dx2 = distance(self_parts[2][j], self_parts[2][k]);
 						const float dist2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2)));
 						if (dist2 < linklen2 && dist2 != 0.0) {
 							const auto j0 = j + myparts.first;
-							const auto k0 = k + other_pair.first;
+							const auto k0 = k + myparts.first;
 							auto& id1 = parts.group(j0);
-							auto& id2 = parts.group(k0);
+							const auto id2 = parts.group(k0);
 							if (atomicCAS(&id1, NO_GROUP, j0) == NO_GROUP) {
+								rc++;
 								found_link++;
 							}
-							if (atomicCAS(&id2, NO_GROUP, k0) == NO_GROUP) {
-								found_link++;
-							}
-							if (atomicMin(&id1, id2) != id2) {
-								found_link++;
-							}
-							if (atomicMin(&id2, id1) != id1) {
+							if (atomicMin(&id1, id2) != id1) {
+								rc++;
 								found_link++;
 							}
 						}
@@ -197,9 +222,8 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 				}
 				__syncwarp();
 			}
-			iters++;
 		} while (__reduce_add_sync(FULL_MASK, found_link) != 0);
-		rc = iters > 1;
+		rc = __reduce_add_sync(FULL_MASK, rc) != 0;
 	} else {
 		if (shmem.checks.size()) {
 			auto mychildren = self.get_children();
@@ -221,7 +245,9 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 			rc = false;
 		}
 	}
-	self.group_flag() = rc;
-	return rc;
+	if (tid == 0) {
+		self.group_flag() = rc != 0;
+	}
+	return rc != 0;
 
 }
