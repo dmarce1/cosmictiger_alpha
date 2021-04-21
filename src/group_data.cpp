@@ -54,7 +54,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 			}
 		}
 	}
-	printf( "%li groups initially\n", ngroups);
+	printf("%li groups initially\n", ngroups);
 	ngroups = 0;
 	for (int i = 0; i < parts.size(); i += parts_per_thread) {
 		const auto func = [i, &parts,&counts,parts_per_thread]() {
@@ -86,6 +86,9 @@ hpx::future<void> group_data_create(particle_set& parts) {
 			}
 			info.ravg = 0.0;
 			info.rmax = 0.0;
+			info.sx = 0.0;
+			info.sy = 0.0;
+			info.sz = 0.0;
 			info.qxx = 0.0;
 			info.qxy = 0.0;
 			info.qxz = 0.0;
@@ -94,7 +97,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 			info.qzz = 0.0;
 			info.r2 = 0.0;
 			info.id = i->first;
-			entries.push_back(info);
+			entries.push_back(std::move(info));
 			ngroups++;
 			if (ngroups == table_size * 2) {
 				printf("Rehashing to table_size %i\n", 2 * table_size);
@@ -106,7 +109,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 					auto& entries = old_table[i];
 					for (int j = 0; j < entries.size(); j++) {
 						int index = entries[j].id % table_size;
-						table[index].push_back(entries[j]);
+						table[index].push_back(std::move(entries[j]));
 					}
 				}
 			}
@@ -197,10 +200,15 @@ hpx::future<void> group_data_create(particle_set& parts) {
 							constrain_range(dx);
 							constrain_range(dy);
 							constrain_range(dz);
+							std::array<float,NDIM> v;
 							for( int dim = 0; dim < NDIM; dim++) {
 								const float dv = parts.vel(dim,j) - entry.vel[dim];
+								v[dim] = dv;
 								entry.vdisp[dim] += dv * dv;
 							}
+							entry.sx += dy * v[2] - dz * v[1];
+							entry.sy -= dx * v[2] - dz * v[0];
+							entry.sz += dx * v[1] - dy * v[0];
 							const auto r = sqrt(fmaf(dx,dx,fmaf(dy,dy,sqr(dz))));
 							entry.qxx += dx * dx;
 							entry.qxy += dx * dy;
@@ -213,9 +221,9 @@ hpx::future<void> group_data_create(particle_set& parts) {
 							entry.radii.push_back(r);
 							if( lastid != NO_GROUP) {
 								if(entry.parents.find(lastid) == entry.parents.end()) {
-									entry.parents.insert(std::make_pair(lastid,std::make_shared<int>(0)));
+									entry.parents[lastid] = 0;
 								}
-								(*(entry.parents[lastid]))++;
+								entry.parents[lastid]++;
 							}
 						}
 					}
@@ -251,6 +259,9 @@ hpx::future<void> group_data_create(particle_set& parts) {
 						}
 						const auto cinv = 1.0 / entry.count;
 						entry.r2 *= cinv;
+						entry.sx *= cinv;
+						entry.sy *= cinv;
+						entry.sz *= cinv;
 						entry.qxx *= cinv;
 						entry.qxy *= cinv;
 						entry.qxz *= cinv;
@@ -258,7 +269,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 						entry.qyz *= cinv;
 						entry.qzz *= cinv;
 						entry.ravg *= cinv;
-						entry.radii = std::vector<float>();
+						entry.radii = decltype(entry.radii)(0);
 					}
 				}
 			};
@@ -286,12 +297,16 @@ void group_data_save(double scale, int filenum) {
 	float quad_avg = 0.0;
 	float quad_max = 0.0;
 	float quad_med = 0.0;
+	float sz_avg = 0.0;
+	float sz_max = 0.0;
+	float sz_med = 0.0;
 	int max_npar = 0;
-	std::vector<int> npars;
-	std::vector<float> reffs;
-	std::vector<float> quads;
-	std::vector<float> vdisps;
-	std::vector<int> sizes;
+	std::vector<int, my_allocator<int>> npars;
+	std::vector<float, my_allocator<float>> reffs;
+	std::vector<float, my_allocator<float>> quads;
+	std::vector<float, my_allocator<float>> szs;
+	std::vector<float, my_allocator<float>> vdisps;
+	std::vector<int, my_allocator<float>> sizes;
 	std::string filename = std::string("groups.") + std::to_string(filenum) + std::string(".dat");
 	FILE* fp = fopen(filename.c_str(), "wb");
 	if (fp == NULL) {
@@ -332,16 +347,11 @@ void group_data_save(double scale, int filenum) {
 			float vdz = entry.vdisp[2];
 			float vdisp = sqrt(fmaf(vdx, vdx, fmaf(vdy, vdy, sqr(vdz))));
 			const auto r2 = entry.r2;
-			entry.qxx /= r2;
-			entry.qxy /= r2;
-			entry.qxz /= r2;
-			entry.qyy /= r2;
-			entry.qyz /= r2;
-			entry.qzz /= r2;
 			float quad = std::sqrt(entry.r2) * std::pow(2.0, 1.0 / 3.0) / entry.rmax;
 			quad_max = std::max(quad, quad_max);
 			quad_avg += quad;
 			quads.push_back(quad);
+			szs.push_back(entry.sz);
 			max_size = std::max(max_size, entry.count);
 			max_reff = std::max(max_reff, entry.reff);
 			max_vdisp = std::max(vdisp, max_vdisp);
@@ -365,6 +375,9 @@ void group_data_save(double scale, int filenum) {
 			fwrite(&entry.ravg, sizeof(float), 1, fp);
 			fwrite(&entry.reff, sizeof(float), 1, fp);
 			fwrite(&entry.r2, sizeof(float), 1, fp);
+			fwrite(&entry.sx, sizeof(float), 1, fp);
+			fwrite(&entry.sy, sizeof(float), 1, fp);
+			fwrite(&entry.sz, sizeof(float), 1, fp);
 			fwrite(&entry.qxx, sizeof(float), 1, fp);
 			fwrite(&entry.qxy, sizeof(float), 1, fp);
 			fwrite(&entry.qxz, sizeof(float), 1, fp);
@@ -388,20 +401,24 @@ void group_data_save(double scale, int filenum) {
 		avg_epot /= numparts;
 		avg_npar /= numgroups;
 		quad_avg /= numgroups;
+		sz_avg /= numgroups;
 		auto fut1 = hpx::async([&]() {std::sort(npars.begin(), npars.end());});
 		auto fut2 = hpx::async([&]() {std::sort(reffs.begin(), reffs.end());});
 		auto fut3 = hpx::async([&]() {std::sort(vdisps.begin(), vdisps.end());});
 		auto fut4 = hpx::async([&]() {std::sort(sizes.begin(), sizes.end());});
 		auto fut5 = hpx::async([&]() {std::sort(quads.begin(), quads.end());});
+		auto fut6 = hpx::async([&]() {std::sort(szs.begin(), szs.end());});
 		fut1.get();
 		fut2.get();
 		fut3.get();
 		fut4.get();
 		fut5.get();
+		fut6.get();
 		int med_npar = npars[numgroups / 2];
 		float med_reff = reffs[numgroups / 2];
 		float med_vdisp = vdisps[numgroups / 2];
 		quad_med = quads[numgroups / 2];
+		sz_med = szs[numgroups / 2];
 		int med_size = sizes[numgroups / 2];
 		printf("Group Statistics for %i groups\n", numgroups);
 		printf("\t%.3f%% of particles are in a group\n", 100.0 * numparts / global().opts.nparts);
@@ -414,6 +431,9 @@ void group_data_save(double scale, int filenum) {
 		printf("\tmaximum qzz   : %e\n", quad_max);
 		printf("\taverage qzz   : %e\n", quad_avg);
 		printf("\tmedian  qzz   : %e\n", quad_med);
+		printf("\tmaximum sz   : %e\n", sz_max);
+		printf("\taverage sz   : %e\n", sz_avg);
+		printf("\tmedian  sz   : %e\n", sz_med);
 		printf("\tmaximum velocity dispersion : %e\n", max_vdisp);
 		printf("\taverage velocity dispersion : %e\n", avg_vdisp);
 		printf("\tmedian  velocity dispersion : %e\n", med_vdisp);

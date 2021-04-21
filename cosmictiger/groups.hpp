@@ -14,6 +14,67 @@
 
 #include <map>
 
+template<typename T>
+class my_allocator: public std::allocator<T> {
+public:
+	typedef size_t size_type;
+	typedef T* pointer;
+	typedef const T* const_pointer;
+	typedef T value_type;
+
+	template<typename _Tp1>
+	struct rebind {
+		typedef my_allocator<_Tp1> other;
+	};
+
+	pointer allocate(size_type n, const void *hint = 0) {
+		unified_allocator alloc;
+		return (pointer) alloc.allocate(n * sizeof(T));
+	}
+
+	void deallocate(pointer p, size_type n) {
+		unified_allocator alloc;
+		alloc.deallocate(p);
+	}
+
+	my_allocator() throw () :
+			std::allocator<T>() {
+	}
+	my_allocator(const my_allocator &a) throw () :
+			std::allocator<T>(a) {
+	}
+	template<class U>
+	my_allocator(const my_allocator<U> &a) throw () :
+			std::allocator<T>(a) {
+	}
+	~my_allocator() throw () {
+	}
+};
+
+template<class T>
+struct atomic_wrapper: public std::atomic<T> {
+	atomic_wrapper(atomic_wrapper&& other) {
+		auto& ref = (std::atomic<T>&)(*this);
+		ref = (T) other;
+	}
+	atomic_wrapper(const atomic_wrapper& other) {
+		auto& ref = (std::atomic<T>&)(*this);
+		ref = (T) other;
+	}
+	atomic_wrapper& operator=(atomic_wrapper&& other) {
+		auto& ref = (std::atomic<T>&)(*this);
+		ref = (T) other;
+		return *this;
+	}
+	atomic_wrapper() {
+	}
+	atomic_wrapper& operator=(T value) {
+		auto& ref = (std::atomic<T>&)(*this);
+		ref = value;
+		return *this;
+	}
+};
+
 struct group_info_t {
 	group_t id;
 	array<double, NDIM> pos;
@@ -27,22 +88,22 @@ struct group_info_t {
 	float ravg;
 	float reff;
 	float qxx, qxy, qxz, qyy, qyz, qzz;
-	std::vector<float> radii;
-	std::map<group_t, std::shared_ptr<int>> parents;
-	std::shared_ptr<std::atomic<int>> mtx;
+	float sx, sy, sz;
+	std::vector<float, my_allocator<float>> radii;
+	std::map<group_t, int, std::less<group_t>, my_allocator<std::pair<const group_t, int>>> parents;
+	atomic_wrapper<int> mtx;
 	group_info_t() {
-		mtx = std::make_shared<std::atomic<int>>(0);
+		mtx = 0;
 	}
 	void lock() {
-		while ((*mtx)++ != 0) {
-			(*mtx)--;
+		while ((mtx)++ != 0) {
+			(mtx)--;
 		}
 	}
 	void unlock() {
-		(*mtx)--;
+		(mtx)--;
 	}
 };
-
 
 struct group_list_sizes {
 	int opened;
@@ -65,8 +126,6 @@ struct group_param_type {
 	bool first_round;
 	int depth;
 	size_t block_cutoff;
-
-
 
 	CUDA_EXPORT
 	void call_destructors() {
@@ -96,7 +155,7 @@ std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** para
 struct groups_shmem {
 	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> others;
 	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> self_parts;
-	array<int,GROUP_BUCKET_SIZE> other_indexes;
+	array<int, GROUP_BUCKET_SIZE> other_indexes;
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> opened_checks;
 	stack_vector<tree_ptr> checks;

@@ -123,6 +123,17 @@ public:
 //      reserve(1);
 	}
 	CUDA_EXPORT
+	inline vector(const vector &&other) {
+		THREAD;
+		if (tid == 0) {
+			dontfree = false;
+			ptr = nullptr;
+			cap = 0;
+			sz = 0;
+		}
+		swap(other);
+	}
+	CUDA_EXPORT
 	inline vector(const vector &other) {
 		THREAD;
 		BLOCK;
