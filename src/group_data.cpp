@@ -54,7 +54,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 			}
 		}
 	}
-	printf( "%i groups initially\n", ngroups);
+	printf( "%li groups initially\n", ngroups);
 	ngroups = 0;
 	for (int i = 0; i < parts.size(); i += parts_per_thread) {
 		const auto func = [i, &parts,&counts,parts_per_thread]() {

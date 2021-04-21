@@ -96,6 +96,7 @@ std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** para
 struct groups_shmem {
 	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> others;
 	array<array<fixed32, GROUP_BUCKET_SIZE>, NDIM> self_parts;
+	array<int,GROUP_BUCKET_SIZE> other_indexes;
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> opened_checks;
 	stack_vector<tree_ptr> checks;

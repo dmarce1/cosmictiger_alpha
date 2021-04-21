@@ -71,13 +71,14 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 	groups_shmem& shmem = *((groups_shmem*) shmem_ptr);
 	auto& self_parts = shmem.self_parts;
 	auto& other_parts = shmem.others;
+	auto& other_indexes = shmem.other_indexes;
 	auto& checks = shmem.checks;
 	auto& parts = shmem.parts;
 	auto& next_checks = shmem.next_checks;
 	auto& opened_checks = shmem.opened_checks;
 
 	auto myrange = self.get_range();
-	myrange.expand(shmem.link_len);
+	myrange.expand(1.01f * shmem.link_len);
 	const auto iamleaf = self.is_leaf();
 	opened_checks.resize(0);
 	array<vector<tree_ptr>*, NLISTS> lists;
@@ -156,7 +157,8 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 			}
 		}
 
-		int found_link;
+		int found_link, index, count, other_count;
+		bool found;
 		rc = 0;
 		for (int i = 0; i < checks.size(); i++) {
 			if (checks[i] == self) {
@@ -164,14 +166,43 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 			}
 			const auto other_pair = checks[i].get_parts();
 			const int other_size = other_pair.second - other_pair.first;
-			for (int k = tid; k < other_size; k += warpSize) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					other_parts[dim][k] = parts.pos(dim, k + other_pair.first);
+			const int other_max = ((other_size - 1) / warpSize + 1) * warpSize;
+			other_count = 0;
+			array<fixed32, NDIM> x;
+			for (int k = tid; k < other_max; k += warpSize) {
+				index = 0;
+				found = false;
+				if (k < other_size) {
+					const auto k0 = k + other_pair.first;
+					for (int dim = 0; dim < NDIM; dim++) {
+						x[dim] = parts.pos(dim, k0);
+					}
+					if (myrange.contains(x)) {
+						index = 1;
+						found = true;
+					}
 				}
+				for (int P = 1; P < warpSize; P *= 2) {
+					const auto tmp = __shfl_up_sync(FULL_MASK, index, P);
+					if (tid >= P) {
+						index += tmp;
+					}
+				}
+				count = __shfl_sync(FULL_MASK, index, warpSize - 1);
+				const auto tmp = __shfl_up_sync(FULL_MASK, index, 1);
+				index = (tid > 0) ? tmp : 0;
+				index += other_count;
+				if (found) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						other_parts[dim][index] = x[dim];
+					}
+					other_indexes[index] = k;
+				}
+				other_count += count;
 			}
 			__syncwarp();
 			for (int j = tid; j < mysize; j += warpSize) {
-				for (int k = 0; k != other_size; k++) {
+				for (int k = 0; k != other_count; k++) {
 					float dx0, dx1, dx2;
 					dx0 = distance(self_parts[0][j], other_parts[0][k]);
 					dx1 = distance(self_parts[1][j], other_parts[1][k]);
@@ -179,14 +210,12 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 					const float dist2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2)));
 					if (dist2 < linklen2) {
 						const auto j0 = j + myparts.first;
-						const auto k0 = k + other_pair.first;
+						const auto k0 = other_indexes[k] + other_pair.first;
 						auto& id1 = parts.group(j0);
 						const auto id2 = parts.group(k0);
 						const auto oldid1 = id1;
 						id1 = min((id1 == NO_GROUP) ? j0 : id1, id2);
-						if (oldid1 != id1) {
-							rc++;
-						}
+						rc += (oldid1 != id1);
 					}
 				}
 			}
@@ -210,9 +239,7 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 							const auto id2 = parts.group(k0);
 							const auto oldid1 = id1;
 							id1 = min((id1 == NO_GROUP) ? j0 : id1, id2);
-							if (oldid1 != id1) {
-								rc++;
-							}
+							rc += (oldid1 != id1);
 						}
 					}
 				}

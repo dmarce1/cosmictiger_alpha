@@ -10,10 +10,22 @@ struct range {
 	array<float, NDIM> begin;
 	array<float, NDIM> end;
 
-	inline bool contains(std::array<fixed32, NDIM> v) const {
+	CUDA_EXPORT
+	inline bool contains(array<fixed32, NDIM> v) const {
 		bool rc = true;
 		for (int dim = 0; dim < NDIM; dim++) {
-			if (v[dim].to_float() < begin[dim] || v[dim].to_float() > end[dim]) {
+			const auto pos = v[dim].to_float();
+			bool this_rc;
+			if (pos >= begin[dim] && pos <= end[dim]) {
+				this_rc = true;
+			} else if (pos + 1.f >= begin[dim] && pos + 1.f <= end[dim]) {
+				this_rc = true;
+			} else if (pos - 1.f >= begin[dim] && pos - 1.f <= end[dim]) {
+				this_rc = true;
+			} else {
+				this_rc = false;
+			}
+			if (!this_rc) {
 				rc = false;
 				break;
 			}
