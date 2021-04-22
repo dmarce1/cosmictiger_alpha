@@ -58,7 +58,7 @@ struct sort_params {
 
 	sort_params() {
 		depth = -1;
-		group_sort = true;
+		group_sort = false;
 	}
 
 	bool iamroot() const {

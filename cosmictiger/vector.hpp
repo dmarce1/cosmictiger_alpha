@@ -190,11 +190,11 @@ public:
 		THREAD;
 		BLOCK;
 		if (new_cap > cap) {
-			int i = sizeof(size_t);
-			while ((i - sizeof(size_t)) / sizeof(T) < new_cap) {
+			int i = 1;
+			while ((i) / sizeof(T) < new_cap) {
 				i *= 2;
 			}
-			new_cap = (i - sizeof(size_t)) / sizeof(T);
+			new_cap = (i) / sizeof(T);
 #ifdef __CUDA_ARCH__
 			//       printf( "INcreasing capacity from %i to %i\n", cap, new_cap);
 #endif

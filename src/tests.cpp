@@ -83,6 +83,7 @@ void kick_test() {
 		timer tm_sort, tm_kick, tm_cleanup;
 		tm_sort.start();
 		sort_params params;
+		params.group_sort = false;
 		params.theta = global().opts.theta;
 		params.min_rung = 0;
 		tree_ptr root_ptr;
