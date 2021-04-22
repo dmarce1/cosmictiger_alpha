@@ -39,24 +39,37 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	table.resize(table_size);
 	group_t last1, last2;
 	last1 = last2 = NO_GROUP;
-	std::unordered_map<group_t, int, std::hash<group_t>, std::equal_to<group_t>, my_allocator<std::pair<group_t, int>>> counts;
-	counts.max_load_factor(10);
 	timer tm;
 	tm.start();
-	for (int j = 0; j < parts.size(); j++) {
-		const auto id = parts.group(j);
-		if (id != NO_GROUP) {
-			auto iter = counts.find(id);
-			if (iter == counts.end()) {
-				counts[id] = 1;
-				ngroups++;
-			} else {
-				iter->second++;
+	mutex_type mtx;
+	vector<uint8_t> counts(parts.size());
+	for (size_t i = 0; i < parts.size(); i += parts_per_thread) {
+		const auto func = [i,&parts,parts_per_thread,table_size, &table,&mtx, &counts]() {
+			const auto jend = std::min(i + parts_per_thread,parts.size());
+			for( size_t j = i; j < jend; j++) {
+				counts[j] = 0;
 			}
-		}
+		};
+		futs.push_back(hpx::async(func));
 	}
+	hpx::wait_all(futs.begin(), futs.end());
+	futs.resize(0);
+	for (size_t i = 0; i < parts.size(); i += parts_per_thread) {
+		const auto func = [i,&parts,parts_per_thread,table_size, &table,&mtx, &counts]() {
+			const auto jend = std::min(i + parts_per_thread,parts.size());
+			for( size_t j = i; j < jend; j++) {
+				const auto id = parts.group(j);
+				if( id != NO_GROUP ) {
+					counts[id] = std::min(255,counts[id]+1);
+				}
+			}
+		};
+		futs.push_back(hpx::async(func));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+	futs.resize(0);
 	tm.stop();
-	printf( "Groups phase 1 took %e s\n", tm.read());
+	printf("Groups phase 1 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	ngroups = 0;
@@ -75,13 +88,13 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	tm.stop();
-	printf( "Groups phase 2 took %e s\n", tm.read());
+	printf("Groups phase 2 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	futs.resize(0);
-	for (auto i = counts.begin(); i != counts.end(); i++) {
-		if (i->second >= MIN_GROUP_SIZE) {
-			int index = i->first % table_size;
+	for (size_t i = 0; i < counts.size(); i++) {
+		if (counts[i] >= MIN_GROUP_SIZE) {
+			int index = i % table_size;
 			auto& entries = table[index];
 			group_info_t info;
 			info.count = 0;
@@ -104,7 +117,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 			info.qyz = 0.0;
 			info.qzz = 0.0;
 			info.r2 = 0.0;
-			info.id = i->first;
+			info.id = i;
 			entries.push_back(std::move(info));
 			ngroups++;
 			if (ngroups == table_size * 2) {
@@ -125,7 +138,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	counts = decltype(counts)();
 	tm.stop();
-	printf( "Groups phase 3 took %e s\n", tm.read());
+	printf("Groups phase 3 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	futs.resize(0);
@@ -172,7 +185,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	tm.stop();
-	printf( "Groups phase 4 took %e s\n", tm.read());
+	printf("Groups phase 4 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	for (int i = 0; i < table.size(); i++) {
@@ -188,7 +201,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		}
 	}
 	tm.stop();
-	printf( "Groups phase 5 took %e s\n", tm.read());
+	printf("Groups phase 5 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	futs.resize(0);
@@ -208,7 +221,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 							const auto constrain_range = [](double& r) {
 								if( r > 0.5 ) {
 									r -= 1.0;
-								} else if(r <= -0.5 ) {
+								} else if(r < -0.5 ) {
 									r += 1.0;
 								}
 							};
@@ -238,6 +251,9 @@ hpx::future<void> group_data_create(particle_set& parts) {
 							entry.qzz += dz * dz;
 							entry.r2 += r*r;
 							entry.rmax = std::max(entry.rmax,r);
+							if( entry.radii.capacity() == 0 ) {
+								entry.radii.reserve(entry.count);
+							}
 							entry.radii.push_back(r);
 							if( lastid != NO_GROUP) {
 								if(entry.parents.find(lastid) == entry.parents.end()) {
@@ -247,9 +263,6 @@ hpx::future<void> group_data_create(particle_set& parts) {
 							}
 						}
 					}
-					if( !found) {
-						id = NO_GROUP;
-					}
 				}
 			}
 		};
@@ -257,7 +270,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	tm.stop();
-	printf( "Groups phase 6 took %e s\n", tm.read());
+	printf("Groups phase 6 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 
@@ -301,7 +314,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		hpx::wait_all(futs.begin(), futs.end());
 	});
 	tm.stop();
-	printf( "Groups phase 7 took %e s\n", tm.read());
+	printf("Groups phase 7 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	return fut;

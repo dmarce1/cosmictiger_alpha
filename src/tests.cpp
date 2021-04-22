@@ -76,6 +76,7 @@ void kick_test() {
 	tree::cuda_set_kick_params(parts_ptr);
 	timer ttime;
 	std::vector<double> timings;
+	tree_data_initialize_kick();
 	for (int i = 0; i < NKICKS + 1; i++) {
 		printf("Kick %i\n", i);
 		ttime.start();
@@ -90,7 +91,6 @@ void kick_test() {
 
 		root_ptr.dindex = 0;
 		params.tptr = root_ptr;
-		tree_data_initialize_kick();
 		root.sort(params);
 		tm_sort.stop();
 		tm_kick.start();

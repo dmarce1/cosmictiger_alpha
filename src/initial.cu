@@ -174,7 +174,7 @@ void initial_conditions(particle_set& parts) {
 	auto vel_destroy = vel_k->to_device();
 #endif
 
-	generate_random_normals<<<32,32>>>(rands, N3, 1234);
+	generate_random_normals<<<32,32>>>(rands, N3, time(NULL));
 	CUDA_CHECK(cudaDeviceSynchronize());
 
 	printf("\tComputing over/under density\n");

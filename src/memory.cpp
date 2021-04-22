@@ -145,11 +145,15 @@ void* unified_allocator::allocate(size_t sz) {
 void unified_allocator::deallocate(void *ptr) {
 	//CUDA_FREE(ptr);
 	std::lock_guard<mutex_type> lock(mtx);
-	if (delete_indexes.find(ptr) == delete_indexes.end()) {
+#ifndef NDEBUG
+	auto iter = delete_indexes.find(ptr);
+	if (iter == delete_indexes.end()) {
 		printf("attempted to free invalid unified pointer\n");
 		abort();
 	}
+#endif
 	const auto index = delete_indexes[ptr];
+	delete_indexes.erase(ptr);
 	allocated -= (1 << index);
 	freelist[index].push(ptr);
 }

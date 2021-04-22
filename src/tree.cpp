@@ -393,7 +393,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		size_t dummy, total_mem;
 		CUDA_CHECK(cudaMemGetInfo(&dummy, &total_mem));
 		total_mem /= 8;
-		size_t used_mem = (sizeof(rung_t) + NDIM * sizeof(float) + sizeof(fixed32) * NDIM) * particles->size();
+		size_t used_mem = (sizeof(rung_t) + NDIM * sizeof(float) + sizeof(fixed32) * NDIM) * particles->size()
+				+ tree_data_bytes_used();
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
 		const int block_count = oversubscription * global().cuda_kick_occupancy
 				* global().cuda.devices[0].multiProcessorCount + 0.5;

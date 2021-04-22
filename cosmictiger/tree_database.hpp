@@ -10,6 +10,8 @@ class tree;
 struct kick_params_type;
 struct group_param_type;
 
+size_t tree_data_bytes_used();
+
 struct tree_ptr {
 	int dindex;CUDA_EXPORT
 	inline bool operator==(const tree_ptr &other) const {

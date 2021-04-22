@@ -104,6 +104,36 @@ void tree_data_free_all() {
 	free_if_needed(&gpu_tree_data_.last_group_flags);
 }
 
+size_t tree_data_bytes_used() {
+	size_t use = 0;
+	if (gpu_tree_data_.data) {
+		use += sizeof(tree_data_t);
+	}
+	if (gpu_tree_data_.parts) {
+		use += sizeof(pair<size_t, size_t> );
+	}
+	if (gpu_tree_data_.multi) {
+		use += sizeof(multipole_pos);
+	}
+	if (gpu_tree_data_.ranges) {
+		use += sizeof(range);
+	}
+	if (gpu_tree_data_.active_nodes) {
+		use += sizeof(size_t);
+	}
+	if (gpu_tree_data_.active_parts) {
+		use += sizeof(size_t);
+	}
+	if (gpu_tree_data_.group_flags) {
+		use += sizeof(int8_t);
+	}
+	if (gpu_tree_data_.last_group_flags) {
+		use += sizeof(int8_t);
+	}
+	use *= gpu_tree_data_.nchunks * gpu_tree_data_.chunk_size;
+	return use;
+}
+
 void tree_database_reset_group_flags() {
 	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
 		gpu_tree_data_.group_flags[i] = 1;
