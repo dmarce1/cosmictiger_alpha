@@ -29,8 +29,6 @@ void group_data_destroy() {
 }
 
 hpx::future<void> group_data_create(particle_set& parts) {
-	timer tm;
-	tm.start();
 	auto& table = group_table();
 	auto& table_size = group_table_size();
 	const int nthreads = 2 * hpx::thread::hardware_concurrency();
@@ -41,7 +39,10 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	table.resize(table_size);
 	group_t last1, last2;
 	last1 = last2 = NO_GROUP;
-	std::unordered_map<group_t, int> counts;
+	std::unordered_map<group_t, int, std::hash<group_t>, std::equal_to<group_t>, my_allocator<std::pair<group_t, int>>> counts;
+	counts.max_load_factor(10);
+	timer tm;
+	tm.start();
 	for (int j = 0; j < parts.size(); j++) {
 		const auto id = parts.group(j);
 		if (id != NO_GROUP) {
@@ -54,7 +55,10 @@ hpx::future<void> group_data_create(particle_set& parts) {
 			}
 		}
 	}
-	printf("%li groups initially\n", ngroups);
+	tm.stop();
+	printf( "Groups phase 1 took %e s\n", tm.read());
+	tm.reset();
+	tm.start();
 	ngroups = 0;
 	for (int i = 0; i < parts.size(); i += parts_per_thread) {
 		const auto func = [i, &parts,&counts,parts_per_thread]() {
@@ -70,6 +74,10 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
+	tm.stop();
+	printf( "Groups phase 2 took %e s\n", tm.read());
+	tm.reset();
+	tm.start();
 	futs.resize(0);
 	for (auto i = counts.begin(); i != counts.end(); i++) {
 		if (i->second >= MIN_GROUP_SIZE) {
@@ -116,6 +124,10 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		}
 	}
 	counts = decltype(counts)();
+	tm.stop();
+	printf( "Groups phase 3 took %e s\n", tm.read());
+	tm.reset();
+	tm.start();
 	futs.resize(0);
 	for (int i = 0; i < parts.size(); i += parts_per_thread) {
 		const auto func = [i,&parts,parts_per_thread,table_size, &table]() {
@@ -159,6 +171,10 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
+	tm.stop();
+	printf( "Groups phase 4 took %e s\n", tm.read());
+	tm.reset();
+	tm.start();
 	for (int i = 0; i < table.size(); i++) {
 		auto& entries = table[i];
 		int j = 0;
@@ -171,6 +187,10 @@ hpx::future<void> group_data_create(particle_set& parts) {
 			j++;
 		}
 	}
+	tm.stop();
+	printf( "Groups phase 5 took %e s\n", tm.read());
+	tm.reset();
+	tm.start();
 	futs.resize(0);
 	for (int i = 0; i < parts.size(); i += parts_per_thread) {
 		const auto func = [i,&parts,parts_per_thread,table_size,&table]() {
@@ -236,7 +256,10 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	printf("Using %e GB\n", cuda_unified_total() / 1024.0 / 1024 / 1024);
+	tm.stop();
+	printf( "Groups phase 6 took %e s\n", tm.read());
+	tm.reset();
+	tm.start();
 
 	parts.finish_groups();
 	auto fut = hpx::async([nthreads,table,ngroups]() {
@@ -277,6 +300,10 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		}
 		hpx::wait_all(futs.begin(), futs.end());
 	});
+	tm.stop();
+	printf( "Groups phase 7 took %e s\n", tm.read());
+	tm.reset();
+	tm.start();
 	return fut;
 }
 

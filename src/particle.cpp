@@ -45,8 +45,8 @@ void particle_set::prepare_drift() {
 }
 
 void particle_set::init_groups() {
-	lidptr1_ = new uint32_t[size()];
-	lidptr2_ = new uint16_t[size()];
+	CUDA_MALLOC(lidptr1_, size());
+	CUDA_MALLOC(lidptr2_, size());
 	for (int i = 0; i < size(); i++) {
 		set_last_group(i, group(i));
 		group(i) = NO_GROUP;
@@ -54,8 +54,8 @@ void particle_set::init_groups() {
 }
 
 void particle_set::finish_groups() {
-	delete[] lidptr1_;
-	delete[] lidptr2_;
+	CUDA_FREE(lidptr1_);
+	CUDA_FREE(lidptr2_);
 }
 
 particle_set::particle_set(size_t size, size_t offset) {
