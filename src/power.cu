@@ -11,15 +11,49 @@ __global__ void power_spectrum_init(particle_set parts, cmplx* den_k, size_t N, 
 	const auto& gsz = gridDim.x;
 	const auto start = bid * parts.size() / gsz;
 	const auto stop = (bid + 1) * parts.size() / gsz;
+	const auto kernel = [](float r) {
+		if( r < 1.f) {
+			return (1.f-1.5f*r*r*(1.f-0.5f*r));
+		} else if( r < 2.f) {
+			return 0.25f * (2.f-r*r*r);
+		} else {
+			return 0.0f;
+		}
+	};
+	const int M = 2;
+	const float floatN = (float) N;
+	array<array<array<float, 2 * (M + 1)>, 2 * (M + 1)>, 2 * (M + 1)> wts;
 	for (auto i = start + tid; i < stop; i += bsz) {
-		const auto x = parts.pos(0, i).to_double();
-		const auto y = parts.pos(1, i).to_double();
-		const auto z = parts.pos(2, i).to_double();
-		const auto xi = ((int) (x * (double) N)) % N;
-		const auto yi = ((int) (y * (double) N)) % N;
-		const auto zi = ((int) (z * (double) N)) % N;
-		const auto index = (xi * N + yi) * N + zi;
-		atomicAdd(&(den_k[index].real()), mass);
+		const auto x = parts.pos(0, i).to_float() * floatN;
+		const auto y = parts.pos(1, i).to_float() * floatN;
+		const auto z = parts.pos(2, i).to_float() * floatN;
+		const int xi0 = x;
+		const int yi0 = y;
+		const int zi0 = z;
+		float wt_tot = 0.f;
+		for (int j = xi0 - M; j < xi0 + 1 + M; j++) {
+			const float dx = x - (float) j;
+			for (int k = yi0 - M; k < yi0 + 1 + M; k++) {
+				const float dy = y - (float) k;
+				for (int l = zi0 - M; l < zi0 + 1 + M; l++) {
+					const float dz = z - (float) l;
+					const float r = sqrtf(fmaf(dx, dx, fmaf(dy, dy, sqr(dz))));
+					auto& wt = wts[j - xi0 + M][k - yi0 + M][l - zi0 + M];
+					wt = kernel(r);
+					wt_tot += wt;
+				}
+			}
+		}
+		const float factor = mass / wt_tot;
+		for (int j = xi0 - M; j < xi0 + 1 + M; j++) {
+			for (int k = yi0 - M; k < yi0 + 1 + M; k++) {
+				for (int l = zi0 - M; l < zi0 + 1 + M; l++) {
+					const auto index = ((j % N) * N + k % N) * N + l % N;
+					const auto& wt = wts[j - xi0 + M][k - yi0 + M][l - zi0 + M];
+					atomicAdd(&(den_k[index].real()), factor * wt);
+				}
+			}
+		}
 	}
 }
 
@@ -47,23 +81,44 @@ __global__ void power_spectrum_compute(cmplx* den_k, size_t N, float* spec, int*
 	}
 }
 
-void compute_power_spectrum(particle_set& parts, int filenum) {
+void compute_power_spectrum(cmplx* den, float* spec, int N) {
+	size_t N3 = N * sqr(N);
+	int* count;
+
+	CUDA_MALLOC(count, N / 2);
+
+	for (int i = 0; i < N / 2; i++) {
+		spec[i] = 0.f;
+		count[i] = 0;
+	}
+	fft3d(den, N);
+	cudaFuncAttributes attrib;
+	CUDA_CHECK(cudaFuncGetAttributes(&attrib, power_spectrum_compute));
+	int num_blocks;
+	int block_size = std::min((int) N, attrib.maxThreadsPerBlock);
+	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, power_spectrum_compute, block_size, 0));
+	num_blocks *= global().cuda.devices[0].multiProcessorCount;
+	power_spectrum_compute<<<num_blocks,block_size>>>(den,N, spec,count);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	const auto code_to_mpc = global().opts.code_to_cm / constants::mpc_to_cm;
+	for (int i = 0; i < N / 2; i++) {
+		spec[i] /= count[i];
+		spec[i] *= 8.f * std::pow(code_to_mpc, 3) / (N3 * N3);
+	}
+	CUDA_FREE(count);
+}
+
+void compute_particle_power_spectrum(particle_set& parts, int filenum) {
 	cmplx* den;
 	size_t N = global().opts.parts_dim;
 	size_t N3 = N * sqr(N);
 	float* spec;
-	int* count;
 
 	CUDA_MALLOC(den, N3);
 	CUDA_MALLOC(spec, N / 2);
-	CUDA_MALLOC(count, N / 2);
 
 	for (int i = 0; i < N3; i++) {
 		den[i] = -1.0;
-	}
-	for (int i = 0; i < N / 2; i++) {
-		spec[i] = 0.f;
-		count[i] = 0;
 	}
 	cudaFuncAttributes attrib;
 	CUDA_CHECK(cudaFuncGetAttributes(&attrib, power_spectrum_init));
@@ -71,33 +126,22 @@ void compute_power_spectrum(particle_set& parts, int filenum) {
 	int num_blocks;
 	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, power_spectrum_init, block_size, 0));
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
-	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_set(),den,N,(double) N3 / (double)parts.size());
+	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_set(),den,N,(float) N3 / (float)parts.size());
 	CUDA_CHECK(cudaDeviceSynchronize());
-	fft3d(den, N);
-	CUDA_CHECK(cudaFuncGetAttributes(&attrib, power_spectrum_compute));
-	block_size = std::min((int) N, attrib.maxThreadsPerBlock);
-	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, power_spectrum_compute, block_size, 0));
-	num_blocks *= global().cuda.devices[0].multiProcessorCount;
-	power_spectrum_compute<<<num_blocks,block_size>>>(den,N, spec,count);
-	CUDA_CHECK(cudaDeviceSynchronize());
+	compute_power_spectrum(den, spec, N);
 	std::string filename = std::string("power.") + std::to_string(filenum) + std::string(".txt");
-	const auto code_to_mpc = global().opts.code_to_cm / constants::mpc_to_cm;
-	for (int i = 0; i < N / 2; i++) {
-		spec[i] /= count[i];
-		spec[i] *= std::pow(code_to_mpc, 3) / (N3 * N3);
-	}
 	FILE* fp = fopen(filename.c_str(), "wt");
 	if (fp == NULL) {
 		printf("Unable to open %s for writing\n", filename.c_str());
 		abort();
 	}
+	const auto code_to_mpc = global().opts.code_to_cm / constants::mpc_to_cm;
 	for (int i = 0; i < N / 2; i++) {
-		const auto k = 2.0 * M_PI * (i + 0.5) / code_to_mpc;
+		const auto k = 2.0 * M_PI * (i) / code_to_mpc;
 		fprintf(fp, "%e %e\n", k, spec[i]);
 	}
 	fclose(fp);
 	CUDA_FREE(den);
 	CUDA_FREE(spec);
-	CUDA_FREE(count);
 }
 

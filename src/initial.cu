@@ -5,6 +5,7 @@
 #include <cosmictiger/zero_order.hpp>
 #include <cosmictiger/zeldovich.hpp>
 #include <cosmictiger/constants.hpp>
+#include <cosmictiger/power.hpp>
 
 #include <unistd.h>
 
@@ -174,7 +175,7 @@ void initial_conditions(particle_set& parts) {
 	auto vel_destroy = vel_k->to_device();
 #endif
 
-	generate_random_normals<<<32,32>>>(rands, N3, 1234);
+	generate_random_normals<<<32,32>>>(rands, N3,time(NULL));
 	CUDA_CHECK(cudaDeviceSynchronize());
 
 	printf("\tComputing over/under density\n");
@@ -188,7 +189,18 @@ void initial_conditions(particle_set& parts) {
 	} else if (drho < 0.1) {
 		printf("The overdensity is low, consider using a later starting redshift\n");
 	}
+/*
+	vector<float> spec(N/2);
+	compute_power_spectrum(phi, spec.data(),N);
+	FILE* fp = fopen("power.den", "wt");
+	for (int i = 0; i < N / 2; i++) {
+		const auto k = 2.0 * M_PI * (i) / code_to_mpc;
+		fprintf(fp, "%e %e\n", k, spec[i]);
+	}
+	fclose(fp);
 
+
+*/
 	float xdisp = 0.0;
 	const double omega_m = params.omega_b + params.omega_c;
 	const double omega_r = params.omega_nu + params.omega_gam;

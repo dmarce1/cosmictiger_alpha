@@ -300,7 +300,7 @@ void drive_cosmos() {
 				timer tm;
 				printf("Computing matter power spectrum\n");
 				tm.start();
-				compute_power_spectrum(parts, time + 0.5);
+				compute_particle_power_spectrum(parts, time + 0.5);
 				tm.stop();
 				printf("Took %e seconds\n", tm.read());
 				if (!groups) {

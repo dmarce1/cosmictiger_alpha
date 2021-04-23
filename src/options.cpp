@@ -81,8 +81,8 @@ bool process_options(int argc, char *argv[], options &opts) {
 		abort();
 	}
 	opts.omega_m = opts.omega_b + opts.omega_c;
-//	opts.code_to_cm = 7.104e26 * opts.parts_dim / 1024.0;
-	opts.code_to_cm = constants::mpc_to_cm * 100.0;
+	opts.code_to_cm = 7.104e26 * opts.parts_dim / 1024.0;
+//	opts.code_to_cm = constants::mpc_to_cm * 100.0;
 
 	const auto Gcgs = constants::G;
 	const auto ccgs = constants::c;
