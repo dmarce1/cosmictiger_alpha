@@ -147,9 +147,9 @@ struct group_param_type {
 };
 
 #ifndef __CUDACC__
-hpx::future<bool> find_groups(group_param_type* params_ptr);
+hpx::future<size_t> find_groups(group_param_type* params_ptr);
 #endif
-std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** params, int params_size,
+std::function<std::vector<size_t>()> call_cuda_find_groups(group_param_type** params, int params_size,
 		cudaStream_t stream);
 
 struct groups_shmem {

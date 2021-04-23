@@ -36,21 +36,12 @@ void tree_data_initialize_kick() {
 	printf("Allocating %i trees in %i chunks of %i each for kick\n", gpu_tree_data_.ntrees, gpu_tree_data_.nchunks,
 			gpu_tree_data_.chunk_size);
 
-	free_if_needed(&gpu_tree_data_.data);
-	free_if_needed(&gpu_tree_data_.parts);
-	free_if_needed(&gpu_tree_data_.multi);
-	free_if_needed(&gpu_tree_data_.ranges);
-	free_if_needed(&gpu_tree_data_.active_nodes);
-	free_if_needed(&gpu_tree_data_.active_parts);
-	free_if_needed(&gpu_tree_data_.group_flags);
-	free_if_needed(&gpu_tree_data_.last_group_flags);
+	tree_data_free_all();
 	CUDA_MALLOC(gpu_tree_data_.data, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.parts, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.multi, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.group_flags, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.last_group_flags, gpu_tree_data_.ntrees);
 
 	tree_data_clear();
 
@@ -73,19 +64,12 @@ void tree_data_initialize_groups() {
 	printf("Allocating %i trees in %i chunks of %i each for group search\n", gpu_tree_data_.ntrees,
 			gpu_tree_data_.nchunks, gpu_tree_data_.chunk_size);
 
-	free_if_needed(&gpu_tree_data_.data);
-	free_if_needed(&gpu_tree_data_.parts);
-	free_if_needed(&gpu_tree_data_.multi);
-	free_if_needed(&gpu_tree_data_.ranges);
-	free_if_needed(&gpu_tree_data_.active_nodes);
-	free_if_needed(&gpu_tree_data_.active_parts);
-	free_if_needed(&gpu_tree_data_.group_flags);
-	free_if_needed(&gpu_tree_data_.last_group_flags);
+	tree_data_free_all();
 	CUDA_MALLOC(gpu_tree_data_.data, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.parts, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.ranges, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.group_flags, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.last_group_flags, gpu_tree_data_.ntrees);
+	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
+	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 
 	tree_data_clear();
 
@@ -100,8 +84,6 @@ void tree_data_free_all() {
 	free_if_needed(&gpu_tree_data_.ranges);
 	free_if_needed(&gpu_tree_data_.active_nodes);
 	free_if_needed(&gpu_tree_data_.active_parts);
-	free_if_needed(&gpu_tree_data_.group_flags);
-	free_if_needed(&gpu_tree_data_.last_group_flags);
 }
 
 size_t tree_data_bytes_used() {
@@ -124,28 +106,14 @@ size_t tree_data_bytes_used() {
 	if (gpu_tree_data_.active_parts) {
 		use += sizeof(size_t);
 	}
-	if (gpu_tree_data_.group_flags) {
-		use += sizeof(int8_t);
-	}
-	if (gpu_tree_data_.last_group_flags) {
-		use += sizeof(int8_t);
-	}
 	use *= gpu_tree_data_.nchunks * gpu_tree_data_.chunk_size;
 	return use;
 }
 
-void tree_database_reset_group_flags() {
+void tree_database_set_groups() {
 	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
-		gpu_tree_data_.group_flags[i] = 1;
-	}
-	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
-		gpu_tree_data_.last_group_flags[i] = 1;
-	}
-}
-
-void tree_database_set_last_group_flags() {
-	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
-		gpu_tree_data_.last_group_flags[i] = gpu_tree_data_.group_flags[i];
+		gpu_tree_data_.active_parts[i] = gpu_tree_data_.active_nodes[i];
+		gpu_tree_data_.active_nodes[i] = 0;
 	}
 }
 

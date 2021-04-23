@@ -75,14 +75,8 @@ struct tree_ptr {
 	CUDA_EXPORT
 	void set_range(const range&) const;
 
-	CUDA_EXPORT
-	int8_t& group_flag() const;
-
-	CUDA_EXPORT
-	int8_t& last_group_flag() const;
-
 #ifndef __CUDACC__
-	hpx::future<bool> find_groups(group_param_type*, bool);
+	hpx::future<size_t> find_groups(group_param_type*, bool);
 	hpx::future<void> kick(kick_params_type*, bool);
 #endif
 };
@@ -90,8 +84,7 @@ struct tree_ptr {
 void tree_data_initialize_kick();
 void tree_data_initialize_groups();
 void tree_data_free_all();
-void tree_database_reset_group_flags();
-void tree_database_set_last_group_flags();
+void tree_database_set_groups();
 
 CUDA_EXPORT
 float tree_data_get_radius(int);
@@ -147,11 +140,6 @@ void tree_data_set_active_nodes(int i, size_t p);
 CUDA_EXPORT
 range tree_data_get_range(int i);
 
-CUDA_EXPORT
-int8_t& tree_data_group_flag(int i);
-
-CUDA_EXPORT
-int8_t& tree_data_last_group_flag(int i);
 
 CUDA_EXPORT
 void tree_data_set_range(int i, const range& r);
@@ -274,13 +262,6 @@ inline void tree_ptr::set_range(const range& r) const {
 	tree_data_set_range(dindex, r);
 }
 
-CUDA_EXPORT inline int8_t& tree_ptr::group_flag() const {
-	return tree_data_group_flag(dindex);
-}
-
-CUDA_EXPORT inline int8_t& tree_ptr::last_group_flag() const {
-	return tree_data_last_group_flag(dindex);
-}
 
 struct multipole_pos {
 	multipole multi;
@@ -304,8 +285,6 @@ struct tree_database_t {
 	pair<size_t, size_t>* parts;
 	tree_data_t* data;
 	range* ranges;
-	int8_t* group_flags;
-	int8_t* last_group_flags;
 	size_t* active_parts;
 	int ntrees;
 	int nchunks;
@@ -313,7 +292,7 @@ struct tree_database_t {
 };
 
 #ifdef TREE_DATABASE_CU
-__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
+__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
 tree_database_t cpu_tree_data_;
 #else
 extern __managed__ tree_database_t gpu_tree_data_;
@@ -562,28 +541,6 @@ void tree_data_set_range(int i, const range& r) {
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.ranges[i] = r;
-}
-
-CUDA_EXPORT inline int8_t& tree_data_group_flag(int i) {
-#ifdef __CUDACC__
-	auto& tree_data_ = gpu_tree_data_;
-#else
-	auto& tree_data_ = cpu_tree_data_;
-#endif
-	assert(i >= 0);
-	assert(i < tree_data_.ntrees);
-	return tree_data_.group_flags[i];
-}
-
-CUDA_EXPORT inline int8_t& tree_data_last_group_flag(int i) {
-#ifdef __CUDACC__
-	auto& tree_data_ = gpu_tree_data_;
-#else
-	auto& tree_data_ = cpu_tree_data_;
-#endif
-	assert(i >= 0);
-	assert(i < tree_data_.ntrees);
-	return tree_data_.last_group_flags[i];
 }
 
 void tree_database_set_readonly();

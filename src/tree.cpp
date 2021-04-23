@@ -164,22 +164,24 @@ sort_return tree::sort(sort_params params) {
 		std::array<float, NCHILD> Rc;
 		multipole M;
 		if (!params.group_sort) {
-			rc.active_parts = 0;
 			rc.active_nodes = 1;
+			rc.active_parts = 0;
 			rc.stats.nparts = 0;
 			rc.stats.max_depth = 0;
 			rc.stats.min_depth = TREE_MAX_DEPTH;
 			rc.stats.nnodes = 1;
 			rc.stats.nleaves = 0;
+		} else {
+			rc.active_nodes = 0;
 		}
 		for (int ci = 0; ci < NCHILD; ci++) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
+			rc.active_nodes += this_rc.active_nodes;
 			if (!params.group_sort) {
 				Mc[ci] = this_rc.check.get_multi();
 				Xc[ci] = this_rc.check.get_pos();
 				rc.active_parts += this_rc.active_parts;
-				rc.active_nodes += this_rc.active_nodes;
 				rc.stats.nparts += this_rc.stats.nparts;
 				rc.stats.nleaves += this_rc.stats.nleaves;
 				rc.stats.nnodes += this_rc.stats.nnodes;
@@ -187,10 +189,10 @@ sort_return tree::sort(sort_params params) {
 				rc.stats.min_depth = std::min(rc.stats.min_depth, this_rc.stats.min_depth);
 			}
 		}
+		if (rc.active_nodes == 1) {
+			rc.active_nodes = 0;
+		}
 		if (!params.group_sort) {
-			if (rc.active_nodes == 1) {
-				rc.active_nodes = 0;
-			}
 			std::array<double, NDIM> com = { 0, 0, 0 };
 			const auto &MR = Mc[RIGHT];
 			const auto &ML = Mc[LEFT];
@@ -295,6 +297,8 @@ sort_return tree::sort(sort_params params) {
 			self.set_pos(pos);
 			self.set_radius(radius);
 			self.set_multi(M);
+		} else {
+			rc.active_nodes = 1;
 		}
 		for (int ci = 0; ci < NCHILD; ci++) {
 			children[ci].dindex = -1;
@@ -302,9 +306,10 @@ sort_return tree::sort(sort_params params) {
 		self.set_leaf(true);
 		self.set_children(children);
 	}
+	active_nodes = rc.active_nodes;
+	self.set_active_nodes(active_nodes);
 	if (!params.group_sort) {
 		active_parts = rc.active_parts;
-		active_nodes = rc.active_nodes;
 		self.set_active_parts(active_parts);
 		self.set_active_nodes(active_nodes);
 		rc.stats.e_depth = params.min_depth;

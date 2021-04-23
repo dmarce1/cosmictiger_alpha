@@ -100,14 +100,12 @@ void unified_allocator::reset() {
 		printf("Attempt to reset unified allocator without freeing all memory, %li left allocated.\n", allocated);
 		abort();
 	}
-	printf("%e GB BEFORE alloc reset\n", ::allocated / 1024.0 / 1024 / 1024);
 	freelist = decltype(freelist)();
 	delete_indexes = decltype(delete_indexes)();
 	while (allocs.size()) {
 		CUDA_FREE(allocs.top());
 		allocs.pop();
 	}
-	printf("%e GB AFTER alloc reset\n", ::allocated / 1024.0 / 1024 / 1024);
 	cuda_unified_show_outstanding();
 }
 

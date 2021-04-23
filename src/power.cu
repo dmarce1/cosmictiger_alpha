@@ -54,13 +54,9 @@ void compute_power_spectrum(particle_set& parts, int filenum) {
 	float* spec;
 	int* count;
 
-	printf("%e GB\n", cuda_unified_total() / 1024.0 / 1024 / 1024);
 	CUDA_MALLOC(den, N3);
-	printf("%e GB\n", cuda_unified_total() / 1024.0 / 1024 / 1024);
 	CUDA_MALLOC(spec, N / 2);
-	printf("%e GB\n", cuda_unified_total() / 1024.0 / 1024 / 1024);
 	CUDA_MALLOC(count, N / 2);
-	printf("%e GB\n", cuda_unified_total() / 1024.0 / 1024 / 1024);
 
 	for (int i = 0; i < N3; i++) {
 		den[i] = -1.0;

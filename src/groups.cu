@@ -6,36 +6,36 @@
 #define NEXT 1
 #define NOLIST 2
 
-__global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params);
+__global__ void cuda_find_groups_kernel(size_t* rc, group_param_type** params);
 
 __managed__ group_list_sizes sizes = { 0, 0 };
 
-std::function<std::vector<bool>()> call_cuda_find_groups(group_param_type** params, int params_size,
+std::function<std::vector<size_t>()> call_cuda_find_groups(group_param_type** params, int params_size,
 		cudaStream_t stream) {
-	bool* rc;
+	size_t* rc;
 	unified_allocator alloc;
-	rc = (bool*) alloc.allocate(sizeof(bool) * params_size);
+	rc = (size_t*) alloc.allocate(sizeof(size_t) * params_size);
 	cuda_find_groups_kernel<<<params_size,WARP_SIZE,sizeof(groups_shmem),stream>>>(rc, params);
 	const int size = params_size;
 	return [stream,rc, size]() {
 		if( cudaStreamQuery(stream)==cudaSuccess) {
-			std::vector<bool> res(size);
+			std::vector<size_t> res(size);
 			std::copy(rc, rc+size, res.begin());
 			unified_allocator().deallocate(rc);
 			return res;
 		} else {
-			return std::vector<bool>();
+			return std::vector<size_t>();
 		}
 	};
 }
 
-__device__ bool cuda_find_groups(tree_ptr self);
+__device__ size_t cuda_find_groups(tree_ptr self);
 
 group_list_sizes get_group_list_sizes() {
 	return sizes;
 }
 
-__global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
+__global__ void cuda_find_groups_kernel(size_t* rc, group_param_type** params) {
 	extern int __shared__ shmem_ptr[];
 	groups_shmem& shmem = *((groups_shmem*) shmem_ptr);
 	const auto& tid = threadIdx.x;
@@ -51,7 +51,7 @@ __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
 
 	}
 	__syncwarp();
-	const bool this_rc = cuda_find_groups(param.self);
+	const size_t this_rc = cuda_find_groups(param.self);
 	__syncwarp();
 	if (tid == 0) {
 		//	param.call_destructors();
@@ -65,7 +65,7 @@ __global__ void cuda_find_groups_kernel(bool* rc, group_param_type** params) {
 	}
 }
 
-__device__ bool cuda_find_groups(tree_ptr self) {
+__device__ size_t cuda_find_groups(tree_ptr self) {
 	const auto& tid = threadIdx.x;
 	extern int __shared__ shmem_ptr[];
 	groups_shmem& shmem = *((groups_shmem*) shmem_ptr);
@@ -97,7 +97,7 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 			mylist = NOLIST;
 			if (i < checks.size()) {
 				const int intersects = myrange.intersects(checks[i].get_range());
-				const int other_flag = int(bool(checks[i].last_group_flag()));
+				const int other_flag = int(bool(checks[i].get_active_parts()));
 				const int use = other_flag * intersects;
 				const int isleaf = checks[i].is_leaf();
 				mylist = use * ((1 - isleaf) * NEXT) + (1 - use) * NOLIST;
@@ -223,30 +223,34 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 		}
 		do {
 			found_link = 0;
-			for (int i = 0; i < checks.size(); i++) {
-				__syncwarp();
-				for (int j = tid; j < mysize; j += warpSize) {
-					for (int k = 0; k != mysize; k++) {
-						float dx0, dx1, dx2;
-						dx0 = distance(self_parts[0][j], self_parts[0][k]);
-						dx1 = distance(self_parts[1][j], self_parts[1][k]);
-						dx2 = distance(self_parts[2][j], self_parts[2][k]);
-						const float dist2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2)));
-						if (dist2 < linklen2 && j != k) {
-							const auto j0 = j + myparts.first;
-							const auto k0 = k + myparts.first;
-							auto& id1 = parts.group(j0);
-							const auto id2 = parts.group(k0);
-							const auto oldid1 = id1;
-							id1 = min((id1 == NO_GROUP) ? j0 : id1, id2);
-							rc += (oldid1 != id1);
+			__syncwarp();
+			for (int j = tid; j < mysize; j += warpSize) {
+				for (int k = 0; k != mysize; k++) {
+					float dx0, dx1, dx2;
+					dx0 = distance(self_parts[0][j], self_parts[0][k]);
+					dx1 = distance(self_parts[1][j], self_parts[1][k]);
+					dx2 = distance(self_parts[2][j], self_parts[2][k]);
+					const float dist2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2)));
+					if (dist2 < linklen2 && j != k) {
+						const auto j0 = j + myparts.first;
+						const auto k0 = k + myparts.first;
+						auto& id1 = parts.group(j0);
+						const auto id2 = parts.group(k0);
+						const auto oldid1 = id1;
+						id1 = min((id1 == NO_GROUP) ? j0 : id1, id2);
+						if (oldid1 != id1) {
+							found_link++;
+							rc++;
 						}
 					}
 				}
-				__syncwarp();
 			}
+			__syncwarp();
 		} while (__reduce_add_sync(FULL_MASK, found_link) != 0);
 		rc = __reduce_add_sync(FULL_MASK, rc) != 0;
+		if (tid == 0) {
+			self.set_active_nodes(rc ? 1 : 0);
+		}
 	} else {
 		if (shmem.checks.size()) {
 			auto mychildren = self.get_children();
@@ -255,22 +259,24 @@ __device__ bool cuda_find_groups(tree_ptr self) {
 				shmem.depth++;
 			}
 			__syncwarp();
-			const auto rc1 = cuda_find_groups(mychildren[LEFT]);
+			size_t active = cuda_find_groups(mychildren[LEFT]);
 			shmem.checks.pop_top();
 			__syncwarp();
-			const auto rc2 = cuda_find_groups(mychildren[RIGHT]);
+			active += cuda_find_groups(mychildren[RIGHT]);
 			if (tid == 0) {
 				shmem.depth--;
 			}
 			__syncwarp();
-			rc = rc1 || rc2;
+			if (tid == 0) {
+				self.set_active_nodes(active);
+			}
+			return active;
 		} else {
-			rc = false;
+			if (tid == 0) {
+				self.set_active_nodes(0);
+			}
 		}
 	}
-	if (tid == 0) {
-		self.group_flag() = rc != 0;
-	}
-	return rc != 0;
+	return self.get_active_nodes();
 
 }

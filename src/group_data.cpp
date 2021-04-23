@@ -69,7 +69,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	hpx::wait_all(futs.begin(), futs.end());
 	futs.resize(0);
 	tm.stop();
-	printf("Groups phase 1 took %e s\n", tm.read());
+//	printf("Groups phase 1 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	ngroups = 0;
@@ -88,7 +88,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	tm.stop();
-	printf("Groups phase 2 took %e s\n", tm.read());
+//	printf("Groups phase 2 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	futs.resize(0);
@@ -138,7 +138,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	counts = decltype(counts)();
 	tm.stop();
-	printf("Groups phase 3 took %e s\n", tm.read());
+//	printf("Groups phase 3 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	futs.resize(0);
@@ -185,7 +185,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	tm.stop();
-	printf("Groups phase 4 took %e s\n", tm.read());
+//	printf("Groups phase 4 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	for (int i = 0; i < table.size(); i++) {
@@ -201,7 +201,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		}
 	}
 	tm.stop();
-	printf("Groups phase 5 took %e s\n", tm.read());
+//	printf("Groups phase 5 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	futs.resize(0);
@@ -270,7 +270,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	tm.stop();
-	printf("Groups phase 6 took %e s\n", tm.read());
+//	printf("Groups phase 6 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 
@@ -314,7 +314,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		hpx::wait_all(futs.begin(), futs.end());
 	});
 	tm.stop();
-	printf("Groups phase 7 took %e s\n", tm.read());
+	//printf("Groups phase 7 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	return fut;

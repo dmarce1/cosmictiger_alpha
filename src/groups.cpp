@@ -5,7 +5,7 @@
 struct gpu_groups {
 	group_param_type* params;
 	size_t part_begin;
-	hpx::lcos::local::promise<bool> promise;
+	hpx::lcos::local::promise<size_t> promise;
 };
 
 static std::vector<gpu_groups> gpu_queue;
@@ -30,8 +30,8 @@ void send_groups_to_gpu() {
 		tm.stop();
 		if (tm.read() > 0.05) {
 			counter++;
-			printf("%c %li in queue: %i active: %i complete                        \r", waiting_char[counter % 4],
-					gpu_queue.size(), num_active, num_completed);
+//			printf("%c %li in queue: %i active: %i complete                        \r", waiting_char[counter % 4],
+//					gpu_queue.size(), num_active, num_completed);
 			counter++;
 			tm.reset();
 		}
@@ -95,18 +95,18 @@ void send_groups_to_gpu() {
 	}
 }
 
-hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool thread) {
+hpx::future<size_t> tree_ptr::find_groups(group_param_type* params_ptr, bool thread) {
 	group_param_type &params = *params_ptr;
 	static std::atomic<int> used_threads(0);
 	static unified_allocator alloc;
 	static const bool use_cuda = global().opts.cuda;
 	const auto myparts = get_parts();
-	if (use_cuda && myparts.second - myparts.first <= params.block_cutoff) {
+	if (use_cuda && get_active_parts() <= params.block_cutoff) {
 		group_param_type *new_params;
 		new_params = (group_param_type*) alloc.allocate(sizeof(group_param_type));
 		new (new_params) group_param_type();
 		*new_params = *params_ptr;
-		hpx::future<bool> fut;
+		hpx::future<size_t> fut;
 		{
 			std::lock_guard<mutex_type> lock(mutex);
 			const int gsz = gpu_queue.size();
@@ -150,7 +150,7 @@ hpx::future<bool> tree_ptr::find_groups(group_param_type* params_ptr, bool threa
 	}
 }
 
-hpx::future<bool> find_groups(group_param_type* params_ptr) {
+hpx::future<size_t> find_groups(group_param_type* params_ptr) {
 	group_param_type& params = *params_ptr;
 	auto& parts = params.parts;
 	tree_ptr self = params.self;
@@ -164,8 +164,9 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
 		const int block_count = oversubscription * global().cuda_kick_occupancy
 				* global().cuda.devices[0].multiProcessorCount + 0.5;
-		const auto myparts = self.get_parts();
-		params.block_cutoff = std::max((myparts.second - myparts.first) / block_count, (size_t) 1);
+		const auto active_count = self.get_active_parts();
+		printf( "active_count = %li\n", active_count);
+		params.block_cutoff = std::max(active_count / block_count, (size_t) 1);
 	}
 
 	auto& checks = params.checks;
@@ -180,7 +181,7 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 		next_checks.resize(0);
 		for (int i = 0; i < checks.size(); i++) {
 			const auto other_range = checks[i].get_range();
-			const bool other_flag = checks[i].last_group_flag();
+			const bool other_flag = checks[i].get_active_parts();
 			if (other_flag && myrange.intersects(other_range)) {
 				if (checks[i].is_leaf()) {
 					opened_checks.push_back(checks[i]);
@@ -231,11 +232,15 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 				}
 			}
 		}
-		self.group_flag() = found_link;
-		return hpx::make_ready_future(found_link);
+		self.set_active_nodes(found_link);
+		parts_covered += myparts.second - myparts.first;
+		if (parts_covered == params.parts.size()) {
+			send_groups_to_gpu();
+		}
+		return hpx::make_ready_future(found_link ? size_t(1) : size_t(0));
 	} else {
 		if (checks.size()) {
-			std::array<hpx::future<bool>, NCHILD> futs;
+			std::array<hpx::future<size_t>, NCHILD> futs;
 			bool found_link;
 			auto mychildren = self.get_children();
 			params.checks.push_top();
@@ -247,21 +252,20 @@ hpx::future<bool> find_groups(group_param_type* params_ptr) {
 			futs[RIGHT] = mychildren[RIGHT].find_groups(params_ptr, false);
 			params.depth--;
 			return hpx::when_all(futs.begin(), futs.end()).then(
-					[self](hpx::future<std::vector<hpx::future<bool>>> futfut) {
+					[self](hpx::future<std::vector<hpx::future<size_t>>> futfut) {
 						auto futs = futfut.get();
-						const bool rcr = futs[RIGHT].get();
-						const bool rc = futs[LEFT].get() || rcr;
-						self.group_flag() = rc;
+						const size_t rc = futs[LEFT].get() + futs[RIGHT].get();
+						self.set_active_nodes(rc);
 						return rc;
 					});
 		} else {
 			const auto myparts = self.get_parts();
-			self.group_flag() = false;
+			self.set_active_nodes(0);
 			parts_covered += myparts.second - myparts.first;
 			if (parts_covered == params.parts.size()) {
 				send_groups_to_gpu();
 			}
-			return hpx::make_ready_future(false);
+			return hpx::make_ready_future(size_t(0));
 		}
 	}
 }
