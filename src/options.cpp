@@ -11,6 +11,7 @@
 #include <fstream>
 #include <boost/program_options.hpp>
 #include <cosmictiger/constants.hpp>
+#include <cosmictiger/math.hpp>
 
 bool process_options(int argc, char *argv[], options &opts) {
 	namespace po = boost::program_options;
@@ -81,8 +82,8 @@ bool process_options(int argc, char *argv[], options &opts) {
 		abort();
 	}
 	opts.omega_m = opts.omega_b + opts.omega_c;
-	opts.code_to_cm = 7.104e26 * opts.parts_dim / 1024.0;
-//	opts.code_to_cm = constants::mpc_to_cm * 100.0;
+	opts.code_to_cm = 7.104e26 * opts.parts_dim / 1024.0 / opts.hubble;
+	//opts.code_to_cm = constants::mpc_to_cm * 1000.0;
 
 	const auto Gcgs = constants::G;
 	const auto ccgs = constants::c;
@@ -90,7 +91,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	opts.code_to_s = opts.code_to_cm / opts.code_to_cms;
 	opts.H0 = Hcgs * opts.code_to_s;
 	opts.G = Gcgs / pow(opts.code_to_cm, 3) * opts.code_to_g * pow(opts.code_to_s, 2);
-	double m_tot = opts.omega_m * 3.0 * opts.H0 * opts.H0 / (8 * M_PI * opts.G);
+	double m_tot = opts.omega_m * 3.0 *sqr(opts.H0 * opts.hubble) / (8 * M_PI * opts.G);
 	opts.M = m_tot / opts.nparts;
 
 	double omega_r = 32.0 * M_PI / 3.0 * constants::G * constants::sigma

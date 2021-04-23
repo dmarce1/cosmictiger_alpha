@@ -236,7 +236,7 @@ void drive_cosmos() {
 	}
 	parts_total = 0.0;
 	time_total = 0.0;
-	T0 = cosmos_conformal_age(1.0 / (1.0 + global().opts.z0)) / NTIMESTEP;
+	T0 = cosmos_age(1.0 / (1.0 + global().opts.z0)) / NTIMESTEP;
 	timer tm;
 	tm.start();
 	double kin, momx, momy, momz;

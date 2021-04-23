@@ -11,49 +11,32 @@ __global__ void power_spectrum_init(particle_set parts, cmplx* den_k, size_t N, 
 	const auto& gsz = gridDim.x;
 	const auto start = bid * parts.size() / gsz;
 	const auto stop = (bid + 1) * parts.size() / gsz;
-	const auto kernel = [](float r) {
-		if( r < 1.f) {
-			return (1.f-1.5f*r*r*(1.f-0.5f*r));
-		} else if( r < 2.f) {
-			return 0.25f * (2.f-r*r*r);
-		} else {
-			return 0.0f;
-		}
-	};
 	const int M = 2;
 	const float floatN = (float) N;
-	array<array<array<float, 2 * (M + 1)>, 2 * (M + 1)>, 2 * (M + 1)> wts;
 	for (auto i = start + tid; i < stop; i += bsz) {
 		const auto x = parts.pos(0, i).to_float() * floatN;
 		const auto y = parts.pos(1, i).to_float() * floatN;
 		const auto z = parts.pos(2, i).to_float() * floatN;
-		const int xi0 = x;
-		const int yi0 = y;
-		const int zi0 = z;
-		float wt_tot = 0.f;
-		for (int j = xi0 - M; j < xi0 + 1 + M; j++) {
-			const float dx = x - (float) j;
-			for (int k = yi0 - M; k < yi0 + 1 + M; k++) {
-				const float dy = y - (float) k;
-				for (int l = zi0 - M; l < zi0 + 1 + M; l++) {
-					const float dz = z - (float) l;
-					const float r = sqrtf(fmaf(dx, dx, fmaf(dy, dy, sqr(dz))));
-					auto& wt = wts[j - xi0 + M][k - yi0 + M][l - zi0 + M];
-					wt = kernel(r);
-					wt_tot += wt;
-				}
-			}
-		}
-		const float factor = mass / wt_tot;
-		for (int j = xi0 - M; j < xi0 + 1 + M; j++) {
-			for (int k = yi0 - M; k < yi0 + 1 + M; k++) {
-				for (int l = zi0 - M; l < zi0 + 1 + M; l++) {
-					const auto index = ((j % N) * N + k % N) * N + l % N;
-					const auto& wt = wts[j - xi0 + M][k - yi0 + M][l - zi0 + M];
-					atomicAdd(&(den_k[index].real()), factor * wt);
-				}
-			}
-		}
+		const int xi0 = (int) x % N;
+		const int yi0 = (int) y % N;
+		const int zi0 = (int) z % N;
+		const int xi1 = (xi0 + 1) % N;
+		const int yi1 = (yi0 + 1) % N;
+		const int zi1 = (zi0 + 1) % N;
+		const float w1x = x - xi0;
+		const float w1y = y - yi0;
+		const float w1z = z - zi0;
+		const float w0x = 1.f - w1x;
+		const float w0y = 1.f - w1y;
+		const float w0z = 1.f - w1z;
+		atomicAdd(&(den_k[xi0 * N * N + yi0 * N + zi0].real()), mass * w0x * w0y * w0z);
+		atomicAdd(&(den_k[xi0 * N * N + yi0 * N + zi1].real()), mass * w0x * w0y * w1z);
+		atomicAdd(&(den_k[xi0 * N * N + yi1 * N + zi0].real()), mass * w0x * w1y * w0z);
+		atomicAdd(&(den_k[xi0 * N * N + yi1 * N + zi1].real()), mass * w0x * w1y * w1z);
+		atomicAdd(&(den_k[xi1 * N * N + yi0 * N + zi0].real()), mass * w1x * w0y * w0z);
+		atomicAdd(&(den_k[xi1 * N * N + yi0 * N + zi1].real()), mass * w1x * w0y * w1z);
+		atomicAdd(&(den_k[xi1 * N * N + yi1 * N + zi0].real()), mass * w1x * w1y * w0z);
+		atomicAdd(&(den_k[xi1 * N * N + yi1 * N + zi1].real()), mass * w1x * w1y * w1z);
 	}
 }
 
@@ -103,7 +86,7 @@ void compute_power_spectrum(cmplx* den, float* spec, int N) {
 	const auto code_to_mpc = global().opts.code_to_cm / constants::mpc_to_cm;
 	for (int i = 0; i < N / 2; i++) {
 		spec[i] /= count[i];
-		spec[i] *= 8.f * std::pow(code_to_mpc, 3) / (N3 * N3);
+		spec[i] *= std::pow(code_to_mpc, 3) / (N3 * N3);
 	}
 	CUDA_FREE(count);
 }
@@ -136,8 +119,8 @@ void compute_particle_power_spectrum(particle_set& parts, int filenum) {
 		abort();
 	}
 	const auto code_to_mpc = global().opts.code_to_cm / constants::mpc_to_cm;
-	for (int i = 0; i < N / 2; i++) {
-		const auto k = 2.0 * M_PI * (i) / code_to_mpc;
+	for (int i = 1; i < N / 2; i++) {
+		const auto k = 2.0 * M_PI * (i+0.5) / code_to_mpc;
 		fprintf(fp, "%e %e\n", k, spec[i]);
 	}
 	fclose(fp);

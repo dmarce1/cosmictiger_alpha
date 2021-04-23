@@ -33,8 +33,13 @@ void cuda_set_kick_constants(kick_constants consts) {
 	consts.theta2 = sqr(consts.theta);
 	consts.invlog2 = 1.0f / logf(2);
 	consts.GM = consts.G * consts.M;
+#ifdef CONFORMAL_TIME
 	consts.tfactor = consts.eta * sqrtf(consts.scale * consts.h);
+#else
+	consts.tfactor = consts.eta * sqrtf(sqr(consts.scale) * consts.scale * consts.h);
+#endif
 	consts.logt0 = logf(consts.t0);
+	consts.ainv = 1.f / consts.scale;
 	consts.halft0 = 0.5f * consts.t0;
 	consts.minrung = fmaxf(MIN_RUNG, consts.rung);
 	consts.h2 = sqr(consts.h);
@@ -375,6 +380,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					auto& vx = parts.vel(0,index);
 					auto& vy = parts.vel(1,index);
 					auto& vz = parts.vel(2,index);
+#ifndef CONFORMAL_TIME
+					dt *= constant.ainv;
+#endif
 					if (!constant.first) {
 						vx = fmaf(dt, F[0][k], vx);
 						vy = fmaf(dt, F[1][k], vy);
@@ -388,6 +396,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					}
 					const int new_rung = fmaxf(fmaxf(ceilf((logt0 - logf(dt)) * invlog2), this_rung - 1), minrung);
 					dt = halft0 * rung_dt[new_rung];
+#ifndef CONFORMAL_TIME
+					dt *= constant.ainv;
+#endif
 					vx = fmaf(dt, F[0][k], vx);
 					vy = fmaf(dt, F[1][k], vy);
 					vz = fmaf(dt, F[2][k], vz);

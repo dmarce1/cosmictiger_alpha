@@ -610,6 +610,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 #endif
 				if (this_rung >= params.rung) {
 					float dt = params.t0 / (1 << this_rung);
+#ifndef CONFORMAL_TIME
+					dt *= 1.f / params.scale;
+#endif
 					if (!params.first) {
 						particles->vel(0, index) += 0.5 * dt * F[0][k];
 						particles->vel(1, index) += 0.5 * dt * F[1][k];
@@ -621,11 +624,18 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					}
 					fmag = sqrtf(fmag);
 					assert(fmag > 0.0);
+#ifdef CONFORMAL_TIME
 					dt = std::min(params.eta * std::sqrt(params.scale * params.hsoft / fmag), params.t0);
+#else
+					dt = std::min(params.eta * std::sqrt(params.scale * sqr(params.scale) * params.hsoft / fmag), params.t0);
+#endif
 					int new_rung = std::max(
 							std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1), params.rung),
 							MIN_RUNG);
 					dt = params.t0 / (1 << new_rung);
+#ifndef CONFORMAL_TIME
+					dt *= 1.f / params.scale;
+#endif
 					particles->vel(0, index) += 0.5 * dt * F[0][k];
 					particles->vel(1, index) += 0.5 * dt * F[1][k];
 					particles->vel(2, index) += 0.5 * dt * F[2][k];

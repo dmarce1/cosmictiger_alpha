@@ -82,7 +82,11 @@ int drift_particles(particle_set parts, double dt, double a0, double a1, double*
 	parts.prepare_drift();
 //	const auto a = 1.0 / (0.5 / a0 + 0.5 / a1);
 	const auto ddt = cosmos_drift_dtau(a0,dt);
+#ifdef CONFORMAL_TIME
 	const auto a = 1.0 / ddt;
+#else
+	const auto a = std::sqrt(1.0 / ddt);
+#endif
 //	printf( "%e %e\n", a, 1.0/ddt);
 	double* results;
 	CUDA_MALLOC(results, 4);

@@ -286,6 +286,7 @@ struct kick_constants {
 	float GM;
 	float tfactor;
 	float logt0;
+	float ainv;
 	float halft0;
 	float h2;
 	float hinv;

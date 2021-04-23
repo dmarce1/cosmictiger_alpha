@@ -19,7 +19,11 @@ int cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, doub
 			const size_t start = bid * nparts / gsz;
 			const size_t stop = (bid + 1) * nparts / gsz;
 			const float ainv = 1.0 / a;
+#ifdef CONFORMAL_TIME
 			const float dteff = dt * ainv;
+#else
+			const float dteff = dt * ainv * ainv;
+#endif
 			int myrc = 0;
 			double myekin, mymomx, mymomy, mymomz;
 			myekin = 0;
