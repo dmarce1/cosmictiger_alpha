@@ -265,7 +265,7 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 	FILE* fp = fopen("power.dat", "wt");
 	for (int i = 0; i < N; i++) {
 		float k = expf(logkmin + (float) i * dlogk);
-		fprintf(fp, "%e %e %e\n", k, den_k[i], vel_k[i]);
+		fprintf(fp, "%e %e %e\n", k / littleh, den_k[i] / h3, vel_k[i] / h3);
 	}
 	fclose(fp);
 	CUDA_FREE(ks);

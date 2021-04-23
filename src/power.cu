@@ -40,7 +40,7 @@ __global__ void power_spectrum_compute(cmplx* den_k, size_t N, float* spec, int*
 			const auto wavenum = sqrtf((float) wavenum2);
 			int index = (int) (wavenum);
 			if (index < cutoff) {
-				atomicAdd(spec + index, den_k[index].norm());
+				atomicAdd(spec + index, den_k[i * N * N + j * N + k].norm());
 				atomicAdd(count + index, 1);
 			}
 		}
@@ -84,7 +84,7 @@ void compute_power_spectrum(particle_set& parts, int filenum) {
 	const auto code_to_mpc = global().opts.code_to_cm / constants::mpc_to_cm;
 	for (int i = 0; i < N / 2; i++) {
 		spec[i] /= count[i];
-		spec[i] *= std::pow(code_to_mpc, 3) / (8 * N3 * N3);
+		spec[i] *= std::pow(code_to_mpc, 3) / (N3 * N3);
 	}
 	FILE* fp = fopen(filename.c_str(), "wt");
 	if (fp == NULL) {

@@ -174,7 +174,7 @@ void initial_conditions(particle_set& parts) {
 	auto vel_destroy = vel_k->to_device();
 #endif
 
-	generate_random_normals<<<32,32>>>(rands, N3, time(NULL));
+	generate_random_normals<<<32,32>>>(rands, N3, 1234);
 	CUDA_CHECK(cudaDeviceSynchronize());
 
 	printf("\tComputing over/under density\n");
@@ -185,12 +185,8 @@ void initial_conditions(particle_set& parts) {
 	printf("\t\tMaximum over/under density is %e\n", drho);
 	if (drho > 1.0) {
 		printf("The overdensity is high, consider using an ealier starting redshift\n");
-		printf("Pausing for 10 seconds\n");
-		sleep(10);
 	} else if (drho < 0.1) {
 		printf("The overdensity is low, consider using a later starting redshift\n");
-		printf("Pausing for 10 seconds\n");
-		sleep(10);
 	}
 
 	float xdisp = 0.0;

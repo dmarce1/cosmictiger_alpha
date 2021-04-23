@@ -290,7 +290,7 @@ void drive_cosmos() {
 		const bool full_eval = min_r <= 0;
 		//	const bool full_eval = false;
 		double group_tm;
-		bool groups = global().opts.groups;
+		bool groups = z < 20.0 && global().opts.groups;
 		bool power = global().opts.power;
 		unified_allocator alloc;
 		if (full_eval && (power || groups)) {

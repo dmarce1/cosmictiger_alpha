@@ -28,13 +28,14 @@ void healpix_kernel(const float * __restrict__ x, const float * __restrict__ y, 
 
 void healpix2_map(const vector<float>& x, const vector<float>& y, const vector<float>& z, map_type map, int Nside) {
 	auto stream = get_stream();
-	cudaFuncAttributes attribs;
-	CUDA_CHECK(cudaFuncGetAttributes(&attribs, healpix_kernel));
-	int num_blocks = global().cuda.devices[0].multiProcessorCount;
-	int num_threads = attribs.maxThreadsPerBlock;
-	if (num_blocks * num_threads > x.size()) {
-		num_blocks = ((x.size() - 1) / num_threads + 1) * num_threads;
-	}
+	//cudaFuncAttributes attribs;
+//	CUDA_CHECK(cudaFuncGetAttributes(&attribs, healpix_kernel));
+	int num_threads = 96;
+	int num_blocks;
+	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, healpix_kernel, num_threads, 0));
+	//printf( "Healpix occupancy = %i numregs = %i\n", num_blocks, attribs.numRegs);
+	num_blocks *= global().cuda.devices[0].multiProcessorCount;
+
 	CUDA_CHECK(cudaMemPrefetchAsync(x.data(), sizeof(float) * x.size(), 0, stream));
 	CUDA_CHECK(cudaMemPrefetchAsync(y.data(), sizeof(float) * y.size(), 0, stream));
 	CUDA_CHECK(cudaMemPrefetchAsync(z.data(), sizeof(float) * z.size(), 0, stream));
@@ -64,10 +65,6 @@ void healpix_kernel(const float * __restrict__ x, const float * __restrict__ y, 
 		vec[2] = z[i];
 		mag = 1.f / fmaf(x[i], x[i], fmaf(y[i], y[i], sqr(z[i])));
 		vec2pix_ring(Nside, vec, &ipix);
-		if (ipix >= 12 * Nside * Nside) {
-			printf("Pixel out of range!\n");
-			__trap();
-		}
 		atomicAdd(map + ipix, mag);
 	}
 }
