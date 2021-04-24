@@ -29,9 +29,9 @@ void maps_from_file(FILE*fp) {
 	int nmaps;
 	if (!feof(fp)) {
 		FREAD(&nmaps, sizeof(int), 1, fp);
-		printf( "Loading %i maps in progress\n", nmaps);
+		printf("Loading %i maps in progress\n", nmaps);
 		for (int i = 0; i < nmaps; i++) {
-			printf( "%i ", i);
+			printf("%i ", i);
 			fflush(stdout);
 			float* ptr;
 			CUDA_MALLOC(ptr, npts);
@@ -40,13 +40,13 @@ void maps_from_file(FILE*fp) {
 			maps[index] = std::make_shared<float*>(ptr);
 			FREAD(*(maps[index]), sizeof(float), npts, fp);
 		}
-		printf( "\n");
+		printf("\n");
 	}
 }
 
 map_workspace get_map_workspace() {
 //	std::lock_guard<mutex_type> lock(mtx);
-	return std::make_shared<std::unordered_map<int, std::array<vector<float>, NDIM>>>();
+	return std::make_shared<std::unordered_map<int, map_workspace_data>>();
 	/*	if (workspaces.size() == 0) {
 	 auto ws = std::make_shared<std::unordered_map<int, std::array<vector<float>, NDIM>>>();
 	 workspaces.push(ws);
@@ -55,7 +55,6 @@ map_workspace get_map_workspace() {
 	 workspaces.pop();
 	 return ws;*/
 }
-
 
 void prepare_map(int i) {
 	printf("preparing map %i\n", i);
@@ -66,20 +65,19 @@ void prepare_map(int i) {
 	map = std::make_shared<float*>(ptr);
 }
 
-void cleanup_map_workspace(map_workspace ws) {
+void cleanup_map_workspace(map_workspace ws, double tau, double dtau, double tau_max) {
 	static const long Nside = global().opts.map_size;
 	for (auto i = ws->begin(); i != ws->end(); i++) {
-		if (i->second[0].size()) {
+		if (i->second.x.size()) {
 			{
 				std::lock_guard<mutex_type> lock(mtx);
 				if (maps.find(i->first) == maps.end()) {
 					prepare_map(i->first);
 				}
 			}
-			healpix2_map(i->second[0], i->second[1], i->second[2], maps[i->first], Nside);
-			for (int dim = 0; dim < NDIM; dim++) {
-				i->second[dim] = vector<float>();
-			}
+			const auto freq = global().opts.map_freq * tau_max;
+			const auto taui = i->first * freq;
+			healpix2_map(i->second.x, i->second.y, i->second.z, i->second.vx, i->second.vy, i->second.vz, taui, tau, dtau, maps[i->first], Nside);
 		}
 	}
 //	std::lock_guard<mutex_type> lock(mtx);
@@ -109,7 +107,7 @@ void load_and_save_maps(double tau, double tau_max) {
 			printf("                                               \rSaving map %i\n", i->first);
 			save_map(i->first);
 			tm.stop();
-			printf( "Done. Took %e s\n", tm.read());
+			printf("Done. Took %e s\n", tm.read());
 		}
 	}
 	auto i = maps.begin();
@@ -126,7 +124,7 @@ void load_and_save_maps(double tau, double tau_max) {
 simd_float images[NDIM] = { simd_float(0, -1, 0, -1, 0, -1, 0, -1), simd_float(0, 0, -1, -1, 0, 0, -1, -1), simd_float(
 		0, 0, 0, 0, -1, -1, -1, -1) };
 
-int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, double tau, double dtau, double tau_max,
+int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, double tau, double dtau, double dtau_inv, double tau_max,
 		map_workspace& ws) {
 	static const auto map_freq = global().opts.map_freq * tau_max;
 	static const auto map_freq_inv = 1.0 / map_freq;
@@ -151,7 +149,7 @@ int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, d
 	simd_int I0 = tau0 * simd_c0;
 	simd_int I1 = tau1 * simd_c0;
 	for (int ci = 0; ci < 8; ci++) {
-		if (dist1[ci] <= 1.0) {
+		if (dist1[ci] <= 1.0 || dist0[ci] <= 1.0) {
 			const int i0 = I0[ci];
 			const int i1 = I1[ci];
 			if (i0 != i1) {
@@ -161,12 +159,12 @@ int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, d
 					double r = dist1[ci];
 					long ipring;
 					auto& this_ws = (*ws)[j + 1];
-					for (int dim = 0; dim < NDIM; dim++) {
-						this_ws[dim].push_back(x1[dim][ci]);
-					}
-					/*				vec2pix_ring(Nside, &this_x[0], &ipring);
-					 const std::int64_t dN = 100.0 / (r * r) + 0.5;
-					 maps[j + 1][ipring] += dN;*/
+					this_ws.x.push_back(x0[0][ci]);
+					this_ws.y.push_back(x0[1][ci]);
+					this_ws.z.push_back(x0[2][ci]);
+					this_ws.vx.push_back((x1[0][ci] - x0[0][ci])*dtau_inv);
+					this_ws.vy.push_back((x1[1][ci] - x0[1][ci])*dtau_inv);
+					this_ws.vz.push_back((x1[2][ci] - x0[2][ci])*dtau_inv);
 				}
 			}
 		}

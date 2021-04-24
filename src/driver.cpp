@@ -351,7 +351,7 @@ void drive_cosmos() {
 		if (global().opts.map_size > 0) {
 			load_and_save_maps(time * T0, NTIMESTEP * T0);
 		}
-		int mapped_cnt = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time, NTIMESTEP * T0, drift_tm);
+		int mapped_cnt = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time - dt, NTIMESTEP * T0, drift_tm);
 		cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;
 		//	printf( "%e %e %e %e\n", a, pot, kin, cosmicK);

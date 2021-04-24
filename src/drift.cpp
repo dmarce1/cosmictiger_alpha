@@ -18,7 +18,8 @@ int cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, doub
 			const size_t nparts = parts.size();
 			const size_t start = bid * nparts / gsz;
 			const size_t stop = (bid + 1) * nparts / gsz;
-			const float ainv = 1.0 / a;
+			const float ainv = 1.0f / a;
+			const float dtinv = 1.f / dt;
 #ifdef CONFORMAL_TIME
 			const float dteff = dt * ainv;
 #else
@@ -55,7 +56,7 @@ int cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, doub
 				x1[1] = y;
 				x1[2] = z;
 				if( map ) {
-					myrc +=map_add_part(x0, x1, tau, dt, tau_max, map_ws);
+					myrc +=map_add_part(x0, x1, tau, dt,dtinv, tau_max, map_ws);
 				}
 				while (x >= 1.0) {
 					x -= 1.0;
@@ -79,7 +80,7 @@ int cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, doub
 				parts.pos(1, i) = y;
 				parts.pos(2, i) = z;
 			}
-			cleanup_map_workspace(map_ws);
+			cleanup_map_workspace(map_ws, tau, dt, tau_max);
 			std::lock_guard<mutex_type> lock(mtx);
 			*ekin += myekin;
 			*momx += mymomx;
