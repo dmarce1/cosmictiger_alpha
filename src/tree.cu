@@ -18,7 +18,6 @@
 #define PC_PP_EWALD 3
 #define N_INTERACTION_TYPES 4
 
-CUDA_DEVICE particle_set *parts;
 
 __managed__ list_sizes_t list_sizes { 0, 0, 0, 0 };
 
@@ -33,11 +32,7 @@ void cuda_set_kick_constants(kick_constants consts) {
 	consts.theta2 = sqr(consts.theta);
 	consts.invlog2 = 1.0f / logf(2);
 	consts.GM = consts.G * consts.M;
-#ifdef CONFORMAL_TIME
 	consts.tfactor = consts.eta * sqrtf(consts.scale * consts.h);
-#else
-	consts.tfactor = consts.eta * sqrtf(sqr(consts.scale) * consts.scale * consts.h);
-#endif
 	consts.logt0 = logf(consts.t0);
 	consts.ainv = 1.f / consts.scale;
 	consts.halft0 = 0.5f * consts.t0;
@@ -47,6 +42,9 @@ void cuda_set_kick_constants(kick_constants consts) {
 	consts.th = consts.h * consts.theta;
 	CUDA_CHECK(cudaMemcpyToSymbol(constant, &consts, sizeof(kick_constants)));
 }
+
+
+
 
 __constant__ float rung_dt[MAX_RUNG] = { 1.0 / (1 << 0), 1.0 / (1 << 1), 1.0 / (1 << 2), 1.0 / (1 << 3), 1.0 / (1 << 4),
 		1.0 / (1 << 5), 1.0 / (1 << 6), 1.0 / (1 << 7), 1.0 / (1 << 8), 1.0 / (1 << 9), 1.0 / (1 << 10), 1.0 / (1 << 11),
@@ -415,19 +413,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		kick_return_update_interactions_gpu(KR_OP, interacts, flops);
 	}
 }
-
-CUDA_KERNEL cuda_set_kick_params_kernel(particle_set *p) {
-	if (threadIdx.x == 0) {
-		parts = p;
-	}
-}
-
 void tree::show_timings() {
-}
-
-void tree::cuda_set_kick_params(particle_set *p) {
-	cuda_set_kick_params_kernel<<<1,1>>>(p);
-	CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {

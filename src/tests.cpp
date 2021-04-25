@@ -22,7 +22,6 @@ static void tree_test() {
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
 	parts.generate_random();
-	tree::set_particle_set(&parts);
 
 	printf("Sorting\n");
 	{
@@ -68,11 +67,9 @@ void kick_test() {
 	}
 	// parts.generate_grid();
 //	parts.generate_random();
-	tree::set_particle_set(&parts);
 	particle_set *parts_ptr;
 	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
 	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-	tree::cuda_set_kick_params(parts_ptr);
 	timer ttime;
 	std::vector<double> timings;
 	tree_data_initialize_kick();
@@ -172,7 +169,6 @@ void group_test() {
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
 	parts.generate_random();
-	tree::set_particle_set(&parts);
 	particle_set *parts_ptr;
 	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
 	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
@@ -244,11 +240,9 @@ void drift_test() {
 	particle_set parts(global().opts.nparts);
 	parts.load_particles("ics");
 	// parts.generate_grid();
-	tree::set_particle_set(&parts);
 	particle_set *parts_ptr;
 	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
 	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-	tree::cuda_set_kick_params(parts_ptr);
 	for (int i = 0; i < 2; i++) {
 		tree root;
 		timer tm_sort, tm_kick, tm_cleanup;

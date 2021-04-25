@@ -17,7 +17,6 @@ tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_act
 		bool group_sort = false) {
 	timer time;
 	time.start();
-	tree::set_particle_set(&parts);
 	static bool last_was_group_sort = true;
 	static int last_bucket_size = global().opts.bucket_size;
 	int bucket_size = global().opts.bucket_size;
@@ -33,7 +32,6 @@ tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_act
 	if (parts_ptr == nullptr) {
 		CUDA_MALLOC(parts_ptr, sizeof(particle_set));
 		new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-		tree::cuda_set_kick_params(parts_ptr);
 	}
 	tree root;
 	tree_ptr root_ptr;

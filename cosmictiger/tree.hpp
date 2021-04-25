@@ -88,6 +88,8 @@ struct sort_params {
 			child[i].min_rung = min_rung;
 			child[i].alloc = alloc;
 			child[i].group_sort = group_sort;
+			child[i].part_sets = part_sets;
+
 		}
 		return child;
 	}
@@ -156,7 +158,7 @@ struct kick_params_type {
 	array<float, MAX_BUCKET_SIZE> Phi;
 	array<expansion<float>, TREE_MAX_DEPTH> L;
 	array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
-	particle_sets* parts;
+	particle_sets* part_sets;
 	tree_ptr tptr;
 	int depth;
 	size_t block_cutoff;
@@ -191,6 +193,7 @@ struct kick_params_type {
 		M = other.M;
 		tptr = other.tptr;
 		groups = other.groups;
+		part_sets = other.part_sets;
 		return *this;
 	}
 
@@ -241,7 +244,6 @@ struct tree {
 #ifndef __CUDACC__
 private:
 #endif //*** multi and pos MUST be adjacent and ordered multi then pos !!!!!!! *****/
-	static particle_set* particles;
 public:
 	static std::atomic<int> cuda_node_count;
 	static std::atomic<int> cpu_node_count;
@@ -250,7 +252,6 @@ public:
 	static void show_timings();
 #ifndef __CUDACC__
 //		static pranges covered_ranges;
-	static void set_particle_set(particle_set*);
 	inline static fast_future<sort_return> create_child(sort_params&, bool try_thread);
 	static fast_future<sort_return> cleanup_child();
 	static hpx::lcos::local::mutex mtx;

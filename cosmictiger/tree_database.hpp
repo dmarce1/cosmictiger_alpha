@@ -129,6 +129,9 @@ CUDA_EXPORT
 pair<size_t, size_t> tree_data_get_parts(int i);
 
 CUDA_EXPORT
+pair<size_t, size_t> tree_data_get_hydro_parts(int i);
+
+CUDA_EXPORT
 void tree_data_set_parts(int i, const pair<size_t, size_t>& p);
 
 CUDA_EXPORT
@@ -237,6 +240,11 @@ inline pair<size_t, size_t> tree_ptr::get_parts() const {
 }
 
 CUDA_EXPORT
+inline pair<size_t, size_t> tree_ptr::get_hydro_parts() const {
+	return tree_data_get_hydro_parts(dindex);
+}
+
+CUDA_EXPORT
 inline void tree_ptr::set_hydro_parts(const pair<size_t, size_t>& p) const {
 	tree_data_set_hydro_parts(dindex, p);
 }
@@ -245,6 +253,7 @@ CUDA_EXPORT
 inline void tree_ptr::set_parts(const pair<size_t, size_t>& p) const {
 	tree_data_set_parts(dindex, p);
 }
+
 
 CUDA_EXPORT
 inline size_t tree_ptr::get_active_parts() const {
