@@ -102,7 +102,7 @@ int drift(particle_set& parts, double dt, double a0, double a1, double*ekin, dou
 		double tau, double tau_max, double& tm) {
 	timer time;
 	time.start();
-	int rc = drift_particles(parts.get_virtual_particle_set(), dt, a0, a1, ekin, momx, momy, momz, tau, tau_max);
+	int rc = drift_particles(parts.get_virtual_particle_set(), dt, a0, ekin, momx, momy, momz, tau, tau_max);
 	time.stop();
 	tm = time.read();
 	return rc;
@@ -349,7 +349,7 @@ void drive_cosmos() {
 		real_time += a * dt * 0.5;
 		z = 1.0 / a - 1.0;
 		if (global().opts.map_size > 0) {
-			load_and_save_maps(time * T0, NTIMESTEP * T0);
+			load_and_save_maps(time * T0 - dt, NTIMESTEP * T0);
 		}
 		int mapped_cnt = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time - dt, NTIMESTEP * T0, drift_tm);
 		cosmicK += kin * (a - a0);

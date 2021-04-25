@@ -44,6 +44,7 @@ struct options {
 	bool groups;
 	bool power;
 	bool maps;
+	bool sph;
 	int map_size;
 	double silo_interval;
 	double map_freq;

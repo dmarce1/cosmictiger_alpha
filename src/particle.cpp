@@ -9,40 +9,6 @@
 #include <unordered_map>
 #include <algorithm>
 
-void particle_set::prepare_sort() {
-#ifdef USE_READMOSTLY
-	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetReadMostly, 0));
-	}
-	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseUnsetReadMostly, 0));
-#endif
-}
-
-void particle_set::prepare_kick() {
-#ifdef USE_READMOSTLY
-	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseSetReadMostly, 0));
-	}
-	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseUnsetReadMostly, 0));
-#endif
-//	for (int dim = 0; dim < NDIM; dim++) {
-	//CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetPreferredLocation, cudaCpuDeviceId));
-//	}
-//	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseUnsetPreferredLocation, cudaCpuDeviceId));
-}
-
-void particle_set::prepare_drift() {
-#ifdef USE_READMOSTLY
-	for (int dim = 0; dim < NDIM; dim++) {
-		CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseUnsetReadMostly, 0));
-	}
-	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseSetReadMostly, 0));
-#endif
-	for (int dim = 0; dim < NDIM; dim++) {
-		//CUDA_CHECK(cudaMemAdvise(xptr_[dim], sizeof(fixed32) * size(), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
-	}
-//	CUDA_CHECK(cudaMemAdvise(uptr_, sizeof(vel_type) * size(), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId));
-}
 
 void particle_set::init_groups() {
 	CUDA_MALLOC(lidptr1_, size());

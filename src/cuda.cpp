@@ -8,7 +8,6 @@
 #include <cosmictiger/cuda.hpp>
 
 #include <cosmictiger/tree.hpp>
-#include <cosmictiger/sort.hpp>
 #include <cosmictiger/drift.hpp>
 #include <cstdlib>
 

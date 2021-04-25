@@ -37,9 +37,7 @@ using rung_t = int8_t;
 struct particle_set {
 	particle_set() = default;
 	particle_set(size_t, size_t = 0);
-	void prepare_sort();
-	void prepare_kick();
-	void prepare_drift();CUDA_EXPORT
+	CUDA_EXPORT
 	~particle_set();CUDA_EXPORT
 	fixed32 pos_ldg(int, size_t index) const;CUDA_EXPORT
 	fixed32 pos(int, size_t index) const;CUDA_EXPORT
@@ -69,7 +67,7 @@ struct particle_set {
 	float& pot(size_t index);
 	void silo_out(const char* filename) const;
 	#ifndef __CUDACC__
-private:
+protected:
 #endif
 	array<fixed32*, NDIM> xptr_;
 	array<float,NDIM>* uptr_;

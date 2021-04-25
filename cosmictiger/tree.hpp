@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cosmictiger/defs.hpp>
-#include <cosmictiger/particle.hpp>
+#include <cosmictiger/particle_sets.hpp>
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/fast_future.hpp>
@@ -47,10 +47,11 @@ struct sort_params {
 	int8_t depth;
 	int8_t min_depth;
 	double theta;
-	pair<size_t, size_t> parts;
+	array<pair<size_t, size_t>,NPART_TYPES> parts;
 	int min_rung;
 	tree_ptr tptr;
 	bool group_sort;
+	particle_sets* part_sets;
 	std::shared_ptr<tree_allocator> alloc;
 	template<class A>
 	void serialization(A &&arc, unsigned) {
@@ -72,9 +73,10 @@ struct sort_params {
 			box.begin[dim] = 0.f;
 			box.end[dim] = 1.f;
 		}
-		parts.first = 0;
-		parts.second = global().opts.nparts;
-		depth = 0;
+		for( int i = 0; i < NPART_TYPES; i++) {
+			parts[i].first = 0;
+			parts[i].second = part_sets->sets[i]->size();
+		}
 	}
 
 	std::array<sort_params, NCHILD> get_children() const {
@@ -154,6 +156,7 @@ struct kick_params_type {
 	array<float, MAX_BUCKET_SIZE> Phi;
 	array<expansion<float>, TREE_MAX_DEPTH> L;
 	array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
+	particle_sets* parts;
 	tree_ptr tptr;
 	int depth;
 	size_t block_cutoff;

@@ -29,7 +29,6 @@ set(cosmictiger_source_files
     src/cosmos.cpp
     src/cuda.cpp
     src/drift.cpp
-    src/drift.cu
     src/driver.cpp
     src/global.cpp
     src/gravity.cpp
@@ -43,6 +42,7 @@ set(cosmictiger_source_files
     src/options.cpp
     src/particle.cpp
     src/rand.cpp
+    src/hydro_particle.cpp
     src/tests.cpp
     src/tree.cpp
     src/tree_database.cpp
@@ -78,7 +78,6 @@ set(cosmictiger_header_files
 	cosmictiger/ewald_indices.hpp
 	cosmictiger/interp.hpp
 	cosmictiger/kick_return.hpp
-	cosmictiger/sort.hpp
 	cosmictiger/zero_verse.hpp
 	cosmictiger/fourier.hpp
 	cosmictiger/green_direct.hpp
@@ -105,11 +104,13 @@ set(cosmictiger_header_files
 	cosmictiger/multipole.hpp
 	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
+	cosmictiger/particle_sets.hpp
 	cosmictiger/rand.hpp
 	cosmictiger/range.hpp
 	cosmictiger/timer.hpp
 	cosmictiger/tests.hpp
 	cosmictiger/map.hpp
+	cosmictiger/hydro_particle.hpp
 	cosmictiger/tree_database.hpp
 	cosmictiger/tree.hpp
 	cosmictiger/zeldovich.hpp

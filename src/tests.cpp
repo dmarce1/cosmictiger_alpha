@@ -13,7 +13,6 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/drift.hpp>
-#include <cosmictiger/sort.hpp>
 #include <cosmictiger/groups.hpp>
 #include <cosmictiger/time.hpp>
 #include <cmath>
@@ -307,7 +306,7 @@ void drift_test() {
 		double dt = params_ptr->t0 / (1 << max_rung);
 		printf("Maximum rung = %i timestep = %e\n", max_rung, dt);
 		double a, b, c, d;
-		drift_particles(parts.get_virtual_particle_set(), dt, 1.0, 1.0, &a, &b, &c, &d, 0.0, 1.0);
+		drift_particles(parts.get_virtual_particle_set(), dt, 1.0, &a, &b, &c, &d, 0.0, 1.0);
 		tm_drift.stop();
 		printf("Drift took %e seconds\n", tm_drift.read());
 

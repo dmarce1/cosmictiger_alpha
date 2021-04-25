@@ -3,16 +3,19 @@
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/map.hpp>
 #include <cosmictiger/global.hpp>
+#include <cosmictiger/cosmos.hpp>
 
-int cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, double* momx, double* momy, double* momz,
+int drift_particles(particle_set parts, double dt, double a0, double* ekin, double* momx, double* momy, double* momz,
 		double tau, double tau_max) {
 	const int gsz = 2 * hpx::threads::hardware_concurrency();
 	static mutex_type mtx;
 	std::vector<hpx::future<void>> futs;
 	static std::atomic<int> rc(0);
 	rc = 0;
+	const auto ddt = cosmos_drift_dtau(a0,dt);
+	const auto a = 1.0 / ddt;
 	for (int bid = 0; bid < gsz; bid++) {
-		auto func = [bid, gsz, &parts, dt,a,ekin, momx, momy, momz, tau, tau_max]() {
+		auto func = [a,bid, gsz, &parts, dt,ekin, momx, momy, momz, tau, tau_max]() {
 			auto map_ws = get_map_workspace();
 			const bool map = global().opts.map_size > 0;
 			const size_t nparts = parts.size();
@@ -93,4 +96,3 @@ int cpu_drift_kernel(particle_set parts, double dt, double a, double* ekin, doub
 	hpx::wait_all(futs.begin(), futs.end());
 	return int(rc);
 }
-

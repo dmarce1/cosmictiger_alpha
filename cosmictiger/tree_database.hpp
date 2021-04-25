@@ -55,7 +55,13 @@ struct tree_ptr {
 	inline pair<size_t, size_t> get_parts() const;
 
 	CUDA_EXPORT
+	inline pair<size_t, size_t> get_hydro_parts() const;
+
+	CUDA_EXPORT
 	inline void set_parts(const pair<size_t, size_t>& p) const;
+
+	CUDA_EXPORT
+	inline void set_hydro_parts(const pair<size_t, size_t>& p) const;
 
 	CUDA_EXPORT
 	inline size_t get_active_parts() const;
@@ -124,6 +130,9 @@ pair<size_t, size_t> tree_data_get_parts(int i);
 
 CUDA_EXPORT
 void tree_data_set_parts(int i, const pair<size_t, size_t>& p);
+
+CUDA_EXPORT
+void tree_data_set_hydro_parts(int i, const pair<size_t, size_t>& p);
 
 CUDA_EXPORT
 size_t tree_data_get_active_parts(int i);
@@ -228,6 +237,11 @@ inline pair<size_t, size_t> tree_ptr::get_parts() const {
 }
 
 CUDA_EXPORT
+inline void tree_ptr::set_hydro_parts(const pair<size_t, size_t>& p) const {
+	tree_data_set_hydro_parts(dindex, p);
+}
+
+CUDA_EXPORT
 inline void tree_ptr::set_parts(const pair<size_t, size_t>& p) const {
 	tree_data_set_parts(dindex, p);
 }
@@ -283,6 +297,7 @@ struct tree_database_t {
 	multipole_pos* multi;
 	size_t* active_nodes;
 	pair<size_t, size_t>* parts;
+	pair<size_t, size_t>* hydro_parts;
 	tree_data_t* data;
 	range* ranges;
 	size_t* active_parts;
@@ -292,7 +307,7 @@ struct tree_database_t {
 };
 
 #ifdef TREE_DATABASE_CU
-__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
+__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
 tree_database_t cpu_tree_data_;
 #else
 extern __managed__ tree_database_t gpu_tree_data_;
@@ -462,6 +477,23 @@ CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_parts(int i) {
 	return p.parts;
 }
 
+CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_hydro_parts(int i) {
+#ifdef __CUDACC__
+	auto& tree_data_ = gpu_tree_data_;
+#else
+	auto& tree_data_ = cpu_tree_data_;
+#endif
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	union parts_union {
+		pair<size_t, size_t> parts;
+		int4 ints;
+	};
+	parts_union p;
+	p.ints = LDG((int4* )(tree_data_.hydro_parts + i));
+	return p.parts;
+}
+
 CUDA_EXPORT inline
 void tree_data_set_parts(int i, const pair<size_t, size_t>& p) {
 #ifdef __CUDACC__
@@ -472,6 +504,18 @@ void tree_data_set_parts(int i, const pair<size_t, size_t>& p) {
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.parts[i] = p;
+}
+
+CUDA_EXPORT inline
+void tree_data_set_hydro_parts(int i, const pair<size_t, size_t>& p) {
+#ifdef __CUDACC__
+	auto& tree_data_ = gpu_tree_data_;
+#else
+	auto& tree_data_ = cpu_tree_data_;
+#endif
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	tree_data_.hydro_parts[i] = p;
 }
 
 CUDA_EXPORT inline size_t tree_data_get_active_parts(int i) {

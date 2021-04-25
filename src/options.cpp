@@ -39,6 +39,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("hubble", po::value<double>(&(opts.hubble))->default_value(0.7), "") //
 	("silo_interval", po::value<double>(&(opts.silo_interval))->default_value(-1.), "interval between SILO outs") //
 	("maps", po::value<bool>(&(opts.maps))->default_value(false), "generate healpix maps") //
+	("sph", po::value<bool>(&(opts.sph))->default_value(false), "use SPH") //
 	("parts_dim", po::value<size_t>(&(opts.parts_dim))->default_value(16), "number of particles = parts_dim^3") //
 	("test", po::value<std::string>(&(opts.test))->default_value(""), "test problem") //
 	("z0", po::value<double>(&(opts.z0))->default_value(49), "starting redshift") //
@@ -123,6 +124,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	SHOW(groups);
 	SHOW(hsoft);
 	SHOW(power);
+	SHOW(sph);
 	SHOW(theta);
 
 	printf("Units\n");
