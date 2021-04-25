@@ -11,6 +11,8 @@
 #include <cosmictiger/hydro_particle.hpp>
 
 #define NPART_TYPES 2
+#define CDM_SET 0
+#define BARY_SET 1
 
 struct particle_sets {
 	array<particle_set*, NPART_TYPES> sets;

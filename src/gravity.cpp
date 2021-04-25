@@ -70,7 +70,6 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
 	const auto parts = params.tptr.get_parts();
-	int nparts = parts.second - parts.first;
 	int flops = 0;
 	int interacts = 0;
 	int n;
@@ -81,8 +80,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	}
 	parts_type other_parts;
 	for (int k = 0; k < partis.size(); k++) {
-		other_parts[0] = partis[k].get_parts();
-		other_parts[1] = partis[k].get_hydro_parts();
+		other_parts = partis[k].get_parts();
 		for (int pi = 0; pi < NPART_TYPES; pi++) {
 			const auto& particles = params.part_sets->sets[pi];
 			for (size_t l = other_parts[pi].first; l < other_parts[pi].second; l++) {
@@ -156,8 +154,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	int interacts = 0;
 	int n;
 	parts_type parts;
-	parts[0] = params.tptr.get_parts();
-	parts[1] = params.tptr.get_hydro_parts();
+	parts = params.tptr.get_parts();
 	static thread_local std::array<std::vector<fixed32>, NDIM> sources;
 	auto &partis = params.part_interactions;
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -165,8 +162,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	}
 	parts_type other_parts;
 	for (int k = 0; k < partis.size(); k++) {
-		other_parts[0] = partis[k].get_parts();
-		other_parts[1] = partis[k].get_hydro_parts();
+		other_parts = partis[k].get_parts();
 		for (int pi = 0; pi < NPART_TYPES; pi++) {
 			const auto& particles = params.part_sets->sets[pi];
 			for (size_t l = other_parts[pi].first; l < other_parts[pi].second; l++) {
@@ -262,8 +258,7 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 	auto& F = params.F;
 	auto& Phi = params.Phi;
 	parts_type parts;
-	parts[0] = params.tptr.get_parts();
-	parts[1] = params.tptr.get_hydro_parts();
+	parts = params.tptr.get_parts();
 	array<simd_int, NDIM> X;
 	array<simd_float, NDIM> dX;
 	array<simd_int, NDIM> Y;

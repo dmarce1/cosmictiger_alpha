@@ -52,16 +52,13 @@ struct tree_ptr {
 	inline void set_leaf(bool b) const;
 
 	CUDA_EXPORT
-	inline pair<size_t, size_t> get_parts() const;
+	inline part_iters get_parts(int) const;
 
 	CUDA_EXPORT
-	inline pair<size_t, size_t> get_hydro_parts() const;
+	inline parts_type get_parts() const;
 
 	CUDA_EXPORT
-	inline void set_parts(const pair<size_t, size_t>& p) const;
-
-	CUDA_EXPORT
-	inline void set_hydro_parts(const pair<size_t, size_t>& p) const;
+	inline void set_parts(const parts_type& p) const;
 
 	CUDA_EXPORT
 	inline size_t get_active_parts() const;
@@ -126,16 +123,13 @@ CUDA_EXPORT
 void tree_data_set_children(int i, const array<tree_ptr, NCHILD>& c);
 
 CUDA_EXPORT
-pair<size_t, size_t> tree_data_get_parts(int i);
+part_iters tree_data_get_parts(int i, int pi);
 
 CUDA_EXPORT
-pair<size_t, size_t> tree_data_get_hydro_parts(int i);
+parts_type tree_data_get_parts(int i);
 
 CUDA_EXPORT
-void tree_data_set_parts(int i, const pair<size_t, size_t>& p);
-
-CUDA_EXPORT
-void tree_data_set_hydro_parts(int i, const pair<size_t, size_t>& p);
+void tree_data_set_parts(int i, const parts_type& p);
 
 CUDA_EXPORT
 size_t tree_data_get_active_parts(int i);
@@ -151,7 +145,6 @@ void tree_data_set_active_nodes(int i, size_t p);
 
 CUDA_EXPORT
 range tree_data_get_range(int i);
-
 
 CUDA_EXPORT
 void tree_data_set_range(int i, const range& r);
@@ -235,25 +228,19 @@ inline void tree_ptr::set_children(const array<tree_ptr, NCHILD>& c) const {
 }
 
 CUDA_EXPORT
-inline pair<size_t, size_t> tree_ptr::get_parts() const {
+inline part_iters tree_ptr::get_parts(int pi) const {
+	return tree_data_get_parts(dindex, pi);
+}
+
+CUDA_EXPORT
+inline parts_type tree_ptr::get_parts() const {
 	return tree_data_get_parts(dindex);
 }
 
 CUDA_EXPORT
-inline pair<size_t, size_t> tree_ptr::get_hydro_parts() const {
-	return tree_data_get_hydro_parts(dindex);
-}
-
-CUDA_EXPORT
-inline void tree_ptr::set_hydro_parts(const pair<size_t, size_t>& p) const {
-	tree_data_set_hydro_parts(dindex, p);
-}
-
-CUDA_EXPORT
-inline void tree_ptr::set_parts(const pair<size_t, size_t>& p) const {
+inline void tree_ptr::set_parts(const parts_type& p) const {
 	tree_data_set_parts(dindex, p);
 }
-
 
 CUDA_EXPORT
 inline size_t tree_ptr::get_active_parts() const {
@@ -284,7 +271,6 @@ CUDA_EXPORT
 inline void tree_ptr::set_range(const range& r) const {
 	tree_data_set_range(dindex, r);
 }
-
 
 struct multipole_pos {
 	multipole multi;
@@ -469,7 +455,7 @@ void tree_data_set_children(int i, const array<tree_ptr, NCHILD>& c) {
 	tree_data_.data[i].children[1] = c[1];
 }
 
-CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_parts(int i) {
+CUDA_EXPORT inline part_iters tree_data_get_parts(int i, int pi) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
@@ -482,29 +468,20 @@ CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_parts(int i) {
 		int4 ints;
 	};
 	parts_union p;
-	p.ints = LDG((int4* )(tree_data_.parts + i));
+	p.ints = LDG((int4* )((pi == CDM_SET ? tree_data_.parts : tree_data_.hydro_parts) + i));
 	return p.parts;
 }
 
-CUDA_EXPORT inline pair<size_t, size_t> tree_data_get_hydro_parts(int i) {
-#ifdef __CUDACC__
-	auto& tree_data_ = gpu_tree_data_;
-#else
-	auto& tree_data_ = cpu_tree_data_;
-#endif
-	assert(i >= 0);
-	assert(i < tree_data_.ntrees);
-	union parts_union {
-		pair<size_t, size_t> parts;
-		int4 ints;
-	};
-	parts_union p;
-	p.ints = LDG((int4* )(tree_data_.hydro_parts + i));
-	return p.parts;
+CUDA_EXPORT inline parts_type tree_data_get_parts(int i) {
+	parts_type parts;
+	for (int pi = 0; pi < NPART_TYPES; pi++) {
+		parts[pi] = tree_data_get_parts(pi, CDM_SET);
+	}
+	return parts;
 }
 
 CUDA_EXPORT inline
-void tree_data_set_parts(int i, const pair<size_t, size_t>& p) {
+void tree_data_set_parts(int i, const parts_type& p) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
@@ -512,7 +489,8 @@ void tree_data_set_parts(int i, const pair<size_t, size_t>& p) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.parts[i] = p;
+	tree_data_.parts[i] = p[CDM_SET];
+	tree_data_.hydro_parts[i] = p[BARY_SET];
 }
 
 CUDA_EXPORT inline

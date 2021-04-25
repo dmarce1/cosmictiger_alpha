@@ -148,7 +148,7 @@ __device__ size_t cuda_find_groups(tree_ptr self) {
 	}
 	__syncwarp();
 	if (iamleaf) {
-		const auto myparts = self.get_parts();
+		const auto myparts = self.get_parts(CDM_SET);
 		const auto linklen2 = sqr(shmem.link_len);
 		const int mysize = myparts.second - myparts.first;
 		for (int i = tid; i < mysize; i += warpSize) {
@@ -164,7 +164,7 @@ __device__ size_t cuda_find_groups(tree_ptr self) {
 			if (checks[i] == self) {
 				continue;
 			}
-			const auto other_pair = checks[i].get_parts();
+			const auto other_pair = checks[i].get_parts(CDM_SET);
 			const int other_size = other_pair.second - other_pair.first;
 			const int other_max = ((other_size - 1) / warpSize + 1) * warpSize;
 			other_count = 0;

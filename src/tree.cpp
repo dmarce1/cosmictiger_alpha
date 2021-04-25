@@ -83,8 +83,7 @@ sort_return tree::sort(sort_params params) {
 	static std::atomic<int> gpu_searches(0);
 	size_t active_parts = 0;
 	size_t active_nodes = 0;
-	array<pair<size_t, size_t>, NPART_TYPES> parts;
-	pair<size_t, size_t> hydro_parts;
+	parts_type parts;
 	tree_ptr self = params.tptr;
 	if (params.iamroot()) {
 		gpu_searches = 0;
@@ -96,8 +95,7 @@ sort_return tree::sort(sort_params params) {
 	}
 	auto& particles = *params.part_sets;
 	parts = params.parts;
-	self.set_parts(parts[0]);
-	self.set_hydro_parts(parts[1]);
+	self.set_parts(parts);
 	if (params.depth == TREE_MAX_DEPTH) {
 		printf("Exceeded maximum tree depth\n");
 		abort();
@@ -342,9 +340,6 @@ void tree::cleanup() {
 hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	static const bool use_cuda = global().opts.cuda;
 	kick_params_type &params = *params_ptr;
-	const auto parts = get_parts();
-	const auto part_begin = parts.first;
-	const auto part_end = parts.second;
 	const auto num_active = get_active_nodes();
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
 	if (use_cuda && num_active <= params.block_cutoff && num_active) {
@@ -400,8 +395,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto& F = params.F;
 	auto& phi = params.Phi;
 	parts_type parts;
-	parts[0] = self.get_parts();
-	parts[1] = self.get_hydro_parts();
+	parts = self.get_parts();
 	if (params.depth == 0) {
 		kick_timer.start();
 		parts_covered = 0;
@@ -547,8 +541,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.depth--;
 		} else if (children[LEFT].get_active_parts()) {
 			parts_type other_parts;
-			other_parts[0] = children[RIGHT].get_parts();
-			other_parts[1] = children[RIGHT].get_hydro_parts();
+			other_parts = children[RIGHT].get_parts();
 //			covered_ranges.add_range(parts);
 			parts_covered += other_parts.size();
 			if (parts_covered == params.part_sets->size()) {
@@ -563,8 +556,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.depth--;
 		} else if (children[RIGHT].get_active_parts()) {
 			parts_type other_parts;
-			other_parts[0] = children[LEFT].get_parts();
-			other_parts[1] = children[LEFT].get_hydro_parts();
+			other_parts = children[LEFT].get_parts();
 //			covered_ranges.add_range(parts);
 			parts_covered += other_parts.size();
 			if (parts_covered == params.part_sets->size()) {
@@ -707,7 +699,7 @@ void tree::gpu_daemon() {
 				kicks.push_back(gpu_queue.pop());
 			}
 			std::sort(kicks.begin(), kicks.end(), [&](const gpu_kick& a, const gpu_kick& b) {
-				return a.parts.first < b.parts.first;
+				return a.parts[CDM_SET].first < b.parts[CDM_SET].first;
 			});
 			while (kicks.size() > kick_grid_size) {
 				gpu_queue.push(kicks.back());
@@ -807,7 +799,7 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 	gpu.parts = params->tptr.get_parts();
 	gpu_queue.push(std::move(gpu));
 //	covered_ranges.add_range(parts);
-	parts_covered += gpu.parts.second - gpu.parts.first;
+	parts_covered += gpu.parts.size();
 	if (parts_covered == global().opts.nparts) {
 		gpu_daemon();
 	}

@@ -84,8 +84,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		}
 	}
 	parts_type myparts;
-	myparts[0] = shmem.self.get_parts();
-	myparts[1] = shmem.self.get_hydro_parts();
+	myparts = shmem.self.get_parts();
 	array<int, NITERS> count;
 
 	const float& theta = constant.theta;
@@ -234,8 +233,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const auto other_pos = parti[j].get_pos();
 						const auto other_radius = parti[j].get_radius();
 						parts_type parti_parts;
-						parti_parts[0] = parti[j].get_parts();
-						parti_parts[1] = parti[j].get_hydro_parts();
+						parti_parts = parti[j].get_parts();
 						const auto other_nparts = parti_parts.size();
 						bool res = false;
 						const int sz = myparts[pi].second - myparts[pi].first;

@@ -89,11 +89,10 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	for (int j = 0; j < LP; j++) {
 		L[j] = 0.0;
 	}
-	parts_type these_parts;
+	part_iters these_parts;
 	for (int pi = 0; pi < NPART_TYPES; pi++) {
 		auto& parts = *part_sets->sets[pi];
-		these_parts[0] = parti[0].get_parts();
-		these_parts[1] = parti[0].get_hydro_parts();
+		these_parts = parti[0].get_parts(pi);
 		int i = 0;
 		const auto pos = shmem.self.get_pos();
 		const auto partsz = parti.size();
@@ -101,31 +100,29 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 			part_index = 0;
 			while (part_index < KICK_PP_MAX && i < partsz) {
 				while (i + 1 < partsz) {
-					parts_type other_tree_parts;
-					other_tree_parts[0] = parti[i + 1].get_parts();
-					other_tree_parts[1] = parti[i + 1].get_hydro_parts();
-					if (these_parts[pi].second == other_tree_parts[pi].first) {
-						these_parts[pi].second = other_tree_parts[pi].second;
+					part_iters other_tree_parts;
+					other_tree_parts = parti[i + 1].get_parts(pi);
+					if (these_parts.second == other_tree_parts.first) {
+						these_parts.second = other_tree_parts.second;
 						i++;
 					} else {
 						break;
 					}
 				}
-				const size_t imin = these_parts[pi].first;
-				const size_t imax = min(these_parts[pi].first + (KICK_PP_MAX - part_index), these_parts[pi].second);
+				const size_t imin = these_parts.first;
+				const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
 				const int sz = imax - imin;
 				for (int j = tid; j < sz; j += warpSize) {
 					for (int dim = 0; dim < NDIM; dim++) {
 						sources[dim][part_index + j] = parts.pos(dim, j + imin);
 					}
 				}
-				these_parts[pi].first += sz;
+				these_parts.first += sz;
 				part_index += sz;
-				if (these_parts[pi].first == these_parts[pi].second) {
+				if (these_parts.first == these_parts.second) {
 					i++;
 					if (i < parti.size()) {
-						these_parts[0] = parti[i].get_parts();
-						these_parts[1] = parti[i].get_hydro_parts();
+						these_parts = parti[i].get_parts(pi);
 					}
 				}
 			}
@@ -166,9 +163,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
 
-	parts_type myparts;
-	myparts[0] = shmem.self.get_parts();
-	myparts[1] = shmem.self.get_hydro_parts();
+	parts_type myparts = shmem.self.get_parts();
 
 	int my_index;
 	bool found;
@@ -242,46 +237,39 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	if (parti.size() == 0) {
 		return;
 	}
-//   printf( "%i\n", parti.size());
-	parts_type myparts;
-	myparts[0] = shmem.self.get_parts();
-	myparts[1] = shmem.self.get_hydro_parts();
 	for (int pi = 0; pi < NPART_TYPES; pi++) {
 		auto& parts = *part_sets->sets[pi];
 		int i = 0;
-		parts_type these_parts;
-		these_parts[0] = parti[0].get_parts();
-		these_parts[1] = parti[0].get_hydro_parts();
+		part_iters these_parts;
+		these_parts = parti[0].get_parts(pi);
 		const auto partsz = parti.size();
 		while (i < partsz) {
 			part_index = 0;
 			while (part_index < KICK_PP_MAX && i < partsz) {
 				while (i + 1 < partsz) {
-					parts_type other_tree_parts;
-					other_tree_parts[0] = parti[i + 1].get_parts();
-					other_tree_parts[1] = parti[i + 1].get_hydro_parts();
-					if (these_parts[pi].second == other_tree_parts[pi].first) {
-						these_parts[pi].second = other_tree_parts[pi].second;
+					part_iters other_tree_parts;
+					other_tree_parts = parti[i + 1].get_parts(pi);
+					if (these_parts.second == other_tree_parts.first) {
+						these_parts.second = other_tree_parts.second;
 						i++;
 					} else {
 						break;
 					}
 				}
-				const size_t imin = these_parts[pi].first;
-				const size_t imax = min(these_parts[pi].first + (KICK_PP_MAX - part_index), these_parts[pi].second);
+				const size_t imin = these_parts.first;
+				const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
 				const int sz = imax - imin;
 				for (int j = tid; j < sz; j += warpSize) {
 					for (int dim = 0; dim < NDIM; dim++) {
 						sources[dim][part_index + j] = parts.pos(dim, j + imin);
 					}
 				}
-				these_parts[pi].first += sz;
+				these_parts.first += sz;
 				part_index += sz;
-				if (these_parts[pi].first == these_parts[pi].second) {
+				if (these_parts.first == these_parts.second) {
 					i++;
 					if (i < partsz) {
-						these_parts[0] = parti[i].get_parts();
-						these_parts[1] = parti[i].get_hydro_parts();
+						these_parts = parti[i].get_parts(pi);
 					}
 				}
 			}

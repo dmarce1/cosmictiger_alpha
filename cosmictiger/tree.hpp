@@ -47,7 +47,7 @@ struct sort_params {
 	int8_t depth;
 	int8_t min_depth;
 	double theta;
-	array<pair<size_t, size_t>,NPART_TYPES> parts;
+	parts_type parts;
 	int min_rung;
 	tree_ptr tptr;
 	bool group_sort;
@@ -228,7 +228,7 @@ struct kick_params_type;
 struct gpu_kick {
 	kick_params_type *params;
 	std::shared_ptr<hpx::lcos::local::promise<void>> promise;
-	pair<size_t, size_t> parts;
+	parts_type parts;
 	gpu_kick() {
 		promise = std::make_shared<hpx::lcos::local::promise<void>>();
 	}
