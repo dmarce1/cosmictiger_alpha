@@ -751,8 +751,7 @@ void tree::gpu_daemon() {
 				consts.theta = gpu_params[0].theta;
 				consts.first = gpu_params[0].first;
 				consts.groups = gpu_params[0].groups;
-				memcpy(consts.particles, &gpu_params[0].part_sets->cdm, sizeof(particle_set));
-				cuda_set_kick_constants(consts);
+				cuda_set_kick_constants(consts, *gpu_params[0].part_sets);
 			}
 			cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
 			completions.push_back(std::function<bool()>([=]() {

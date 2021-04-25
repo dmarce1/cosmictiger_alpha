@@ -46,7 +46,7 @@ struct particle_sets {
 using part_iters = pair<size_t,size_t>;
 
 struct parts_type : public array<part_iters,NPART_TYPES> {
-	size_t index_offset(int index) const {
+	CUDA_EXPORT size_t index_offset(int index) const {
 		size_t sz = 0;
 		const array<part_iters,NPART_TYPES>& parts = *this;
 		for( int pi = 0; pi < index; pi++) {
@@ -54,7 +54,7 @@ struct parts_type : public array<part_iters,NPART_TYPES> {
 		}
 		return sz;
 	}
-	size_t size() const {
+	CUDA_EXPORT size_t size() const {
 		return index_offset(NPART_TYPES);
 	}
 };

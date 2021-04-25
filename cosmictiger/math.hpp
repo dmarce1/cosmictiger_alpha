@@ -270,5 +270,11 @@ __global__
 void generate_random_normals(cmplx* nums, int N, int seed);
 
 #endif
+
+template<class T>
+CUDA_EXPORT inline T round_up(T num, T mod) {
+	return ((num - 1) / mod + 1) * mod;
+}
+
 #endif /* GPUTIGER_MATH_HPP_ */
 

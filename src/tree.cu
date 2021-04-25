@@ -18,7 +18,6 @@
 #define PC_PP_EWALD 3
 #define N_INTERACTION_TYPES 4
 
-
 __managed__ list_sizes_t list_sizes { 0, 0, 0, 0 };
 
 #define MI 0
@@ -27,8 +26,9 @@ __managed__ list_sizes_t list_sizes { 0, 0, 0, 0 };
 #define OI 3
 
 __constant__ kick_constants constant;
+__managed__ particle_sets* part_sets = nullptr;
 
-void cuda_set_kick_constants(kick_constants consts) {
+void cuda_set_kick_constants(kick_constants consts, particle_sets& part_sets_) {
 	consts.theta2 = sqr(consts.theta);
 	consts.invlog2 = 1.0f / logf(2);
 	consts.GM = consts.G * consts.M;
@@ -40,11 +40,13 @@ void cuda_set_kick_constants(kick_constants consts) {
 	consts.h2 = sqr(consts.h);
 	consts.hinv = 1.f / consts.h;
 	consts.th = consts.h * consts.theta;
+	if (part_sets == nullptr) {
+		CUDA_MALLOC(part_sets, 1);
+		new (part_sets) particle_sets();
+	}
+	*part_sets = part_sets_.get_virtual_particle_sets();
 	CUDA_CHECK(cudaMemcpyToSymbol(constant, &consts, sizeof(kick_constants)));
 }
-
-
-
 
 __constant__ float rung_dt[MAX_RUNG] = { 1.0 / (1 << 0), 1.0 / (1 << 1), 1.0 / (1 << 2), 1.0 / (1 << 3), 1.0 / (1 << 4),
 		1.0 / (1 << 5), 1.0 / (1 << 6), 1.0 / (1 << 7), 1.0 / (1 << 8), 1.0 / (1 << 9), 1.0 / (1 << 10), 1.0 / (1 << 11),
@@ -56,7 +58,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
-	particle_set& parts = *(particle_set*) constant.particles;
 	tree_ptr tptr = shmem.self;
 	const int &tid = threadIdx.x;
 	auto &F = params.F;
@@ -82,7 +83,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			phi[k] = -PHI0;
 		}
 	}
-	const auto myparts = shmem.self.get_parts();
+	parts_type myparts;
+	myparts[0] = shmem.self.get_parts();
+	myparts[1] = shmem.self.get_hydro_parts();
 	array<int, NITERS> count;
 
 	const float& theta = constant.theta;
@@ -207,72 +210,81 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		if (type == PC_PP_DIRECT) {
 			auto &sinks = shmem.sink;
 			const int pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
-			for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
-				const auto index = k + myparts.first;
-				if (parts.rung(index) >= constant.rung || constant.full_eval) {
-					for (int dim = 0; dim < NDIM; dim++) {
-						sinks[dim][k] = parts.pos(dim, index);
+			for (int pi = 0; pi < NPART_TYPES; pi++) {
+				auto& parts = *part_sets->sets[pi];
+				const int offset = myparts.index_offset(pi);
+				for (int k = tid; k < myparts[pi].second - myparts[pi].first; k += KICK_BLOCK_SIZE) {
+					const auto index = k + myparts[pi].first;
+					if (parts.rung(index) >= constant.rung || constant.full_eval) {
+						for (int dim = 0; dim < NDIM; dim++) {
+							sinks[dim][k + offset] = parts.pos(dim, index);
+						}
 					}
 				}
 			}
 			tmp_parti.resize(0, vectorPOD);
 			__syncwarp();
-			for (int j = tid; j < pmax; j += KICK_BLOCK_SIZE) {
-				my_index[0] = 0;
-				my_index[1] = 0;
-				list_index = -1;
-				if (j < parti.size()) {
-					const auto other_pos = parti[j].get_pos();
-					const auto other_radius = parti[j].get_radius();
-					const auto parti_parts = parti[j].get_parts();
-					const auto other_nparts = parti_parts.second - parti_parts.first;
-					bool res = false;
-					const int sz = myparts.second - myparts.first;
-					if (other_nparts < MIN_PC_PARTS) {
-						res = true;
-					} else {
-						for (int k = 0; k < sz; k++) {
-							const auto this_rung = parts.rung(k + myparts.first);
-							if (this_rung >= constant.rung || constant.full_eval) {
-								float dx0 = distance(other_pos[0], sinks[0][k]);
-								float dy0 = distance(other_pos[1], sinks[1][k]);
-								float dz0 = distance(other_pos[2], sinks[2][k]);
-								float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-								res = sqr(other_radius + th) > d2 * theta2;
-								flops += 15;
-								if (res) {
-									break;
+			for (int pi = 0; pi < NPART_TYPES; pi++) {
+				auto& parts = *part_sets->sets[pi];
+				for (int j = tid; j < pmax; j += KICK_BLOCK_SIZE) {
+					my_index[0] = 0;
+					my_index[1] = 0;
+					list_index = -1;
+					if (j < parti.size()) {
+						const auto other_pos = parti[j].get_pos();
+						const auto other_radius = parti[j].get_radius();
+						parts_type parti_parts;
+						parti_parts[0] = parti[j].get_parts();
+						parti_parts[1] = parti[j].get_hydro_parts();
+						const auto other_nparts = parti_parts.size();
+						bool res = false;
+						const int sz = myparts[pi].second - myparts[pi].first;
+						if (other_nparts < MIN_PC_PARTS) {
+							res = true;
+						} else {
+							for (int k = 0; k < sz; k++) {
+								const auto this_rung = parts.rung(k + myparts[pi].first);
+								if (this_rung >= constant.rung || constant.full_eval) {
+									float dx0 = distance(other_pos[0], sinks[0][k]);
+									float dy0 = distance(other_pos[1], sinks[1][k]);
+									float dz0 = distance(other_pos[2], sinks[2][k]);
+									float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
+									res = sqr(other_radius + th) > d2 * theta2;
+									flops += 15;
+									if (res) {
+										break;
+									}
 								}
 							}
 						}
+						list_index = res ? PI : MI;
+						my_index[list_index] = 1;
 					}
-					list_index = res ? PI : MI;
-					my_index[list_index] = 1;
-				}
-				for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
-					for (int i = 0; i < 2; i++) {
-						tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], P);
-						if (tid >= P) {
-							my_index[i] += tmp[i];
+					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
+						for (int i = 0; i < 2; i++) {
+							tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], P);
+							if (tid >= P) {
+								my_index[i] += tmp[i];
+							}
 						}
 					}
-				}
-				for (int i = 0; i < 2; i++) {
-					index_counts[i] = __shfl_sync(0xFFFFFFFF, my_index[i], KICK_BLOCK_SIZE - 1);
-					tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], 1);
-					if (tid >= 1) {
-						my_index[i] = tmp[i];
-					} else {
-						my_index[i] = 0;
+					for (int i = 0; i < 2; i++) {
+						index_counts[i] = __shfl_sync(0xFFFFFFFF, my_index[i], KICK_BLOCK_SIZE - 1);
+						tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], 1);
+						if (tid >= 1) {
+							my_index[i] = tmp[i];
+						} else {
+							my_index[i] = 0;
+						}
 					}
-				}
-				const auto part_cnt = tmp_parti.size();
-				const auto mult_cnt = multis.size();
-				tmp_parti.resize(part_cnt + index_counts[PI], vectorPOD);
-				multis.resize(mult_cnt + index_counts[MI]), vectorPOD;
-				__syncwarp();
-				if (j < parti.size()) {
-					(list_index == PI ? tmp_parti[part_cnt + my_index[PI]] : multis[mult_cnt + my_index[MI]]) = parti[j];
+					const auto part_cnt = tmp_parti.size();
+					const auto mult_cnt = multis.size();
+					tmp_parti.resize(part_cnt + index_counts[PI], vectorPOD);
+					multis.resize(mult_cnt + index_counts[MI]), vectorPOD;
+					__syncwarp();
+					if (j < parti.size()) {
+						(list_index == PI ? tmp_parti[part_cnt + my_index[PI]] : multis[mult_cnt + my_index[MI]]) = parti[j];
+					}
 				}
 			}
 			parti.swap(tmp_parti);
@@ -343,70 +355,69 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		const float& logt0 = constant.logt0;
 		const float& halft0 = constant.halft0;
 		const auto& minrung = constant.minrung;
-		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
-			const auto index = k + myparts.first;
-			const auto this_rung = parts.rung(index);
-			if (this_rung >= constant.rung || constant.full_eval) {
-				array<float, NDIM> g;
-				float this_phi;
-				for (int dim = 0; dim < NDIM; dim++) {
-					const auto x2 = mypos[dim];
-					const auto x1 = parts.pos(dim, k + myparts.first);
-					dx[dim] = distance(x1, x2);
-				}
-				shift_expansion(L, g, this_phi, dx, constant.full_eval);
-				for (int dim = 0; dim < NDIM; dim++) {
-					F[dim][k] += g[dim];
-				}
-				phi[k] += this_phi;
-				for (int dim = 0; dim < NDIM; dim++) {
-					F[dim][k] *= GM;
-				}
-				phi[k] *= GM;
-				if (constant.groups) {
-					const int id = parts.group(index);
-					gpu_groups_kick_update(id, phi[k]);
-				}
+		for (int pi = 0; pi < NPART_TYPES; pi++) {
+			auto& parts = *part_sets->sets[pi];
+			const int offset = myparts.index_offset(pi);
+			for (int k = tid; k < myparts[pi].second - myparts[pi].first; k += KICK_BLOCK_SIZE) {
+				const auto index = k + myparts[pi].first;
+				const int kpo = k + offset;
+				const auto this_rung = parts.rung(index);
+				if (this_rung >= constant.rung || constant.full_eval) {
+					array<float, NDIM> g;
+					float this_phi;
+					for (int dim = 0; dim < NDIM; dim++) {
+						const auto x2 = mypos[dim];
+						const auto x1 = parts.pos(dim, k + myparts[pi].first);
+						dx[dim] = distance(x1, x2);
+					}
+					shift_expansion(L, g, this_phi, dx, constant.full_eval);
+					for (int dim = 0; dim < NDIM; dim++) {
+						F[dim][kpo] += g[dim];
+					}
+					phi[kpo] += this_phi;
+					for (int dim = 0; dim < NDIM; dim++) {
+						F[dim][kpo] *= GM;
+					}
+					phi[kpo] *= GM;
+					if (constant.groups) {
+						const int id = parts.group(index);
+						gpu_groups_kick_update(id, phi[kpo]);
+					}
 #ifdef TEST_FORCE
-				for (int dim = 0; dim < NDIM; dim++) {
-					parts.force(dim, k + myparts.first) = F[dim][k];
-				}
-				parts.pot(k + myparts.first) = phi[k];
-#endif
-				if (this_rung >= constant.rung) {
-					float dt = halft0 * rung_dt[this_rung];
-					auto& vx = parts.vel(0,index);
-					auto& vy = parts.vel(1,index);
-					auto& vz = parts.vel(2,index);
-#ifndef CONFORMAL_TIME
-					dt *= constant.ainv;
-#endif
-					if (!constant.first) {
-						vx = fmaf(dt, F[0][k], vx);
-						vy = fmaf(dt, F[1][k], vy);
-						vz = fmaf(dt, F[2][k], vz);
+					for (int dim = 0; dim < NDIM; dim++) {
+						parts.force(dim, k + myparts[pi].first) = F[dim][kkpo];
 					}
-					const float fmag2 = fmaf(F[0][k], F[0][k], fmaf(F[1][k], F[1][k], sqr(F[2][k])));
-					if (fmag2 != 0.f) {
-						dt = fminf(tfactor * rsqrt(sqrtf(fmag2)), params.t0);
-					} else {
-						dt = 1.0e+30;
-					}
-					const int new_rung = fmaxf(fmaxf(ceilf((logt0 - logf(dt)) * invlog2), this_rung - 1), minrung);
-					dt = halft0 * rung_dt[new_rung];
-#ifndef CONFORMAL_TIME
-					dt *= constant.ainv;
+					parts.pot(k + myparts[pi].first) = phi[kkpo];
 #endif
-					vx = fmaf(dt, F[0][k], vx);
-					vy = fmaf(dt, F[1][k], vy);
-					vz = fmaf(dt, F[2][k], vz);
-					parts.set_rung(new_rung, index);
+					if (this_rung >= constant.rung) {
+						float dt = halft0 * rung_dt[this_rung];
+						auto& vx = parts.vel(0, index);
+						auto& vy = parts.vel(1, index);
+						auto& vz = parts.vel(2, index);
+						if (!constant.first) {
+							vx = fmaf(dt, F[0][kpo], vx);
+							vy = fmaf(dt, F[1][kpo], vy);
+							vz = fmaf(dt, F[2][kpo], vz);
+						}
+						const float fmag2 = fmaf(F[0][k], F[0][k], fmaf(F[1][k], F[1][k], sqr(F[2][k])));
+						if (fmag2 != 0.f) {
+							dt = fminf(tfactor * rsqrt(sqrtf(fmag2)), params.t0);
+						} else {
+							dt = 1.0e+30;
+						}
+						const int new_rung = fmaxf(fmaxf(ceilf((logt0 - logf(dt)) * invlog2), this_rung - 1), minrung);
+						dt = halft0 * rung_dt[new_rung];
+						vx = fmaf(dt, F[0][kpo], vx);
+						vy = fmaf(dt, F[1][kpo], vy);
+						vz = fmaf(dt, F[2][kpo], vz);
+						parts.set_rung(new_rung, index);
+					}
+					if (constant.full_eval) {
+						kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
+					}
 				}
-				if (constant.full_eval) {
-					kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
-				}
+				kick_return_update_rung_gpu(parts.rung(k + myparts[pi].first));
 			}
-			kick_return_update_rung_gpu(parts.rung(k + myparts.first));
 		}
 	}
 	if (constant.full_eval) {
