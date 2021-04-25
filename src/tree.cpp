@@ -267,19 +267,20 @@ sort_return tree::sort(sort_params params) {
 			M = 0.0;
 			float radius = 0.0;
 			for (int pi = 0; pi < NPART_TYPES; pi++) {
+				const float wt = params.part_sets->weights[pi];
 				for (auto i = parts[pi].first; i < parts[pi].second; i++) {
 					double this_radius = 0.0;
-					M() += 1.0;
+					M() += wt;
 					for (int n = 0; n < NDIM; n++) {
 						const auto xn = particles.sets[pi]->pos(n, i).to_double() - com[n];
 						this_radius += xn * xn;
 						for (int m = n; m < NDIM; m++) {
 							const auto xm = particles.sets[pi]->pos(m, i).to_double() - com[m];
 							const auto xnm = xn * xm;
-							M(n, m) += xnm;
+							M(n, m) += wt * xnm;
 							for (int l = m; l > NDIM; l++) {
 								const auto xl = particles.sets[pi]->pos(l, i).to_double() - com[l];
-								M(n, m, l) -= xnm * xl;
+								M(n, m, l) -= wt * xnm * xl;
 							}
 						}
 					}

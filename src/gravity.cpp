@@ -74,19 +74,23 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	int interacts = 0;
 	int n;
 	static thread_local std::array<std::vector<fixed32>, NDIM> sources;
+	static thread_local std::vector<float> masses;
 	auto &partis = params.part_interactions;
 	for (int dim = 0; dim < NDIM; dim++) {
 		sources[dim].resize(0);
 	}
+	masses.resize(0);
 	parts_type other_parts;
 	for (int k = 0; k < partis.size(); k++) {
 		other_parts = partis[k].get_parts();
 		for (int pi = 0; pi < NPART_TYPES; pi++) {
+			const float mass = params.part_sets->weights[pi];
 			const auto& particles = params.part_sets->sets[pi];
 			for (size_t l = other_parts[pi].first; l < other_parts[pi].second; l++) {
 				for (int dim = 0; dim < NDIM; dim++) {
 					sources[dim].push_back(particles->pos(dim, l));
 				}
+				masses.push_back(mass);
 			}
 		}
 	}
@@ -112,7 +116,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 					Y[dim][k] = sources[dim][j + k].raw();
 				}
 				for (int i = 0; i < MP; i++) {
-					M[k] = 1.f;
+					M[k] = masses[k];
 				}
 				n++;
 			} else {
@@ -176,6 +180,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	array<simd_int, NDIM> X;
 	array<simd_int, NDIM> Y;
 	for (int pi = 0; pi < NPART_TYPES; pi++) {
+		simd_float mass = params.part_sets->weights[pi];
 		const int nparts = parts[pi].second - parts[pi].first;
 		const int set_offset = parts.index_offset(pi);
 		for (int i = 0; i < nparts; i++) {
@@ -233,10 +238,11 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 						rinv3 = far_flag * rinv3_far + (simd_float(1) - far_flag) * rinv3_near * mask;                  // 4
 						flops += n * (28 + FLOP_DIV + 2 * FLOP_SQRT);
 					}
+					const simd_float massrinv3 = mass * rinv3;
 					for (int dim = 0; dim < NDIM; dim++) {
-						f[dim] = fma(rinv3, dX[dim], f[dim]);                                                             // 2
+						f[dim] = fma(massrinv3, dX[dim], f[dim]);                                                         // 2
 					}
-					phi -= rinv1;                                                                                        // 1
+					phi -= mass * rinv1;                                                                                 // 1
 					flops += n * (27 + 2 * FLOP_SQRT + FLOP_DIV);
 				}
 				for (int dim = 0; dim < NDIM; dim++) {

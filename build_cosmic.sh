@@ -8,8 +8,8 @@ source ~/scripts/sourceme.sh vc
 source ~/scripts/sourceme.sh silo
 source ~/scripts/sourceme.sh $1/hpx
 
-rm -rf $1
-mkdir $1
+#rm -rf $1
+#mkdir $1
 cd $1
 rm CMakeCache.txt
 rm -r CMakeFiles

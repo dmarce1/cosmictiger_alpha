@@ -91,6 +91,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	}
 	part_iters these_parts;
 	for (int pi = 0; pi < NPART_TYPES; pi++) {
+		float mass = part_sets->weights[pi];
 		auto& parts = *part_sets->sets[pi];
 		these_parts = parti[0].get_parts(pi);
 		int i = 0;
@@ -146,7 +147,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		L.scale_back();
 		for (int i = tid; i < LP; i += warpSize) {
 			NAN_TEST(L[i]);
-			params.L[shmem.depth][i] += L[i];
+			params.L[shmem.depth][i] += mass * L[i];
 		}
 	}
 	__syncwarp();
@@ -239,6 +240,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	}
 	for (int pi = 0; pi < NPART_TYPES; pi++) {
 		auto& parts = *part_sets->sets[pi];
+		float mass = part_sets->weights[pi];
 		int i = 0;
 		part_iters these_parts;
 		these_parts = parti[0].get_parts(pi);
@@ -314,11 +316,12 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 						}
 						flops += FLOP_SQRT + 16;
 					}
-					fx = fmaf(dx0, r3inv, fx); // 2
-					fy = fmaf(dx1, r3inv, fy); // 2
-					fz = fmaf(dx2, r3inv, fz); // 2
+					const float massr3inv = mass * r3inv;
+					fx = fmaf(dx0, massr3inv, fx); // 2
+					fy = fmaf(dx1, massr3inv, fy); // 2
+					fz = fmaf(dx2, massr3inv, fz); // 2
 					NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
-					phi -= r1inv; // 1
+					phi -= r1inv * mass; // 1
 					flops += 15;
 					interacts++;
 				}
@@ -360,11 +363,12 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 						}
 						flops += FLOP_SQRT + 16;
 					}
-					fx = fmaf(dx0, r3inv, fx); // 2
-					fy = fmaf(dx1, r3inv, fy); // 2
-					fz = fmaf(dx2, r3inv, fz); // 2
+					const float massr3inv = mass * r3inv;
+					fx = fmaf(dx0, massr3inv, fx); // 2
+					fy = fmaf(dx1, massr3inv, fy); // 2
+					fz = fmaf(dx2, massr3inv, fz); // 2
 					NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
-					phi -= r1inv; // 1
+					phi -= r1inv * mass; // 1
 					flops += 15;
 					interacts++;
 				}

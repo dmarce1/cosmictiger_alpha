@@ -85,7 +85,6 @@ void cleanup_map_workspace(map_workspace ws, double tau, double dtau, double tau
 }
 
 void save_map(int i) {
-	printf( "Saved map %li\n", i);
 	const auto npts = 12 * sqr(global().opts.map_size);
 	std::string filename = std::string("map.") + std::to_string(i) + ".hpx";
 	FILE* fp = fopen(filename.c_str(), "wb");
