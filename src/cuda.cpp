@@ -15,7 +15,7 @@ CUDA_KERNEL cuda_kick_kernel(kick_params_type *params);
 CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr, float* pnorm, float GM, float);
 
 #define STACK_SIZE (32*1024)
-#define HEAP_SIZE size_t(1024*1024*1024)
+#define HEAP_SIZE (size_t(2)*1024*1024*1024)
 #define RECUR_LIMIT 8
 #define L2FETCH 64
 #define PENDINGLAUNCHES 128

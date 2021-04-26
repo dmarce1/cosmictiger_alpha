@@ -29,8 +29,8 @@ __global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_m
 	for (int k = threadIdx.x; k < N; k += blockDim.x) {
 		const int l = N * (N * i + j) + k;
 		const int I[NDIM] = { i, j, k };
-		float x = (((float) I[dim] + 0.5f) / (float) N);
-		x += phi[l].real() / code_to_mpc + shift;
+		float x = (((float) I[dim] + 0.5f) / (float) N)  + shift;
+		x += phi[l].real() / code_to_mpc;
 		while (x > 1.0) {
 			x -= 1.0;
 		}
@@ -202,11 +202,13 @@ void initial_conditions(particle_sets& parts) {
 	const double omega_m = params.omega_b + params.omega_c;
 	const double omega_r = params.omega_nu + params.omega_gam;
 	const double a = ainit;
-	for (int pi = 0; pi < NPART_TYPES; pi++) {
+	const int num_parts = global().opts.sph ? 2 : 1;
+	printf( "%i species\n", num_parts);
+	for (int pi = 0; pi < num_parts; pi++) {
 		printf( "%s\n", pi == CDM_SET ? "CDM" : "Baryons");
 		for (int dim = 0; dim < NDIM; dim++) {
 			printf("\t\tComputing %c positions\n", 'x' + dim);
-			auto& den_k = pi == CDM_SET ? cdm_k : bary_k;
+			auto& den_k = pi == CDM_SET ? cdm_k : cdm_k;
 			float shift = pi == CDM_SET ? 0.0 : 0.5 / N;
 			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, dim, DISPLACEMENT, shift);
 			CUDA_CHECK(cudaDeviceSynchronize());

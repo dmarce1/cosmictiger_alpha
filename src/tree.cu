@@ -223,68 +223,66 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			}
 			tmp_parti.resize(0, vectorPOD);
 			__syncwarp();
-			for (int pi = 0; pi < NPART_TYPES; pi++) {
-				auto& parts = *part_sets->sets[pi];
-				for (int j = tid; j < pmax; j += KICK_BLOCK_SIZE) {
-					my_index[0] = 0;
-					my_index[1] = 0;
-					list_index = -1;
-					if (j < parti.size()) {
-						const auto other_pos = parti[j].get_pos();
-						const auto other_radius = parti[j].get_radius();
-						parts_type parti_parts;
-						parti_parts = parti[j].get_parts();
-						const auto other_nparts = parti_parts.size();
-						bool res = false;
-						const int sz = myparts[pi].second - myparts[pi].first;
-						if (other_nparts < MIN_PC_PARTS) {
-							res = true;
-						} else {
-							for (int k = 0; k < sz; k++) {
-								const auto this_rung = parts.rung(k + myparts[pi].first);
-								if (this_rung >= constant.rung || constant.full_eval) {
-									float dx0 = distance(other_pos[0], sinks[0][k]);
-									float dy0 = distance(other_pos[1], sinks[1][k]);
-									float dz0 = distance(other_pos[2], sinks[2][k]);
-									float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-									res = sqr(other_radius + th) > d2 * theta2;
-									flops += 15;
-									if (res) {
-										break;
-									}
+			for (int j = tid; j < pmax; j += KICK_BLOCK_SIZE) {
+				my_index[0] = 0;
+				my_index[1] = 0;
+				list_index = -1;
+				if (j < parti.size()) {
+					const auto other_pos = parti[j].get_pos();
+					const auto other_radius = parti[j].get_radius();
+					parts_type parti_parts;
+					parti_parts = parti[j].get_parts();
+					const auto other_nparts = parti_parts.size();
+					bool res = false;
+					const int sz = myparts.size();
+					if (other_nparts < MIN_PC_PARTS) {
+						res = true;
+					} else {
+						for (int k = 0; k < sz; k++) {
+//							const auto this_rung = parts.rung(k + myparts[pi].first);
+//							if (this_rung >= constant.rung || constant.full_eval) {
+								float dx0 = distance(other_pos[0], sinks[0][k]);
+								float dy0 = distance(other_pos[1], sinks[1][k]);
+								float dz0 = distance(other_pos[2], sinks[2][k]);
+								float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
+								res = sqr(other_radius + th) > d2 * theta2;
+								flops += 15;
+								if (res) {
+									break;
 								}
-							}
-						}
-						list_index = res ? PI : MI;
-						my_index[list_index] = 1;
-					}
-					for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
-						for (int i = 0; i < 2; i++) {
-							tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], P);
-							if (tid >= P) {
-								my_index[i] += tmp[i];
-							}
+	//						}
 						}
 					}
+					list_index = res ? PI : MI;
+					my_index[list_index] = 1;
+				}
+				for (int P = 1; P < KICK_BLOCK_SIZE; P *= 2) {
 					for (int i = 0; i < 2; i++) {
-						index_counts[i] = __shfl_sync(0xFFFFFFFF, my_index[i], KICK_BLOCK_SIZE - 1);
-						tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], 1);
-						if (tid >= 1) {
-							my_index[i] = tmp[i];
-						} else {
-							my_index[i] = 0;
+						tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], P);
+						if (tid >= P) {
+							my_index[i] += tmp[i];
 						}
-					}
-					const auto part_cnt = tmp_parti.size();
-					const auto mult_cnt = multis.size();
-					tmp_parti.resize(part_cnt + index_counts[PI], vectorPOD);
-					multis.resize(mult_cnt + index_counts[MI]), vectorPOD;
-					__syncwarp();
-					if (j < parti.size()) {
-						(list_index == PI ? tmp_parti[part_cnt + my_index[PI]] : multis[mult_cnt + my_index[MI]]) = parti[j];
 					}
 				}
+				for (int i = 0; i < 2; i++) {
+					index_counts[i] = __shfl_sync(0xFFFFFFFF, my_index[i], KICK_BLOCK_SIZE - 1);
+					tmp[i] = __shfl_up_sync(0xFFFFFFFF, my_index[i], 1);
+					if (tid >= 1) {
+						my_index[i] = tmp[i];
+					} else {
+						my_index[i] = 0;
+					}
+				}
+				const auto part_cnt = tmp_parti.size();
+				const auto mult_cnt = multis.size();
+				tmp_parti.resize(part_cnt + index_counts[PI], vectorPOD);
+				multis.resize(mult_cnt + index_counts[MI]), vectorPOD;
+				__syncwarp();
+				if (j < parti.size()) {
+					(list_index == PI ? tmp_parti[part_cnt + my_index[PI]] : multis[mult_cnt + my_index[MI]]) = parti[j];
+				}
 			}
+
 			parti.swap(tmp_parti);
 			__syncwarp();
 		}

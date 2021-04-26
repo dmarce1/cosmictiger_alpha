@@ -69,6 +69,7 @@ struct sort_params {
 
 	void set_root() {
 		const auto opts = global().opts;
+		depth = 0;
 		for (int dim = 0; dim < NDIM; dim++) {
 			box.begin[dim] = 0.f;
 			box.end[dim] = 1.f;

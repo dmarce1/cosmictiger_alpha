@@ -169,10 +169,12 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	int my_index;
 	bool found;
 	int base = 0;
-	int nactive = 0;
+	int nactive;
+	int tot_nactive = 0;
 	int total;
 
 	for (int pi = 0; pi < NPART_TYPES; pi++) {
+		nactive = 0;
 		const int nsinks = myparts[pi].second - myparts[pi].first;
 		const int nsinks_max = round_up(nsinks, warpSize);
 		auto& parts = *part_sets->sets[pi];
@@ -214,6 +216,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 				sinks[dim][i + offset] = parts.pos(dim, act_map[i + offset] + myparts[pi].first);
 			}
 		}
+		tot_nactive += nactive;
 	}
 	return nactive;
 }

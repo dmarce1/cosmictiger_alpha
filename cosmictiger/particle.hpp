@@ -23,11 +23,6 @@ struct range;
 
 using group_t = unsigned long long int;
 
-struct rungbits {
-	uint8_t lo : 4;
-	uint8_t hi : 4;
-};
-
 #include <cosmictiger/array.hpp>
 #include <atomic>
 #include <vector>
@@ -73,7 +68,6 @@ protected:
 	array<float,NDIM>* uptr_;
 	rung_t* rptr_;
 	group_t* idptr_;
-	rungbits* srptr_;
 	uint32_t* lidptr1_;
 	uint16_t* lidptr2_;
 	array<float*, NDIM> gptr_;

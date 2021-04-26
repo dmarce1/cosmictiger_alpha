@@ -475,7 +475,7 @@ CUDA_EXPORT inline part_iters tree_data_get_parts(int i, int pi) {
 CUDA_EXPORT inline parts_type tree_data_get_parts(int i) {
 	parts_type parts;
 	for (int pi = 0; pi < NPART_TYPES; pi++) {
-		parts[pi] = tree_data_get_parts(pi, CDM_SET);
+		parts[pi] = tree_data_get_parts(i, pi);
 	}
 	return parts;
 }

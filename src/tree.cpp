@@ -96,6 +96,7 @@ sort_return tree::sort(sort_params params) {
 	auto& particles = *params.part_sets;
 	parts = params.parts;
 	self.set_parts(parts);
+//	printf( "%i %i %i %i\n", parts[0].first, parts[0].second, parts[1].first, parts[1].second);
 	if (params.depth == TREE_MAX_DEPTH) {
 		printf("Exceeded maximum tree depth\n");
 		abort();
@@ -243,18 +244,20 @@ sort_return tree::sort(sort_params params) {
 		if (!params.group_sort) {
 			std::array<double, NDIM> com = { 0, 0, 0 };
 			array<fixed32, NDIM> pos;
-			size_t total_parts = 0;
+			double total_weight = 0;
 			for (int pi = 0; pi < NPART_TYPES; pi++) {
+				const double wt = params.part_sets->weights[pi];
 				for (auto i = parts[pi].first; i < parts[pi].second; i++) {
+					total_weight += wt;
 					for (int dim = 0; dim < NDIM; dim++) {
-						com[dim] += particles.sets[pi]->pos(dim, i).to_double();
+						com[dim] += wt * particles.sets[pi]->pos(dim, i).to_double();
 					}
 				}
 			}
-			if (total_parts) {
-				const auto tpinv = 1.0 / total_parts;
+			if (total_weight) {
+				const auto twinv = 1.0 / total_weight;
 				for (int dim = 0; dim < NDIM; dim++) {
-					com[dim] *= tpinv;
+					com[dim] *= twinv;
 					pos[dim] = com[dim];
 
 				}
@@ -397,6 +400,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto& phi = params.Phi;
 	parts_type parts;
 	parts = self.get_parts();
+//	printf( "%i %i\n", parts[1].first, parts[1].second);
+//	abort();
 	if (params.depth == 0) {
 		kick_timer.start();
 		parts_covered = 0;
@@ -801,7 +806,7 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 	gpu_queue.push(std::move(gpu));
 //	covered_ranges.add_range(parts);
 	parts_covered += gpu.parts.size();
-	if (parts_covered == global().opts.nparts) {
+	if (parts_covered == params->part_sets->size()) {
 		gpu_daemon();
 	}
 	return std::move(fut);

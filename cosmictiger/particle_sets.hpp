@@ -102,6 +102,7 @@ struct parts_type: public array<part_iters, NPART_TYPES> {
 		const array<part_iters, NPART_TYPES>& parts = *this;
 		for (int pi = 0; pi < index; pi++) {
 			sz += parts[pi].second - parts[pi].first;
+//			printf( "%i %i\n",  parts[pi].second, parts[pi].first);
 		}
 		return sz;
 	}

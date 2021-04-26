@@ -9,7 +9,6 @@
 #include <unordered_map>
 #include <algorithm>
 
-
 void particle_set::init_groups() {
 	CUDA_MALLOC(lidptr1_, size());
 	CUDA_MALLOC(lidptr2_, size());
@@ -25,33 +24,35 @@ void particle_set::finish_groups() {
 }
 
 particle_set::particle_set(size_t size, size_t offset) {
-	offset_ = offset;
-	size_ = size;
-	virtual_ = false;
-	printf("Allocating space for particles\n");
-	CUDA_MALLOC(xptr_[0], size);
-	CUDA_MALLOC(xptr_[1], size);
-	CUDA_MALLOC(xptr_[2], size);
-	CUDA_MALLOC(uptr_, size);
-	CUDA_MALLOC(rptr_, size);
-	if (global().opts.groups) {
-		CUDA_MALLOC(idptr_, size);
-	}
-#ifdef TEST_FORCE
-	CUDA_MALLOC(gptr_[0], size);
-	CUDA_MALLOC(gptr_[1], size);
-	CUDA_MALLOC(gptr_[2], size);
-	CUDA_MALLOC(eptr_, size);
-#endif
-	for (int i = 0; i < size; i++) {
-		rptr_[i] = 0;
-	}
-	if (global().opts.groups) {
-		for (int i = 0; i < size; i++) {
-			idptr_[i] = NO_GROUP;
+	if (size) {
+		offset_ = offset;
+		size_ = size;
+		virtual_ = false;
+		printf("Allocating space for particles\n");
+		CUDA_MALLOC(xptr_[0], size);
+		CUDA_MALLOC(xptr_[1], size);
+		CUDA_MALLOC(xptr_[2], size);
+		CUDA_MALLOC(uptr_, size);
+		CUDA_MALLOC(rptr_, size);
+		if (global().opts.groups) {
+			CUDA_MALLOC(idptr_, size);
 		}
+#ifdef TEST_FORCE
+		CUDA_MALLOC(gptr_[0], size);
+		CUDA_MALLOC(gptr_[1], size);
+		CUDA_MALLOC(gptr_[2], size);
+		CUDA_MALLOC(eptr_, size);
+#endif
+		for (int i = 0; i < size; i++) {
+			rptr_[i] = 0;
+		}
+		if (global().opts.groups) {
+			for (int i = 0; i < size; i++) {
+				idptr_[i] = NO_GROUP;
+			}
+		}
+		printf("Done\n");
 	}
-	printf("Done\n");
 }
 
 void particle_set::load_from_file(FILE* fp) {

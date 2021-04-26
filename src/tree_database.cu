@@ -24,6 +24,9 @@ void free_if_needed(T** ptr) {
 void tree_data_initialize_kick() {
 	gpu_tree_data_.chunk_size = 1;
 	gpu_tree_data_.ntrees = 4 * global().opts.nparts / global().opts.bucket_size;
+	if (global().opts.sph) {
+		gpu_tree_data_.ntrees *= 2;
+	}
 	gpu_tree_data_.ntrees = std::max(gpu_tree_data_.ntrees, min_trees);
 	const int target_chunk_size = gpu_tree_data_.ntrees / (16 * OVERSUBSCRIPTION * hardware_concurrency());
 	while (gpu_tree_data_.chunk_size < target_chunk_size) {
@@ -42,6 +45,7 @@ void tree_data_initialize_kick() {
 	CUDA_MALLOC(gpu_tree_data_.multi, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
+	CUDA_MALLOC(gpu_tree_data_.hydro_parts, gpu_tree_data_.ntrees);
 
 	tree_data_clear();
 
