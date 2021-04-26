@@ -166,8 +166,6 @@ inline void particle_set::set_rung(rung_t t, size_t index) {
 	//uptr_[index].p.r = t;
 }
 
-void drift(particle_set *parts, double a1, double a2, double dtau);
-
 CUDA_EXPORT inline float particle_set::force(int dim, size_t index) const {
 	assert(index < size_);
 	return gptr_[dim][index];

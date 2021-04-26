@@ -221,9 +221,9 @@ void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, flo
 	}
 }
 
-void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func, interp_functor<float>* vel_k_func,
-		cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm, int N, float astart, float astop,
-		bool cont, float ns) {
+void einstein_boltzmann_interpolation_function(interp_functor<float>* cdm_k_func, interp_functor<float>* bary_k_func,
+		interp_functor<float>* vel_k_func, cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm,
+		int N, float astart, float astop, bool cont, float ns) {
 	int block_size = 32;
 	int nblocks = (N - 1) / block_size + 1;
 	float dlogk = 1.0e-2;
@@ -232,19 +232,17 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 	dlogk = (logkmax - logkmin) / (float) (N - 1);
 	float* ks;
 	CUDA_MALLOC(ks, N);
-	float littleh = uni->params.hubble;
 
 	for (int i = 0; i < N; i++) {
-		ks[i] = expf(logkmin + (float) i * dlogk) * littleh;
+		ks[i] = expf(logkmin + (float) i * dlogk);
 	}
 	einstein_boltzman_kernel<<<nblocks,block_size>>>(U, uni,ks, astart, astop, norm, N, cont, ns);
 	CUDA_CHECK(cudaDeviceSynchronize());
 
-	vector<float> den_k(N), vel_k(N);
+	vector<float> cdm_k(N), bary_k(N), vel_k(N);
 	float oc = uni->params.omega_c;
 	float ob = uni->params.omega_b;
 	float om = oc + ob;
-	float h3 = sqr(littleh) * littleh;
 	oc /= om;
 	ob /= om;
 	const auto hubble =
@@ -255,17 +253,18 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 	for (int i = 0; i < N; i++) {
 		float k = ks[i];
 		float eps = k / (astop * H);
-		den_k[i] = sqr(ob * U[i][deltabi] + oc * U[i][deltaci]) * h3;
-		vel_k[i] = h3
-				* sqr((ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / eps);
+		cdm_k[i] = sqr(U[i][deltaci]);
+		bary_k[i] = sqr(U[i][deltabi]);
+		vel_k[i] = sqr((ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / eps);
 		//	printf("%e %e\n", k, vel_k[i]);
 	}
-	build_interpolation_function(den_k_func, (den_k), expf(logkmin), expf(logkmax));
-	build_interpolation_function(vel_k_func, (vel_k), expf(logkmin), expf(logkmax));
+	build_interpolation_function(bary_k_func, bary_k, expf(logkmin), expf(logkmax));
+	build_interpolation_function(cdm_k_func, cdm_k, expf(logkmin), expf(logkmax));
+	build_interpolation_function(vel_k_func, vel_k, expf(logkmin), expf(logkmax));
 	FILE* fp = fopen("power.dat", "wt");
 	for (int i = 0; i < N; i++) {
 		float k = expf(logkmin + (float) i * dlogk);
-		fprintf(fp, "%e %e %e\n", k, den_k[i], vel_k[i]);
+		fprintf(fp, "%e %e %e %e\n", k, cdm_k[i], bary_k[i], vel_k[i]);
 	}
 	fclose(fp);
 	CUDA_FREE(ks);

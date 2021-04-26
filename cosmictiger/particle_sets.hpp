@@ -26,6 +26,29 @@ struct particle_sets {
 		sets[1] = &baryon;
 	}
 
+	void load_from_file(FILE* fp) {
+		for( int pi = 0; pi < NPART_TYPES; pi++) {
+			sets[pi]->load_from_file(fp);
+		}
+	}
+
+
+	void save_to_file(FILE* fp) {
+		for( int pi = 0; pi < NPART_TYPES; pi++) {
+			sets[pi]->save_to_file(fp);
+		}
+	}
+
+	void generate_random() {
+		const float h = std::pow(baryon.size(),-1.0/3.0);
+		cdm.generate_random();
+		baryon.generate_random();
+		for( int i = 0; i < baryon.size(); i++) {
+			 baryon.energy(i) = 0.0;
+			 baryon.smooth_len(i) = h;
+		}
+	}
+
 	particle_sets(const particle_sets& other) {
 		sets[0] = &cdm;
 		sets[1] = &baryon;

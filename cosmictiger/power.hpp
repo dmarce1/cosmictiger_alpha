@@ -10,10 +10,10 @@
 
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/cuda.hpp>
-#include <cosmictiger/particle.hpp>
+#include <cosmictiger/particle_sets.hpp>
 #include <cosmictiger/math.hpp>
 
-void compute_particle_power_spectrum(particle_set& parts, int filenum);
+void compute_particle_power_spectrum(particle_sets& parts, int filenum);
 void compute_power_spectrum(cmplx* den, float* spec, int N);
 
 #endif /* POWER_HPP_ */

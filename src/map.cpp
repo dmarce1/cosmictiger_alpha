@@ -45,15 +45,7 @@ void maps_from_file(FILE*fp) {
 }
 
 map_workspace get_map_workspace() {
-//	std::lock_guard<mutex_type> lock(mtx);
-	return std::make_shared<std::unordered_map<int, map_workspace_data>>();
-	/*	if (workspaces.size() == 0) {
-	 auto ws = std::make_shared<std::unordered_map<int, std::array<vector<float>, NDIM>>>();
-	 workspaces.push(ws);
-	 }
-	 auto ws = workspaces.top();
-	 workspaces.pop();
-	 return ws;*/
+	return {std::make_shared<std::unordered_map<int, map_workspace_data>>(), 0.0};
 }
 
 void prepare_map(int i) {
@@ -67,7 +59,7 @@ void prepare_map(int i) {
 
 void cleanup_map_workspace(map_workspace ws, double tau, double dtau, double tau_max) {
 	static const long Nside = global().opts.map_size;
-	for (auto i = ws->begin(); i != ws->end(); i++) {
+	for (auto i = ws.data->begin(); i != ws.data->end(); i++) {
 		if (i->second.x.size()) {
 			{
 				std::lock_guard<mutex_type> lock(mtx);
@@ -77,7 +69,7 @@ void cleanup_map_workspace(map_workspace ws, double tau, double dtau, double tau
 			}
 			const auto freq = global().opts.map_freq * tau_max;
 			const auto taui = i->first * freq;
-			healpix2_map(i->second.x, i->second.y, i->second.z, i->second.vx, i->second.vy, i->second.vz, taui, tau, dtau, maps[i->first], Nside);
+			healpix2_map(i->second.x, i->second.y, i->second.z, i->second.vx, i->second.vy, i->second.vz, ws.wt, taui, tau, dtau, maps[i->first], Nside);
 		}
 	}
 //	std::lock_guard<mutex_type> lock(mtx);
@@ -124,7 +116,7 @@ void load_and_save_maps(double tau, double tau_max) {
 simd_float images[NDIM] = { simd_float(0, -1, 0, -1, 0, -1, 0, -1), simd_float(0, 0, -1, -1, 0, 0, -1, -1), simd_float(
 		0, 0, 0, 0, -1, -1, -1, -1) };
 
-int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, double tau, double dtau, double dtau_inv, double tau_max,
+int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1,double tau, double dtau, double dtau_inv, double tau_max,
 		map_workspace& ws) {
 	static const auto map_freq = global().opts.map_freq * tau_max;
 	static const auto map_freq_inv = 1.0 / map_freq;
@@ -158,7 +150,7 @@ int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, d
 					static const long Nside = global().opts.map_size;
 					double r = dist1[ci];
 					long ipring;
-					auto& this_ws = (*ws)[j + 1];
+					auto& this_ws = (*ws.data)[j + 1];
 					this_ws.x.push_back(x0[0][ci]);
 					this_ws.y.push_back(x0[1][ci]);
 					this_ws.z.push_back(x0[2][ci]);

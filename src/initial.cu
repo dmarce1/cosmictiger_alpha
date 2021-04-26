@@ -5,6 +5,7 @@
 #include <cosmictiger/zero_order.hpp>
 #include <cosmictiger/zeldovich.hpp>
 #include <cosmictiger/constants.hpp>
+#include <cosmictiger/particle_sets.hpp>
 #include <cosmictiger/power.hpp>
 
 #include <unistd.h>
@@ -21,7 +22,7 @@ __global__ void vector_free_kernel(vector<T>* vect) {
 	}
 }
 
-__global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_mpc, int dim) {
+__global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_mpc, int dim, float shift) {
 	int i = blockIdx.x;
 	int j = blockIdx.y;
 	int N = gridDim.x;
@@ -29,7 +30,7 @@ __global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_m
 		const int l = N * (N * i + j) + k;
 		const int I[NDIM] = { i, j, k };
 		float x = (((float) I[dim] + 0.5f) / (float) N);
-		x += phi[l].real() / code_to_mpc;
+		x += phi[l].real() / code_to_mpc + shift;
 		while (x > 1.0) {
 			x -= 1.0;
 		}
@@ -47,7 +48,7 @@ __global__ void phi_to_velocities(particle_set parts, cmplx* phi, float a, int d
 	for (int k = threadIdx.x; k < N; k += blockDim.x) {
 		const int l = N * (N * i + j) + k;
 		float v = phi[l].real();
-		parts.vel(dim,l) = v * a; // / code_to_mpc;
+		parts.vel(dim, l) = v * a; // / code_to_mpc;
 	}
 }
 
@@ -94,14 +95,15 @@ float phi_max(cmplx* phi, int N3) {
 	return num;
 }
 
-void initial_conditions(particle_set& parts) {
+void initial_conditions(particle_sets& parts) {
 
 	sigma8_integrand *func_ptr;
 	zero_order_universe* zeroverse_ptr;
 	float* result_ptr;
 	cos_state* states;
 	cosmic_params params;
-	interp_functor<float>* den_k;
+	interp_functor<float>* cdm_k;
+	interp_functor<float>* bary_k;
 	interp_functor<float>* vel_k;
 	cmplx* phi;
 	cmplx* rands;
@@ -111,14 +113,16 @@ void initial_conditions(particle_set& parts) {
 
 	CUDA_MALLOC(phi, N3);
 	CUDA_MALLOC(rands, N3);
-	CUDA_MALLOC(den_k, 1);
+	CUDA_MALLOC(cdm_k, 1);
+	CUDA_MALLOC(bary_k, 1);
 	CUDA_MALLOC(vel_k, 1);
 	CUDA_MALLOC(zeroverse_ptr, 1);
 	CUDA_MALLOC(result_ptr, 1);
 	CUDA_MALLOC(func_ptr, 1);
 	CUDA_MALLOC(states, Nk);
 
-	new (den_k) interp_functor<float>();
+	new (bary_k) interp_functor<float>();
+	new (cdm_k) interp_functor<float>();
 	new (vel_k) interp_functor<float>();
 
 	auto& uni = *zeroverse_ptr;
@@ -155,12 +159,6 @@ void initial_conditions(particle_set& parts) {
 	printf("Done. Normalization = %e\n", *result_ptr);
 	float normalization = *result_ptr;
 
-	/*		printf("\tComputing Einstain-Boltzmann interpolation solutions for power.dat\n");
-	 float dk = log(kmax / kmin) / (Nk - 1);
-	 printf("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
-	 einstein_boltzmann_interpolation_function<<<1, block_size>>>(den_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk, zeroverse_ptr->amin, 1.f);
-	 CUDA_CHECK(cudaDeviceSynchronize());
-	 */
 	const auto code_to_mpc = global().opts.code_to_cm / constants::mpc_to_cm;
 	printf("code_to_mpc = %e\n", code_to_mpc);
 
@@ -168,77 +166,84 @@ void initial_conditions(particle_set& parts) {
 	kmax = std::max(2.0f * (float) M_PI / (float) code_to_mpc * (float) (global().opts.parts_dim), kmax);
 	printf("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	const float ainit = 1.0f / (global().opts.z0 + 1.0f);
-	einstein_boltzmann_interpolation_function(den_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
+	einstein_boltzmann_interpolation_function(cdm_k, bary_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
 			zeroverse_ptr->amin, ainit, false, ns);
 #ifndef __CUDA_ARCH__
-	auto den_destroy = den_k->to_device();
+	auto cdm_destroy = cdm_k->to_device();
+	auto bary_destroy = bary_k->to_device();
 	auto vel_destroy = vel_k->to_device();
 #endif
 
 	generate_random_normals<<<32,32>>>(rands, N3,1234);
 	CUDA_CHECK(cudaDeviceSynchronize());
 
-	printf("\tComputing over/under density\n");
-	zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, 0, DENSITY);
-	CUDA_CHECK(cudaDeviceSynchronize());
-	fft3d(phi, N);
-	float drho = phi_max(phi, N3);
-	printf("\t\tMaximum over/under density is %e\n", drho);
-	if (drho > 1.0) {
-		printf("The overdensity is high, consider using an ealier starting redshift\n");
-	} else if (drho < 0.1) {
-		printf("The overdensity is low, consider using a later starting redshift\n");
-	}
-
-	vector<float> spec(N/2);
-	compute_power_spectrum(phi, spec.data(),N);
+	/*	printf("\tComputing over/under density\n");
+	 zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, 0, DENSITY);
+	 CUDA_CHECK(cudaDeviceSynchronize());
+	 fft3d(phi, N);
+	 float drho = phi_max(phi, N3);
+	 printf("\t\tMaximum over/under density is %e\n", drho);
+	 if (drho > 1.0) {
+	 printf("The overdensity is high, consider using an ealier starting redshift\n");
+	 } else if (drho < 0.1) {
+	 printf("The overdensity is low, consider using a later starting redshift\n");
+	 }
+	 */
+	vector<float> spec(N / 2);
+	compute_power_spectrum(phi, spec.data(), N);
 	FILE* fp = fopen("power.den", "wt");
 	for (int i = 1; i < N / 2; i++) {
-		const auto k = 2.0 * M_PI * (i+0.5) / code_to_mpc;
+		const auto k = 2.0 * M_PI * (i + 0.5) / code_to_mpc;
 		fprintf(fp, "%e %e\n", k, spec[i]);
 	}
 	fclose(fp);
-
-
 
 	float xdisp = 0.0;
 	const double omega_m = params.omega_b + params.omega_c;
 	const double omega_r = params.omega_nu + params.omega_gam;
 	const double a = ainit;
-	for (int dim = 0; dim < NDIM; dim++) {
-		printf("\t\tComputing %c positions\n", 'x' + dim);
-		zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, dim, DISPLACEMENT);
-		CUDA_CHECK(cudaDeviceSynchronize());
-		fft3d(phi, N);
-		const auto this_max = phi_max(phi, N3);
-		xdisp = std::max(xdisp, this_max);
-		dim3 gdim;
-		gdim.x = gdim.y = N;
-		gdim.z = 1;
-		phi_to_positions<<<gdim,32>>>(parts.get_virtual_particle_set(), phi,code_to_mpc, dim);
-		CUDA_CHECK(cudaDeviceSynchronize());
-		printf("\t\tComputing %c velocities\n", 'x' + dim);
-		zeldovich<<<1,ZELDOSIZE>>>(phi, rands, vel_k, code_to_mpc, N, dim, VELOCITY);
-		CUDA_CHECK(cudaDeviceSynchronize());
-		fft3d(phi, N);
-		phi_to_velocities<<<gdim,32>>>(parts.get_virtual_particle_set(), phi,a, dim);
-		CUDA_CHECK(cudaDeviceSynchronize());
+	for (int pi = 0; pi < NPART_TYPES; pi++) {
+		printf( "%s\n", pi == CDM_SET ? "CDM" : "Baryons");
+		for (int dim = 0; dim < NDIM; dim++) {
+			printf("\t\tComputing %c positions\n", 'x' + dim);
+			auto& den_k = pi == CDM_SET ? cdm_k : bary_k;
+			float shift = pi == CDM_SET ? 0.0 : 0.5 / N;
+			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, dim, DISPLACEMENT, shift);
+			CUDA_CHECK(cudaDeviceSynchronize());
+			fft3d(phi, N);
+			const auto this_max = phi_max(phi, N3);
+			xdisp = std::max(xdisp, this_max);
+			dim3 gdim;
+			gdim.x = gdim.y = N;
+			gdim.z = 1;
+			phi_to_positions<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi,code_to_mpc, dim, shift);
+			CUDA_CHECK(cudaDeviceSynchronize());
+			printf("\t\tComputing %c velocities\n", 'x' + dim);
+			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, vel_k, code_to_mpc, N, dim, VELOCITY, shift);
+			CUDA_CHECK(cudaDeviceSynchronize());
+			fft3d(phi, N);
+			phi_to_velocities<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi,a, dim);
+			CUDA_CHECK(cudaDeviceSynchronize());
+		}
 	}
 	xdisp /= code_to_mpc / N;
 	printf("\t\tMaximum displacement is %e\n", xdisp);
 
 #ifndef __CUDA_ARCH__
-	den_destroy();
+	cdm_destroy();
+	bary_destroy();
 	vel_destroy();
 	cs_destroy();
 	sigma_destroy();
 #endif
 	vector_free_kernel<<<1,1>>>(&vel_k->values);
-	vector_free_kernel<<<1,1>>>(&den_k->values);
+	vector_free_kernel<<<1,1>>>(&cdm_k->values);
+	vector_free_kernel<<<1,1>>>(&bary_k->values);
 	vector_free_kernel<<<1,1>>>(&uni.sigma_T.values);
 	vector_free_kernel<<<1,1>>>(&uni.cs2.values);
 
-	den_k->~interp_functor<float>();
+	cdm_k->~interp_functor<float>();
+	bary_k->~interp_functor<float>();
 	vel_k->~interp_functor<float>();
 	zeroverse_ptr->~zero_order_universe();
 	CUDA_FREE(zeroverse_ptr);
@@ -246,7 +251,8 @@ void initial_conditions(particle_set& parts) {
 	CUDA_FREE(func_ptr);
 	CUDA_FREE(states);
 	CUDA_FREE(vel_k);
-	CUDA_FREE(den_k);
+	CUDA_FREE(cdm_k);
+	CUDA_FREE(bary_k);
 	CUDA_FREE(rands);
 	CUDA_FREE(phi);
 	free_zeroverse();

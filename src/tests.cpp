@@ -54,7 +54,7 @@ static void tree_test() {
 
 void load_from_file(particle_set& parts, int& step, time_type& itime, double& time, double& a, double& cosmicK);
 void kick_test() {
-	printf("Doing kick test\n");
+/*	printf("Doing kick test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
 	if( global().opts.checkpt_file == "") {
@@ -116,10 +116,6 @@ void kick_test() {
 		params_ptr->rung = 0;
 		root.kick(params_ptr).get();
 		tm_kick.stop();
-		/*   tm.start();
-		 drift(parts_ptr, 1.0,1.0,1.0);
-		 tm.stop();
-		 printf( "Drift took %e s\n", tm.read());*/
 		tree::cleanup();
 		tm_cleanup.start();
 		managed_allocator<sort_params>::cleanup();
@@ -130,10 +126,6 @@ void kick_test() {
 		tm_cleanup.stop();
 		const auto total = 2.0 * tm_sort.read() + tm_kick.read() + tm_cleanup.read();
 		kick_return_show();
-		/*   printf("PP/part = %f\n", get_pp_inters());
-		 printf("PC/part = %f\n", get_pc_inters());
-		 printf("CP/part = %f\n", get_cp_inters());
-		 printf("CC/part = %f\n", get_cc_inters());*/
 		printf("Sort         = %e s\n", tm_sort.read());
 		printf("Kick         = %e s\n", tm_kick.read());
 		printf("Cleanup      = %e s\n", tm_cleanup.read());
@@ -161,7 +153,7 @@ void kick_test() {
 	CUDA_FREE(parts_ptr);
 	FILE* fp = fopen("timings.dat", "at");
 	fprintf(fp, "%i %e %e\n", global().opts.bucket_size, avg, dev);
-	fclose(fp);
+	fclose(fp);*/
 }
 
 void group_test() {
@@ -235,7 +227,7 @@ void group_test() {
 }
 
 void drift_test() {
-	printf("Doing kick test\n");
+/*	printf("Doing kick test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
 	parts.load_particles("ics");
@@ -281,10 +273,6 @@ void drift_test() {
 		params_ptr->t0 = true;
 		root.kick(params_ptr).get();
 		tm_kick.stop();
-		/*   tm.start();
-		 drift(parts_ptr, 1.0,1.0,1.0);
-		 tm.stop();
-		 printf( "Drift took %e s\n", tm.read());*/
 		tree::cleanup();
 		tm_cleanup.start();
 		managed_allocator<sort_params>::cleanup();
@@ -306,11 +294,6 @@ void drift_test() {
 
 		params_ptr->kick_params_type::~kick_params_type();
 		CUDA_FREE(params_ptr);
-
-		/*   printf("PP/part = %f\n", get_pp_inters());
-		 printf("PC/part = %f\n", get_pc_inters());
-		 printf("CP/part = %f\n", get_cp_inters());
-		 printf("CC/part = %f\n", get_cc_inters());*/
 		printf("Sort    = %e s\n", tm_sort.read());
 		printf("Kick    = %e s\n", tm_kick.read());
 		printf("Cleanup = %e s\n", tm_cleanup.read());
@@ -319,7 +302,7 @@ void drift_test() {
 		// printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
 	}
 	parts_ptr->particle_set::~particle_set();
-	CUDA_FREE(parts_ptr);
+	CUDA_FREE(parts_ptr);*/
 }
 
 #ifdef TEST_FORCE

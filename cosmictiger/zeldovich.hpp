@@ -18,6 +18,6 @@ enum zeldovich_t {
 };
 
 __global__ void zeldovich(cmplx* den, const cmplx* rands, const interp_functor<float>* P, float box_size, int N,
-		int dim, zeldovich_t);
+		int dim, zeldovich_t, float shift);
 
 #endif /* ZELDOVICH_HPP_ */

@@ -9,10 +9,10 @@
 #define INITIAL_HPP_
 
 
-#include <cosmictiger/particle.hpp>
+#include <cosmictiger/particle_sets.hpp>
 
 
-void initial_conditions(particle_set& parts);
+void initial_conditions(particle_sets& parts);
 
 
 #endif /* INITIAL_HPP_ */
