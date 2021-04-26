@@ -232,10 +232,9 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 	dlogk = (logkmax - logkmin) / (float) (N - 1);
 	float* ks;
 	CUDA_MALLOC(ks, N);
-	float littleh = uni->params.hubble;
 
 	for (int i = 0; i < N; i++) {
-		ks[i] = expf(logkmin + (float) i * dlogk) * littleh;
+		ks[i] = expf(logkmin + (float) i * dlogk);
 	}
 	einstein_boltzman_kernel<<<nblocks,block_size>>>(U, uni,ks, astart, astop, norm, N, cont, ns);
 	CUDA_CHECK(cudaDeviceSynchronize());
@@ -244,7 +243,6 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 	float oc = uni->params.omega_c;
 	float ob = uni->params.omega_b;
 	float om = oc + ob;
-	float h3 = sqr(littleh) * littleh;
 	oc /= om;
 	ob /= om;
 	const auto hubble =
@@ -255,9 +253,8 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* den_k_func
 	for (int i = 0; i < N; i++) {
 		float k = ks[i];
 		float eps = k / (astop * H);
-		den_k[i] = sqr(ob * U[i][deltabi] + oc * U[i][deltaci]) * h3;
-		vel_k[i] = h3
-				* sqr((ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / eps);
+		den_k[i] = sqr(ob * U[i][deltabi] + oc * U[i][deltaci]);
+		vel_k[i] = sqr((ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / eps);
 		//	printf("%e %e\n", k, vel_k[i]);
 	}
 	build_interpolation_function(den_k_func, (den_k), expf(logkmin), expf(logkmax));
