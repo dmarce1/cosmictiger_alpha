@@ -22,14 +22,14 @@ __global__ void vector_free_kernel(vector<T>* vect) {
 	}
 }
 
-__global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_mpc, int dim, float shift) {
+__global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_mpc, int dim) {
 	int i = blockIdx.x;
 	int j = blockIdx.y;
 	int N = gridDim.x;
 	for (int k = threadIdx.x; k < N; k += blockDim.x) {
 		const int l = N * (N * i + j) + k;
 		const int I[NDIM] = { i, j, k };
-		float x = (((float) I[dim] + 0.5f) / (float) N)  + shift;
+		float x = (((float) I[dim] + 0.0f) / (float) N);
 		x += phi[l].real() / code_to_mpc;
 		while (x > 1.0) {
 			x -= 1.0;
@@ -41,6 +41,41 @@ __global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_m
 	}
 }
 
+
+__global__ void phi_to_shifted_positions(particle_set parts, cmplx* phi, float code_to_mpc, int dim) {
+	int i = blockIdx.x;
+	int j = blockIdx.y;
+	int N = gridDim.x;
+	const float inv = 1.f / code_to_mpc;
+	for (int k = threadIdx.x; k < N; k += blockDim.x) {
+		const int l000 = N * (N * i + j) + k;
+		const int l001 = N * (N * i + j) + (k+1)%N;
+		const int l010 = N * (N * i + (j+1)%N) + k;
+		const int l011 = N * (N * i + (j+1)%N) + (k+1)%N;
+		const int l100 = N * (N * ((i+1)%N) + j) + k;
+		const int l101 = N * (N * ((i+1)%N) + j) + (k+1)%N;
+		const int l110 = N * (N * ((i+1)%N) + (j+1)%N) + k;
+		const int l111 = N * (N * ((i+1)%N) + (j+1)%N) + (k+1)%N;
+		const int I[NDIM] = { i, j, k };
+		float x = (((float) I[dim] + 0.5f) / (float) N);
+		x += 0.125f * phi[l000].real() * inv;
+		x += 0.125f * phi[l001].real() * inv;
+		x += 0.125f * phi[l010].real() * inv;
+		x += 0.125f * phi[l011].real() * inv;
+		x += 0.125f * phi[l100].real() * inv;
+		x += 0.125f * phi[l101].real() * inv;
+		x += 0.125f * phi[l110].real() * inv;
+		x += 0.125f * phi[l111].real() * inv;
+		while (x > 1.0) {
+			x -= 1.0;
+		}
+		while (x < 0.0) {
+			x += 1.0;
+		}
+		parts.pos(dim, l000) = x;
+	}
+}
+
 __global__ void phi_to_velocities(particle_set parts, cmplx* phi, float a, int dim) {
 	int i = blockIdx.x;
 	int j = blockIdx.y;
@@ -49,6 +84,32 @@ __global__ void phi_to_velocities(particle_set parts, cmplx* phi, float a, int d
 		const int l = N * (N * i + j) + k;
 		float v = phi[l].real();
 		parts.vel(dim, l) = v * a; // / code_to_mpc;
+	}
+}
+
+__global__ void phi_to_shifted_velocities(particle_set parts, cmplx* phi, float a, int dim) {
+	int i = blockIdx.x;
+	int j = blockIdx.y;
+	int N = gridDim.x;
+	for (int k = threadIdx.x; k < N; k += blockDim.x) {
+		const int l000 = N * (N * i + j) + k;
+		const int l001 = N * (N * i + j) + (k+1)%N;
+		const int l010 = N * (N * i + (j+1)%N) + k;
+		const int l011 = N * (N * i + (j+1)%N) + (k+1)%N;
+		const int l100 = N * (N * ((i+1)%N) + j) + k;
+		const int l101 = N * (N * ((i+1)%N) + j) + (k+1)%N;
+		const int l110 = N * (N * ((i+1)%N) + (j+1)%N) + k;
+		const int l111 = N * (N * ((i+1)%N) + (j+1)%N) + (k+1)%N;
+		float v = 0.f;
+		v += 0.125f * phi[l000].real();
+		v += 0.125f * phi[l001].real();
+		v += 0.125f * phi[l010].real();
+		v += 0.125f * phi[l011].real();
+		v += 0.125f * phi[l100].real();
+		v += 0.125f * phi[l101].real();
+		v += 0.125f * phi[l110].real();
+		v += 0.125f * phi[l111].real();
+		parts.vel(dim, l000) = v * a; // / code_to_mpc;
 	}
 }
 
@@ -209,8 +270,7 @@ void initial_conditions(particle_sets& parts) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			printf("\t\tComputing %c positions\n", 'x' + dim);
 			auto& den_k = pi == CDM_SET ? cdm_k : cdm_k;
-			float shift = pi == CDM_SET ? 0.0 : 0.5 / N;
-			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, dim, DISPLACEMENT, shift);
+			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, dim, DISPLACEMENT);
 			CUDA_CHECK(cudaDeviceSynchronize());
 			fft3d(phi, N);
 			const auto this_max = phi_max(phi, N3);
@@ -218,13 +278,15 @@ void initial_conditions(particle_sets& parts) {
 			dim3 gdim;
 			gdim.x = gdim.y = N;
 			gdim.z = 1;
-			phi_to_positions<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi,code_to_mpc, dim, shift);
+			auto posfunc = /*pi == CDM_SET ?*/ phi_to_positions;// : phi_to_shifted_positions;
+			auto velfunc = /*pi == CDM_SET ?*/ phi_to_velocities;// : phi_to_shifted_velocities;
+			posfunc<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi,code_to_mpc, dim);
 			CUDA_CHECK(cudaDeviceSynchronize());
 			printf("\t\tComputing %c velocities\n", 'x' + dim);
-			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, vel_k, code_to_mpc, N, dim, VELOCITY, shift);
+			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, vel_k, code_to_mpc, N, dim, VELOCITY);
 			CUDA_CHECK(cudaDeviceSynchronize());
 			fft3d(phi, N);
-			phi_to_velocities<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi,a, dim);
+			velfunc<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi,a, dim);
 			CUDA_CHECK(cudaDeviceSynchronize());
 		}
 	}

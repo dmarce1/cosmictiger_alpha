@@ -395,7 +395,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 							vy = fmaf(dt, F[1][kpo], vy);
 							vz = fmaf(dt, F[2][kpo], vz);
 						}
-						const float fmag2 = fmaf(F[0][k], F[0][k], fmaf(F[1][k], F[1][k], sqr(F[2][k])));
+						const float fmag2 = fmaf(F[0][kpo], F[0][kpo], fmaf(F[1][kpo], F[1][kpo], sqr(F[2][kpo])));
 						if (fmag2 != 0.f) {
 							dt = fminf(tfactor * rsqrt(sqrtf(fmag2)), params.t0);
 						} else {
@@ -409,7 +409,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						parts.set_rung(new_rung, index);
 					}
 					if (constant.full_eval) {
-						kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
+						kick_return_update_pot_gpu(phi[kpo], F[0][kpo], F[1][kpo], F[2][kpo]);
 					}
 				}
 				kick_return_update_rung_gpu(parts.rung(k + myparts[pi].first));

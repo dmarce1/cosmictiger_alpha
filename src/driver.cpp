@@ -355,7 +355,7 @@ void drive_cosmos() {
 		}
 		sum = (sum - esum0) / (std::abs(a * kin) + std::abs(a * pot) + std::abs(cosmicK));
 		parts_total += num_active;
-		double act_pct = 100.0 * (double) num_active * partfac;
+		double act_pct = 100.0 * (double) num_active * partfac / (global().opts.sph ? 2.0 : 1.0);
 		tm.stop();
 		time_total += tm.read();
 		tm.reset();

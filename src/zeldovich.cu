@@ -10,7 +10,7 @@
 
 __global__
 void zeldovich(cmplx* phi, const cmplx* rands, const interp_functor<float>* Pptr, float box_size, int N, int dim,
-		zeldovich_t type, float xs) {
+		zeldovich_t type) {
 	const int& thread = threadIdx.x;
 	const int& block_size = blockDim.x;
 	auto& P = *Pptr;
@@ -45,7 +45,6 @@ void zeldovich(cmplx* phi, const cmplx* rands, const interp_functor<float>* Pptr
 				case DENSITY:
 					phi[index0] = rands[index0] * sqrtf(P(k)) * powf(box_size, -1.5);
 				}
-				phi[index0] = expc(cmplx(0, 1) * (kx + ky + kz) * xs) * phi[index0];
 				phi[index1] = phi[index0].conj();
 			}
 		}
