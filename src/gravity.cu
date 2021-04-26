@@ -213,12 +213,12 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 		}
 		for (int i = tid; i < nactive; i += warpSize) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				sinks[dim][i + tot_nactive] = parts.pos(dim, act_map[i + tot_nactive] + myparts[pi].first);
+				sinks[dim][i + tot_nactive] = parts.pos(dim, act_map[i + tot_nactive] + myparts[pi].first - offset);
 			}
 		}
 		tot_nactive += nactive;
 	}
-	return nactive;
+	return tot_nactive;
 }
 
 CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive) {
