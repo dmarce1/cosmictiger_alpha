@@ -48,6 +48,7 @@ void tree_data_initialize_kick() {
 	CUDA_MALLOC(gpu_tree_data_.hydro_parts, gpu_tree_data_.ntrees);
 	if (global().opts.sph) {
 		CUDA_MALLOC(gpu_tree_data_.ranges, gpu_tree_data_.ntrees);
+		CUDA_MALLOC(gpu_tree_data_.sph_ranges, gpu_tree_data_.ntrees);
 	}
 	tree_data_clear();
 
@@ -89,6 +90,7 @@ void tree_data_free_all() {
 	free_if_needed(&gpu_tree_data_.parts);
 	free_if_needed(&gpu_tree_data_.hydro_parts);
 	free_if_needed(&gpu_tree_data_.multi);
+	free_if_needed(&gpu_tree_data_.sph_ranges);
 	free_if_needed(&gpu_tree_data_.ranges);
 	free_if_needed(&gpu_tree_data_.active_nodes);
 	free_if_needed(&gpu_tree_data_.active_parts);

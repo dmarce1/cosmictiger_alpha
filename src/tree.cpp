@@ -20,7 +20,6 @@ static std::atomic<size_t> parts_covered;
 
 timer tmp_tm;
 
-
 static std::atomic<int> kick_block_count;
 
 CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
@@ -138,6 +137,8 @@ sort_return tree::sort(sort_params params) {
 	array<tree_ptr, NCHILD> children;
 	const int max_part = params.group_sort ? GROUP_BUCKET_SIZE : global().opts.bucket_size;
 	size_t total_parts = parts.size();
+	const bool sph = global().opts.sph;
+	const bool groups = params.group_sort;
 	if (total_parts > max_part || (params.depth < params.min_depth && total_parts > 0)) {
 		std::array<fast_future<sort_return>, NCHILD> futs;
 		{
@@ -159,6 +160,8 @@ sort_return tree::sort(sort_params params) {
 		std::array<multipole, NCHILD> Mc;
 		std::array<array<fixed32, NDIM>, NCHILD> Xc;
 		std::array<float, NCHILD> Rc;
+		std::array<range, NCHILD> sph_ranges;
+		std::array<range, NCHILD> ranges;
 		multipole M;
 		if (!params.group_sort) {
 			rc.active_nodes = 1;
@@ -178,6 +181,12 @@ sort_return tree::sort(sort_params params) {
 			if (!params.group_sort) {
 				Mc[ci] = this_rc.check.get_multi();
 				Xc[ci] = this_rc.check.get_pos();
+				if (sph) {
+					sph_ranges[ci] = this_rc.check.get_sph_range();
+				}
+				if (sph || groups) {
+					ranges[ci] = this_rc.check.get_range();
+				}
 				rc.active_parts += this_rc.active_parts;
 				rc.stats.nparts += this_rc.stats.nparts;
 				rc.stats.nleaves += this_rc.stats.nleaves;
@@ -237,6 +246,22 @@ sort_return tree::sort(sort_params params) {
 		}
 		self.set_leaf(false);
 		self.set_children(children);
+		if (sph) {
+			range myrange;
+			for (int dim = 0; dim < NDIM; dim++) {
+				myrange.begin[dim] = std::min(sph_ranges[LEFT].begin[dim], sph_ranges[RIGHT].begin[dim]);
+				myrange.end[dim] = std::max(sph_ranges[LEFT].end[dim], sph_ranges[RIGHT].end[dim]);
+			}
+			self.set_sph_range(myrange);
+		}
+		if (groups || sph) {
+			range myrange;
+			for (int dim = 0; dim < NDIM; dim++) {
+				myrange.begin[dim] = std::min(ranges[LEFT].begin[dim], ranges[RIGHT].begin[dim]);
+				myrange.end[dim] = std::max(ranges[LEFT].end[dim], ranges[RIGHT].end[dim]);
+			}
+			self.set_range(myrange);
+		}
 	} else {
 		if (!params.group_sort) {
 			std::array<double, NDIM> com = { 0, 0, 0 };
@@ -313,6 +338,45 @@ sort_return tree::sort(sort_params params) {
 		}
 		self.set_leaf(true);
 		self.set_children(children);
+		if (sph && !groups) {
+			range myrange;
+			for (int dim = 0; dim < NDIM; dim++) {
+				myrange.begin[dim] = 1.0;
+				myrange.end[dim] = 0.0;
+			}
+			const auto& particles = params.part_sets->baryon;
+			for (size_t i = parts[BARY_SET].first; i != parts[BARY_SET].second; i++) {
+				const float h = particles.smooth_len(i);
+				for (int dim = 0; dim < NDIM; dim++) {
+					const float pos = particles.pos(dim, i).to_float();
+					myrange.begin[dim] = std::min(myrange.begin[dim], pos - h);
+					myrange.end[dim] = std::max(myrange.end[dim], pos + h);
+				}
+			}
+			self.set_sph_range(myrange);
+		}
+		if (groups || sph) {
+			range myrange;
+			for (int dim = 0; dim < NDIM; dim++) {
+				myrange.begin[dim] = 1.0;
+				myrange.end[dim] = 0.0;
+			}
+			for (int pi = 0; pi < NPART_TYPES; pi++) {
+				if (!groups && pi == CDM_SET) {
+					continue;
+				}
+				const auto& particles = *params.part_sets->sets[pi];
+				for (size_t i = parts[pi].first; i != parts[pi].second; i++) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						const float pos = particles.pos(dim, i).to_float();
+						myrange.begin[dim] = std::min(myrange.begin[dim], pos);
+						myrange.end[dim] = std::max(myrange.end[dim], pos);
+					}
+				}
+			}
+			self.set_range(myrange);
+		}
+
 	}
 	active_nodes = rc.active_nodes;
 	self.set_active_nodes(active_nodes);
@@ -321,8 +385,6 @@ sort_return tree::sort(sort_params params) {
 		self.set_active_parts(active_parts);
 		self.set_active_nodes(active_nodes);
 		rc.stats.e_depth = params.min_depth;
-	} else {
-		self.set_range(box);
 	}
 	return rc;
 }

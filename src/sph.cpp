@@ -19,57 +19,6 @@ struct sph_find_ranges_params {
 void send_sph_neighbors_to_gpu() {
 
 }
-
-range sph_find_ranges(sph_find_ranges_params* params) {
-	auto self = params->self;
-	auto& parts = params->parts;
-	auto& factor = params->factor;
-	const bool iamleaf = self.is_leaf();
-	part_iters myparts = self.get_parts(BARY_SET);
-	range rng;
-	for (int dim = 0; dim < NDIM; dim++) {
-		rng.begin[dim] = 1.0;
-		rng.end[dim] = 0.0;
-	}
-	if (iamleaf) {
-		for (size_t i = myparts.first; i < myparts.second; i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				const double pos = parts.pos(dim, i).to_double();
-				const double h = parts.smooth_len(i);
-				rng.begin[dim] = std::min(rng.begin[dim], (float) (pos - factor * h));
-				rng.end[dim] = std::min(rng.end[dim], (float) (pos + factor * h));
-			}
-		}
-	} else {
-		const size_t thread_parts = parts.size() / (2 * hpx::thread::hardware_concurrency());
-		const auto children = self.get_children();
-		std::array<hpx::future<range>, NCHILD> futs;
-		if (myparts.second - myparts.first >= thread_parts) {
-			sph_find_ranges_params* left_params = new sph_find_ranges_params(*params);
-			left_params->self = children[LEFT];
-			futs[LEFT] = hpx::async([left_params]() {
-				auto rc = sph_find_ranges(left_params);
-				delete left_params;
-				return rc;
-			});
-		} else {
-			params->self = children[LEFT];
-			futs[LEFT] = hpx::make_ready_future(sph_find_ranges(params));
-		}
-		params->self = children[RIGHT];
-		futs[RIGHT] = hpx::make_ready_future(sph_find_ranges(params));
-		hpx::wait_all(futs.begin(), futs.end());
-		for (int i = 0; i < NCHILD; i++) {
-			const auto other = futs[i].get();
-			for (int dim = 0; dim < NDIM; dim++) {
-				rng.begin[dim] = std::min(rng.begin[dim], other.begin[dim]);
-				rng.end[dim] = std::max(rng.end[dim], other.end[dim]);
-			}
-		}
-	}
-	return rng;
-}
-
 hpx::future<bool> tree_ptr::sph_neighbors(sph_neighbor_params_type*, bool trythread) {
 
 }

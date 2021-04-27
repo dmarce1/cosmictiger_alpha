@@ -79,7 +79,13 @@ struct tree_ptr {
 	range get_range() const;
 
 	CUDA_EXPORT
+	range get_sph_range() const;
+
+	CUDA_EXPORT
 	void set_range(const range&) const;
+
+	CUDA_EXPORT
+	void set_sph_range(const range&) const;
 
 #ifndef __CUDACC__
 	hpx::future<size_t> find_groups(group_param_type*, bool);
@@ -152,6 +158,12 @@ range tree_data_get_range(int i);
 
 CUDA_EXPORT
 void tree_data_set_range(int i, const range& r);
+
+CUDA_EXPORT
+range tree_data_get_sph_range(int i);
+
+CUDA_EXPORT
+void tree_data_set_sph_range(int i, const range& r);
 
 void tree_data_clear();
 
@@ -276,6 +288,17 @@ inline void tree_ptr::set_range(const range& r) const {
 	tree_data_set_range(dindex, r);
 }
 
+
+CUDA_EXPORT
+inline range tree_ptr::get_sph_range() const {
+	return tree_data_get_sph_range(dindex);
+}
+
+CUDA_EXPORT
+inline void tree_ptr::set_sph_range(const range& r) const {
+	tree_data_set_sph_range(dindex, r);
+}
+
 struct multipole_pos {
 	multipole multi;
 	array<fixed32, NDIM> pos;
@@ -299,6 +322,7 @@ struct tree_database_t {
 	pair<size_t, size_t>* hydro_parts;
 	tree_data_t* data;
 	range* ranges;
+	range* sph_ranges;
 	size_t* active_parts;
 	int ntrees;
 	int nchunks;
@@ -306,7 +330,7 @@ struct tree_database_t {
 };
 
 #ifdef TREE_DATABASE_CU
-__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
+__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
 tree_database_t cpu_tree_data_;
 #else
 extern __managed__ tree_database_t gpu_tree_data_;
@@ -576,6 +600,29 @@ void tree_data_set_range(int i, const range& r) {
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.ranges[i] = r;
+}
+
+CUDA_EXPORT inline range tree_data_get_sph_range(int i) {
+#ifdef __CUDACC__
+	auto& tree_data_ = gpu_tree_data_;
+#else
+	auto& tree_data_ = cpu_tree_data_;
+#endif
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	return tree_data_.sph_ranges[i];
+}
+
+CUDA_EXPORT inline
+void tree_data_set_sph_range(int i, const range& r) {
+#ifdef __CUDACC__
+	auto& tree_data_ = gpu_tree_data_;
+#else
+	auto& tree_data_ = cpu_tree_data_;
+#endif
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	tree_data_.sph_ranges[i] = r;
 }
 
 void tree_database_set_readonly();
