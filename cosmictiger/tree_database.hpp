@@ -6,9 +6,12 @@
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/range.hpp>
+
+
 class tree;
 struct kick_params_type;
 struct group_param_type;
+struct sph_neighbor_params_type;
 
 size_t tree_data_bytes_used();
 
@@ -81,6 +84,7 @@ struct tree_ptr {
 #ifndef __CUDACC__
 	hpx::future<size_t> find_groups(group_param_type*, bool);
 	hpx::future<void> kick(kick_params_type*, bool);
+	hpx::future<bool> sph_neighbors(sph_neighbor_params_type*, bool);
 #endif
 };
 

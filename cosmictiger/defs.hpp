@@ -14,6 +14,9 @@
 #define NDIM 3
 #define FULL_MASK 0xFFFFFFFF
 
+#define NNEIGHBORS 32
+#define SPH_TOLER 1.0e-6
+
 //#define TEST_CHECKLIST_TIME
 
 //#define TIMINGS

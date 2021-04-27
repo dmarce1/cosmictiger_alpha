@@ -46,7 +46,9 @@ void tree_data_initialize_kick() {
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.hydro_parts, gpu_tree_data_.ntrees);
-
+	if (global().opts.sph) {
+		CUDA_MALLOC(gpu_tree_data_.ranges, gpu_tree_data_.ntrees);
+	}
 	tree_data_clear();
 
 	cpu_tree_data_ = gpu_tree_data_;
