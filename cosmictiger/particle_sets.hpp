@@ -68,8 +68,8 @@ struct particle_sets {
 		sets[0] = &cdm;
 		sets[1] = &baryon;
 		if (global().opts.sph) {
-			weights[0] = omega_c / (omega_b + omega_c);
-			weights[1] = omega_b / (omega_b + omega_c);
+			weights[0] = 0;
+			weights[1] = 1;
 		} else {
 			weights[0] = 1.0;
 			weights[1] = 0.0;

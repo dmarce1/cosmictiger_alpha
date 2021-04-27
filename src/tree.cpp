@@ -137,10 +137,7 @@ sort_return tree::sort(sort_params params) {
 	sort_return rc;
 	array<tree_ptr, NCHILD> children;
 	const int max_part = params.group_sort ? GROUP_BUCKET_SIZE : global().opts.bucket_size;
-	size_t total_parts = 0;
-	for (int pi = 0; pi < NPART_TYPES; pi++) {
-		total_parts += parts[pi].second - parts[pi].first;
-	}
+	size_t total_parts = parts.size();
 	if (total_parts > max_part || (params.depth < params.min_depth && total_parts > 0)) {
 		std::array<fast_future<sort_return>, NCHILD> futs;
 		{

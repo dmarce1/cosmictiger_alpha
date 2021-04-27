@@ -86,11 +86,12 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	int flops = 0;
 	int interacts = 0;
 	expansion<float> L;
-	for (int j = 0; j < LP; j++) {
-		L[j] = 0.0;
-	}
 	part_iters these_parts;
 	for (int pi = 0; pi < NPART_TYPES; pi++) {
+		for (int j = 0; j < LP; j++) {
+			L[j] = 0.0;
+		}
+
 		float mass = part_sets->weights[pi];
 		auto& parts = *part_sets->sets[pi];
 		these_parts = parti[0].get_parts(pi);
@@ -144,7 +145,6 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
 			}
 		}
-		L.scale_back();
 		for (int i = tid; i < LP; i += warpSize) {
 			NAN_TEST(L[i]);
 			params.L[shmem.depth][i] += mass * L[i];
@@ -213,7 +213,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 		}
 		for (int i = tid; i < nactive; i += warpSize) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				sinks[dim][i + tot_nactive] = parts.pos(dim, act_map[i + tot_nactive] + myparts[pi].first - offset);
+		 		sinks[dim][i + tot_nactive] = parts.pos(dim, act_map[i + tot_nactive] + myparts[pi].first - offset);
 			}
 		}
 		tot_nactive += nactive;

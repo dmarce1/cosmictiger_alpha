@@ -363,7 +363,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					float this_phi;
 					for (int dim = 0; dim < NDIM; dim++) {
 						const auto x2 = mypos[dim];
-						const auto x1 = parts.pos(dim, k + myparts[pi].first);
+						const auto x1 = parts.pos(dim, index);
 						dx[dim] = distance(x1, x2);
 					}
 					shift_expansion(L, g, this_phi, dx, constant.full_eval);
@@ -412,7 +412,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						kick_return_update_pot_gpu(phi[kpo], F[0][kpo], F[1][kpo], F[2][kpo]);
 					}
 				}
-				kick_return_update_rung_gpu(parts.rung(k + myparts[pi].first));
+				kick_return_update_rung_gpu(parts.rung(index));
 			}
 		}
 	}
