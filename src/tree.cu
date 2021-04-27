@@ -26,7 +26,17 @@ __managed__ list_sizes_t list_sizes { 0, 0, 0, 0 };
 #define OI 3
 
 __constant__ kick_constants constant;
-__managed__ particle_sets* part_sets = nullptr;
+
+CUDA_KERNEL get_particle_set_pointers(particle_set** cdm, particle_set** baryon) {
+	if (threadIdx.x == 0) {
+		auto& pset = (particle_sets&) (constant.partsets);
+		*cdm = &pset.cdm;
+		*baryon = &pset.baryon;
+	}
+}
+
+__managed__ particle_set* cdm_ptr;
+__managed__ particle_set* baryon_ptr;
 
 void cuda_set_kick_constants(kick_constants consts, particle_sets& part_sets_) {
 	consts.theta2 = sqr(consts.theta);
@@ -40,11 +50,13 @@ void cuda_set_kick_constants(kick_constants consts, particle_sets& part_sets_) {
 	consts.h2 = sqr(consts.h);
 	consts.hinv = 1.f / consts.h;
 	consts.th = consts.h * consts.theta;
-	if (part_sets == nullptr) {
-		CUDA_MALLOC(part_sets, 1);
-		new (part_sets) particle_sets();
-	}
-	*part_sets = part_sets_.get_virtual_particle_sets();
+	consts.npart_types = global().opts.sph ? 2 : 1;
+	memcpy(consts.partsets, &part_sets_, sizeof(particle_sets));
+	get_particle_set_pointers<<<1,1>>>(&cdm_ptr,&baryon_ptr);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	auto& pset = (particle_sets&) consts.partsets;
+	pset.sets[CDM_SET] = cdm_ptr;
+	pset.sets[BARY_SET] = baryon_ptr;
 	CUDA_CHECK(cudaMemcpyToSymbol(constant, &consts, sizeof(kick_constants)));
 }
 
@@ -55,7 +67,8 @@ __constant__ float rung_dt[MAX_RUNG] = { 1.0 / (1 << 0), 1.0 / (1 << 1), 1.0 / (
 
 CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
-	__shared__
+	auto* part_sets = (particle_sets*) constant.partsets;
+		__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	tree_ptr tptr = shmem.self;
@@ -209,7 +222,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		if (type == PC_PP_DIRECT) {
 			auto &sinks = shmem.sink;
 			const int pmax = max(((parti.size() - 1) / KICK_BLOCK_SIZE + 1) * KICK_BLOCK_SIZE, 0);
-			for (int pi = 0; pi < NPART_TYPES; pi++) {
+			for (int pi = 0; pi < constant.npart_types; pi++) {
 				auto& parts = *part_sets->sets[pi];
 				const int offset = myparts.index_offset(pi);
 				for (int k = tid; k < myparts[pi].second - myparts[pi].first; k += KICK_BLOCK_SIZE) {
@@ -241,16 +254,16 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						for (int k = 0; k < sz; k++) {
 //							const auto this_rung = parts.rung(k + myparts[pi].first);
 //							if (this_rung >= constant.rung || constant.full_eval) {
-								float dx0 = distance(other_pos[0], sinks[0][k]);
-								float dy0 = distance(other_pos[1], sinks[1][k]);
-								float dz0 = distance(other_pos[2], sinks[2][k]);
-								float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-								res = sqr(other_radius + th) > d2 * theta2;
-								flops += 15;
-								if (res) {
-									break;
-								}
-	//						}
+							float dx0 = distance(other_pos[0], sinks[0][k]);
+							float dy0 = distance(other_pos[1], sinks[1][k]);
+							float dz0 = distance(other_pos[2], sinks[2][k]);
+							float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
+							res = sqr(other_radius + th) > d2 * theta2;
+							flops += 15;
+							if (res) {
+								break;
+							}
+							//						}
 						}
 					}
 					list_index = res ? PI : MI;
@@ -351,7 +364,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		const float& logt0 = constant.logt0;
 		const float& halft0 = constant.halft0;
 		const auto& minrung = constant.minrung;
-		for (int pi = 0; pi < NPART_TYPES; pi++) {
+		for (int pi = 0; pi < constant.npart_types; pi++) {
 			auto& parts = *part_sets->sets[pi];
 			const int offset = myparts.index_offset(pi);
 			for (int k = tid; k < myparts[pi].second - myparts[pi].first; k += KICK_BLOCK_SIZE) {

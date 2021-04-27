@@ -278,6 +278,7 @@ public:
 void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);
 
 struct kick_constants {
+	char partsets[sizeof(particle_sets)];
 	float theta;
 	float eta;
 	float scale;
@@ -300,6 +301,7 @@ struct kick_constants {
 	bool full_eval;
 	bool first;
 	bool groups;
+	int npart_types;
 };
 
 void cuda_set_kick_constants(kick_constants consts,particle_sets&);

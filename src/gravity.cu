@@ -14,7 +14,6 @@
 #define MIN_KICK_WARP 10
 
 extern __constant__ kick_constants constant;
-extern __managed__ particle_sets* part_sets;
 
 CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type etype) {
 	kick_params_type &params = *params_ptr;
@@ -71,6 +70,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 
 CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
+	auto* part_sets = (particle_sets*) constant.partsets;
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
@@ -87,7 +87,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	int interacts = 0;
 	expansion<float> L;
 	part_iters these_parts;
-	for (int pi = 0; pi < NPART_TYPES; pi++) {
+	for (int pi = 0; pi < constant.npart_types; pi++) {
 		for (int j = 0; j < LP; j++) {
 			L[j] = 0.0;
 		}
@@ -158,6 +158,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 
 CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	const int &tid = threadIdx.x;
+	auto* part_sets = (particle_sets*) constant.partsets;
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
@@ -173,7 +174,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	int tot_nactive = 0;
 	int total;
 
-	for (int pi = 0; pi < NPART_TYPES; pi++) {
+	for (int pi = 0; pi < constant.npart_types; pi++) {
 		nactive = 0;
 		const int nsinks = myparts[pi].second - myparts[pi].first;
 		const int nsinks_max = round_up(nsinks, warpSize);
@@ -213,7 +214,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 		}
 		for (int i = tid; i < nactive; i += warpSize) {
 			for (int dim = 0; dim < NDIM; dim++) {
-		 		sinks[dim][i + tot_nactive] = parts.pos(dim, act_map[i + tot_nactive] + myparts[pi].first - offset);
+				sinks[dim][i + tot_nactive] = parts.pos(dim, act_map[i + tot_nactive] + myparts[pi].first - offset);
 			}
 		}
 		tot_nactive += nactive;
@@ -223,6 +224,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 
 CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive) {
 	kick_params_type &params = *params_ptr;
+	auto* part_sets = (particle_sets*) constant.partsets;
 	const int &tid = threadIdx.x;
 	__shared__
 	extern int shmem_ptr[];
@@ -241,7 +243,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	if (parti.size() == 0) {
 		return;
 	}
-	for (int pi = 0; pi < NPART_TYPES; pi++) {
+	for (int pi = 0; pi < constant.npart_types; pi++) {
 		auto& parts = *part_sets->sets[pi];
 		float mass = part_sets->weights[pi];
 		int i = 0;
