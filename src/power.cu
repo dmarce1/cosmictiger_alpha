@@ -4,12 +4,15 @@
 #include <cosmictiger/constants.hpp>
 #include <cosmictiger/global.hpp>
 
-__global__ void power_spectrum_init(particle_sets partsets, cmplx* den_k, size_t N, float mass0) {
+__global__ void power_spectrum_init(particle_sets partsets, cmplx* den_k, size_t N, float mass0, bool sph) {
 	const auto& tid = threadIdx.x;
 	const auto& bid = blockIdx.x;
 	const auto& bsz = blockDim.x;
 	const auto& gsz = gridDim.x;
-	for (int pi = 0; pi < NPART_TYPES; pi++) {
+	const int npart_types = sph ? 2 : 1;
+	partsets.sets[CDM_SET] = &partsets.cdm;
+	partsets.sets[BARY_SET] = &partsets.baryon;
+	for (int pi = 0; pi < npart_types; pi++) {
 		auto& parts = *partsets.sets[pi];
 		const auto start = bid * parts.size() / gsz;
 		const auto stop = (bid + 1) * parts.size() / gsz;
@@ -112,7 +115,7 @@ void compute_particle_power_spectrum(particle_sets& parts, int filenum) {
 	int num_blocks;
 	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, power_spectrum_init, block_size, 0));
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
-	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_sets(),den,N,(float) N3 / (float)parts.size());
+	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_sets(),den,N,(float) N3 / (float)parts.size(), global().opts.sph);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	compute_power_spectrum(den, spec, N);
 	std::string filename = std::string("power.") + std::to_string(filenum) + std::string(".txt");
