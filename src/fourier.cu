@@ -88,6 +88,25 @@ void transpose_xy(cmplx* Y, int N) {
 }
 
 __global__
+void normalize_invert(cmplx* Y, int N) {
+	const int& tid = threadIdx.x;
+	const int block_size = blockDim.x;
+	const int& bid = blockIdx.x;
+	const int& grid_size = gridDim.x;
+	const float N3inv = 1.0f / (N * sqr(N));
+	for (int xy = bid; xy < N * N; xy += grid_size) {
+		int xi = xy / N;
+		int yi = xy % N;
+		for (int zi = tid; zi < N; zi += block_size) {
+			const int i1 = N * (N * xi + yi) + zi;
+			Y[i1].real() *= N3inv;
+			Y[i1].imag() *= N3inv;
+		}
+	}
+
+}
+
+__global__
 void transpose_xz(cmplx* Y, int N) {
 	const int& tid = threadIdx.x;
 	const int block_size = blockDim.x;
@@ -136,18 +155,19 @@ void fft3d(cmplx* Y, int N) {
 		expi[i] = expc(-cmplx(0, 1) * omega);
 	}
 	fft<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
-	CUDA_CHECK(cudaDeviceSynchronize());
 	transpose_yz<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
-	CUDA_CHECK(cudaDeviceSynchronize());
 	fft<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
-	CUDA_CHECK(cudaDeviceSynchronize());
 	transpose_xz<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
-	CUDA_CHECK(cudaDeviceSynchronize());
 	fft<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
-	CUDA_CHECK(cudaDeviceSynchronize());
 	transpose_yz<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
-	CUDA_CHECK(cudaDeviceSynchronize());
 	transpose_xy<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	CUDA_FREE(expi);
+}
+
+void fft3d_inv(cmplx* Y, int N) {
+	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
+	int nblocks = min(N * N * N / 32, maxgrid);
+	normalize_invert<<<nblocks,32>>>(Y,N);
+	fft3d(Y, N);
 }

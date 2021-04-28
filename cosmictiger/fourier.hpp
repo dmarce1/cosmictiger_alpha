@@ -15,4 +15,8 @@
 void fft3d(cmplx* Y, int N);
 
 
+
+void fft3d_inv(cmplx* Y, int N);
+
+
 #endif /* FOURIER_HPP_ */

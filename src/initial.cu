@@ -22,16 +22,6 @@ __global__ void vector_free_kernel(vector<T>* vect) {
 	}
 }
 
-__device__ static float atomicMax(float* address, float val) {
-	int* address_as_i = (int*) address;
-	int old = *address_as_i, assumed;
-	do {
-		assumed = old;
-		old = ::atomicCAS(address_as_i, assumed, __float_as_int(::fmaxf(val, __int_as_float(assumed))));
-	} while (assumed != old);
-	return __int_as_float(old);
-}
-
 __device__ float constrain_range(float r) {
 	while (r >= 1.0f) {
 		r -= 1.f;
@@ -42,11 +32,12 @@ __device__ float constrain_range(float r) {
 	return r;
 }
 
-__global__ void phi_to_grid(particle_set parts, cmplx* phi, float code_to_mpc, float D1, float prefactor,
+__global__ void phi_to_grid(particle_set parts, cmplx* phi1, cmplx* phi2, float code_to_mpc, float D1, float D2, float prefactor1, float prefactor2,
 		float* maxdisp) {
 	int i = blockIdx.x;
 	int j = blockIdx.y;
 	int N = gridDim.x;
+	const int ij = i * N + j;
 	const float Ninv = 1.0 / (float) N;
 	const float unitinv = 1.0 / code_to_mpc;
 	__shared__ float maxes[32];
@@ -62,19 +53,24 @@ __global__ void phi_to_grid(particle_set parts, cmplx* phi, float code_to_mpc, f
 		const int lmx = N * (N * ((i + N - 1) % N) + j) + k;
 		const int lmy = N * (N * i + ((j + N - 1) % N)) + k;
 		const int lmz = N * (N * i + j) + (k + N - 1) % N;
-		array<float, NDIM> x, dphidx;
-		dphidx[0] = 0.5f * (phi[lpx].real() - phi[lmx].real()) * dxinv;
-		dphidx[1] = 0.5f * (phi[lpy].real() - phi[lmy].real()) * dxinv;
-		dphidx[2] = 0.5f * (phi[lpz].real() - phi[lmz].real()) * dxinv;
+		array<float, NDIM> x, dphi1dx, dphi2dx;
+		dphi1dx[0] = 0.5f * (phi1[lpx].real() - phi1[lmx].real()) * dxinv;
+		dphi1dx[1] = 0.5f * (phi1[lpy].real() - phi1[lmy].real()) * dxinv;
+		dphi1dx[2] = 0.5f * (phi1[lpz].real() - phi1[lmz].real()) * dxinv;
+		dphi2dx[0] = 0.5f * (phi2[lpx].real() - phi2[lmx].real()) * dxinv;
+		dphi2dx[1] = 0.5f * (phi2[lpy].real() - phi2[lmy].real()) * dxinv;
+		dphi2dx[2] = 0.5f * (phi2[lpz].real() - phi2[lmz].real()) * dxinv;
 		x[0] = (i + 0.5f) * Ninv;
 		x[1] = (j + 0.5f) * Ninv;
 		x[2] = (k + 0.5f) * Ninv;
 		for (int dim = 0; dim < NDIM; dim++) {
-			float this_disp = D1 * dphidx[dim] * unitinv;
+			const float this_disp1 = -D1 * dphi1dx[dim] * unitinv;
+			const float this_disp2 = D2 * dphi2dx[dim] * unitinv;
+			const float this_disp = this_disp1 + this_disp2;
 			maxes[tid] = fmaxf(maxes[tid], fabs(this_disp * N));
-			const float x0 = constrain_range(x[dim] - this_disp);
+			const float x0 = constrain_range(x[dim] + this_disp1);
 			parts.pos(dim, l) = x0;
-			parts.vel(dim, l) = -prefactor * this_disp;
+			parts.vel(dim, l) = prefactor1 * this_disp1 + prefactor2 * this_disp2;
 		}
 	}
 	for (int P = blockDim.x / 2; P >= 1; P /= 2) {
@@ -83,7 +79,49 @@ __global__ void phi_to_grid(particle_set parts, cmplx* phi, float code_to_mpc, f
 			maxes[tid] = fmaxf(maxes[tid], maxes[tid + P]);
 		}
 	}
-	atomicMax(maxdisp, maxes[0]);
+	maxdisp[ij] = maxes[0];
+}
+
+__global__ void phi1_to_delta2(cmplx* phi, cmplx* delta, float code_to_mpc) {
+	int i = blockIdx.x;
+	int j = blockIdx.y;
+	const float unitinv = 1.0 / code_to_mpc;
+	int N = gridDim.x;
+	const float Ninv = 1.0 / (float) N;
+	const float dxinv2 = sqr(N * unitinv);
+	const auto tid = threadIdx.x;
+	for (int k = tid; k < N; k += blockDim.x) {
+		const int l = N * (N * i + j) + k;
+		const int lpx = N * (N * ((i + 1) % N) + j) + k;
+		const int lpy = N * (N * i + ((j + 1) % N)) + k;
+		const int lpz = N * (N * i + j) + (k + 1) % N;
+		const int lmx = N * (N * ((i + N - 1) % N) + j) + k;
+		const int lmy = N * (N * i + ((j + N - 1) % N)) + k;
+		const int lmz = N * (N * i + j) + (k + N - 1) % N;
+		const int lpxpy = N * (N * ((i + 1) % N) + ((j + 1) % N)) + k;
+		const int lpxpz = N * (N * ((i + 1) % N) + j) + (k + 1) % N;
+		const int lpypz = N * (N * i + ((j + 1) % N)) + (k + 1) % N;
+		const int lmxpy = N * (N * ((i - 1 + N) % N) + ((j + 1) % N)) + k;
+		const int lmxpz = N * (N * ((i - 1 + N) % N) + j) + (k + 1) % N;
+		const int lmypz = N * (N * i + ((j - 1 + N) % N)) + (k + 1) % N;
+		const int lpxmy = N * (N * ((i + 1) % N) + ((j - 1 + N) % N)) + k;
+		const int lpxmz = N * (N * ((i + 1) % N) + j) + (k - 1 + N) % N;
+		const int lpymz = N * (N * i + ((j + 1) % N)) + (k - 1 + N) % N;
+		const int lmxmy = N * (N * ((i - 1 + N) % N) + ((j - 1 + N) % N)) + k;
+		const int lmxmz = N * (N * ((i - 1 + N) % N) + j) + (k - 1 + N) % N;
+		const int lmymz = N * (N * i + ((j - 1 + N) % N)) + (k - 1 + N) % N;
+		const float dphidxdx = (phi[lpx].real() + phi[lmx].real() - 2.f * phi[l].real()) * dxinv2;
+		const float dphidydy = (phi[lpy].real() + phi[lmy].real() - 2.f * phi[l].real()) * dxinv2;
+		const float dphidzdz = (phi[lpz].real() + phi[lmz].real() - 2.f * phi[l].real()) * dxinv2;
+		const float dphidxdy = 0.25f * ((phi[lpxpy].real() - phi[lmxpy].real()) - (phi[lpxmy].real() - phi[lmxmy].real()))
+				* dxinv2;
+		const float dphidxdz = 0.25f * ((phi[lpxpz].real() - phi[lmxpz].real()) - (phi[lpxmz].real() - phi[lmxmz].real()))
+				* dxinv2;
+		const float dphidydz = 0.25f * ((phi[lpypz].real() - phi[lmypz].real()) - (phi[lpymz].real() - phi[lmymz].real()))
+				* dxinv2;
+		delta[l].real() = dphidxdx + dphidydy + dphidzdz - sqr(dphidxdy) - sqr(dphidxdz) - sqr(dphidydz);
+		delta[l].imag() = 0.f;
+	}
 }
 
 float growth_factor(float omega_m, float a) {
@@ -101,6 +139,7 @@ void create_overdensity_transform(cmplx* phi, const cmplx* rands, const interp_f
 	const int& thread = threadIdx.x;
 	const int& block_size = blockDim.x;
 	auto& P = *Pptr;
+	const float N3 = N * N * N;
 	for (int i = thread; i < N * N * N; i += block_size) {
 		phi[i] = cmplx(0, 0);
 	}
@@ -121,7 +160,7 @@ void create_overdensity_transform(cmplx* phi, const cmplx* rands, const interp_f
 			if (i2 > 0 && i2 < N * N / 4) {
 				float kz = 2.f * (float) M_PI / box_size * float(l0);
 				float k = sqrt(kx * kx + ky * ky + kz * kz);
-				phi[index0] = rands[index0] * sqrtf(P(k)) * powf(box_size, -1.5);
+				phi[index0] = rands[index0] * sqrtf(P(k)) * powf(box_size, -1.5) * N3;
 				phi[index1] = phi[index0].conj();
 			}
 		}
@@ -167,14 +206,16 @@ void initial_conditions(particle_sets& parts) {
 	interp_functor<float>* bary_k;
 	interp_functor<float>* vel_k;
 	cmplx* phi1;
+	cmplx* phi2;
 	cmplx* rands;
 	const size_t N = global().opts.parts_dim;
 	int Nk = 1024;
 	const size_t N3 = sqr(N) * N;
 	float* max_disp;
 
-	CUDA_MALLOC(max_disp, 1);
+	CUDA_MALLOC(max_disp, N*N);
 	CUDA_MALLOC(phi1, N3);
+	CUDA_MALLOC(phi2, N3);
 	CUDA_MALLOC(rands, N3);
 	CUDA_MALLOC(cdm_k, 1);
 	CUDA_MALLOC(bary_k, 1);
@@ -269,26 +310,42 @@ void initial_conditions(particle_sets& parts) {
 	printf("%i species\n", num_parts);
 	const double Om = omega_m / (omega_m + (a * a * a) * (1.0 - omega_m));
 	const float D1 = growth_factor(omega_m, a) / growth_factor(omega_m, 1.0);
+	const float D2 = -3.f * sqr(D1) / 7.f;
 	const double f1 = std::pow(Om, 5.f / 9.f);
+	const double f2 = 2.f * std::pow(Om, 6.f / 11.f);
 	const double H = global().opts.H0 * global().opts.hubble * std::sqrt(omega_m / (a * a * a) + 1.0 - omega_m);
-	double prefac = f1 * H * a;
+	double prefac1 = f1 * H * a;
+	double prefac2 = f2 * H * a;
 	printf("D1 = %e\n", D1);
+	printf("D2 = %e\n", D2);
 	printf("H = %e\n", H);
 	printf("f1 = %e\n", f1);
-	printf("H*a*f1 = %e\n", prefac);
+	printf("f2 = %e\n", f2);
+	printf("H*a*f1 = %e\n", prefac1);
+	printf("H*a*f2 = %e\n", prefac2);
 	printf("\t\tComputing positions\n");
 	auto& den_k = cdm_k;
 	create_overdensity_transform<<<1,ZELDOSIZE>>>(phi1, rands, den_k, code_to_mpc, N);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	transform_laplacian<<<1,ZELDOSIZE>>>(phi1, code_to_mpc, N);
 	CUDA_CHECK(cudaDeviceSynchronize());
-	fft3d(phi1, N);
+	fft3d_inv(phi1, N);
 	dim3 gdim;
 	gdim.x = gdim.y = N;
 	gdim.z = 1;
-	phi_to_grid<<<gdim,32>>>(parts.cdm.get_virtual_particle_set(),phi1, code_to_mpc,D1, a*prefac,max_disp);
+	phi1_to_delta2<<<gdim,32>>>(phi1, phi2, code_to_mpc);
 	CUDA_CHECK(cudaDeviceSynchronize());
-	printf("\t\tMaximum displacement is %e\n", *max_disp);
+	fft3d(phi2, N);
+	transform_laplacian<<<1,ZELDOSIZE>>>(phi2, code_to_mpc, N);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	fft3d_inv(phi2, N);
+	phi_to_grid<<<gdim,32>>>(parts.cdm.get_virtual_particle_set(),phi1, phi2, code_to_mpc,D1,D2, a*prefac1,a*prefac2,max_disp);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	xdisp = 0.0;
+	for( int i = 0; i < N*N; i++) {
+		xdisp = std::max(xdisp, max_disp[i]);
+	}
+	printf("\t\tMaximum displacement is %e\n", xdisp);
 
 #ifndef __CUDA_ARCH__
 	cdm_destroy();
@@ -316,6 +373,7 @@ void initial_conditions(particle_sets& parts) {
 	CUDA_FREE(bary_k);
 	CUDA_FREE(rands);
 	CUDA_FREE(phi1);
+	CUDA_FREE(phi2);
 	CUDA_FREE(max_disp);
 	free_zeroverse();
 	printf("Done initializing\n");
