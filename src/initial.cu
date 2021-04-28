@@ -22,7 +22,7 @@ __global__ void vector_free_kernel(vector<T>* vect) {
 	}
 }
 
-__global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_mpc, int dim) {
+__global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_mpc, float D1, int dim) {
 	int i = blockIdx.x;
 	int j = blockIdx.y;
 	int N = gridDim.x;
@@ -30,7 +30,7 @@ __global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_m
 		const int l = N * (N * i + j) + k;
 		const int I[NDIM] = { i, j, k };
 		float x = (((float) I[dim] + 0.0f) / (float) N);
-		x += phi[l].real() / code_to_mpc;
+		x += D1 * phi[l].real() / code_to_mpc;
 		while (x > 1.0) {
 			x -= 1.0;
 		}
@@ -41,42 +41,7 @@ __global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_m
 	}
 }
 
-
-__global__ void phi_to_shifted_positions(particle_set parts, cmplx* phi, float code_to_mpc, int dim) {
-	int i = blockIdx.x;
-	int j = blockIdx.y;
-	int N = gridDim.x;
-	const float inv = 1.f / code_to_mpc;
-	for (int k = threadIdx.x; k < N; k += blockDim.x) {
-		const int l000 = N * (N * i + j) + k;
-		const int l001 = N * (N * i + j) + (k+1)%N;
-		const int l010 = N * (N * i + (j+1)%N) + k;
-		const int l011 = N * (N * i + (j+1)%N) + (k+1)%N;
-		const int l100 = N * (N * ((i+1)%N) + j) + k;
-		const int l101 = N * (N * ((i+1)%N) + j) + (k+1)%N;
-		const int l110 = N * (N * ((i+1)%N) + (j+1)%N) + k;
-		const int l111 = N * (N * ((i+1)%N) + (j+1)%N) + (k+1)%N;
-		const int I[NDIM] = { i, j, k };
-		float x = (((float) I[dim] + 0.5f) / (float) N);
-		x += 0.125f * phi[l000].real() * inv;
-		x += 0.125f * phi[l001].real() * inv;
-		x += 0.125f * phi[l010].real() * inv;
-		x += 0.125f * phi[l011].real() * inv;
-		x += 0.125f * phi[l100].real() * inv;
-		x += 0.125f * phi[l101].real() * inv;
-		x += 0.125f * phi[l110].real() * inv;
-		x += 0.125f * phi[l111].real() * inv;
-		while (x > 1.0) {
-			x -= 1.0;
-		}
-		while (x < 0.0) {
-			x += 1.0;
-		}
-		parts.pos(dim, l000) = x;
-	}
-}
-
-__global__ void phi_to_velocities(particle_set parts, cmplx* phi, float a,  int dim) {
+__global__ void phi_to_velocities(particle_set parts, cmplx* phi, float a, int dim) {
 	int i = blockIdx.x;
 	int j = blockIdx.y;
 	int N = gridDim.x;
@@ -84,32 +49,6 @@ __global__ void phi_to_velocities(particle_set parts, cmplx* phi, float a,  int 
 		const int l = N * (N * i + j) + k;
 		float v = phi[l].real();
 		parts.vel(dim, l) = v * a;
-	}
-}
-
-__global__ void phi_to_shifted_velocities(particle_set parts, cmplx* phi, float a,  int dim) {
-	int i = blockIdx.x;
-	int j = blockIdx.y;
-	int N = gridDim.x;
-	for (int k = threadIdx.x; k < N; k += blockDim.x) {
-		const int l000 = N * (N * i + j) + k;
-		const int l001 = N * (N * i + j) + (k+1)%N;
-		const int l010 = N * (N * i + (j+1)%N) + k;
-		const int l011 = N * (N * i + (j+1)%N) + (k+1)%N;
-		const int l100 = N * (N * ((i+1)%N) + j) + k;
-		const int l101 = N * (N * ((i+1)%N) + j) + (k+1)%N;
-		const int l110 = N * (N * ((i+1)%N) + (j+1)%N) + k;
-		const int l111 = N * (N * ((i+1)%N) + (j+1)%N) + (k+1)%N;
-		float v = 0.f;
-		v += 0.125f * phi[l000].real();
-		v += 0.125f * phi[l001].real();
-		v += 0.125f * phi[l010].real();
-		v += 0.125f * phi[l011].real();
-		v += 0.125f * phi[l100].real();
-		v += 0.125f * phi[l101].real();
-		v += 0.125f * phi[l110].real();
-		v += 0.125f * phi[l111].real();
-		parts.vel(dim, l000) = v * a;
 	}
 }
 
@@ -154,6 +93,15 @@ float phi_max(cmplx* phi, int N3) {
 	}
 	CUDA_FREE(maxes);
 	return num;
+}
+
+float growth_factor(float omega_m, float a) {
+	const float omega_l = 1.f - omega_m;
+	const float a3 = a * sqr(a);
+	const float deninv = 1.f / (omega_m + a3 * omega_l);
+	const float Om = omega_m * deninv;
+	const float Ol = a3 * omega_l * deninv;
+	return a * 2.5 * Om / (pow(Om, 4.f / 7.f) - Ol + (1.f + 0.5f * Om) * (1.f + 0.014285714f * Ol));
 }
 
 void initial_conditions(particle_sets& parts) {
@@ -228,7 +176,7 @@ void initial_conditions(particle_sets& parts) {
 	printf("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	const float ainit = 1.0f / (global().opts.z0 + 1.0f);
 	einstein_boltzmann_interpolation_function(cdm_k, bary_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
-			zeroverse_ptr->amin, ainit, false, ns);
+			zeroverse_ptr->amin, 1.0, false, ns);
 #ifndef __CUDA_ARCH__
 	auto cdm_destroy = cdm_k->to_device();
 	auto bary_destroy = bary_k->to_device();
@@ -261,13 +209,21 @@ void initial_conditions(particle_sets& parts) {
 
 	float xdisp = 0.0;
 	const double omega_m = params.omega_b + params.omega_c;
-	const double omega_r = params.omega_nu + params.omega_gam;
 	const double a = ainit;
 	const int num_parts = global().opts.sph ? 2 : 1;
-	printf( "%i species\n", num_parts);
-
+	printf("%i species\n", num_parts);
+	const double Om = omega_m / (omega_m + (a * a * a) * (1.0 - omega_m));
+	const float D1 = growth_factor(omega_m, a) / growth_factor(omega_m, 1.0);
+	const double f1 = std::pow(Om, 5.f / 9.f);
+	const double H = global().opts.H0 * global().opts.hubble * std::sqrt(omega_m / (a * a * a) + 1.0 - omega_m);
+	double prefac = f1 * H * a;
+	printf("D1 = %e\n", D1);
+	printf("H = %e\n", H);
+	printf("f1 = %e\n", f1);
+	printf("H*a*f1 = %e\n", prefac);
+	prefac *= D1;
 	for (int pi = 0; pi < num_parts; pi++) {
-		printf( "%s\n", pi == CDM_SET ? "CDM" : "Baryons");
+		printf("%s\n", pi == CDM_SET ? "CDM" : "Baryons");
 		for (int dim = 0; dim < NDIM; dim++) {
 			printf("\t\tComputing %c positions\n", 'x' + dim);
 			auto& den_k = pi == CDM_SET ? cdm_k : bary_k;
@@ -279,19 +235,17 @@ void initial_conditions(particle_sets& parts) {
 			dim3 gdim;
 			gdim.x = gdim.y = N;
 			gdim.z = 1;
-			auto posfunc = /*pi == CDM_SET ?*/ phi_to_positions;// : phi_to_shifted_positions;
-			auto velfunc = /*pi == CDM_SET ?*/ phi_to_velocities;// : phi_to_shifted_velocities;
-			posfunc<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi,code_to_mpc, dim);
+			auto posfunc = /*pi == CDM_SET ?*/phi_to_positions; // : phi_to_shifted_positions;
+			auto velfunc = /*pi == CDM_SET ?*/phi_to_velocities; // : phi_to_shifted_velocities;
+			posfunc<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi,code_to_mpc, D1, dim);
 			CUDA_CHECK(cudaDeviceSynchronize());
 			printf("\t\tComputing %c velocities\n", 'x' + dim);
-			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, vel_k, code_to_mpc, N, dim, VELOCITY);
-			CUDA_CHECK(cudaDeviceSynchronize());
-			fft3d(phi, N);
-			velfunc<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi, a, dim);
+			velfunc<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi, a*prefac/code_to_mpc, dim);
 			CUDA_CHECK(cudaDeviceSynchronize());
 		}
 	}
 	xdisp /= code_to_mpc / N;
+	xdisp *= D1;
 	printf("\t\tMaximum displacement is %e\n", xdisp);
 
 #ifndef __CUDA_ARCH__
