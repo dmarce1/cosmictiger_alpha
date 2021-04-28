@@ -22,77 +22,68 @@ __global__ void vector_free_kernel(vector<T>* vect) {
 	}
 }
 
-__global__ void phi_to_positions(particle_set parts, cmplx* phi, float code_to_mpc, float D1, int dim) {
+__device__ static float atomicMax(float* address, float val) {
+	int* address_as_i = (int*) address;
+	int old = *address_as_i, assumed;
+	do {
+		assumed = old;
+		old = ::atomicCAS(address_as_i, assumed, __float_as_int(::fmaxf(val, __int_as_float(assumed))));
+	} while (assumed != old);
+	return __int_as_float(old);
+}
+
+__device__ float constrain_range(float r) {
+	while (r >= 1.0f) {
+		r -= 1.f;
+	}
+	while (r < 0.f) {
+		r += 1.f;
+	}
+	return r;
+}
+
+__global__ void phi_to_grid(particle_set parts, cmplx* phi, float code_to_mpc, float D1, float prefactor,
+		float* maxdisp) {
 	int i = blockIdx.x;
 	int j = blockIdx.y;
 	int N = gridDim.x;
-	for (int k = threadIdx.x; k < N; k += blockDim.x) {
-		const int l = N * (N * i + j) + k;
-		const int I[NDIM] = { i, j, k };
-		float x = (((float) I[dim] + 0.0f) / (float) N);
-		x += D1 * phi[l].real() / code_to_mpc;
-		while (x > 1.0) {
-			x -= 1.0;
-		}
-		while (x < 0.0) {
-			x += 1.0;
-		}
-		parts.pos(dim, l) = x;
-	}
-}
-
-__global__ void phi_to_velocities(particle_set parts, cmplx* phi, float a, int dim) {
-	int i = blockIdx.x;
-	int j = blockIdx.y;
-	int N = gridDim.x;
-	for (int k = threadIdx.x; k < N; k += blockDim.x) {
-		const int l = N * (N * i + j) + k;
-		float v = phi[l].real();
-		parts.vel(dim, l) = v * a;
-	}
-}
-
-#define PHIMAXSIZE 512
-
-__global__ void phi_max_kernel(cmplx* phi, int N3, float* maxes) {
-	const int& tid = threadIdx.x;
-	const int& bid = blockIdx.x;
-	const int& bsz = blockDim.x;
-	const int& gsz = gridDim.x;
-	__shared__ float local_maxes[PHIMAXSIZE];
-	float mymax = 0.0;
-	for (int i = tid + bid * bsz; i < N3; i += gsz * bsz) {
-		mymax = fmaxf(mymax, phi[i].real());
-	}
-	local_maxes[tid] = mymax;
+	const float Ninv = 1.0 / (float) N;
+	const float unitinv = 1.0 / code_to_mpc;
+	__shared__ float maxes[32];
+	const float dxinv = N * unitinv;
+	const auto tid = threadIdx.x;
+	maxes[tid] = 0.f;
 	__syncthreads();
-	for (int P = bsz / 2; P >= 1; P /= 2) {
-		if (tid + P < bsz) {
-			local_maxes[tid] = fmaxf(local_maxes[tid], local_maxes[tid + P]);
+	for (int k = tid; k < N; k += blockDim.x) {
+		const int l = N * (N * i + j) + k;
+		const int lpx = N * (N * ((i + 1) % N) + j) + k;
+		const int lpy = N * (N * i + ((j + 1) % N)) + k;
+		const int lpz = N * (N * i + j) + (k + 1) % N;
+		const int lmx = N * (N * ((i + N - 1) % N) + j) + k;
+		const int lmy = N * (N * i + ((j + N - 1) % N)) + k;
+		const int lmz = N * (N * i + j) + (k + N - 1) % N;
+		array<float, NDIM> x, dphidx;
+		dphidx[0] = 0.5f * (phi[lpx].real() - phi[lmx].real()) * dxinv;
+		dphidx[1] = 0.5f * (phi[lpy].real() - phi[lmy].real()) * dxinv;
+		dphidx[2] = 0.5f * (phi[lpz].real() - phi[lmz].real()) * dxinv;
+		x[0] = (i + 0.5f) * Ninv;
+		x[1] = (j + 0.5f) * Ninv;
+		x[2] = (k + 0.5f) * Ninv;
+		for (int dim = 0; dim < NDIM; dim++) {
+			float this_disp = D1 * dphidx[dim] * unitinv;
+			maxes[tid] = fmaxf(maxes[tid], fabs(this_disp * N));
+			const float x0 = constrain_range(x[dim] - this_disp);
+			parts.pos(dim, l) = x0;
+			parts.vel(dim, l) = -prefactor * this_disp;
 		}
 	}
-	__syncthreads();
-	if (tid == 0) {
-		maxes[bid] = local_maxes[0];
+	for (int P = blockDim.x / 2; P >= 1; P /= 2) {
+		__syncthreads();
+		if (tid + P < blockDim.x) {
+			maxes[tid] = fmaxf(maxes[tid], maxes[tid + P]);
+		}
 	}
-}
-
-float phi_max(cmplx* phi, int N3) {
-	int num_blocks;
-	CUDA_CHECK(
-			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, generate_random_normals, PHIMAXSIZE, sizeof(float)*PHIMAXSIZE));
-	num_blocks *= global().cuda.devices[0].multiProcessorCount;
-	num_blocks = std::min(global().cuda.devices[0].maxGridSize[0], num_blocks);
-	float* maxes;
-	CUDA_MALLOC(maxes, num_blocks);
-	phi_max_kernel<<<num_blocks,PHIMAXSIZE>>>(phi,N3,maxes);
-	CUDA_CHECK(cudaDeviceSynchronize());
-	float num = 0.0;
-	for (int i = 0; i < num_blocks; i++) {
-		num = std::max(num, maxes[i]);
-	}
-	CUDA_FREE(maxes);
-	return num;
+	atomicMax(maxdisp, maxes[0]);
 }
 
 float growth_factor(float omega_m, float a) {
@@ -102,6 +93,67 @@ float growth_factor(float omega_m, float a) {
 	const float Om = omega_m * deninv;
 	const float Ol = a3 * omega_l * deninv;
 	return a * 2.5 * Om / (pow(Om, 4.f / 7.f) - Ol + (1.f + 0.5f * Om) * (1.f + 0.014285714f * Ol));
+}
+
+__global__
+void create_overdensity_transform(cmplx* phi, const cmplx* rands, const interp_functor<float>* Pptr, float box_size,
+		int N) {
+	const int& thread = threadIdx.x;
+	const int& block_size = blockDim.x;
+	auto& P = *Pptr;
+	for (int i = thread; i < N * N * N; i += block_size) {
+		phi[i] = cmplx(0, 0);
+	}
+	__syncthreads();
+	for (int ij = thread; ij < N * N; ij += block_size) {
+		int i = ij / N;
+		int j = ij % N;
+		int i0 = i < N / 2 ? i : i - N;
+		int j0 = j < N / 2 ? j : j - N;
+		float kx = 2.f * (float) M_PI / box_size * float(i0);
+		float ky = 2.f * (float) M_PI / box_size * float(j0);
+		for (int l = 0; l < N / 2; l++) {
+			int l0 = l < N / 2 ? l : l - N;
+			int i2 = i0 * i0 + j0 * j0 + l0 * l0;
+			int index0 = N * (N * i + j) + l;
+			int index1;
+			index1 = N * (N * ((N - i) % N) + ((N - j) % N)) + ((N - l) % N);
+			if (i2 > 0 && i2 < N * N / 4) {
+				float kz = 2.f * (float) M_PI / box_size * float(l0);
+				float k = sqrt(kx * kx + ky * ky + kz * kz);
+				phi[index0] = rands[index0] * sqrtf(P(k)) * powf(box_size, -1.5);
+				phi[index1] = phi[index0].conj();
+			}
+		}
+	}
+	__syncthreads();
+}
+
+__global__
+void transform_laplacian(cmplx* phi, float box_size, int N) {
+	const int& thread = threadIdx.x;
+	const int& block_size = blockDim.x;
+	__syncthreads();
+	for (int ij = thread; ij < N * N; ij += block_size) {
+		int i = ij / N;
+		int j = ij % N;
+		int i0 = i < N / 2 ? i : i - N;
+		int j0 = j < N / 2 ? j : j - N;
+		float kx = 2.f * (float) M_PI / box_size * float(i0);
+		float ky = 2.f * (float) M_PI / box_size * float(j0);
+		for (int l = 0; l < N; l++) {
+			int l0 = l < N / 2 ? l : l - N;
+			int i2 = i0 * i0 + j0 * j0 + l0 * l0;
+			int index0 = N * (N * i + j) + l;
+			if (i2 > 0 && i2 < N * N / 4) {
+				float kz = 2.f * (float) M_PI / box_size * float(l0);
+				float k2 = (kx * kx + ky * ky + kz * kz);
+				phi[index0].real() /= -k2;
+				phi[index0].imag() /= -k2;
+			}
+		}
+	}
+	__syncthreads();
 }
 
 void initial_conditions(particle_sets& parts) {
@@ -114,13 +166,15 @@ void initial_conditions(particle_sets& parts) {
 	interp_functor<float>* cdm_k;
 	interp_functor<float>* bary_k;
 	interp_functor<float>* vel_k;
-	cmplx* phi;
+	cmplx* phi1;
 	cmplx* rands;
 	const size_t N = global().opts.parts_dim;
-	int Nk = 8 * 1024;
+	int Nk = 1024;
 	const size_t N3 = sqr(N) * N;
+	float* max_disp;
 
-	CUDA_MALLOC(phi, N3);
+	CUDA_MALLOC(max_disp, 1);
+	CUDA_MALLOC(phi1, N3);
 	CUDA_MALLOC(rands, N3);
 	CUDA_MALLOC(cdm_k, 1);
 	CUDA_MALLOC(bary_k, 1);
@@ -130,6 +184,7 @@ void initial_conditions(particle_sets& parts) {
 	CUDA_MALLOC(func_ptr, 1);
 	CUDA_MALLOC(states, Nk);
 
+	*max_disp = 0.f;
 	new (bary_k) interp_functor<float>();
 	new (cdm_k) interp_functor<float>();
 	new (vel_k) interp_functor<float>();
@@ -199,7 +254,7 @@ void initial_conditions(particle_sets& parts) {
 	 }
 	 */
 	vector<float> spec(N / 2);
-	compute_power_spectrum(phi, spec.data(), N);
+	compute_power_spectrum(phi1, spec.data(), N);
 	FILE* fp = fopen("power.den", "wt");
 	for (int i = 1; i < N / 2; i++) {
 		const auto k = 2.0 * M_PI * (i + 0.5) / code_to_mpc;
@@ -221,32 +276,19 @@ void initial_conditions(particle_sets& parts) {
 	printf("H = %e\n", H);
 	printf("f1 = %e\n", f1);
 	printf("H*a*f1 = %e\n", prefac);
-	prefac *= D1;
-	for (int pi = 0; pi < num_parts; pi++) {
-		printf("%s\n", pi == CDM_SET ? "CDM" : "Baryons");
-		for (int dim = 0; dim < NDIM; dim++) {
-			printf("\t\tComputing %c positions\n", 'x' + dim);
-			auto& den_k = pi == CDM_SET ? cdm_k : bary_k;
-			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, dim, DISPLACEMENT);
-			CUDA_CHECK(cudaDeviceSynchronize());
-			fft3d(phi, N);
-			const auto this_max = phi_max(phi, N3);
-			xdisp = std::max(xdisp, this_max);
-			dim3 gdim;
-			gdim.x = gdim.y = N;
-			gdim.z = 1;
-			auto posfunc = /*pi == CDM_SET ?*/phi_to_positions; // : phi_to_shifted_positions;
-			auto velfunc = /*pi == CDM_SET ?*/phi_to_velocities; // : phi_to_shifted_velocities;
-			posfunc<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi,code_to_mpc, D1, dim);
-			CUDA_CHECK(cudaDeviceSynchronize());
-			printf("\t\tComputing %c velocities\n", 'x' + dim);
-			velfunc<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi, a*prefac/code_to_mpc, dim);
-			CUDA_CHECK(cudaDeviceSynchronize());
-		}
-	}
-	xdisp /= code_to_mpc / N;
-	xdisp *= D1;
-	printf("\t\tMaximum displacement is %e\n", xdisp);
+	printf("\t\tComputing positions\n");
+	auto& den_k = cdm_k;
+	create_overdensity_transform<<<1,ZELDOSIZE>>>(phi1, rands, den_k, code_to_mpc, N);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	transform_laplacian<<<1,ZELDOSIZE>>>(phi1, code_to_mpc, N);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	fft3d(phi1, N);
+	dim3 gdim;
+	gdim.x = gdim.y = N;
+	gdim.z = 1;
+	phi_to_grid<<<gdim,32>>>(parts.cdm.get_virtual_particle_set(),phi1, code_to_mpc,D1, a*prefac,max_disp);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	printf("\t\tMaximum displacement is %e\n", *max_disp);
 
 #ifndef __CUDA_ARCH__
 	cdm_destroy();
@@ -273,7 +315,8 @@ void initial_conditions(particle_sets& parts) {
 	CUDA_FREE(cdm_k);
 	CUDA_FREE(bary_k);
 	CUDA_FREE(rands);
-	CUDA_FREE(phi);
+	CUDA_FREE(phi1);
+	CUDA_FREE(max_disp);
 	free_zeroverse();
 	printf("Done initializing\n");
 }
