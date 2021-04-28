@@ -7,6 +7,7 @@
 
 int drift_particles(particle_sets partsets, double dt, double a0, double* ekin, double* momx, double* momy,
 		double* momz, double tau, double tau_max) {
+	*ekin = *momx = *momy = *momz = 0.0;
 	const int gsz = 2 * hpx::threads::hardware_concurrency();
 	static mutex_type mtx;
 	std::vector<hpx::future<void>> futs;
