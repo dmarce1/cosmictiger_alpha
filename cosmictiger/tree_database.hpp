@@ -7,7 +7,6 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/range.hpp>
 
-
 class tree;
 struct kick_params_type;
 struct group_param_type;
@@ -288,7 +287,6 @@ inline void tree_ptr::set_range(const range& r) const {
 	tree_data_set_range(dindex, r);
 }
 
-
 CUDA_EXPORT
 inline range tree_ptr::get_sph_range() const {
 	return tree_data_get_sph_range(dindex);
@@ -318,8 +316,7 @@ struct tree_data_t {
 struct tree_database_t {
 	multipole_pos* multi;
 	size_t* active_nodes;
-	pair<size_t, size_t>* parts;
-	pair<size_t, size_t>* hydro_parts;
+	parts_type* parts;
 	tree_data_t* data;
 	range* ranges;
 	range* sph_ranges;
@@ -330,7 +327,7 @@ struct tree_database_t {
 };
 
 #ifdef TREE_DATABASE_CU
-__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
+__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
 tree_database_t cpu_tree_data_;
 #else
 extern __managed__ tree_database_t gpu_tree_data_;
@@ -496,7 +493,7 @@ CUDA_EXPORT inline part_iters tree_data_get_parts(int i, int pi) {
 		int4 ints;
 	};
 	parts_union p;
-	p.ints = LDG((int4* )((pi == CDM_SET ? tree_data_.parts : tree_data_.hydro_parts) + i));
+	p.ints = LDG((int4* )(&tree_data_.parts[i][pi]));
 	return p.parts;
 }
 
@@ -517,20 +514,7 @@ void tree_data_set_parts(int i, const parts_type& p) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	tree_data_.parts[i] = p[CDM_SET];
-	tree_data_.hydro_parts[i] = p[BARY_SET];
-}
-
-CUDA_EXPORT inline
-void tree_data_set_hydro_parts(int i, const pair<size_t, size_t>& p) {
-#ifdef __CUDACC__
-	auto& tree_data_ = gpu_tree_data_;
-#else
-	auto& tree_data_ = cpu_tree_data_;
-#endif
-	assert(i >= 0);
-	assert(i < tree_data_.ntrees);
-	tree_data_.hydro_parts[i] = p;
+	tree_data_.parts[i] = p;
 }
 
 CUDA_EXPORT inline size_t tree_data_get_active_parts(int i) {

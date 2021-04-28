@@ -45,7 +45,6 @@ void tree_data_initialize_kick() {
 	CUDA_MALLOC(gpu_tree_data_.multi, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.hydro_parts, gpu_tree_data_.ntrees);
 	if (global().opts.sph) {
 		CUDA_MALLOC(gpu_tree_data_.ranges, gpu_tree_data_.ntrees);
 		CUDA_MALLOC(gpu_tree_data_.sph_ranges, gpu_tree_data_.ntrees);
@@ -74,7 +73,6 @@ void tree_data_initialize_groups() {
 	tree_data_free_all();
 	CUDA_MALLOC(gpu_tree_data_.data, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.parts, gpu_tree_data_.ntrees);
-	CUDA_MALLOC(gpu_tree_data_.hydro_parts, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.ranges, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_parts, gpu_tree_data_.ntrees);
 	CUDA_MALLOC(gpu_tree_data_.active_nodes, gpu_tree_data_.ntrees);
@@ -88,7 +86,6 @@ void tree_data_initialize_groups() {
 void tree_data_free_all() {
 	free_if_needed(&gpu_tree_data_.data);
 	free_if_needed(&gpu_tree_data_.parts);
-	free_if_needed(&gpu_tree_data_.hydro_parts);
 	free_if_needed(&gpu_tree_data_.multi);
 	free_if_needed(&gpu_tree_data_.sph_ranges);
 	free_if_needed(&gpu_tree_data_.ranges);

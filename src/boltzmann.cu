@@ -1,5 +1,6 @@
 #include <cosmictiger/boltzmann.hpp>
 #include <cosmictiger/memory.hpp>
+#include <cosmictiger/global.hpp>
 
 __managed__ zero_order_universe* zero_verse;
 
@@ -253,8 +254,12 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* cdm_k_func
 	for (int i = 0; i < N; i++) {
 		float k = ks[i];
 		float eps = k / (astop * H);
-		cdm_k[i] = sqr(U[i][deltaci]);
-		bary_k[i] = sqr(U[i][deltabi]);
+		if (global().opts.sph) {
+			cdm_k[i] = sqr(U[i][deltaci]);
+			bary_k[i] = sqr(U[i][deltabi]);
+		} else {
+			cdm_k[i] = sqr(oc * U[i][deltaci] + ob * U[i][deltabi]);
+		}
 		vel_k[i] = sqr((ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / eps);
 		//	printf("%e %e\n", k, vel_k[i]);
 	}

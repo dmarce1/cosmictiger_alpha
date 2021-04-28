@@ -55,6 +55,14 @@ public:
 		assert(i<size());
 		return store_[i].ene;
 	}
+	CUDA_EXPORT int8_t semiactive(size_t i) const {
+		assert(i<size());
+		return semi_[i];
+	}
+	CUDA_EXPORT int8_t& semiactive(size_t i) {
+		assert(i<size());
+		return semi_[i];
+	}
 
 	CUDA_EXPORT
 	size_t sort_range(size_t begin, size_t end, double xm, int xdim);
@@ -67,6 +75,7 @@ private:
 
 	float* hptr_;
 	float* eneptr_;
+	int8_t* semi_;
 	hydro_vars* store_;
 };
 

@@ -7,6 +7,7 @@ hydro_particle_set::hydro_particle_set(size_t size, size_t offset) :
 		CUDA_MALLOC(hptr_, size);
 		CUDA_MALLOC(eneptr_, size);
 		CUDA_MALLOC(store_, size);
+		CUDA_MALLOC(semi_, size);
 	}
 
 }
@@ -18,6 +19,7 @@ hydro_particle_set hydro_particle_set::get_virtual_particle_set() const {
 	parts.hptr_ = hptr_;
 	parts.store_ = store_;
 	parts.eneptr_ = eneptr_;
+	parts.semi_ = semi_;
 	return parts;
 }
 

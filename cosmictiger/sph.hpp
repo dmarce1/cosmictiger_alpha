@@ -4,6 +4,10 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/tree_database.hpp>
 
+enum sph_neighbors_type {
+	ACTIVE, SEMIACTIVE
+};
+
 struct sph_neighbor_params_type {
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> opened_checks;
@@ -12,6 +16,9 @@ struct sph_neighbor_params_type {
 	tree_ptr self;
 	int depth;
 	size_t block_cutoff;
+	int rung;
+	sph_neighbors_type type;
+	float search_cushion;
 };
 
 hpx::future<bool> sph_neighbors(sph_neighbor_params_type*);

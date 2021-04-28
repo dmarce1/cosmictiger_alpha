@@ -76,18 +76,18 @@ __global__ void phi_to_shifted_positions(particle_set parts, cmplx* phi, float c
 	}
 }
 
-__global__ void phi_to_velocities(particle_set parts, cmplx* phi, float a, int dim) {
+__global__ void phi_to_velocities(particle_set parts, cmplx* phi, float a, float code_to_mpc, int dim) {
 	int i = blockIdx.x;
 	int j = blockIdx.y;
 	int N = gridDim.x;
 	for (int k = threadIdx.x; k < N; k += blockDim.x) {
 		const int l = N * (N * i + j) + k;
 		float v = phi[l].real();
-		parts.vel(dim, l) = v * a; // / code_to_mpc;
+		parts.vel(dim, l) = v * a / code_to_mpc;
 	}
 }
 
-__global__ void phi_to_shifted_velocities(particle_set parts, cmplx* phi, float a, int dim) {
+__global__ void phi_to_shifted_velocities(particle_set parts, cmplx* phi, float a, float code_to_mpc, int dim) {
 	int i = blockIdx.x;
 	int j = blockIdx.y;
 	int N = gridDim.x;
@@ -109,7 +109,7 @@ __global__ void phi_to_shifted_velocities(particle_set parts, cmplx* phi, float 
 		v += 0.125f * phi[l101].real();
 		v += 0.125f * phi[l110].real();
 		v += 0.125f * phi[l111].real();
-		parts.vel(dim, l000) = v * a; // / code_to_mpc;
+		parts.vel(dim, l000) = v * a / code_to_mpc;
 	}
 }
 
@@ -265,11 +265,19 @@ void initial_conditions(particle_sets& parts) {
 	const double a = ainit;
 	const int num_parts = global().opts.sph ? 2 : 1;
 	printf( "%i species\n", num_parts);
+
+	const double Om = omega_m / (omega_m + (a * a * a) * (1.0 - omega_m - omega_r) + omega_r / a);
+	const double f = std::pow(Om, 0.55);
+	const double H = global().opts.H0 * global().opts.hubble
+			* std::sqrt(omega_r / (a * a * a * a) + omega_m / (a * a * a) + 1.0 - omega_r - omega_m);
+	const double prefac = f * H * a;
+	printf("Velocity prefactor is %e, Hubble(a) = %e, f(a) = %e\n", prefac, H, f);
+
 	for (int pi = 0; pi < num_parts; pi++) {
 		printf( "%s\n", pi == CDM_SET ? "CDM" : "Baryons");
 		for (int dim = 0; dim < NDIM; dim++) {
 			printf("\t\tComputing %c positions\n", 'x' + dim);
-			auto& den_k = pi == CDM_SET ? cdm_k : cdm_k;
+			auto& den_k = pi == CDM_SET ? cdm_k : bary_k;
 			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, dim, DISPLACEMENT);
 			CUDA_CHECK(cudaDeviceSynchronize());
 			fft3d(phi, N);
@@ -283,10 +291,10 @@ void initial_conditions(particle_sets& parts) {
 			posfunc<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi,code_to_mpc, dim);
 			CUDA_CHECK(cudaDeviceSynchronize());
 			printf("\t\tComputing %c velocities\n", 'x' + dim);
-			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, vel_k, code_to_mpc, N, dim, VELOCITY);
-			CUDA_CHECK(cudaDeviceSynchronize());
-			fft3d(phi, N);
-			velfunc<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi,a, dim);
+//			zeldovich<<<1,ZELDOSIZE>>>(phi, rands, vel_k, code_to_mpc, N, dim, VELOCITY);
+	//		CUDA_CHECK(cudaDeviceSynchronize());
+//			fft3d(phi, N);
+			velfunc<<<gdim,32>>>(parts.sets[pi]->get_virtual_particle_set(), phi, prefac * a, code_to_mpc, dim);
 			CUDA_CHECK(cudaDeviceSynchronize());
 		}
 	}
