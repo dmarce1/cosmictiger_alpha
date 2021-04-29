@@ -13,7 +13,7 @@
 #define SIGMA8SIZE 256
 #define FFTSIZE 256
 #define RANDSIZE 256
-#define ZELDOSIZE 256
+#define ZELDOSIZE 1024
 
 template<class T>
 __global__ void vector_free_kernel(vector<T>* vect) {
@@ -209,13 +209,12 @@ void create_overdensity_transform(cmplx* phi, const cmplx* rands, const interp_f
 		int j0 = j < N / 2 ? j : j - N;
 		float kx = 2.f * (float) M_PI / box_size * float(i0);
 		float ky = 2.f * (float) M_PI / box_size * float(j0);
-		for (int l = 0; l < N / 2; l++) {
+		for (int l = 0; l < N; l++) {
 			int l0 = l < N / 2 ? l : l - N;
 			int i2 = i0 * i0 + j0 * j0 + l0 * l0;
 			int index0 = N * (N * i + j) + l;
-			int index1;
-			index1 = N * (N * ((N - i) % N) + ((N - j) % N)) + ((N - l) % N);
-			if (i2 > 0 && i2 < N * N / 4) {
+			int index1 = N * (N * ((N - i) % N) + ((N - j) % N)) + ((N - l) % N);
+			if (i2 < N * N / 4 && index0 < index1) {
 				float kz = 2.f * (float) M_PI / box_size * float(l0);
 				float k = sqrt(kx * kx + ky * ky + kz * kz);
 				phi[index0] = rands[index0] * sqrtf(P(k)) * powf(box_size, -1.5) * N3;
@@ -242,7 +241,7 @@ void transform_laplacian(cmplx* phi, float box_size, int N) {
 			int l0 = l < N / 2 ? l : l - N;
 			int i2 = i0 * i0 + j0 * j0 + l0 * l0;
 			int index0 = N * (N * i + j) + l;
-			if (i2 > 0 && i2 < N * N / 4) {
+			if (i2 > 0 ) {
 				float kz = 2.f * (float) M_PI / box_size * float(l0);
 				float k2 = (kx * kx + ky * ky + kz * kz);
 				phi[index0].real() /= -k2;
