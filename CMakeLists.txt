@@ -41,6 +41,7 @@ set(cosmictiger_source_files
     src/memory.cpp
     src/options.cpp
     src/particle.cpp
+    src/particle_sets.cpp
     src/rand.cpp
     src/sph.cpp
     src/hydro_particle.cpp
@@ -158,6 +159,7 @@ target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
                         >)
 
+#SET_SOURCE_FILES_PROPERTIES( src/gravity.cu PROPERTIES COMPILE_FLAGS -G )
 #SET_SOURCE_FILES_PROPERTIES( src/gravity.cu PROPERTIES COMPILE_FLAGS -G )
 #SET_SOURCE_FILES_PROPERTIES( src/map.cu PROPERTIES COMPILE_FLAGS "--maxrregcount 40" )
 #SET_SOURCE_FILES_PROPERTIES( src/tree.cu PROPERTIES COMPILE_FLAGS -G )

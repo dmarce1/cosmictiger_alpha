@@ -47,7 +47,8 @@ tree build_tree(particle_sets& parts, int min_rung, double theta, size_t& num_ac
 
 }
 
-int kick(particle_sets& parts, tree root, double theta, double a, int min_rung, bool full_eval, bool first_call, bool groups, double& tm) {
+int kick(particle_sets& parts, tree root, double theta, double a, int min_rung, bool full_eval, bool first_call,
+		bool groups, double& tm) {
 	timer time;
 	time.start();
 	tree_ptr root_ptr;
@@ -172,7 +173,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_sets& parts, double& time
 	parts.cdm.init_groups();
 	tree_database_set_groups();
 	size_t active = find_groups(params_ptr).get();
-	printf( "%li nodes active\n", active);
+	printf("%li nodes active\n", active);
 	while (active) {
 		tree_database_set_groups();
 		params_ptr->self = root_ptr;
@@ -181,7 +182,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_sets& parts, double& time
 		params_ptr->first_round = false;
 		iters++;
 		active = find_groups(params_ptr).get();
-		printf( "%li nodes active\n", active);
+		printf("%li nodes active\n", active);
 	}
 	params_ptr->~group_param_type();
 	tree_data_free_all();
@@ -219,7 +220,11 @@ void drive_cosmos() {
 	double time;
 	if (!have_checkpoint) {
 		//parts.load_particles("ics");
-		initial_conditions(parts);
+		if (global().opts.glass) {
+			parts.generate_random();
+		} else {
+			initial_conditions(parts);
+		}
 		itime = 0;
 		iter = 0;
 		z = global().opts.z0;
@@ -265,15 +270,20 @@ void drive_cosmos() {
 		}
 		static double last_theta = -1.0;
 		int& bucket_size = global().opts.bucket_size;
-		if (z > 20.0) {
-			bucket_size = 96;
-			theta = 0.4;
-		} else if (z > 2.0) {
-			bucket_size = 128;
-			theta = 0.55;
-		} else {
-			bucket_size = 160;
+		if (global().opts.glass) {
 			theta = 0.7;
+			bucket_size = 160;
+		} else {
+			if (z > 20.0) {
+				bucket_size = 96;
+				theta = 0.4;
+			} else if (z > 2.0) {
+				bucket_size = 128;
+				theta = 0.55;
+			} else {
+				bucket_size = 160;
+				theta = 0.7;
+			}
 		}
 		if (theta != last_theta) {
 			reset_list_sizes();
@@ -321,7 +331,7 @@ void drive_cosmos() {
 		if (silo_int > 0) {
 			if (full_eval) {
 				std::string filename = "points." + std::to_string(silo_outs) + ".silo";
-//				parts.silo_out(filename.c_str());
+				silo_out(parts, filename.c_str());
 				silo_outs++;
 			}
 		}

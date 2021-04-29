@@ -32,8 +32,8 @@ __device__ float constrain_range(float r) {
 	return r;
 }
 
-__global__ void phi_to_grid(particle_set parts, cmplx* phi1, cmplx* phi2, float code_to_mpc, float D1, float D2, float prefactor1, float prefactor2,
-		float* maxdisp) {
+__global__ void phi_to_grid(particle_set parts, cmplx* phi1, cmplx* phi2, float code_to_mpc, float D1, float D2,
+		float prefactor1, float prefactor2, float* maxdisp) {
 	int i = blockIdx.x;
 	int j = blockIdx.y;
 	int N = gridDim.x;
@@ -45,30 +45,88 @@ __global__ void phi_to_grid(particle_set parts, cmplx* phi1, cmplx* phi2, float 
 	const auto tid = threadIdx.x;
 	maxes[tid] = 0.f;
 	__syncthreads();
+	const auto wt = [](float x, int n ) {
+		if( n == 1 ) {
+			return 1.f - x;
+		} else if( n == 2 ) {
+			return x;
+		} else {
+			return 0.f;
+		}
+		if( n == 0 ) {
+			return -1.0f/16.0f + (1.0f/24.0f + (0.25f - 1.0f/6.0f * x) * x) * x;
+		} else if( n == 1 ) {
+			return 9.0f/16.0f + (-9.0f/8.0f + (-0.25f + 1.0f/2.0f * x) * x) * x;
+		} else if( n == 3 ) {
+			return 9.0f/16.0f + (9.0f/8.0f + (-0.25f - 1.0f/2.0f * x) * x) * x;
+		} else {
+			return -1.0f/16.0f + (-1.0f/24.0f + (0.25f + 1.0f/6.0f * x) * x) * x;
+		}
+	};
+	const auto dwt = [](float x, int n ) {
+		if( n == 1 ) {
+			return -1.f;
+		} else if( n == 2 ) {
+			return +1.f;
+		} else {
+			return 0.f;
+		}
+		if( n == 0 ) {
+			return 1.0f/24.0f + (0.5f - 0.5f * x) * x;
+		} else if( n == 1 ) {
+			return -9.0f/8.0f + (-0.5f + 1.5f * x) * x;
+		} else if( n == 3 ) {
+			return 9.0f/8.0f + (-0.5f - 1.5f * x) * x;
+		} else {
+			return -1.0f/24.0f + (0.5f + 0.5f * x) * x;
+		}
+	};
+	const auto dphidx = [N, unitinv, wt, dwt](cmplx* phi, float x, float y, float z) {
+		array<int,NDIM> i;
+		array<float,NDIM> X;
+		i[0] = x;
+		i[1] = y;
+		i[2] = z;
+		X[0] = x - i[0];
+		X[1] = y - i[1];
+		X[2] = z - i[2];
+		array<float,NDIM> dphi;
+		dphi[0] = dphi[1] = dphi[2] = 0.f;
+		for( int j = 0; j < 4; j++) {
+			for( int k = 0; k < 4; k++) {
+				for( int l = 0; l < 4; l++) {
+					const int j0 = (i[0] - 1 + j + N) % N;
+					const int k0 = (i[1] - 1 + k + N) % N;
+					const int l0 = (i[2] - 1 + l + N) % N;
+					const int n = N * ( N * j0 + k0) + l0;
+					const float wtx = dwt(X[0],j) * wt(X[1],k) * wt(X[2],l);
+					const float wty = wt(X[0],j) * dwt(X[1],k) * wt(X[2],l);
+					const float wtz = wt(X[0],j) * wt(X[1],k) * dwt(X[2],l);
+					dphi[0] += wtx * phi[n].real() * N * unitinv;
+					dphi[1] += wty * phi[n].real() * N * unitinv;
+					dphi[2] += wtz * phi[n].real() * N * unitinv;
+				}
+			}
+		}
+		return dphi;
+	};
+
 	for (int k = tid; k < N; k += blockDim.x) {
 		const int l = N * (N * i + j) + k;
-		const int lpx = N * (N * ((i + 1) % N) + j) + k;
-		const int lpy = N * (N * i + ((j + 1) % N)) + k;
-		const int lpz = N * (N * i + j) + (k + 1) % N;
-		const int lmx = N * (N * ((i + N - 1) % N) + j) + k;
-		const int lmy = N * (N * i + ((j + N - 1) % N)) + k;
-		const int lmz = N * (N * i + j) + (k + N - 1) % N;
-		array<float, NDIM> x, dphi1dx, dphi2dx;
-		dphi1dx[0] = 0.5f * (phi1[lpx].real() - phi1[lmx].real()) * dxinv;
-		dphi1dx[1] = 0.5f * (phi1[lpy].real() - phi1[lmy].real()) * dxinv;
-		dphi1dx[2] = 0.5f * (phi1[lpz].real() - phi1[lmz].real()) * dxinv;
-		dphi2dx[0] = 0.5f * (phi2[lpx].real() - phi2[lmx].real()) * dxinv;
-		dphi2dx[1] = 0.5f * (phi2[lpy].real() - phi2[lmy].real()) * dxinv;
-		dphi2dx[2] = 0.5f * (phi2[lpz].real() - phi2[lmz].real()) * dxinv;
-		x[0] = (i + 0.5f) * Ninv;
-		x[1] = (j + 0.5f) * Ninv;
-		x[2] = (k + 0.5f) * Ninv;
+		const float x = parts.pos(0, l).to_float() * N;
+		const float y = parts.pos(1, l).to_float() * N;
+		const float z = parts.pos(2, l).to_float() * N;
+		const int i0 = x;
+		const int j0 = y;
+		const int k0 = z;
+		const auto dphi1dx = dphidx(phi1, x, y, z);
+		const auto dphi2dx = dphidx(phi2, x, y, z);
 		for (int dim = 0; dim < NDIM; dim++) {
 			const float this_disp1 = -D1 * dphi1dx[dim] * unitinv;
 			const float this_disp2 = D2 * dphi2dx[dim] * unitinv;
 			const float this_disp = this_disp1 + this_disp2;
 			maxes[tid] = fmaxf(maxes[tid], fabs(this_disp * N));
-			const float x0 = constrain_range(x[dim] + this_disp1);
+			const float x0 = constrain_range(parts.pos(dim, l).to_float() + this_disp1);
 			parts.pos(dim, l) = x0;
 			parts.vel(dim, l) = prefactor1 * this_disp1 + prefactor2 * this_disp2;
 		}
@@ -213,7 +271,7 @@ void initial_conditions(particle_sets& parts) {
 	const size_t N3 = sqr(N) * N;
 	float* max_disp;
 
-	CUDA_MALLOC(max_disp, N*N);
+	CUDA_MALLOC(max_disp, N * N);
 	CUDA_MALLOC(phi1, N3);
 	CUDA_MALLOC(phi2, N3);
 	CUDA_MALLOC(rands, N3);
@@ -224,6 +282,21 @@ void initial_conditions(particle_sets& parts) {
 	CUDA_MALLOC(result_ptr, 1);
 	CUDA_MALLOC(func_ptr, 1);
 	CUDA_MALLOC(states, Nk);
+
+	const int npart_types = global().opts.sph ? 2 : 1;
+	for (int pi = 0; pi < npart_types; pi++) {
+		const float Ninv = 1.0f / N;
+		for (size_t i = 0; i < N; i++) {
+			for (size_t j = 0; j < N; j++) {
+				for (size_t k = 0; k < N; k++) {
+					const size_t l = N * (N * i + j) + k;
+					parts.sets[pi]->pos(0, l) = (i + 0.15) * Ninv;
+					parts.sets[pi]->pos(1, l) = (j + 0.52) * Ninv;
+					parts.sets[pi]->pos(2, l) = (k + 0.15) * Ninv;
+				}
+			}
+		}
+	}
 
 	*max_disp = 0.f;
 	new (bary_k) interp_functor<float>();
@@ -268,7 +341,7 @@ void initial_conditions(particle_sets& parts) {
 	printf("code_to_mpc = %e\n", code_to_mpc);
 
 	kmin = std::min(kmin, 2.0f * (float) M_PI / (float) code_to_mpc);
-	kmax = std::max(2.0f * (float) M_PI / (float) code_to_mpc * (float) (global().opts.parts_dim), kmax);
+	kmax = std::max((float) M_PI / (float) code_to_mpc * (float) (global().opts.parts_dim), kmax);
 	printf("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	const float ainit = 1.0f / (global().opts.z0 + 1.0f);
 	einstein_boltzmann_interpolation_function(cdm_k, bary_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
@@ -342,7 +415,7 @@ void initial_conditions(particle_sets& parts) {
 	phi_to_grid<<<gdim,32>>>(parts.cdm.get_virtual_particle_set(),phi1, phi2, code_to_mpc,D1,D2, a*prefac1,a*prefac2,max_disp);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	xdisp = 0.0;
-	for( int i = 0; i < N*N; i++) {
+	for (int i = 0; i < N * N; i++) {
 		xdisp = std::max(xdisp, max_disp[i]);
 	}
 	printf("\t\tMaximum displacement is %e\n", xdisp);

@@ -111,4 +111,7 @@ struct parts_type: public array<part_iters, NPART_TYPES> {
 	}
 };
 
+void silo_out(particle_sets partsets, const char* filename);
+
+
 #endif /* PARTICLE_SETS_HPP_ */

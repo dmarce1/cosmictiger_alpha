@@ -25,6 +25,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("checkpt_file", po::value<std::string>(&(opts.checkpt_file))->default_value(""), "checkpoint restart") //
 	("config", po::value<std::string>(&(opts.config))->default_value(""), "configuration file") //
 	("cuda", po::value<bool>(&(opts.cuda))->default_value(true), "cuda on/off") //
+	("glass", po::value<bool>(&(opts.glass))->default_value(false), "produce glass file") //
 	("groups", po::value<bool>(&(opts.groups))->default_value(false), "do groups") //
 	("power", po::value<bool>(&(opts.power))->default_value(false), "do mass power spectrum") //
 	("code_to_g", po::value<double>(&(opts.code_to_g))->default_value(1.99e33), "code to g") //
@@ -92,8 +93,12 @@ bool process_options(int argc, char *argv[], options &opts) {
 	opts.code_to_s = opts.code_to_cm / opts.code_to_cms;
 	opts.H0 = Hcgs * opts.code_to_s;
 	opts.G = Gcgs / pow(opts.code_to_cm, 3) * opts.code_to_g * pow(opts.code_to_s, 2);
-	double m_tot = opts.omega_m * 3.0 *sqr(opts.H0 * opts.hubble) / (8 * M_PI * opts.G);
+	double m_tot = opts.omega_m * 3.0 * sqr(opts.H0 * opts.hubble) / (8 * M_PI * opts.G);
 	opts.M = m_tot / opts.nparts;
+
+	if (opts.glass) {
+		opts.G = -opts.G;
+	}
 
 	double omega_r = 32.0 * M_PI / 3.0 * constants::G * constants::sigma
 			* (1 + opts.Neff * (7. / 8.0) * std::pow(4. / 11., 4. / 3.)) * std::pow(constants::H0, -2)

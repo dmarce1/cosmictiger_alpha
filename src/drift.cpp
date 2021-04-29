@@ -17,7 +17,8 @@ int drift_particles(particle_sets partsets, double dt, double a0, double* ekin, 
 	const auto a = 1.0 / ddt;
 	for (int bid = 0; bid < gsz; bid++) {
 		auto func = [a,bid, gsz,  dt,ekin, momx, momy, momz, tau, tau_max,&partsets]() {
-			for( int pi = 0; pi < NPART_TYPES; pi++) {
+			const auto npart_types = global().opts.sph ? 2 : 1;
+			for( int pi = 0; pi < npart_types; pi++) {
 				auto& parts = *partsets.sets[pi];
 				auto map_ws = get_map_workspace();
 				map_ws.wt = partsets.weights[pi];
