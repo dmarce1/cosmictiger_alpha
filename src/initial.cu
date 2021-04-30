@@ -46,36 +46,24 @@ __global__ void phi_to_grid(particle_set parts, cmplx* phi1, cmplx* phi2, float 
 	maxes[tid] = 0.f;
 	__syncthreads();
 	const auto wt = [](float x, int n ) {
-		if( n == 1 ) {
-			return 1.f - x;
-		} else if( n == 2 ) {
-			return x;
-		} else {
-			return 0.f;
-		}
+		x -= 0.5f;
 		if( n == 0 ) {
 			return -1.0f/16.0f + (1.0f/24.0f + (0.25f - 1.0f/6.0f * x) * x) * x;
 		} else if( n == 1 ) {
 			return 9.0f/16.0f + (-9.0f/8.0f + (-0.25f + 1.0f/2.0f * x) * x) * x;
-		} else if( n == 3 ) {
+		} else if( n == 2 ) {
 			return 9.0f/16.0f + (9.0f/8.0f + (-0.25f - 1.0f/2.0f * x) * x) * x;
 		} else {
 			return -1.0f/16.0f + (-1.0f/24.0f + (0.25f + 1.0f/6.0f * x) * x) * x;
 		}
 	};
 	const auto dwt = [](float x, int n ) {
-		if( n == 1 ) {
-			return -1.f;
-		} else if( n == 2 ) {
-			return +1.f;
-		} else {
-			return 0.f;
-		}
+		x -= 0.5f;
 		if( n == 0 ) {
 			return 1.0f/24.0f + (0.5f - 0.5f * x) * x;
 		} else if( n == 1 ) {
 			return -9.0f/8.0f + (-0.5f + 1.5f * x) * x;
-		} else if( n == 3 ) {
+		} else if( n == 2 ) {
 			return 9.0f/8.0f + (-0.5f - 1.5f * x) * x;
 		} else {
 			return -1.0f/24.0f + (0.5f + 0.5f * x) * x;
