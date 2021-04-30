@@ -198,7 +198,7 @@ void create_overdensity_transform(cmplx* phi, const cmplx* rands, const interp_f
 	const int& block_size = blockDim.x;
 	auto& P = *Pptr;
 	const float N3 = N * N * N;
-	__syncthreads();
+		__syncthreads();
 	for (int ij = thread; ij < N * N; ij += block_size) {
 		int i = ij / N;
 		int j = ij % N;
@@ -238,7 +238,7 @@ void transform_laplacian(cmplx* phi, float box_size, int N) {
 			int l0 = l < N / 2 ? l : l - N;
 			int i2 = i0 * i0 + j0 * j0 + l0 * l0;
 			int index0 = N * (N * i + j) + l;
-			if (i2 > 0) {
+			if (i2 > 0 ) {
 				float kz = 2.f * (float) M_PI / box_size * float(l0);
 				float k2 = (kx * kx + ky * ky + kz * kz);
 				phi[index0].real() /= -k2;
@@ -278,6 +278,7 @@ void initial_conditions(particle_sets& parts) {
 	CUDA_MALLOC(result_ptr, 1);
 	CUDA_MALLOC(func_ptr, 1);
 	CUDA_MALLOC(states, Nk);
+
 
 	*max_disp = 0.f;
 	new (bary_k) interp_functor<float>();
@@ -323,18 +324,6 @@ void initial_conditions(particle_sets& parts) {
 
 	kmin = std::min(kmin, 2.0f * (float) M_PI / (float) code_to_mpc);
 	kmax = std::max((float) M_PI / (float) code_to_mpc * (float) (global().opts.parts_dim), kmax);
-
-	std::function<float(float)> Pc, Pb;
-	eisenstein_and_hu(Pc, Pb, global().opts.omega_b, global().opts.omega_c, global().opts.Theta, global().opts.hubble,
-			global().opts.ns);
-
-	FILE* fp1 = fopen( "power.init.dat", "wt");
-	for (float k = kmin; k < kmax; k *= 1.1) {
-		fprintf(fp1,"%e %e %e %e\n", k, Pc(k), Pb(k), sqr(sqrt(Pc(k)) + sqrt(Pb(k))));
-	}
-	fclose(fp1);
-	abort();
-
 	printf("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	const float ainit = 1.0f / (global().opts.z0 + 1.0f);
 	einstein_boltzmann_interpolation_function(cdm_k, bary_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
@@ -399,7 +388,7 @@ void initial_conditions(particle_sets& parts) {
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
 	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_sets(),phi1,N,(float) N3 / (float)parts.size(), false);
 	CUDA_CHECK(cudaDeviceSynchronize());
-	for (int i = 0; i < N * N * N; i++) {
+	for( int i = 0; i < N*N*N; i++) {
 		phi1[i].real() = -phi1[i].real();
 		phi1[i].imag() = -phi1[i].imag();
 	}
