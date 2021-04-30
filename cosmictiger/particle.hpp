@@ -42,7 +42,7 @@ struct particle_set {
 	fixed32& pos(int dim, size_t index);CUDA_EXPORT
 	float& vel(int dim, size_t index);CUDA_EXPORT
 	void set_rung(rung_t t, size_t index);
-	void generate_random();
+	void generate_random(int seed);
 	void load_particles(std::string filename);
 	void load_from_file(FILE* fp);
 	void save_to_file(FILE* fp);

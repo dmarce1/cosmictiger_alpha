@@ -116,20 +116,6 @@ void particle_set::save_to_file(FILE* fp) {
 particle_set::~particle_set() {
 }
 
-void particle_set::generate_random() {
-	for (int i = 0; i < size_; i++) {
-		for (int dim = 0; dim < NDIM; dim++) {
-			pos(0, i) = rand_fixed32();
-			pos(1, i) = rand_fixed32();
-			pos(2, i) = rand_fixed32();
-			vel(0, i) = 0.f;
-			vel(1, i) = 0.f;
-			vel(2, i) = 0.f;
-		}
-		set_rung(0, i);
-	}
-}
-
 void particle_set::generate_grid() {
 	const auto dim = global().opts.parts_dim;
 	for (size_t i = 0; i < dim; i++) {

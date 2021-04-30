@@ -178,14 +178,14 @@ sort_return tree::sort(sort_params params) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
 			rc.active_nodes += this_rc.active_nodes;
+			if (sph || groups) {
+				ranges[ci] = this_rc.check.get_range();
+			}
 			if (!params.group_sort) {
 				Mc[ci] = this_rc.check.get_multi();
 				Xc[ci] = this_rc.check.get_pos();
 				if (sph) {
 					sph_ranges[ci] = this_rc.check.get_sph_range();
-				}
-				if (sph || groups) {
-					ranges[ci] = this_rc.check.get_range();
 				}
 				rc.active_parts += this_rc.active_parts;
 				rc.stats.nparts += this_rc.stats.nparts;

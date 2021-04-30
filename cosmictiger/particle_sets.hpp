@@ -40,8 +40,8 @@ struct particle_sets {
 
 	void generate_random() {
 		const float h = std::pow(baryon.size(), -1.0 / 3.0);
-		cdm.generate_random();
-		baryon.generate_random();
+		cdm.generate_random(42);
+		baryon.generate_random(1234);
 		for (int i = 0; i < baryon.size(); i++) {
 			baryon.energy(i) = 0.0;
 			baryon.smooth_len(i) = h;

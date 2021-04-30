@@ -5,14 +5,14 @@
 
 double cosmos_dadtau(double a) {
 	const auto H = global().opts.H0 * global().opts.hubble;
-	const auto omega_m = global().opts.omega_m;
-	const auto omega_r = global().opts.omega_gam + global().opts.omega_nu;
-	const auto omega_lambda = 1.0 - omega_m - omega_r;
-#ifdef CONFORMAL_TIME
-	return H * a * a * std::sqrt(omega_r / (a * a * a * a) + omega_m / (a * a * a) + omega_lambda);
-#else
-	return H * a * std::sqrt(omega_r / (a * a * a * a) + omega_m / (a * a * a) + omega_lambda);
-#endif
+	if( global().opts.glass ) {
+		return H * powf(a,0.5f);
+	} else {
+		const auto omega_m = global().opts.omega_m;
+		const auto omega_r = global().opts.omega_gam + global().opts.omega_nu;
+		const auto omega_lambda = 1.0 - omega_m - omega_r;
+		return H * a * a * std::sqrt(omega_r / (a * a * a * a) + omega_m / (a * a * a) + omega_lambda);
+	}
 }
 
 double cosmos_drift_dtau(double a, double t0) {
@@ -23,17 +23,9 @@ double cosmos_drift_dtau(double a, double t0) {
 	while (t < t0) {
 		const double dadt1 = cosmos_dadtau(a);
 		const double dadt2 = cosmos_dadtau(a + dadt1 * dt);
-#ifdef CONFORMAL_TIME
 		drift_dt += 0.5 / a / N;
-#else
-		drift_dt += 0.5 / (a*a) / N;
-#endif
 		a += 0.5 * (dadt1 + dadt2) * dt;
-#ifdef CONFORMAL_TIME
 		drift_dt += 0.5 / a / N;
-#else
-		drift_dt += 0.5 / (a*a) / N;
-#endif
 		t += dt;
 	}
 	return drift_dt;

@@ -21,7 +21,7 @@ static void tree_test() {
 	printf("Doing tree test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
-	parts.generate_random();
+	parts.generate_random(1243);
 
 	printf("Sorting\n");
 	{
@@ -160,7 +160,7 @@ void group_test() {
 	printf("Doing group test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
-	parts.generate_random();
+	parts.generate_random(1234);
 	particle_set *parts_ptr;
 	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
 	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
@@ -375,7 +375,7 @@ static void sort() {
 
 	timer tm1;
 	for (int i = global().opts.nparts; i >= 64; i /= 2) {
-		parts.generate_random();
+		parts.generate_random(1234);
 		tm1.start();
 		//	parts.sort_range(0, i, 0.5, 0);
 		tm1.stop();
