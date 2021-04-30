@@ -126,8 +126,10 @@ void save_to_file(particle_sets& parts, int step, time_type itime, double time, 
 	printf(" done\n");
 }
 
-void load_from_file(particle_sets& parts, int& step, time_type& itime, double& time, double& a, double& cosmicK) {
-	std::string filename = global().opts.checkpt_file;
+void load_from_file(particle_sets& parts, int& step, time_type& itime, double& time, double& a, double& cosmicK, std::string filename="") {
+	if( filename == "") {
+		filename = global().opts.checkpt_file;
+	}
 	printf("Loading %s...", filename.c_str());
 	FILE* fp = fopen(filename.c_str(), "rb");
 	if (!fp) {
@@ -223,6 +225,28 @@ void drive_cosmos() {
 		if (global().opts.glass) {
 			parts.generate_random();
 		} else {
+			if( global().opts.glass_file != "") {
+				const auto z0 = global().opts.z0;
+				load_from_file(parts, iter, itime, time, a, cosmicK, global().opts.glass_file);
+				global().opts.z0 = z0;
+				global().opts.G = -global().opts.G;
+			} else {
+				const int npart_types = global().opts.sph ? 2 : 1;
+				for (int pi = 0; pi < npart_types; pi++) {
+					const int N = global().opts.parts_dim;
+					const float Ninv = 1.0f / N;
+					for (size_t i = 0; i < N; i++) {
+						for (size_t j = 0; j < N; j++) {
+							for (size_t k = 0; k < N; k++) {
+								const size_t l = N * (N * i + j) + k;
+								parts.sets[pi]->pos(0, l) = (i) * Ninv;
+								parts.sets[pi]->pos(1, l) = (j) * Ninv;
+								parts.sets[pi]->pos(2, l) = (k) * Ninv;
+							}
+						}
+					}
+				}
+			}
 			initial_conditions(parts);
 		}
 		itime = 0;
@@ -336,10 +360,6 @@ void drive_cosmos() {
 			}
 		}
 
-//		if (last_theta != theta) {
-		//cuda_compare_with_direct(&parts);
-//			last_theta = theta;
-		//	}
 		kick_return kr = kick_return_get();
 		if (full_eval) {
 			pot = 0.5 * kr.phis / a;
@@ -401,6 +421,9 @@ void drive_cosmos() {
 	double total_time = drift_total + sort_total + kick_total;
 	if (global().opts.map_size > 0) {
 		load_and_save_maps(time * T0, NTIMESTEP * T0);
+	}
+	if (global().opts.glass) {
+		save_to_file(parts, 0, time_type(0), 0.0, 0.0, 0.0);
 	}
 	printf("Sort  time = %e (%.2f) %%\n", sort_total, sort_total / total_time * 100.0);
 	printf("Kick  time = %e (%.2f) %%\n", kick_total, kick_total / total_time * 100.0);

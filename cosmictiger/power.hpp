@@ -15,5 +15,6 @@
 
 void compute_particle_power_spectrum(particle_sets& parts, int filenum);
 void compute_power_spectrum(cmplx* den, float* spec, int N);
+__global__ void power_spectrum_init(particle_sets partsets, cmplx* den_k, size_t N, float mass0, bool sph);
 
 #endif /* POWER_HPP_ */

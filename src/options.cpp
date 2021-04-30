@@ -25,6 +25,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("checkpt_file", po::value<std::string>(&(opts.checkpt_file))->default_value(""), "checkpoint restart") //
 	("config", po::value<std::string>(&(opts.config))->default_value(""), "configuration file") //
 	("cuda", po::value<bool>(&(opts.cuda))->default_value(true), "cuda on/off") //
+	("glass_file", po::value<std::string>(&(opts.glass_file))->default_value(""), "glass checkpoint for IC") //
 	("glass", po::value<bool>(&(opts.glass))->default_value(false), "produce glass file") //
 	("groups", po::value<bool>(&(opts.groups))->default_value(false), "do groups") //
 	("power", po::value<bool>(&(opts.power))->default_value(false), "do mass power spectrum") //

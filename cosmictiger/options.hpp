@@ -46,6 +46,7 @@ struct options {
 	bool maps;
 	bool sph;
 	bool glass;
+	std::string glass_file;
 	int map_size;
 	double silo_interval;
 	double map_freq;

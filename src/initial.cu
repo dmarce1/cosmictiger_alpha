@@ -198,10 +198,7 @@ void create_overdensity_transform(cmplx* phi, const cmplx* rands, const interp_f
 	const int& block_size = blockDim.x;
 	auto& P = *Pptr;
 	const float N3 = N * N * N;
-	for (int i = thread; i < N * N * N; i += block_size) {
-		phi[i] = cmplx(0, 0);
-	}
-	__syncthreads();
+		__syncthreads();
 	for (int ij = thread; ij < N * N; ij += block_size) {
 		int i = ij / N;
 		int j = ij % N;
@@ -217,7 +214,7 @@ void create_overdensity_transform(cmplx* phi, const cmplx* rands, const interp_f
 			if (i2 < N * N / 4 && index0 < index1) {
 				float kz = 2.f * (float) M_PI / box_size * float(l0);
 				float k = sqrt(kx * kx + ky * ky + kz * kz);
-				phi[index0] = rands[index0] * sqrtf(P(k)) * powf(box_size, -1.5) * N3;
+				phi[index0] += rands[index0] * sqrtf(P(k)) * powf(box_size, -1.5) * N3;
 				phi[index1] = phi[index0].conj();
 			}
 		}
@@ -282,20 +279,6 @@ void initial_conditions(particle_sets& parts) {
 	CUDA_MALLOC(func_ptr, 1);
 	CUDA_MALLOC(states, Nk);
 
-	const int npart_types = global().opts.sph ? 2 : 1;
-	for (int pi = 0; pi < npart_types; pi++) {
-		const float Ninv = 1.0f / N;
-		for (size_t i = 0; i < N; i++) {
-			for (size_t j = 0; j < N; j++) {
-				for (size_t k = 0; k < N; k++) {
-					const size_t l = N * (N * i + j) + k;
-					parts.sets[pi]->pos(0, l) = (i + 0.15) * Ninv;
-					parts.sets[pi]->pos(1, l) = (j + 0.52) * Ninv;
-					parts.sets[pi]->pos(2, l) = (k + 0.15) * Ninv;
-				}
-			}
-		}
-	}
 
 	*max_disp = 0.f;
 	new (bary_k) interp_functor<float>();
@@ -396,6 +379,20 @@ void initial_conditions(particle_sets& parts) {
 	printf("H*a*f1 = %e\n", prefac1);
 	printf("H*a*f2 = %e\n", prefac2);
 	printf("\t\tComputing positions\n");
+
+	cudaFuncAttributes attrib;
+	CUDA_CHECK(cudaFuncGetAttributes(&attrib, power_spectrum_init));
+	int block_size = attrib.maxThreadsPerBlock;
+	int num_blocks;
+	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, power_spectrum_init, block_size, 0));
+	num_blocks *= global().cuda.devices[0].multiProcessorCount;
+	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_sets(),phi1,N,(float) N3 / (float)parts.size(), false);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	for( int i = 0; i < N*N*N; i++) {
+		phi1[i].real() = -phi1[i].real();
+		phi1[i].imag() = -phi1[i].imag();
+	}
+	fft3d(phi2, N);
 	auto& den_k = cdm_k;
 	create_overdensity_transform<<<1,ZELDOSIZE>>>(phi1, rands, den_k, code_to_mpc, N);
 	CUDA_CHECK(cudaDeviceSynchronize());
