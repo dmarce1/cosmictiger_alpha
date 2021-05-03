@@ -3,6 +3,7 @@
 #include <cosmictiger/rand.hpp>
 #include <cosmictiger/timer.hpp>
 #include <cosmictiger/global.hpp>
+#include <cosmictiger/math.hpp>
 
 #include <silo.h>
 
@@ -65,6 +66,8 @@ void particle_set::load_from_file(FILE* fp) {
 	FREAD(&global().opts.H0, sizeof(global().opts.H0), 1, fp);
 	FREAD(&global().opts.G, sizeof(global().opts.G), 1, fp);
 	FREAD(&global().opts.M, sizeof(global().opts.M), 1, fp);
+	double m_tot = global().opts.omega_m * 3.0 * sqr(global().opts.H0 * global().opts.hubble) / (8 * M_PI * std::abs(global().opts.G));
+	global().opts.M = m_tot / global().opts.nparts;
 	for (int dim = 0; dim < NDIM; dim++) {
 		printf("%c positions...", 'x' + dim);
 		fflush(stdout);
