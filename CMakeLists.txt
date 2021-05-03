@@ -30,6 +30,7 @@ set(cosmictiger_source_files
     src/cuda.cpp
     src/drift.cpp
     src/driver.cpp
+    src/ewald_indices.cpp
     src/global.cpp
     src/gravity.cpp
     src/group_data.cpp

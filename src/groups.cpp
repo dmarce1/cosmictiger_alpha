@@ -162,7 +162,7 @@ hpx::future<size_t> find_groups(group_param_type* params_ptr) {
 		total_mem /= 8;
 		size_t used_mem = (sizeof(group_t) + sizeof(fixed32) * NDIM) * parts.size() + tree_data_bytes_used();
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
-		const int block_count = oversubscription * global().cuda_kick_occupancy
+		const int block_count = oversubscription * 16
 				* global().cuda.devices[0].multiProcessorCount + 0.5;
 		const auto active_count = self.get_active_parts();
 		printf( "active_count = %li\n", active_count);

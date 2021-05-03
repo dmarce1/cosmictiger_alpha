@@ -13,14 +13,15 @@
 
 #include <cstdint>
 
+
 struct global_t {
    options opts;
    cuda_properties cuda;
-   int cuda_kick_occupancy;
 };
 
 
+void global_set_options(options opts);
 void global_init(options opts, cuda_properties cuda);
-global_t& global();
+const global_t& global();
 
 #endif /* COSMICTIGER_GLOBAL_HPP_ */

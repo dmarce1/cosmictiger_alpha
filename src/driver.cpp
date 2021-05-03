@@ -226,10 +226,7 @@ void drive_cosmos() {
 			parts.generate_random();
 		} else {
 			if( global().opts.glass_file != "") {
-				const auto z0 = global().opts.z0;
 				load_from_file(parts, iter, itime, time, a, cosmicK, global().opts.glass_file);
-				global().opts.z0 = z0;
-				global().opts.G = -global().opts.G;
 			} else {
 				const int npart_types = global().opts.sph ? 2 : 1;
 				for (int pi = 0; pi < npart_types; pi++) {
@@ -293,7 +290,8 @@ void drive_cosmos() {
 					"theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
 		}
 		static double last_theta = -1.0;
-		int& bucket_size = global().opts.bucket_size;
+		options opts = global().opts;
+		int& bucket_size = opts.bucket_size;
 		if (global().opts.glass) {
 			theta = 0.7;
 			bucket_size = 160;
@@ -309,6 +307,7 @@ void drive_cosmos() {
 				theta = 0.7;
 			}
 		}
+		global_set_options(opts);
 		if (theta != last_theta) {
 			reset_list_sizes();
 			last_theta = theta;

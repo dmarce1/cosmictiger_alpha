@@ -8,7 +8,11 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/hpx.hpp>
 
+
 HPX_PLAIN_ACTION (global_init);
+HPX_PLAIN_ACTION (global_set_options);
+
+static global_t glob;
 
 void global_init(options opts, cuda_properties cuda) {
    const auto mychildren = hpx_child_localities();
@@ -19,8 +23,8 @@ void global_init(options opts, cuda_properties cuda) {
    if (mychildren.first != hpx::invalid_id) {
       right = hpx::async < global_init_action > (mychildren.second, opts, cuda);
    }
-   global().opts = opts;
-   global().cuda = cuda;
+   glob.opts = opts;
+   glob.cuda = cuda;
    if (left.valid()) {
       left.get();
    }
@@ -29,7 +33,24 @@ void global_init(options opts, cuda_properties cuda) {
    }
 }
 
-global_t& global() {
-   static global_t glob;
+void global_set_options(options opts) {
+   const auto mychildren = hpx_child_localities();
+   hpx::future<void> left, right;
+   if (mychildren.first != hpx::invalid_id) {
+      left = hpx::async < global_set_options_action > (mychildren.first, opts);
+   }
+   if (mychildren.first != hpx::invalid_id) {
+      right = hpx::async < global_set_options_action > (mychildren.second, opts);
+   }
+   glob.opts = opts;
+   if (left.valid()) {
+      left.get();
+   }
+   if (right.valid()) {
+      right.get();
+   }
+}
+
+const global_t& global() {
    return glob;
 }
