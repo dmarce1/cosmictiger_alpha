@@ -7,12 +7,14 @@
 
 #include <cosmictiger/cuda.hpp>
 
+#include <cosmictiger/hpx.hpp>
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/drift.hpp>
 #include <cstdlib>
 
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params);
-CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr, float* pnorm, float GM, float);
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr,
+		float* pnorm, float GM, float);
 
 #define STACK_SIZE (32*1024)
 #define HEAP_SIZE (size_t(2)*1024*1024*1024)
@@ -20,7 +22,18 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 #define L2FETCH 64
 #define PENDINGLAUNCHES 128
 
+HPX_PLAIN_ACTION (cuda_init);
+
 cuda_properties cuda_init() {
+	hpx::future<cuda_properties> futl, futr;
+	auto children = hpx_child_localities();
+	if (children.first != hpx::invalid_id) {
+		futl = hpx::async<cuda_init_action>(children.first);
+	}
+	if (children.second != hpx::invalid_id) {
+		futr = hpx::async<cuda_init_action>(children.second);
+	}
+
 	cuda_properties props;
 	CUDA_CHECK(cudaGetDeviceCount(&props.num_devices));
 	props.devices.resize(props.num_devices);
@@ -29,13 +42,9 @@ cuda_properties cuda_init() {
 	}
 	printf("--------------------------------------------------------------------------------\n");
 	printf("Detected %i CUDA devices.\n", props.num_devices);
-	printf("Multi-processor counts: \n");
 	for (int i = 0; i < props.num_devices; i++) {
-		printf("\t %s: Multiprocessor Count: %i\n", props.devices[i].name, props.devices[i].multiProcessorCount);
 	}
-	printf("Resetting Device\n");
 	CUDA_CHECK(cudaDeviceReset());
-	printf(" Done resetting\n");
 	size_t value = STACK_SIZE;
 	CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, value));
 	CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitStackSize));
@@ -66,46 +75,16 @@ cuda_properties cuda_init() {
 		fail = true;
 	}
 
-	int numBlocks;
-	CUDA_CHECK(
-			cudaOccupancyMaxActiveBlocksPerMultiprocessor ( &numBlocks, cuda_kick_kernel, KICK_BLOCK_SIZE, sizeof(cuda_kick_shmem) ));
-
-	printf( "cuda_kick_kernel occupancy: %i\n", numBlocks);
-	global().cuda_kick_occupancy = numBlocks;
-
-#ifdef TEST_FORCE
-	CUDA_CHECK(
-			cudaOccupancyMaxActiveBlocksPerMultiprocessor ( &numBlocks, cuda_pp_ewald_interactions, EWALD_BLOCK_SIZE, EWALD_BLOCK_SIZE*(NDIM+1)*sizeof(double) + 1024 ));
-#endif
-
-	printf( "cuda_pp_ewald_interactions: %i\n", numBlocks);
-
-//	printf( "cuda_kick_kernel uses %li shared memory\n", attrib.sharedSizeBytes);
-//	printf( "                      %li registers \n", attrib.numRegs);
-//	printf( "                      %li shmem carvout \n", attrib.preferredShmemCarveout);
-
-//CUDA_CHECK(cudaFuncGetAttributes(&attrib, (void* )&gpu_sort_kernel));
-//printf("gpu_sort_kernel takes %i registers\n", attrib.numRegs);
-//	printf("gpu_sort_kernel takes %i shmem\n", attrib.sharedSizeBytes);
-
-	//CUDA_CHECK(cudaFuncGetAttributes (&attrib, (void*)&gpu_sort_kernel ));
-	//printf( "Sort kernel takes %i registers\n", attrib.numRegs);
-
-	//   value = PENDINGLAUNCHES;
-//   CUDA_CHECK(cudaDeviceSetLimit(cudaLimitDevRuntimePendingLaunchCount , value));
-//   CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitDevRuntimePendingLaunchCount ));
-//   if (value != L2FETCH) {
-//      printf("Unable to set pending launch count to %li\n",  PENDINGLAUNCHES);
-//      fail = true;
-//   }
-	//  CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&gpu_sort_kernel, cudaFuncCachePreferL1));
-//   CUDA_CHECK(cudaFuncSetCacheConfig((const void*)&count_kernel, cudaFuncCachePreferL1));
-	//CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeDefault));
-	//   CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
 	if (fail) {
 		abort();
 	}
 
+	if (futl.valid()) {
+		futl.get();
+	}
+	if (futr.valid()) {
+		futr.get();
+	}
 	return props;
 }
 

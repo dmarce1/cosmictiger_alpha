@@ -305,3 +305,4 @@ struct kick_constants {
 };
 
 void cuda_set_kick_constants(kick_constants consts,particle_sets&);
+CUDA_KERNEL cuda_kick_kernel(kick_params_type *params);

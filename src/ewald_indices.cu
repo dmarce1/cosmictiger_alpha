@@ -12,7 +12,7 @@ static __constant__ array<array<float, NDIM>, NREAL> real_indices_dev;
 static __constant__ array<array<float, NDIM>, NFOUR> four_indices_dev;
 static __constant__ array<expansion<float>, NFOUR> four_expanse_dev;
 
-void ewald_const::init() {
+void ewald_const::init_gpu() {
 	int n2max = 10;
 	int nmax = std::sqrt(n2max) + 1;
 	array<float, NDIM> this_h;

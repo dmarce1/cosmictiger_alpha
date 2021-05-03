@@ -57,17 +57,26 @@ particle_set::particle_set(size_t size, size_t offset) {
 }
 
 void particle_set::load_from_file(FILE* fp) {
-	FREAD(&global().opts.z0, sizeof(global().opts.z0), 1, fp);
-	FREAD(&global().opts.omega_m, sizeof(global().opts.omega_m), 1, fp);
-	FREAD(&global().opts.hubble, sizeof(global().opts.hubble), 1, fp);
-	FREAD(&global().opts.code_to_cm, sizeof(global().opts.code_to_cm), 1, fp);
-	FREAD(&global().opts.code_to_g, sizeof(global().opts.code_to_g), 1, fp);
-	FREAD(&global().opts.code_to_s, sizeof(global().opts.code_to_s), 1, fp);
-	FREAD(&global().opts.H0, sizeof(global().opts.H0), 1, fp);
-	FREAD(&global().opts.G, sizeof(global().opts.G), 1, fp);
-	FREAD(&global().opts.M, sizeof(global().opts.M), 1, fp);
-	double m_tot = global().opts.omega_m * 3.0 * sqr(global().opts.H0 * global().opts.hubble) / (8 * M_PI * std::abs(global().opts.G));
-	global().opts.M = m_tot / global().opts.nparts;
+	options opts = global().opts;
+	const auto z0 = opts.z0;
+	FREAD(&opts.z0, sizeof(opts.z0), 1, fp);
+	FREAD(&opts.omega_m, sizeof(opts.omega_m), 1, fp);
+	FREAD(&opts.hubble, sizeof(opts.hubble), 1, fp);
+	FREAD(&opts.code_to_cm, sizeof(opts.code_to_cm), 1, fp);
+	FREAD(&opts.code_to_g, sizeof(opts.code_to_g), 1, fp);
+	FREAD(&opts.code_to_s, sizeof(opts.code_to_s), 1, fp);
+	FREAD(&opts.H0, sizeof(opts.H0), 1, fp);
+	FREAD(&opts.G, sizeof(opts.G), 1, fp);
+	FREAD(&opts.M, sizeof(opts.M), 1, fp);
+	double m_tot = opts.omega_m * 3.0 * sqr(opts.H0 * opts.hubble) / (8 * M_PI * std::abs(opts.G));
+	opts.M = m_tot / opts.nparts;
+	if( opts.glass_file != "") {
+		opts.z0 = z0;
+		opts.G = std::abs(opts.G);
+	}
+	if( hpx_rank() == 0 ) {
+		global_set_options(opts);
+	}
 	for (int dim = 0; dim < NDIM; dim++) {
 		printf("%c positions...", 'x' + dim);
 		fflush(stdout);
@@ -81,7 +90,7 @@ void particle_set::load_from_file(FILE* fp) {
 	FREAD(rptr_, sizeof(rung_t), size(), fp);
 	printf("groups...");
 	fflush(stdout);
-	if (global().opts.groups) {
+	if (opts.groups) {
 		FREAD(idptr_, sizeof(group_t), size(), fp);
 	}
 	printf("\n");
@@ -218,83 +227,5 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 		lo++;
 	}
 	return hi;
-}
-
-void particle_set::load_particles(std::string filename) {
-	int4byte dummy;
-	FILE *fp = fopen(filename.c_str(), "rb");
-	if (!fp) {
-		printf("Unable to load %s\n", filename.c_str());
-		abort();
-	}
-	io_header_1 header;
-	FREAD(&dummy, sizeof(dummy), 1, fp);
-	FREAD(&header, sizeof(header), 1, fp);
-	FREAD(&dummy, sizeof(dummy), 1, fp);
-	printf("Reading %i particles\n", header.npart[1]);
-	printf("Z =             %e\n", header.redshift);
-	printf("particle mass = %e\n", header.mass[1]);
-	printf("Omega_m =       %e\n", header.Omega0);
-	printf("Omega_lambda =  %e\n", header.OmegaLambda);
-	printf("Hubble Param =  %e\n", header.HubbleParam);
-	global().opts.z0 = header.redshift;
-	global().opts.omega_m = header.Omega0;
-	global().opts.hubble = header.HubbleParam;
-	const auto Gcgs = 6.67259e-8;
-	const auto ccgs = 2.99792458e+10;
-	const auto Hcgs = 3.2407789e-18;
-	global().opts.code_to_cm = (header.mass[1] * global().opts.nparts * 8.0 * M_PI * Gcgs * global().opts.code_to_g);
-	global().opts.code_to_cm /= 3.0 * global().opts.omega_m * Hcgs * Hcgs;
-	global().opts.code_to_cm = std::pow(global().opts.code_to_cm, 1.0 / 3.0);
-	global().opts.code_to_s = global().opts.code_to_cm / global().opts.code_to_cms;
-	global().opts.H0 = Hcgs * global().opts.code_to_s;
-	global().opts.G = Gcgs / pow(global().opts.code_to_cm, 3) * global().opts.code_to_g
-			* pow(global().opts.code_to_s, 2);
-	double m_tot = global().opts.omega_m * 3.0 * global().opts.H0 * global().opts.H0 / (8 * M_PI * global().opts.G);
-	global().opts.M = m_tot / global().opts.nparts;
-
-	printf("G in code units = %e\n", global().opts.G);
-	printf("M in code units = %e\n", global().opts.M);
-
-	FREAD(&dummy, sizeof(dummy), 1, fp);
-// printf( "%li\n", parts.size());
-	for (int i = 0; i < header.npart[1]; i++) {
-		float x, y, z;
-		FREAD(&x, sizeof(float), 1, fp);
-		FREAD(&y, sizeof(float), 1, fp);
-		FREAD(&z, sizeof(float), 1, fp);
-		double sep = 0.5 * std::pow(header.npart[1], -1.0 / 3.0);
-		x += sep;
-		y += sep;
-		z += sep;
-		while (x > 1.0) {
-			x -= 1.0;
-		}
-		while (y > 1.0) {
-			y -= 1.0;
-		}
-		while (z > 1.0) {
-			z -= 1.0;
-		}
-		pos(0, i) = x;
-		pos(1, i) = y;
-		pos(2, i) = z;
-//    printf( "%e %e %e\n", x, y, z);
-	}
-	FREAD(&dummy, sizeof(dummy), 1, fp);
-	FREAD(&dummy, sizeof(dummy), 1, fp);
-	const auto c0 = 1.0 / (1.0 + header.redshift);
-	for (int i = 0; i < header.npart[1]; i++) {
-		float vx, vy, vz;
-		FREAD(&vx, sizeof(float), 1, fp);
-		FREAD(&vy, sizeof(float), 1, fp);
-		FREAD(&vz, sizeof(float), 1, fp);
-		vel(0, i) = vx * std::pow(c0, 1.5);
-		vel(1, i) = vy * std::pow(c0, 1.5);
-		vel(2, i) = vz * std::pow(c0, 1.5);
-		set_rung(0, i);
-	}
-	FREAD(&dummy, sizeof(dummy), 1, fp);
-	fclose(fp);
 }
 

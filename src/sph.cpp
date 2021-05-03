@@ -87,7 +87,7 @@ hpx::future<bool> sph_neighbors(sph_neighbor_params_type* params_ptr) {
 		total_mem /= 8;
 		size_t used_mem = (sizeof(float) + sizeof(fixed32) * NDIM) * parts.size() + tree_data_bytes_used();
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
-		const int block_count = oversubscription * global().cuda_kick_occupancy
+		const int block_count = oversubscription * 16
 				* global().cuda.devices[0].multiProcessorCount + 0.5;
 		const auto active_count = self.get_parts(BARY_SET).second - self.get_parts(BARY_SET).first;
 		params.block_cutoff = std::max(active_count / block_count, (size_t) 1);
