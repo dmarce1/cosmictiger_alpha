@@ -226,10 +226,7 @@ void drive_cosmos() {
 			parts.generate_random();
 		} else {
 			if( global().opts.glass_file != "") {
-				const auto z0 = global().opts.z0;
 				load_from_file(parts, iter, itime, time, a, cosmicK, global().opts.glass_file);
-				global().opts.z0 = z0;
-				global().opts.G = -global().opts.G;
 			} else {
 				const int npart_types = global().opts.sph ? 2 : 1;
 				for (int pi = 0; pi < npart_types; pi++) {
@@ -273,8 +270,11 @@ void drive_cosmos() {
 	checkpt_tm.start();
 	int silo_outs = 0;
 	double real_time = 0.0;
+	double group_tm;
 	double tree_use;
 	hpx::future<void> group_fut;
+	size_t num_active;
+	tree_stats stats;
 	do {
 //		unified_allocator allocator;
 //		allocator.show_allocs();
@@ -309,19 +309,17 @@ void drive_cosmos() {
 				theta = 0.7;
 			}
 		}
+
 		if (theta != last_theta) {
 			reset_list_sizes();
 			last_theta = theta;
 		}
 		const auto min_r = min_rung(itime);
-		size_t num_active;
-		tree_stats stats;
 		const bool full_eval = min_r <= 0;
 		//	const bool full_eval = false;
-		double group_tm;
-		bool groups = z < 20.0 && global().opts.groups;
 		bool power = global().opts.power;
 		unified_allocator alloc;
+		bool groups = z < 20.0 && global().opts.groups;
 		if (full_eval && (power || groups)) {
 			alloc.reset();
 			if (power) {
@@ -421,6 +419,18 @@ void drive_cosmos() {
 	double total_time = drift_total + sort_total + kick_total;
 	if (global().opts.map_size > 0) {
 		load_and_save_maps(time * T0, NTIMESTEP * T0);
+	}
+	bool groups = global().opts.groups;
+	if (groups) {
+		auto rc = find_groups(parts, group_tm);
+		printf("Finding groups took %e s and %i iterations\n", group_tm, rc.first);
+		group_fut = std::move(rc.second);
+		tree root = build_tree(parts, min_rung(itime), theta, num_active, stats, sort_tm);
+		tree_use = tree_data_use();
+		max_rung = kick(parts, root, theta, a, min_rung(itime), true, iter == 0, true, kick_tm);
+		group_fut.get();
+		group_data_save(a, time + 0.5);
+		group_data_destroy();
 	}
 	if (global().opts.glass) {
 		save_to_file(parts, 0, time_type(0), 0.0, 0.0, 0.0);
