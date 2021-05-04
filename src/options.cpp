@@ -157,6 +157,11 @@ bool process_options(int argc, char *argv[], options &opts) {
 	SHOW(omega_nu);
 	SHOW(Theta);
 
+	if( opts.sph ) {
+		printf( "SPH not yet implemented\n");
+		abort();
+	}
+
 	return rc;
 }
 
