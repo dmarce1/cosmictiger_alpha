@@ -246,7 +246,7 @@ sort_return tree::sort(sort_params params) {
 		}
 		self.set_leaf(false);
 		self.set_children(children);
-		if (sph) {
+		if (sph && !groups) {
 			range myrange;
 			for (int dim = 0; dim < NDIM; dim++) {
 				myrange.begin[dim] = std::min(sph_ranges[LEFT].begin[dim], sph_ranges[RIGHT].begin[dim]);
