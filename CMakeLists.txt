@@ -42,6 +42,7 @@ set(cosmictiger_source_files
     src/memory.cpp
     src/options.cpp
     src/particle.cpp
+    src/particle_server.cpp
     src/particle_sets.cpp
     src/rand.cpp
     src/sph.cpp
@@ -110,6 +111,7 @@ set(cosmictiger_header_files
 	cosmictiger/multipole.hpp
 	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
+	cosmictiger/particle_server.hpp
 	cosmictiger/particle_sets.hpp
 	cosmictiger/rand.hpp
 	cosmictiger/range.hpp

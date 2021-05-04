@@ -15,6 +15,8 @@ void yield() {
 	hpx::this_thread::yield();
 }
 
+HPX_REGISTER_COMPONENT_MODULE();
+
 int hpx_main(int argc, char *argv[]) {
 	options opts;
 	//  printf( "%li\n", sizeof(std::shared_ptr<int>));

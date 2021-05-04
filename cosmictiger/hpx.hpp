@@ -14,6 +14,7 @@
 #include <hpx/async.hpp>
 #include <hpx/hpx_finalize.hpp>
 #include <hpx/hpx_init.hpp>
+#include <hpx/include/components.hpp>
 
 using mutex_type = hpx::lcos::local::mutex;
 

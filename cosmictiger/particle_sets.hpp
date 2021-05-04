@@ -60,8 +60,8 @@ struct particle_sets {
 		return *this;
 	}
 
-	particle_sets(size_t size) :
-			cdm(size), baryon(global().opts.sph ? size : 0) {
+	particle_sets(size_t size, size_t start = 0) :
+			cdm(size, start), baryon(global().opts.sph ? size : 0, start) {
 		const float omega_b = global().opts.omega_b;
 		const float omega_c = global().opts.omega_c;
 		sets[0] = &cdm;
@@ -112,6 +112,5 @@ struct parts_type: public array<part_iters, NPART_TYPES> {
 };
 
 void silo_out(particle_sets partsets, const char* filename);
-
 
 #endif /* PARTICLE_SETS_HPP_ */

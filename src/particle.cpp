@@ -13,6 +13,8 @@
 void particle_set::init_groups() {
 	CUDA_MALLOC(lidptr1_, size());
 	CUDA_MALLOC(lidptr2_, size());
+	lidptr1_ -= offset_;
+	lidptr2_ -= offset_;
 	for (int i = 0; i < size(); i++) {
 		set_last_group(i, group(i));
 		group(i) = NO_GROUP;
@@ -20,14 +22,14 @@ void particle_set::init_groups() {
 }
 
 void particle_set::finish_groups() {
-	CUDA_FREE(lidptr1_);
-	CUDA_FREE(lidptr2_);
+	CUDA_FREE(lidptr1_ + offset_);
+	CUDA_FREE(lidptr2_ + offset_);
 }
 
-particle_set::particle_set(size_t size, size_t offset) {
+particle_set::particle_set(size_t size, size_t index_start) {
 	size_ = size;
 	if (size) {
-		offset_ = offset;
+		offset_ = index_start;
 		virtual_ = false;
 		printf("Allocating space for particles\n");
 		CUDA_MALLOC(xptr_[0], size);
@@ -52,6 +54,20 @@ particle_set::particle_set(size_t size, size_t offset) {
 				idptr_[i] = NO_GROUP;
 			}
 		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			xptr_[dim] -= index_start;
+#ifdef TEST_FORCE
+			gptr_[dim] -= index_start;
+#endif
+		}
+		uptr_ -= index_start;
+		rptr_ -= index_start;
+#ifdef TEST_FORCE
+		eptr_ -= index_start;
+#endif
+		if (global().opts.groups) {
+			idptr_ -= index_start;
+		}
 		printf("Done\n");
 	}
 }
@@ -70,11 +86,11 @@ void particle_set::load_from_file(FILE* fp) {
 	FREAD(&opts.M, sizeof(opts.M), 1, fp);
 	double m_tot = opts.omega_m * 3.0 * sqr(opts.H0 * opts.hubble) / (8 * M_PI * std::abs(opts.G));
 	opts.M = m_tot / opts.nparts;
-	if( opts.glass_file != "") {
+	if (opts.glass_file != "") {
 		opts.z0 = z0;
 		opts.G = std::abs(opts.G);
 	}
-	if( hpx_rank() == 0 ) {
+	if (hpx_rank() == 0) {
 		global_set_options(opts);
 	}
 	for (int dim = 0; dim < NDIM; dim++) {

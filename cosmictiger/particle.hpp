@@ -32,38 +32,77 @@ using rung_t = int8_t;
 struct particle_set {
 	particle_set() = default;
 	particle_set(size_t, size_t = 0);
+
 	CUDA_EXPORT
-	~particle_set();CUDA_EXPORT
-	fixed32 pos_ldg(int, size_t index) const;CUDA_EXPORT
-	fixed32 pos(int, size_t index) const;CUDA_EXPORT
-	float vel(int dim, size_t index) const;CUDA_EXPORT
+	~particle_set();
+
+	CUDA_EXPORT
+	fixed32 pos_ldg(int, size_t index) const;
+
+	CUDA_EXPORT
+	fixed32 pos(int, size_t index) const;
+
+	CUDA_EXPORT
+	float vel(int dim, size_t index) const;
+
+	CUDA_EXPORT
 	rung_t rung(size_t index) const;
-	size_t sort_range(size_t begin, size_t end, double xmid, int xdim);CUDA_EXPORT
-	fixed32& pos(int dim, size_t index);CUDA_EXPORT
-	float& vel(int dim, size_t index);CUDA_EXPORT
+
+	size_t sort_range(size_t begin, size_t end, double xmid, int xdim);
+
+	CUDA_EXPORT
+	fixed32& pos(int dim, size_t index);
+
+	CUDA_EXPORT
+	float& vel(int dim, size_t index);
+
+	CUDA_EXPORT
 	void set_rung(rung_t t, size_t index);
+
 	void generate_random(int seed);
+
 	void load_from_file(FILE* fp);
+
 	void save_to_file(FILE* fp);
-	void generate_grid();CUDA_EXPORT
-	group_t group(size_t) const;CUDA_EXPORT
-	group_t& group(size_t);CUDA_EXPORT
-	group_t get_last_group(size_t) const;CUDA_EXPORT
-	void set_last_group(size_t,group_t);CUDA_EXPORT
+
+	void generate_grid();
+
+	CUDA_EXPORT
+	group_t group(size_t) const;
+
+	CUDA_EXPORT
+	group_t& group(size_t);
+
+	CUDA_EXPORT
+	group_t get_last_group(size_t) const;
+
+	CUDA_EXPORT
+	void set_last_group(size_t, group_t);
+
+	CUDA_EXPORT
 	size_t size() const {
 		return size_;
 	}
 	void finish_groups();
-	void init_groups();CUDA_EXPORT
-	float force(int dim, size_t index) const;CUDA_EXPORT
-	float& force(int dim, size_t index);CUDA_EXPORT
-	float pot(size_t index) const;CUDA_EXPORT
+	void init_groups();
+
+	CUDA_EXPORT
+	float force(int dim, size_t index) const;
+
+	CUDA_EXPORT
+	float& force(int dim, size_t index);
+
+	CUDA_EXPORT
+	float pot(size_t index) const;
+
+	CUDA_EXPORT
 	float& pot(size_t index);
-	#ifndef __CUDACC__
+#ifndef __CUDACC__
 protected:
 #endif
+
 	array<fixed32*, NDIM> xptr_;
-	array<float,NDIM>* uptr_;
+	array<float, NDIM>* uptr_;
 	rung_t* rptr_;
 	group_t* idptr_;
 	uint32_t* lidptr1_;
@@ -130,9 +169,9 @@ inline rung_t particle_set::rung(size_t index) const {
 
 	assert(index < size_);
 	/*if (rptr_[index] != uptr_[index].p.r) {
-		printf("%i %i\n", rptr_[index], uptr_[index].p.r);
-	}
-	return uptr_[index].p.r;*/
+	 printf("%i %i\n", rptr_[index], uptr_[index].p.r);
+	 }
+	 return uptr_[index].p.r;*/
 	return rptr_[index];
 }
 
