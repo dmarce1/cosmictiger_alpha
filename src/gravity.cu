@@ -512,36 +512,37 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 
 }
 
-CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr,
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, size_t *test_parts, float *ferr, float *fnorm, float* perr,
 		float* pnorm, float GM, float h);
 
 #ifdef __CUDA_ARCH__
-CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr, float* pnorm, float GM, float h) {
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, size_t *test_parts, float *ferr, float *fnorm, float* perr, float* pnorm, float GM, float h) {
 	const int &tid = threadIdx.x;
 	const int &bid = blockIdx.x;
 	const auto hinv = 1.f / h;
 	const auto h2 = h * h;
 	const auto index = test_parts[bid];
 	array<fixed32,NDIM> sink;
-	sink[0] = parts->pos(0,index);
-	sink[1] = parts->pos(1,index);
-	sink[2] = parts->pos(2,index);
-	const auto f_x = parts->force(0, index);
-	const auto f_y = parts->force(1, index);
-	const auto f_z = parts->force(2, index);
+	sink[0] = parts.pos(0,index);
+	sink[1] = parts.pos(1,index);
+	sink[2] = parts.pos(2,index);
+	const auto f_x = parts.force(0, index);
+	const auto f_y = parts.force(1, index);
+	const auto f_z = parts.force(2, index);
 	__shared__ array<array<double, EWALD_BLOCK_SIZE>, NDIM>
 	f;
 	__shared__ array<double,EWALD_BLOCK_SIZE> phi;
 	for (int dim = 0; dim < NDIM; dim++) {
-		f[dim][tid] = 0.0;
+		f[dim][tid] = 0.0f;
 	}
-	phi[tid] = 0.0;
-	for (size_t source = tid; source < parts->size(); source += EWALD_BLOCK_SIZE) {
-		if (source != index) {
+	phi[tid] = 0.0f;
+	const size_t source_max = round_up(parts.size(), (size_t) EWALD_BLOCK_SIZE);
+	for (size_t source = tid; source < source_max; source += EWALD_BLOCK_SIZE) {
+		if (source != index && source < parts.size()) {
 			array<float, NDIM> X;
 			for (int dim = 0; dim < NDIM; dim++) {
 				const auto a = sink[dim];
-				const auto b = parts->pos(dim, source);
+				const auto b = parts.pos(dim, source);
 				X[dim] = distance(a, b);
 			}
 			const auto r2 = fmaf(X[0],X[0],fmaf(X[1],X[1],sqr(X[2])));
@@ -598,34 +599,37 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 				phi[tid] += float(M_PI / 4.f);
 			}
 		}
+		__syncthreads();
 	}
-	__syncthreads();
 	for (int P = EWALD_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+		__syncthreads();
 		if (tid < P) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				f[dim][tid] += f[dim][tid + P];
 			}
 			phi[tid] += phi[tid + P];
 		}
-		__syncthreads();
 	}
-	for(int dim = 0; dim < NDIM; dim++) {
-		f[dim][0] *= GM;
+	__syncthreads();
+	if( tid == 0 ) {
+		for(int dim = 0; dim < NDIM; dim++) {
+			f[dim][0] *= GM;
+		}
+		phi[0] *= GM;
 	}
-	phi[0] *= GM;
 	const auto f_ffm = sqrt(f_x * f_x + f_y * f_y + f_z * f_z);
 	const auto f_dir = sqrt(sqr(f[0][0]) + sqr(f[1][0]) + sqr(f[2][0]));
 	if (tid == 0) {
 		fnorm[bid] = f_dir;
 		pnorm[bid] = fabs(phi[0]);
 		ferr[bid] = fabsf(f_ffm - f_dir);
-		perr[bid] = fabs(parts->pot(index) - phi[0]);
+		perr[bid] = fabs(parts.pot(index) - phi[0]);
 //		printf( "%e %e\n",f[0][0], f_x);
 	}
 }
 #endif
 
-void cuda_compare_with_direct(particle_set *parts) {
+void cuda_compare_with_direct(particle_set parts) {
 	size_t *test_parts;
 	float *ferrs;
 	float *fnorms;
@@ -636,11 +640,11 @@ void cuda_compare_with_direct(particle_set *parts) {
 	CUDA_MALLOC(fnorms, N_TEST_PARTS);
 	CUDA_MALLOC(perrs, N_TEST_PARTS);
 	CUDA_MALLOC(pnorms, N_TEST_PARTS);
-	const size_t nparts = parts->size();
+	const size_t nparts = parts.size();
 	for (int i = 0; i < N_TEST_PARTS; i++) {
 		test_parts[i] = rand() % nparts;
 	}
-	cuda_pp_ewald_interactions<<<N_TEST_PARTS,EWALD_BLOCK_SIZE>>>(parts, test_parts, ferrs, fnorms, perrs, pnorms, global().opts.G * global().opts.M, global().opts.hsoft);
+	cuda_pp_ewald_interactions<<<N_TEST_PARTS,EWALD_BLOCK_SIZE>>>(parts.get_virtual_particle_set(), test_parts, ferrs, fnorms, perrs, pnorms, global().opts.G * global().opts.M, global().opts.hsoft);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	float favg_err = 0.0;
 	float fnorm = 0.0;

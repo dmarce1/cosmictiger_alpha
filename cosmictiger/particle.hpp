@@ -19,6 +19,22 @@
 
 struct range;
 
+struct particle_arc {
+	pair<size_t,size_t> range;
+	std::vector<fixed32> fixed32_data;
+	std::vector<float> float_data;
+	std::vector<int8_t> int8_data;
+	std::vector<unsigned long long int> ulli_data;
+	template<class Arc>
+	void serialize(Arc&& a, unsigned) {
+		a & range;
+		a & fixed32_data;
+		a & float_data;
+		a & int8_data;
+		a & ulli_data;
+	}
+};
+
 #define NO_GROUP (0x7FFFFFFFFFFF)
 
 using group_t = unsigned long long int;
@@ -63,6 +79,7 @@ struct particle_set {
 
 	void load_from_file(FILE* fp);
 
+
 	void save_to_file(FILE* fp);
 
 	void generate_grid();
@@ -97,7 +114,11 @@ struct particle_set {
 
 	CUDA_EXPORT
 	float& pot(size_t index);
-#ifndef __CUDACC__
+
+	particle_arc save_particle_archive(size_t b, size_t e);
+	void load_particle_archive(const particle_arc& pa);
+
+	#ifndef __CUDACC__
 protected:
 #endif
 

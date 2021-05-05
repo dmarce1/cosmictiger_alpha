@@ -34,7 +34,7 @@
 
 //#define USE_READMOSTLY
 //#define USE_NAN_TEST
-//#define TEST_FORCE
+#define TEST_FORCE
 //#define TEST_STACK
 #define CONFORMAL_TIME
 #define N_TEST_PARTS (100)
@@ -118,6 +118,11 @@ template<class A, class B>
 struct pair {
 	A first;
 	B second;
+	template<class Arc>
+	void serialize(Arc&& arc, unsigned) {
+		arc & first;
+		arc & second;
+	}
 };
 
 #ifdef __CUDA_ARCH__
@@ -136,5 +141,9 @@ static void __safe_fread(void* src, size_t size, size_t count, FILE* fp, int lin
 		abort();
 	}
 }
+
+#define ERROR() \
+	printf( "Error in %s on line %i\n", __FILE__, __LINE__); \
+	abort();
 
 #endif /* COSMICTIGER_DEFS_HPP_ */

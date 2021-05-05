@@ -6,7 +6,7 @@ source ~/scripts/sourceme.sh gperftools
 source ~/scripts/sourceme.sh hwloc
 source ~/scripts/sourceme.sh vc
 source ~/scripts/sourceme.sh silo
-source ~/scripts/sourceme.sh $1/hpx
+source ~/scripts/sourceme.sh $1/hpx_60
 
 #rm -rf $1
 #mkdir $1
@@ -15,7 +15,7 @@ rm CMakeCache.txt
 rm -r CMakeFiles
 
 
-cmake -DCMAKE_PREFIX_PATH="$HOME/local/relwithdebinfo/hpx" \
+cmake -DCMAKE_PREFIX_PATH="$HOME/local/release/hpx_60" \
       -DCMAKE_CXX_COMPILER=mpic++  \
       -DCMAKE_C_COMPILER=mpicc \
       -DCMAKE_CXX_FLAGS="-fPIC -std=c++0x -L$HOME/local/boost/lib -march=native" \

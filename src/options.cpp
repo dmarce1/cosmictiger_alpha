@@ -41,8 +41,9 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("hubble", po::value<double>(&(opts.hubble))->default_value(0.7), "") //
 	("silo_interval", po::value<double>(&(opts.silo_interval))->default_value(-1.), "interval between SILO outs") //
 	("maps", po::value<bool>(&(opts.maps))->default_value(false), "generate healpix maps") //
-	("sph", po::value<bool>(&(opts.sph))->default_value(true), "use SPH") //
+	("sph", po::value<bool>(&(opts.sph))->default_value(false), "use SPH") //
 	("parts_dim", po::value<size_t>(&(opts.parts_dim))->default_value(128), "number of particles = parts_dim^3") //
+	("theta", po::value<double>(&(opts.theta))->default_value(0.7), "theta for FMM") //
 	("test", po::value<std::string>(&(opts.test))->default_value(""), "test problem") //
 	("z0", po::value<double>(&(opts.z0))->default_value(49), "starting redshift") //
 	("ns", po::value<double>(&(opts.ns))->default_value(0.96), "spectral index") //
@@ -78,7 +79,6 @@ bool process_options(int argc, char *argv[], options &opts) {
 		}
 	}
 	opts.hsoft = 1.0 / pow(opts.nparts, 1.0 / 3.0) / 25.0;
-	opts.theta = 0.7;
 
 	if (opts.bucket_size > MAX_BUCKET_SIZE) {
 		printf("Bucket size of %i exceeds max of %i\n", opts.bucket_size, MAX_BUCKET_SIZE);
@@ -157,6 +157,10 @@ bool process_options(int argc, char *argv[], options &opts) {
 	SHOW(omega_nu);
 	SHOW(Theta);
 
+	if( opts.sph ) {
+		printf( "SPH not implemented\n");
+		ERROR();
+	}
 	return rc;
 }
 

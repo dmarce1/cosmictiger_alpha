@@ -17,6 +17,10 @@
 #include <cosmictiger/time.hpp>
 #include <cmath>
 
+static void parallel_sort_test() {
+
+}
+
 static void tree_test() {
 	printf("Doing tree test\n");
 	printf("Generating particles\n");
@@ -309,16 +313,12 @@ void drift_test() {
 void force_test() {
 	printf("Doing force test\n");
 	printf("Generating particles\n");
-	particle_set parts(global().opts.nparts);
+	particle_sets parts(global().opts.nparts);
 //	 parts.load_particles("ics");
 	parts.generate_random();
-	tree::set_particle_set(&parts);
-	particle_set *parts_ptr;
-	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
-	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-	tree::cuda_set_kick_params(parts_ptr);
 	tree root;
 	sort_params params;
+	params.part_sets = &parts;
 	params.theta = global().opts.theta;
 	params.min_rung = 0;
 	tree_ptr root_ptr;
@@ -335,6 +335,7 @@ void force_test() {
 	params_ptr->tptr = root_ptr;
 	params_ptr->dchecks.push(root_ptr);
 	params_ptr->echecks.push(root_ptr);
+	params_ptr->part_sets = &parts;
 
 	// printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
 	array<fixed32, NDIM> Lpos;
@@ -350,7 +351,7 @@ void force_test() {
 	params_ptr->t0 = true;
 	params_ptr->full_eval = true;
 	kick_return_init(0);
-	params_ptr->theta = 0.4;
+	params_ptr->theta = global().opts.theta;
 	root.kick(params_ptr).get();
 	kick_return_show();
 	tree::cleanup();
@@ -359,12 +360,11 @@ void force_test() {
 	timer tm;
 	tm.start();
 	printf("Doing comparison\n");
-	cuda_compare_with_direct(parts_ptr);
+	cuda_compare_with_direct(parts.cdm.get_virtual_particle_set());
 	tm.stop();
 	printf("Comparison took %e s\n", tm.read());
 	// printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
 	CUDA_FREE(params_ptr);
-	CUDA_FREE(parts_ptr);
 }
 #endif
 
@@ -394,6 +394,8 @@ void test_run(const std::string test) {
 		tree_test();
 	} else if (test == "drift") {
 		drift_test();
+	} else if (test == "parallel_sort") {
+		parallel_sort_test();
 	} else if (test == "kick") {
 		kick_test();
 	} else if (test == "group") {

@@ -79,29 +79,23 @@ fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread
 
 sort_return tree::sort(sort_params params) {
 	const auto &opts = global().opts;
-	static std::atomic<int> gpu_searches(0);
 	size_t active_parts = 0;
 	size_t active_nodes = 0;
 	parts_type parts;
 	tree_ptr self = params.tptr;
 	if (params.iamroot()) {
-		gpu_searches = 0;
 		int dummy;
 		params.set_root();
 		params.min_depth = ewald_min_level(params.theta, global().opts.hsoft);
 		params.alloc = std::make_shared<tree_allocator>();
-//		printf("min ewald = %i\n", params.min_depth);
 	}
 	auto& particles = *params.part_sets;
 	parts = params.parts;
 	self.set_parts(parts);
-//	printf( "%i %i %i %i\n", parts[0].first, parts[0].second, parts[1].first, parts[1].second);
 	if (params.depth == TREE_MAX_DEPTH) {
-		printf("Exceeded maximum tree depth\n");
-		abort();
+		ERROR();
 	}
 
-	//  multi = params.allocs->multi_alloc.allocate();
 	const auto& box = params.box;
 #ifdef TEST_TREE
 	bool failed = false;

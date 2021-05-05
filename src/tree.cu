@@ -394,9 +394,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					}
 #ifdef TEST_FORCE
 					for (int dim = 0; dim < NDIM; dim++) {
-						parts.force(dim, k + myparts[pi].first) = F[dim][kkpo];
+						parts.force(dim, k + myparts[pi].first) = F[dim][kpo];
 					}
-					parts.pot(k + myparts[pi].first) = phi[kkpo];
+					parts.pot(k + myparts[pi].first) = phi[kpo];
 #endif
 					if (this_rung >= constant.rung) {
 						float dt = halft0 * rung_dt[this_rung];

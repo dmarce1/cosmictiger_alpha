@@ -27,7 +27,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr);
 
 
 #ifdef TEST_FORCE
-void cuda_compare_with_direct(particle_set *parts);
+void cuda_compare_with_direct(particle_set parts);
 #endif
 
 CUDA_EXPORT inline float distance(fixed32 a, fixed32 b) {

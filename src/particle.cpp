@@ -112,6 +112,7 @@ void particle_set::load_from_file(FILE* fp) {
 	printf("\n");
 }
 
+
 void particle_set::save_to_file(FILE* fp) {
 	fwrite(&global().opts.z0, sizeof(global().opts.z0), 1, fp);
 	fwrite(&global().opts.omega_m, sizeof(global().opts.omega_m), 1, fp);
@@ -245,3 +246,57 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 	return hi;
 }
 
+
+
+particle_arc particle_set::save_particle_archive(size_t b, size_t e) {
+	particle_arc pa;
+	pa.range.first = b;
+	pa.range.second = e;
+	for (int dim = 0; dim < NDIM; dim++) {
+		for (auto i = b; i < e; i++) {
+			pa.fixed32_data.push_back(pos(dim, i));
+		}
+	}
+	for (auto i = b; i < e; i++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			pa.float_data.push_back(vel(dim, i));
+		}
+		pa.int8_data.push_back(rung(i));
+		if (global().opts.groups) {
+			pa.ulli_data.push_back(group(i));
+		}
+	}
+	return std::move(pa);
+}
+
+void particle_set::load_particle_archive(const particle_arc& pa) {
+	const size_t b = pa.range.first;
+	const size_t e = pa.range.second;
+	int j;
+	j = 0;
+	for (int dim = 0; dim < NDIM; dim++) {
+		for (auto i = b; i < e; i++) {
+			pos(dim, i) = pa.fixed32_data[j];
+			j++;
+		}
+	}
+	j = 0;
+	for (auto i = b; i < e; i++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			vel(dim, i) = pa.float_data[j];
+			j++;
+		}
+	}
+	j = 0;
+	for (auto i = b; i < e; i++) {
+		set_rung(i, pa.int8_data[j]);
+		j++;
+	}
+	if (global().opts.groups) {
+		j = 0;
+		for (auto i = b; i < e; i++) {
+			group(i) = pa.ulli_data[j];
+			j++;
+		}
+	}
+}
