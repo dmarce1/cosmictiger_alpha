@@ -58,22 +58,11 @@ static void tree_test() {
 
 void load_from_file(particle_set& parts, int& step, time_type& itime, double& time, double& a, double& cosmicK);
 void kick_test() {
-/*	printf("Doing kick test\n");
+	printf("Doing kick test\n");
 	printf("Generating particles\n");
-	particle_set parts(global().opts.nparts);
-	if( global().opts.checkpt_file == "") {
-		parts.load_particles("ics");
-	} else {
-		int step;
-		time_type itime;
-		double a, cosmicK, time;
-		load_from_file(parts,step,itime,time,a,cosmicK);
-	}
-	// parts.generate_grid();
-//	parts.generate_random();
-	particle_set *parts_ptr;
-	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
-	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
+	particle_sets parts(global().opts.nparts);
+	parts.generate_random();
+
 	timer ttime;
 	std::vector<double> timings;
 	tree_data_initialize_kick();
@@ -87,6 +76,7 @@ void kick_test() {
 		params.group_sort = false;
 		params.theta = global().opts.theta;
 		params.min_rung = 0;
+		params.part_sets = &parts;
 		tree_ptr root_ptr;
 
 		root_ptr.dindex = 0;
@@ -118,6 +108,7 @@ void kick_test() {
 		params_ptr->t0 = 1;
 		params_ptr->full_eval = false;
 		params_ptr->rung = 0;
+		params_ptr->part_sets = &parts;
 		root.kick(params_ptr).get();
 		tm_kick.stop();
 		tree::cleanup();
@@ -153,11 +144,9 @@ void kick_test() {
 	}
 	dev = std::sqrt(dev / NKICKS);
 	printf("---- Bucket Size = %i, Score = %e +/- %e\n", global().opts.bucket_size, avg, dev);
-	parts_ptr->particle_set::~particle_set();
-	CUDA_FREE(parts_ptr);
 	FILE* fp = fopen("timings.dat", "at");
 	fprintf(fp, "%i %e %e\n", global().opts.bucket_size, avg, dev);
-	fclose(fp);*/
+	fclose(fp);
 }
 
 void group_test() {
@@ -351,7 +340,7 @@ void force_test() {
 	params_ptr->t0 = true;
 	params_ptr->full_eval = true;
 	kick_return_init(0);
-	params_ptr->theta = global().opts.theta;
+	params_ptr->theta = 0.4;
 	root.kick(params_ptr).get();
 	kick_return_show();
 	tree::cleanup();
