@@ -152,7 +152,7 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 				auto& hirange = sort_ranges[hi_rank - rank_start];
 				size_t loinhi_count = hirange.lo.second - hirange.lo.first;
 				if (loinhi_count) {
-					size_t count = std::min(hiinlo_count, loinhi_count);
+					size_t count = std::min((size_t)SORT_SWAP_MAX,std::min(hiinlo_count, loinhi_count));
 					sort_quantum sq;
 					sq.rank_from = lo_rank;
 					sq.rank_to = hi_rank;
