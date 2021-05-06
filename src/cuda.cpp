@@ -45,36 +45,48 @@ cuda_properties cuda_init() {
 	for (int i = 0; i < props.num_devices; i++) {
 	}
 	CUDA_CHECK(cudaDeviceReset());
-	size_t value = STACK_SIZE;
-	CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, value));
+	size_t value;
 	CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitStackSize));
 	bool fail = false;
 	if (value != STACK_SIZE) {
-		printf("Unable to set stack size to %i\n", STACK_SIZE);
-		fail = true;
+		value = STACK_SIZE;
+		CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, value));
+		CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitStackSize));
+		if (value != STACK_SIZE) {
+			printf("Unable to set stack size to %i\n", STACK_SIZE);
+			fail = true;
+		}
 	}
-	value = HEAP_SIZE;
-	CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, value));
 	CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitMallocHeapSize));
 	if (value != HEAP_SIZE) {
-		printf("Unable to set heap to %li\n", HEAP_SIZE);
-		fail = true;
+		value = HEAP_SIZE;
+		CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, value));
+		CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitMallocHeapSize));
+		if (value != HEAP_SIZE) {
+			printf("Unable to set heap to %li\n", HEAP_SIZE);
+			fail = true;
+		}
 	}
-	value = RECUR_LIMIT;
-	CUDA_CHECK(cudaDeviceSetLimit(cudaLimitDevRuntimeSyncDepth, value));
 	CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitDevRuntimeSyncDepth));
 	if (value != RECUR_LIMIT) {
-		printf("Unable to set recursion limit to %i\n", RECUR_LIMIT);
-		fail = true;
+		value = RECUR_LIMIT;
+		CUDA_CHECK(cudaDeviceSetLimit(cudaLimitDevRuntimeSyncDepth, value));
+		CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitDevRuntimeSyncDepth));
+		if (value != RECUR_LIMIT) {
+			printf("Unable to set recursion limit to %i\n", RECUR_LIMIT);
+			fail = true;
+		}
 	}
-	value = L2FETCH;
-	CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMaxL2FetchGranularity, value));
 	CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitMaxL2FetchGranularity));
 	if (value != L2FETCH) {
-		printf("Unable to set L2 fetch granularity to to %i\n", L2FETCH);
-		fail = true;
+		value = L2FETCH;
+		CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMaxL2FetchGranularity, value));
+		CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitMaxL2FetchGranularity));
+		if (value != L2FETCH) {
+			printf("Unable to set L2 fetch granularity to to %i\n", L2FETCH);
+			fail = true;
+		}
 	}
-
 	if (fail) {
 		abort();
 	}

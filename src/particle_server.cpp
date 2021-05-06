@@ -82,7 +82,7 @@ void particle_server::swap_particles(int pi, particle_arc arc) {
 void particle_server::execute_swaps(int pi, std::vector<sort_quantum> swaps) {
 	std::vector<hpx::future<void>> futs;
 	for (const auto swap : swaps) {
-		printf("Executing swap %li - %li / %li - %li betwee %i and %i\n", swap.range_from.first, swap.range_from.second,
+		printf("Executing swap %li - %li / %li - %li between %i and %i\n", swap.range_from.first, swap.range_from.second,
 				swap.range_to.first, swap.range_to.second, swap.rank_from, swap.rank_to);
 		auto parc = parts->sets[pi]->save_particle_archive(swap.range_from.first, swap.range_from.second);
 		parc.range = swap.range_to;
