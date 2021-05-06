@@ -278,7 +278,7 @@ void particle_set::load_particle_archive(const particle_arc& pa) {
 			j++;
 		}
 	}
-	j = 0;
+		j = 0;
 	for (auto i = b; i < e; i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			vel(dim, i) = pa.float_data[j];
@@ -287,7 +287,7 @@ void particle_set::load_particle_archive(const particle_arc& pa) {
 	}
 	j = 0;
 	for (auto i = b; i < e; i++) {
-		set_rung(i, pa.int8_data[j]);
+		set_rung(pa.int8_data[j], i);
 		j++;
 	}
 	if (global().opts.groups) {

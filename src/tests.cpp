@@ -21,6 +21,8 @@ static void parallel_sort_test() {
 	particle_server pserv;
 	printf( "Initializing particles\n");
 	pserv.init();
+	printf( "Generating random positions\n");
+	pserv.generate_random();
 	printf( "Doing sort\n");
 	pserv.sort(0,0,global().opts.nparts, 0.5, 0);
 	printf( "Done\n");

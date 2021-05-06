@@ -20,7 +20,7 @@
 struct range;
 
 struct particle_arc {
-	pair<size_t,size_t> range;
+	pair<size_t, size_t> range;
 	std::vector<fixed32> fixed32_data;
 	std::vector<float> float_data;
 	std::vector<int8_t> int8_data;
@@ -79,7 +79,6 @@ struct particle_set {
 
 	void load_from_file(FILE* fp);
 
-
 	void save_to_file(FILE* fp);
 
 	void generate_grid();
@@ -118,7 +117,7 @@ struct particle_set {
 	particle_arc save_particle_archive(size_t b, size_t e);
 	void load_particle_archive(const particle_arc& pa);
 
-	#ifndef __CUDACC__
+#ifndef __CUDACC__
 protected:
 #endif
 
@@ -162,7 +161,8 @@ public:
 CUDA_EXPORT
 inline fixed32 particle_set::pos_ldg(int dim, size_t index) const {
 
-	assert(index < size_);
+	assert(index >= offset_);
+	assert(index < offset_ + size_);
 	union fixed_union {
 		fixed32 f;
 		int i;
@@ -175,20 +175,23 @@ inline fixed32 particle_set::pos_ldg(int dim, size_t index) const {
 CUDA_EXPORT
 inline fixed32 particle_set::pos(int dim, size_t index) const {
 
-	assert(index < size_);
+	assert(index >= offset_);
+	assert(index < offset_ + size_);
 	return xptr_[dim][index];
 }
 
 inline float particle_set::vel(int dim, size_t index) const {
 
-	assert(index < size_);
+	assert(index >= offset_);
+	assert(index < offset_ + size_);
 	return uptr_[index][dim];
 }
 
 CUDA_EXPORT
 inline rung_t particle_set::rung(size_t index) const {
 
-	assert(index < size_);
+	assert(index >= offset_);
+	assert(index < offset_ + size_);
 	/*if (rptr_[index] != uptr_[index].p.r) {
 	 printf("%i %i\n", rptr_[index], uptr_[index].p.r);
 	 }
@@ -199,42 +202,49 @@ inline rung_t particle_set::rung(size_t index) const {
 CUDA_EXPORT
 inline fixed32& particle_set::pos(int dim, size_t index) {
 
-	assert(index < size_);
+	assert(index >= offset_);
+	assert(index < offset_ + size_);
 	return xptr_[dim][index];
 }
 
 CUDA_EXPORT
 inline float& particle_set::vel(int dim, size_t index) {
 
-	assert(index < size_);
+	assert(index >= offset_);
+	assert(index < offset_ + size_);
 	return uptr_[index][dim];
 }
 
 CUDA_EXPORT
 inline void particle_set::set_rung(rung_t t, size_t index) {
 
-	assert(index < size_);
+	assert(index >= offset_);
+	assert(index < offset_ + size_);
 	rptr_[index] = t;
 	//uptr_[index].p.r = t;
 }
 
 CUDA_EXPORT inline float particle_set::force(int dim, size_t index) const {
-	assert(index < size_);
+	assert(index >= offset_);
+	assert(index < offset_ + size_);
 	return gptr_[dim][index];
 
 }
 CUDA_EXPORT inline float& particle_set::force(int dim, size_t index) {
-	assert(index < size_);
+	assert(index >= offset_);
+	assert(index < offset_ + size_);
 	return gptr_[dim][index];
 
 }
 CUDA_EXPORT inline float particle_set::pot(size_t index) const {
-	assert(index < size_);
+	assert(index >= offset_);
+	assert(index < offset_ + size_);
 	return eptr_[index];
 
 }
 CUDA_EXPORT inline float& particle_set::pot(size_t index) {
-	assert(index < size_);
+	assert(index >= offset_);
+	assert(index < offset_ + size_);
 	return eptr_[index];
 
 }

@@ -30,7 +30,7 @@ int particle_server::nprocs;
 std::vector<hpx::id_type> particle_server::localities;
 
 void particle_server::init() {
-	printf( "Initializing particle server on rank %i\n", hpx_rank());
+	printf("Initializing particle server on rank %i\n", hpx_rank());
 	std::vector<hpx::future<void>> futs;
 	rank = hpx_rank();
 	nprocs = hpx_size();
@@ -43,6 +43,7 @@ void particle_server::init() {
 	global_size = global().opts.nparts;
 	my_start = (rank * global_size) / nprocs;
 	my_stop = ((rank + 1) * global_size) / nprocs;
+	printf( "range on rank %i is %li %li %li\n", rank,  my_start, my_stop, global_size);
 	my_size = my_stop - my_start;
 	parts = new particle_sets(my_size, my_start);
 	printf("Done on rank %i\n", rank);
@@ -68,7 +69,10 @@ int particle_server::index_to_rank(size_t index) {
 }
 
 size_t particle_server::local_sort(int pi, size_t begin, size_t end, double xmid, int xdim) {
-	return parts->sets[pi]->sort_range(begin, end, xmid, xdim);
+	printf("local sort begin : %i %li %li\n", rank, begin, end);
+	const size_t part_mid = parts->sets[pi]->sort_range(begin, end, xmid, xdim);
+	printf("local sort done  : %i %li %li %li\n", rank, begin, part_mid, end);
+	return part_mid;
 }
 
 void particle_server::swap_particles(int pi, particle_arc arc) {
@@ -78,6 +82,8 @@ void particle_server::swap_particles(int pi, particle_arc arc) {
 void particle_server::execute_swaps(int pi, std::vector<sort_quantum> swaps) {
 	std::vector<hpx::future<void>> futs;
 	for (const auto swap : swaps) {
+		printf("Executing swap %li - %li / %li - %li betwee %i and %i\n", swap.range_from.first, swap.range_from.second,
+				swap.range_to.first, swap.range_to.second, swap.rank_from, swap.rank_to);
 		auto parc = parts->sets[pi]->save_particle_archive(swap.range_from.first, swap.range_from.second);
 		parc.range = swap.range_to;
 		futs.push_back(hpx::async<particle_server_swap_particles_action>(localities[swap.rank_to], pi, std::move(parc)));
@@ -97,9 +103,11 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 			part_mid = particle_server_local_sort_action()(localities[rank_start], pi, begin, end, xmid, xdim);
 		}
 	} else {
-		printf( "Global sort on range %li - %li around %e in dimension %i\n", begin, end, xmid, xdim);
+		printf("Global sort on range %li - %li around %e in dimension %i\n", begin, end, xmid, xdim);
 		std::vector<hpx::future<size_t>> futs;
-		futs.reserve(rank_stop - rank_start);
+		const int num_ranks = rank_stop - rank_start + 1;
+		futs.reserve(num_ranks);
+		printf("Doing local sorts\n");
 		for (int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
 			const size_t this_begin = std::max(begin, this_rank * global_size / nprocs);
 			const size_t this_end = std::min(end, (this_rank + 1) * global_size / nprocs);
@@ -107,8 +115,9 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 					hpx::async<particle_server_local_sort_action>(localities[this_rank], pi, this_begin, this_end, xmid,
 							xdim));
 		}
-		std::vector<sort_iters> sort_ranges;
+		std::vector<sort_iters> sort_ranges(num_ranks);
 		size_t lo_cnt = 0;
+		printf("Computing local ranges\n");
 		for (int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
 			const size_t this_begin = std::max(begin, this_rank * global_size / nprocs);
 			const size_t this_end = std::min(end, (this_rank + 1) * global_size / nprocs);
@@ -120,9 +129,11 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 		}
 		part_mid = begin + lo_cnt;
 		const int rank_mid = index_to_rank(begin + part_mid);
+		printf("lo_cnt = %li mid part is %li mid_rank is %i\n", lo_cnt, part_mid, rank_mid);
+		printf("Computing global sort strategy\n");
 		auto& rng = sort_ranges[rank_mid - rank_start];
 		if (rng.lo.second < part_mid) {
-			rng.hi.first = rng.lo.second = rng.lo.first;
+			rng.hi.first = rng.lo.first = rng.lo.second;
 			rng.hi.second = part_mid;
 		} else {
 			rng.lo.second = rng.hi.second = rng.hi.first;
@@ -134,7 +145,7 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 			auto& lorange = sort_ranges[lo_rank - rank_start];
 			size_t hiinlo_count = lorange.hi.second - lorange.hi.first;
 			while (hiinlo_count > 0) {
-				if (hi_rank >= rank_stop) {
+				if (hi_rank > rank_stop) {
 					ERROR()
 					;
 				}
@@ -149,6 +160,8 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 					sq.range_from.second = lorange.hi.first + count;
 					sq.range_to.first = hirange.lo.second - count;
 					sq.range_to.second = hirange.lo.second;
+					printf("---> %i %i %li %li %li %li\n", sq.rank_from, sq.rank_to, sq.range_from.first, sq.range_from.second,
+							sq.range_to.first, sq.range_to.second);
 					swaps.push_back(sq);
 					lorange.hi.first += count;
 					hirange.lo.second -= count;
@@ -163,6 +176,7 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 			swaps_per_rank[swaps.back().rank_from - rank_start].push_back(swaps.back());
 			swaps.pop_back();
 		}
+		printf("Executing sort strategy\n");
 		std::vector<hpx::future<void>> swap_futs;
 		for (int this_rank = rank_start; this_rank <= rank_mid; this_rank++) {
 			swap_futs.push_back(
@@ -170,6 +184,7 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 							std::move(swaps_per_rank[this_rank - rank_start])));
 		}
 		hpx::wait_all(swap_futs.begin(), swap_futs.end());
+		printf("Done\n");
 	}
 	return part_mid;
 }

@@ -21,75 +21,15 @@ struct particle_sets {
 	hydro_particle_set baryon;
 	array<float, NPART_TYPES> weights;
 
-	particle_sets() {
-		sets[0] = &cdm;
-		sets[1] = &baryon;
-	}
-
-	void load_from_file(FILE* fp) {
-		for (int pi = 0; pi < NPART_TYPES; pi++) {
-			sets[pi]->load_from_file(fp);
-		}
-	}
-
-	void save_to_file(FILE* fp) {
-		for (int pi = 0; pi < NPART_TYPES; pi++) {
-			sets[pi]->save_to_file(fp);
-		}
-	}
-
-	void generate_random() {
-		const float h = std::pow(baryon.size(), -1.0 / 3.0);
-		cdm.generate_random(42);
-		baryon.generate_random(1234);
-		for (int i = 0; i < baryon.size(); i++) {
-			baryon.energy(i) = 0.0;
-			baryon.smooth_len(i) = h;
-		}
-	}
-
-	particle_sets(const particle_sets& other) {
-		sets[0] = &cdm;
-		sets[1] = &baryon;
-		*this = other;
-	}
-	particle_sets& operator=(const particle_sets& other) {
-		cdm = other.cdm;
-		baryon = other.baryon;
-		weights = other.weights;
-		return *this;
-	}
-
-	particle_sets(size_t size, size_t start = 0) :
-			cdm(size, start), baryon(global().opts.sph ? size : 0, start) {
-		const float omega_b = global().opts.omega_b;
-		const float omega_c = global().opts.omega_c;
-		sets[0] = &cdm;
-		sets[1] = &baryon;
-		if (global().opts.sph) {
-			weights[0] = omega_c / (omega_b + omega_c);
-			weights[1] = omega_b / (omega_b + omega_c);
-		} else {
-			weights[0] = 1.0;
-			weights[1] = 0.0;
-		}
-	}
-
-	particle_sets get_virtual_particle_sets() {
-		particle_sets v;
-		v.cdm = cdm.get_virtual_particle_set();
-		v.baryon = baryon.get_virtual_particle_set();
-		v.weights = weights;
-		return v;
-	}
-
-	size_t size() const {
-		size_t sz = 0;
-		for (int i = 0; i < NPART_TYPES; i++) {
-			sz += sets[i]->size();
-		}
-		return sz;
-	}
+	particle_sets();
+	void load_from_file(FILE* fp);
+	void save_to_file(FILE* fp);
+	void generate_random();
+	particle_sets(const particle_sets& other);
+	particle_sets& operator=(const particle_sets& other);
+	particle_sets(size_t size, size_t start = 0);
+	particle_sets get_virtual_particle_sets();
+	size_t size() const;
 };
 
 using part_iters = pair<size_t,size_t>;

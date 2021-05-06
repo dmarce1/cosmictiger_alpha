@@ -11,11 +11,10 @@ void particle_set::generate_random(int seed) {
 		int num_blocks;
 		CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, generate_random_vectors, num_threads, 0));
 		num_blocks *= global().cuda.devices[0].multiProcessorCount;
-		printf( "%i x %i\n", num_blocks,num_threads);
-		generate_random_vectors<<<num_blocks,num_threads>>>(xptr_[0],xptr_[1],xptr_[2],global().opts.nparts,seed);
+		generate_random_vectors<<<num_blocks,num_threads>>>(xptr_[0]+offset_,xptr_[1]+offset_,xptr_[2]+offset_,size_,seed);
 		CUDA_CHECK(cudaDeviceSynchronize());
 
-		for (int i = 0; i < size_; i++) {
+		for (int i = offset_; i < size_ + offset_; i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				vel(0, i) = 0.f;
 				vel(1, i) = 0.f;

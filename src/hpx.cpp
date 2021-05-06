@@ -32,7 +32,7 @@ void hpx_init() {
 		mychildren.first = localities[left];
 	}
 	if (right < hpx_size_) {
-		mychildren.first = localities[right];
+		mychildren.second = localities[right];
 	}
 
 	if (myrank == 0) {
