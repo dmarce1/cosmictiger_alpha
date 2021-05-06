@@ -11,14 +11,19 @@
 #include <cosmictiger/tests.hpp>
 #include <cosmictiger/timer.hpp>
 #include <cosmictiger/tree.hpp>
-#include <cosmictiger/particle.hpp>
+#include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/drift.hpp>
 #include <cosmictiger/groups.hpp>
 #include <cosmictiger/time.hpp>
 #include <cmath>
 
 static void parallel_sort_test() {
-
+	particle_server pserv;
+	printf( "Initializing particles\n");
+	pserv.init();
+	printf( "Doing sort\n");
+	pserv.sort(0,0,global().opts.nparts, 0.5, 0);
+	printf( "Done\n");
 }
 
 static void tree_test() {

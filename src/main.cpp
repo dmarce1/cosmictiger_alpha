@@ -29,6 +29,7 @@ int hpx_main(int argc, char *argv[]) {
 		const auto cuda = cuda_init();
 		printf("Initializing ewald\n");
 		ewald_const::init();
+
 		printf("Done initializing ewald\n");
 		global_init(opts, cuda);
 //		tree_data_initialize();

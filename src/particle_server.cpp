@@ -87,17 +87,13 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 
 	const int rank_start = index_to_rank(begin);
 	const int rank_stop = index_to_rank(end);
-
-	// local sort
+	size_t part_mid;
 	if (rank_start == rank_stop) {
-		// must be called from rank that particles are on
-		if (rank != rank_start) {
-			ERROR()
-			;
+		if (rank == rank_start) {
+			part_mid = parts->sets[pi]->sort_range(begin, end, xmid, xdim);
+		} else {
+			part_mid = particle_server_local_sort_action()(localities[rank_start], pi, begin, end, xmid, xdim);
 		}
-		return parts->sets[pi]->sort_range(begin, end, xmid, xdim);
-
-		// multi locality sort
 	} else {
 		std::vector<hpx::future<size_t>> futs;
 		futs.reserve(rank_stop - rank_start);
@@ -119,9 +115,9 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 			sort_ranges[index].hi.second = this_end;
 			lo_cnt += sort_ranges[index].lo.second - sort_ranges[index].lo.first;
 		}
-		const size_t part_mid = begin + lo_cnt;
+		part_mid = begin + lo_cnt;
 		const int rank_mid = index_to_rank(begin + part_mid);
-		auto& rng = sort_ranges[rank_mid];
+		auto& rng = sort_ranges[rank_mid - rank_start];
 		if (rng.lo.second < part_mid) {
 			rng.hi.first = rng.lo.second = rng.lo.first;
 			rng.hi.second = part_mid;
@@ -132,14 +128,14 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 		std::vector<sort_quantum> swaps;
 		int hi_rank = rank_mid;
 		for (int lo_rank = rank_start; lo_rank <= rank_mid; lo_rank++) {
-			auto& lorange = sort_ranges[lo_rank];
+			auto& lorange = sort_ranges[lo_rank - rank_start];
 			size_t hiinlo_count = lorange.hi.second - lorange.hi.first;
 			while (hiinlo_count > 0) {
 				if (hi_rank >= rank_stop) {
 					ERROR()
 					;
 				}
-				auto& hirange = sort_ranges[hi_rank];
+				auto& hirange = sort_ranges[hi_rank - rank_start];
 				size_t loinhi_count = hirange.lo.second - hirange.lo.first;
 				if (loinhi_count) {
 					size_t count = std::min(hiinlo_count, loinhi_count);
@@ -171,6 +167,6 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 							std::move(swaps_per_rank[this_rank - rank_start])));
 		}
 		hpx::wait_all(swap_futs.begin(), swap_futs.end());
-		return part_mid;
 	}
+	return part_mid;
 }
