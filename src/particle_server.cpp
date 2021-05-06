@@ -30,6 +30,7 @@ int particle_server::nprocs;
 std::vector<hpx::id_type> particle_server::localities;
 
 void particle_server::init() {
+	printf( "Initializing particle server on rank %i\n", hpx_rank());
 	std::vector<hpx::future<void>> futs;
 	rank = hpx_rank();
 	nprocs = hpx_size();
@@ -44,6 +45,7 @@ void particle_server::init() {
 	my_stop = ((rank + 1) * global_size) / nprocs;
 	my_size = my_stop - my_start;
 	parts = new particle_sets(my_size, my_start);
+	printf("Done on rank %i\n", rank);
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
@@ -95,6 +97,7 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 			part_mid = particle_server_local_sort_action()(localities[rank_start], pi, begin, end, xmid, xdim);
 		}
 	} else {
+		printf( "Global sort on range %li - %li around %e in dimension %i\n", begin, end, xmid, xdim);
 		std::vector<hpx::future<size_t>> futs;
 		futs.reserve(rank_stop - rank_start);
 		for (int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {

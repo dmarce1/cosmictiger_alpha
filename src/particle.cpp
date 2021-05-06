@@ -31,7 +31,6 @@ particle_set::particle_set(size_t size, size_t index_start) {
 	if (size) {
 		offset_ = index_start;
 		virtual_ = false;
-		printf("Allocating space for particles\n");
 		CUDA_MALLOC(xptr_[0], size);
 		CUDA_MALLOC(xptr_[1], size);
 		CUDA_MALLOC(xptr_[2], size);
@@ -68,7 +67,6 @@ particle_set::particle_set(size_t size, size_t index_start) {
 		if (global().opts.groups) {
 			idptr_ -= index_start;
 		}
-		printf("Done\n");
 	}
 }
 

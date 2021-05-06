@@ -22,7 +22,7 @@ find_package(Boost REQUIRED)
 find_package(Silo REQUIRED)
 enable_language(CUDA)
 
-set(CMAKE_CXX_FLAGS "-DNDEBUG -ffast-math -march=native -Wno-deprecated-declarations")
+set(CMAKE_CXX_FLAGS "-Wno-attributes -ffast-math -march=native -Wno-deprecated-declarations")
 
 set(cosmictiger_source_files
     src/chemistry.cpp
@@ -158,7 +158,7 @@ add_hpx_executable(
 set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
-target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
+target_compile_options(cosmictiger PUBLIC "")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
                         >)
