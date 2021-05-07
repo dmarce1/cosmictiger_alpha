@@ -14,6 +14,7 @@ HPX_PLAIN_ACTION(hpx_init,hpx_init_action);
 static int myrank;
 static int hpx_size_;
 static std::vector<hpx::id_type> localities;
+static std::vector<hpx::id_type> remote_localities;
 static std::pair<hpx::id_type, hpx::id_type> mychildren;
 
 int hardware_concurrency() {
@@ -23,6 +24,7 @@ int hardware_concurrency() {
 void hpx_init() {
 	int left, right;
 	localities = hpx::find_all_localities();
+	remote_localities = hpx::find_remote_localities();
 	hpx_size_ = localities.size();
 	myrank = hpx::get_locality_id();
 	left = ((myrank + 1) << 1) - 1;
@@ -59,6 +61,10 @@ void hpx_yield() {
 
 const std::vector<hpx::id_type>& hpx_localities() {
 	return localities;
+}
+
+const std::vector<hpx::id_type>& hpx_remote_localities() {
+	return remote_localities;
 }
 
 const std::pair<hpx::id_type, hpx::id_type>& hpx_child_localities() {

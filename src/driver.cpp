@@ -21,11 +21,11 @@ tree build_tree(particle_sets& parts, int min_rung, double theta, size_t& num_ac
 	static int last_bucket_size = global().opts.bucket_size;
 	int bucket_size = global().opts.bucket_size;
 	if ((last_was_group_sort || bucket_size != last_bucket_size) && !group_sort) {
-		tree_data_initialize_kick();
+		tree_data_initialize(KICK);
 		last_was_group_sort = false;
 	} else if (group_sort) {
 		last_was_group_sort = true;
-		tree_data_initialize_groups();
+		tree_data_initialize(GROUP);
 	}
 	last_bucket_size = bucket_size;
 	tree root;
@@ -33,8 +33,6 @@ tree build_tree(particle_sets& parts, int min_rung, double theta, size_t& num_ac
 
 	root_ptr.dindex = 0;
 	sort_params params;
-	params.part_sets = &parts;
-	params.tptr = root_ptr;
 	params.min_rung = min_rung;
 	params.theta = theta;
 	params.group_sort = group_sort;
@@ -173,11 +171,11 @@ std::pair<int, hpx::future<void>> find_groups(particle_sets& parts, double& time
 	params_ptr->first_round = true;
 	int iters = 1;
 	parts.cdm.init_groups();
-	tree_database_set_groups();
+	tree_data_set_groups();
 	size_t active = find_groups(params_ptr).get();
 	printf("%li nodes active\n", active);
 	while (active) {
-		tree_database_set_groups();
+		tree_data_set_groups();
 		params_ptr->self = root_ptr;
 		params_ptr->checks.resize(0);
 		params_ptr->checks.push(root_ptr);
@@ -201,7 +199,9 @@ void drive_cosmos() {
 
 	bool have_checkpoint = global().opts.checkpt_file != "";
 
-	particle_sets parts(global().opts.nparts);
+	particle_server pserv;
+	pserv.init();
+	particle_sets parts = pserv.get_particle_sets();
 	int max_iter = 100;
 
 	int iter = 0;
@@ -332,7 +332,7 @@ void drive_cosmos() {
 				tm.stop();
 				printf("Took %e seconds\n", tm.read());
 				if (!groups) {
-					tree_data_initialize_kick();
+					tree_data_initialize(KICK);
 				}
 			}
 			if (groups) {

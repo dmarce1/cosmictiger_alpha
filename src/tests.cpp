@@ -42,7 +42,7 @@ static void tree_test() {
 		sort_params params;
 		params.min_rung = 0;
 		params.theta = global().opts.theta;
-		tree_data_initialize_kick();
+		tree_data_initialize(KICK);
 		root.sort(params);
 		managed_allocator<sort_params>::cleanup();
 		tm.stop();
@@ -67,12 +67,14 @@ void load_from_file(particle_set& parts, int& step, time_type& itime, double& ti
 void kick_test() {
 	printf("Doing kick test\n");
 	printf("Generating particles\n");
-	particle_sets parts(global().opts.nparts);
+	particle_server pserv;
+	pserv.init();
+	auto& parts = pserv.get_particle_sets();
 	parts.generate_random();
 
 	timer ttime;
 	std::vector<double> timings;
-	tree_data_initialize_kick();
+	tree_data_initialize(KICK);
 	for (int i = 0; i < NKICKS + 1; i++) {
 		printf("Kick %i\n", i);
 		ttime.start();
@@ -83,11 +85,8 @@ void kick_test() {
 		params.group_sort = false;
 		params.theta = global().opts.theta;
 		params.min_rung = 0;
-		params.part_sets = &parts;
 		tree_ptr root_ptr;
 
-		root_ptr.dindex = 0;
-		params.tptr = root_ptr;
 		root.sort(params);
 		tm_sort.stop();
 		tm_kick.start();
@@ -177,11 +176,10 @@ void group_test() {
 	tree_ptr root_ptr;
 	parts.init_groups();
 	root_ptr.dindex = 0;
-	params.tptr = root_ptr;
 	params.group_sort = true;
 	parts.init_groups();
 	printf( "Sorting\n");
-	tree_data_initialize_groups();
+	tree_data_initialize(GROUP);
 	root.sort(params);
 	printf( "Done Sorting\n");
 	tm_sort.stop();
@@ -200,10 +198,10 @@ void group_test() {
 	fflush(stdout);
 	timer tm;
 	tm.start();
-	tree_database_set_groups();
+	tree_data_set_groups();
 //	find_groups_phase1(params_ptr).get();
 	while (find_groups(params_ptr).get()) {
-		tree_database_set_groups();
+		tree_data_set_groups();
 		printf( "Iterating\n");
 		params_ptr->self = root_ptr;
 		params_ptr->checks.resize(0);
@@ -242,7 +240,7 @@ void drift_test() {
 		sort_params params;
 		params.theta = global().opts.theta;
 		params.min_rung = 0;
-		tree_data_initialize_kick();
+		tree_data_initialize(KICK);
 		root.sort(params);
 		tm_sort.stop();
 		tm_kick.start();
@@ -321,7 +319,7 @@ void force_test() {
 
 	root_ptr.dindex = 0;
 	params.tptr = root_ptr;
-	tree_data_initialize_kick();
+	tree_data_initialize(KICK);
 	root.sort(params);
 	//  root_ptr.rank = hpx_rank();
 	// printf( "%li", size_t(WORKSPACE_SIZE));

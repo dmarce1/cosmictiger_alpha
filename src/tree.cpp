@@ -12,6 +12,8 @@
 
 #include <cmath>
 
+HPX_PLAIN_ACTION(tree::sort,tree_sort_action);
+
 #define CPU_LOAD (0)
 
 static unified_allocator kick_params_alloc;
@@ -45,34 +47,34 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	return lev;
 }
 
+
 fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	fast_future<sort_return> fut;
 	tree_ptr id;
-	auto& particles = *params.part_sets;
-	id.dindex = params.alloc->allocate();
-	params.tptr = id;
+	particle_server pserv;
+	auto& particles = pserv.get_particle_sets();
 	size_t nparts = 0;
 	for (int pi = 0; pi < NPART_TYPES; pi++) {
 		nparts += params.parts[pi].second - params.parts[pi].first;
 	}
-	bool thread = false;
-	const size_t min_parts2thread = particles.size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
-	thread = try_thread && (nparts >= min_parts2thread);
-#ifdef TEST_STACK
-	thread = false;
-#endif
-	if (!thread) {
-		sort_return rc = tree::sort(params);
-		rc.check = id;
-		fut.set_value(std::move(rc));
+	int target_rank = pserv.index_to_rank(params.parts[0].first);
+	if (target_rank != hpx_rank()) {
+		fut = hpx::async<tree_sort_action>(hpx_localities()[target_rank], params);
 	} else {
-		fut = hpx::async([id, params]() {
-			sort_params new_params = params;
-			new_params.alloc = std::make_shared<tree_allocator>();
-			auto rc = tree::sort(new_params);
-			rc.check = id;
-			return rc;
-		});
+		bool thread = false;
+		const size_t min_parts2thread = particles.size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
+		thread = try_thread && (nparts >= min_parts2thread);
+		if (!thread) {
+			sort_return rc = tree::sort(params);
+			fut.set_value(std::move(rc));
+		} else {
+			fut = hpx::async([id, params]() {
+				sort_params new_params = params;
+				new_params.alloc = std::make_shared<tree_allocator>();
+				auto rc = tree::sort(new_params);
+				return rc;
+			});
+		}
 	}
 	return std::move(fut);
 }
@@ -82,51 +84,23 @@ sort_return tree::sort(sort_params params) {
 	size_t active_parts = 0;
 	size_t active_nodes = 0;
 	parts_type parts;
-	tree_ptr self = params.tptr;
 	if (params.iamroot()) {
 		int dummy;
 		params.set_root();
 		params.min_depth = ewald_min_level(params.theta, global().opts.hsoft);
 		params.alloc = std::make_shared<tree_allocator>();
 	}
-	auto& particles = *params.part_sets;
+	tree_ptr self = params.alloc->allocate();
+	particle_server pserv;
+	auto& particles = pserv.get_particle_sets();
 	parts = params.parts;
 	self.set_parts(parts);
 	if (params.depth == TREE_MAX_DEPTH) {
-		ERROR();
+		ERROR()
+		;
 	}
 
 	const auto& box = params.box;
-#ifdef TEST_TREE
-	bool failed = false;
-	for (size_t i = parts.first; i < parts.second; i++) {
-		particle p = particles->part(i);
-		if (!box.contains(p.x)) {
-			printf("Particle out of range !\n");
-			printf("Box\n");
-			for (int dim = 0; dim < NDIM; dim++) {
-				printf("%e %e |", box.begin[dim], box.end[dim]);
-			}
-			printf("\n");
-			printf("Particle\n");
-			for (int dim = 0; dim < NDIM; dim++) {
-				printf("%e ", p.x[dim].to_float());
-			}
-			printf("\n");
-			//       abort();
-			failed = true;
-		}
-	}
-	if (failed) {
-		abort();
-	}
-#endif
-#ifdef TEST_STACK
-	{
-		uint8_t dummy;
-		printf("Stack usaged = %li Depth = %li \n", &dummy - params.stack_ptr, params.depth);
-	}
-#endif
 	sort_return rc;
 	array<tree_ptr, NCHILD> children;
 	const int max_part = params.group_sort ? GROUP_BUCKET_SIZE : global().opts.bucket_size;
@@ -140,11 +114,11 @@ sort_return tree::sort(sort_params params) {
 			const int xdim = params.depth % NDIM;
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
-			for (int i = 0; i < NPART_TYPES; i++) {
-				const size_t pmid = particles.sets[i]->sort_range(parts[i].first, parts[i].second, xmid, xdim);
-				child_params[LEFT].parts[i].first = parts[i].first;
-				child_params[LEFT].parts[i].second = child_params[RIGHT].parts[i].first = pmid;
-				child_params[RIGHT].parts[i].second = parts[i].second;
+			for (int pi = 0; pi < NPART_TYPES; pi++) {
+				const size_t pmid = pserv.sort(pi,parts[pi].first, parts[pi].second, xmid, xdim);
+				child_params[LEFT].parts[pi].first = parts[pi].first;
+				child_params[LEFT].parts[pi].second = child_params[RIGHT].parts[pi].first = pmid;
+				child_params[RIGHT].parts[pi].second = parts[pi].second;
 			}
 			for (int ci = 0; ci < NCHILD; ci++) {
 				futs[ci] = create_child(child_params[ci], ci == LEFT);
@@ -262,7 +236,7 @@ sort_return tree::sort(sort_params params) {
 			array<fixed32, NDIM> pos;
 			double total_weight = 0;
 			for (int pi = 0; pi < NPART_TYPES; pi++) {
-				const double wt = params.part_sets->weights[pi];
+				const double wt = particles.weights[pi];
 				for (auto i = parts[pi].first; i < parts[pi].second; i++) {
 					total_weight += wt;
 					for (int dim = 0; dim < NDIM; dim++) {
@@ -286,7 +260,7 @@ sort_return tree::sort(sort_params params) {
 			M = 0.0;
 			float radius = 0.0;
 			for (int pi = 0; pi < NPART_TYPES; pi++) {
-				const float wt = params.part_sets->weights[pi];
+				const float wt = particles.weights[pi];
 				for (auto i = parts[pi].first; i < parts[pi].second; i++) {
 					double this_radius = 0.0;
 					M() += wt;
@@ -338,11 +312,11 @@ sort_return tree::sort(sort_params params) {
 				myrange.begin[dim] = 1.0;
 				myrange.end[dim] = 0.0;
 			}
-			const auto& particles = params.part_sets->baryon;
+			const auto& these_particles = particles.baryon;
 			for (size_t i = parts[BARY_SET].first; i != parts[BARY_SET].second; i++) {
-				const float h = particles.smooth_len(i);
+				const float h = these_particles.smooth_len(i);
 				for (int dim = 0; dim < NDIM; dim++) {
-					const float pos = particles.pos(dim, i).to_float();
+					const float pos = these_particles.pos(dim, i).to_float();
 					myrange.begin[dim] = std::min(myrange.begin[dim], pos - h);
 					myrange.end[dim] = std::max(myrange.end[dim], pos + h);
 				}
@@ -359,10 +333,10 @@ sort_return tree::sort(sort_params params) {
 				if (!groups && pi == CDM_SET) {
 					continue;
 				}
-				const auto& particles = *params.part_sets->sets[pi];
+				const auto& these_particles = particles.sets[pi];
 				for (size_t i = parts[pi].first; i != parts[pi].second; i++) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						const float pos = particles.pos(dim, i).to_float();
+						const float pos = these_particles->pos(dim, i).to_float();
 						myrange.begin[dim] = std::min(myrange.begin[dim], pos);
 						myrange.end[dim] = std::max(myrange.end[dim], pos);
 					}
@@ -380,6 +354,7 @@ sort_return tree::sort(sort_params params) {
 		self.set_active_nodes(active_nodes);
 		rc.stats.e_depth = params.min_depth;
 	}
+	rc.check = self;
 	return rc;
 }
 

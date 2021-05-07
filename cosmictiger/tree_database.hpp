@@ -15,9 +15,18 @@ struct sph_neighbor_params_type;
 size_t tree_data_bytes_used();
 
 struct tree_ptr {
-	int dindex;CUDA_EXPORT
+	int rank;
+	int dindex;
+
+	template<class A>
+	void serialize(A && arc, unsigned) {
+		arc & rank;
+		arc & dindex;
+	}
+
+	CUDA_EXPORT
 	inline bool operator==(const tree_ptr &other) const {
-		return dindex == other.dindex;
+		return dindex == other.dindex && rank == other.rank;
 	}
 
 	CUDA_EXPORT
@@ -93,10 +102,12 @@ struct tree_ptr {
 #endif
 };
 
-void tree_data_initialize_kick();
-void tree_data_initialize_groups();
+
+enum tree_use_type {KICK, GROUP};
+
+void tree_data_initialize(tree_use_type use_type);
 void tree_data_free_all();
-void tree_database_set_groups();
+void tree_data_set_groups();
 
 CUDA_EXPORT
 float tree_data_get_radius(int);
@@ -173,18 +184,8 @@ class tree_allocator {
 	std::pair<int, int> current_alloc;
 	int next;
 public:
-	tree_allocator() {
-		current_alloc = tree_data_allocate();
-		next = current_alloc.first;
-	}
-	int allocate() {
-		next++;
-		if (next == current_alloc.second) {
-			current_alloc = tree_data_allocate();
-			next = current_alloc.first;
-		}
-		return next;
-	}
+	tree_allocator();
+	tree_ptr allocate();
 };
 
 CUDA_EXPORT
@@ -460,10 +461,10 @@ CUDA_EXPORT inline array<tree_ptr, NCHILD> tree_data_get_children(int i) {
 	assert(i < tree_data_.ntrees);
 	union child_union {
 		array<tree_ptr, NCHILD> children;
-		int2 ints;
+		int4 ints;
 	};
 	child_union u;
-	u.ints = LDG((int2* )(&tree_data_.data[i].children));
+	u.ints = LDG((int4* )(&tree_data_.data[i].children));
 	return u.children;
 }
 

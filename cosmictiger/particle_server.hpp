@@ -28,17 +28,10 @@ struct sort_quantum {
 };
 
 class particle_server {
-	static particle_sets* parts;
-	static size_t my_start;
-	static size_t my_stop;
-	static size_t my_size;
-	static size_t global_size;
-	static int nprocs;
-	static int rank;
-	static std::vector<hpx::id_type> localities;
 
-	static int index_to_rank(size_t);
 public:
+	static int index_to_rank(size_t);
+	static particle_sets& get_particle_sets();
 	static size_t local_sort(int, size_t, size_t, double, int);
 	static void init();
 	static void generate_random();

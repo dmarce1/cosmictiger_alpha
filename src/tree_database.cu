@@ -22,6 +22,7 @@ void free_if_needed(T** ptr) {
 }
 
 void tree_data_initialize_kick() {
+
 	gpu_tree_data_.chunk_size = 1;
 	gpu_tree_data_.ntrees = 5 * global().opts.nparts / global().opts.bucket_size;
 	if (global().opts.sph) {
@@ -83,16 +84,6 @@ void tree_data_initialize_groups() {
 
 }
 
-void tree_data_free_all() {
-	free_if_needed(&gpu_tree_data_.data);
-	free_if_needed(&gpu_tree_data_.parts);
-	free_if_needed(&gpu_tree_data_.multi);
-	free_if_needed(&gpu_tree_data_.sph_ranges);
-	free_if_needed(&gpu_tree_data_.ranges);
-	free_if_needed(&gpu_tree_data_.active_nodes);
-	free_if_needed(&gpu_tree_data_.active_parts);
-}
-
 size_t tree_data_bytes_used() {
 	size_t use = 0;
 	if (gpu_tree_data_.data) {
@@ -117,7 +108,18 @@ size_t tree_data_bytes_used() {
 	return use;
 }
 
-void tree_database_set_groups() {
+
+void tree_data_free_all_cu() {
+	free_if_needed(&gpu_tree_data_.data);
+	free_if_needed(&gpu_tree_data_.parts);
+	free_if_needed(&gpu_tree_data_.multi);
+	free_if_needed(&gpu_tree_data_.sph_ranges);
+	free_if_needed(&gpu_tree_data_.ranges);
+	free_if_needed(&gpu_tree_data_.active_nodes);
+	free_if_needed(&gpu_tree_data_.active_parts);
+}
+
+void tree_data_set_groups_cu() {
 	for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
 		gpu_tree_data_.active_parts[i] = gpu_tree_data_.active_nodes[i];
 		gpu_tree_data_.active_nodes[i] = 0;

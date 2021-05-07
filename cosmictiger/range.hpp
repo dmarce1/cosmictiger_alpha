@@ -10,6 +10,7 @@ struct range {
 	array<float, NDIM> begin;
 	array<float, NDIM> end;
 
+
 	CUDA_EXPORT
 	inline bool contains(array<fixed32, NDIM> v) const {
 		bool rc = true;

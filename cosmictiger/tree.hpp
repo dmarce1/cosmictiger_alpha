@@ -11,6 +11,8 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/stack_vector.hpp>
 #include <cosmictiger/tree_database.hpp>
+#include <cosmictiger/particle_server.hpp>
+
 
 
 #include <functional>
@@ -35,6 +37,16 @@ struct tree_stats {
 	size_t nparts;
 	size_t nleaves;
 	size_t nnodes;
+
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & max_depth;
+		arc & min_depth;
+		arc & e_depth;
+		arc & nparts;
+		arc & nleaves;
+		arc & nnodes;
+	}
 };
 
 #ifndef __CUDACC__
@@ -49,13 +61,33 @@ struct sort_params {
 	double theta;
 	parts_type parts;
 	int min_rung;
-	tree_ptr tptr;
 	bool group_sort;
-	particle_sets* part_sets;
 	std::shared_ptr<tree_allocator> alloc;
+
+
+	HPX_SERIALIZATION_SPLIT_MEMBER();
+
 	template<class A>
-	void serialization(A &&arc, unsigned) {
-		/********* ADD******/
+	void save(A &&arc, unsigned) const {
+		arc & box;
+		arc & depth;
+		arc & min_depth;
+		arc & theta;
+		arc & parts;
+		arc & min_rung;
+		arc & group_sort;
+	}
+
+	template<class A>
+	void load(A &&arc, unsigned) {
+		arc & box;
+		arc & depth;
+		arc & min_depth;
+		arc & theta;
+		arc & parts;
+		arc & min_rung;
+		arc & group_sort;
+		alloc = std::make_shared<tree_allocator>();
 	}
 
 	sort_params() {
@@ -76,12 +108,13 @@ struct sort_params {
 		}
 		for( int i = 0; i < NPART_TYPES; i++) {
 			parts[i].first = 0;
-			parts[i].second = part_sets->sets[i]->size();
+			parts[i].second = global().opts.nparts;
 		}
 	}
 
 	std::array<sort_params, NCHILD> get_children() const {
 		std::array<sort_params, NCHILD> child;
+		particle_server pserv;
 		for (int i = 0; i < NCHILD; i++) {
 			child[i].depth = depth + 1;
 			child[i].box = box;
@@ -89,7 +122,6 @@ struct sort_params {
 			child[i].min_rung = min_rung;
 			child[i].alloc = alloc;
 			child[i].group_sort = group_sort;
-			child[i].part_sets = part_sets;
 
 		}
 		return child;
@@ -107,8 +139,11 @@ struct sort_return {
 	size_t active_parts;
 	size_t active_nodes;
 	template<class A>
-	void serialization(A &&arc, unsigned) {
-		assert(false);
+	void serialize(A &&arc, unsigned) {
+		arc & stats;
+		arc & check;
+		arc & active_parts;
+		arc & active_nodes;
 	}
 };
 

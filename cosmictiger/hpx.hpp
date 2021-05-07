@@ -15,6 +15,7 @@
 #include <hpx/hpx_finalize.hpp>
 #include <hpx/hpx_init.hpp>
 #include <hpx/include/components.hpp>
+#include <hpx/collectives/broadcast_direct.hpp>
 
 using mutex_type = hpx::lcos::local::mutex;
 
@@ -22,6 +23,7 @@ void hpx_init();
 int hpx_rank();
 int hpx_size();
 const std::vector<hpx::id_type>& hpx_localities();
+const std::vector<hpx::id_type>& hpx_remote_localities();
 const std::pair<hpx::id_type,hpx::id_type>& hpx_child_localities();
 #endif
 

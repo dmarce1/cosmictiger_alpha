@@ -19,15 +19,14 @@ struct sort_iters {
 	}
 };
 
-particle_sets* particle_server::parts;
-
-size_t particle_server::my_start;
-size_t particle_server::my_stop;
-size_t particle_server::my_size;
-size_t particle_server::global_size;
-int particle_server::rank;
-int particle_server::nprocs;
-std::vector<hpx::id_type> particle_server::localities;
+static particle_sets* parts;
+static size_t my_start;
+static size_t my_stop;
+static size_t my_size;
+static size_t global_size;
+static int nprocs;
+static int rank;
+static std::vector<hpx::id_type> localities;
 
 void particle_server::init() {
 	printf("Initializing particle server on rank %i\n", hpx_rank());
@@ -188,3 +187,8 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 	}
 	return part_mid;
 }
+
+particle_sets& particle_server::get_particle_sets() {
+	return *parts;
+}
+
