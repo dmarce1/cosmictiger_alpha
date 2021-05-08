@@ -31,8 +31,9 @@ static void parallel_sort_test() {
 static void tree_test() {
 	printf("Doing tree test\n");
 	printf("Generating particles\n");
-	particle_set parts(global().opts.nparts);
-	parts.generate_random(1243);
+	particle_server pserv;
+	pserv.init();
+	pserv.generate_random();
 
 	printf("Sorting\n");
 	{
@@ -42,12 +43,10 @@ static void tree_test() {
 		sort_params params;
 		params.min_rung = 0;
 		params.theta = global().opts.theta;
+		params.group_sort = false;
 		tree_data_initialize(KICK);
 		root.sort(params);
-		managed_allocator<sort_params>::cleanup();
 		tm.stop();
-		managed_allocator<multipole>::cleanup();
-		managed_allocator<tree>::cleanup();
 		printf("Done sorting in %e\n", tm.read());
 	}
 	{
@@ -57,6 +56,7 @@ static void tree_test() {
 		sort_params params;
 		params.min_rung = 0;
 		params.theta = global().opts.theta;
+		params.group_sort = false;
 		root.sort(params);
 		tm.stop();
 		printf("Done sorting in %e\n", tm.read());

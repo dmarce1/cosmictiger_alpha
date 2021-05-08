@@ -6,12 +6,19 @@
 #include <unordered_map>
 
 #define TREE_CACHE_LINE_SIZE 64
+#define TREE_CACHE_SIZE 1024
 
 static tree_use_type tree_type;
 
-struct tree_ptr_hash {
+struct tree_ptr_hi_hash {
 	size_t operator()(const tree_ptr& ptr) const {
-		return size_t(ptr.dindex) * size_t(hpx_size()) + size_t(ptr.rank);
+		return (size_t(ptr.dindex) * size_t(hpx_size()) + size_t(ptr.rank)) / size_t(TREE_CACHE_SIZE);
+	}
+};
+
+struct tree_ptr_lo_hash {
+	size_t operator()(const tree_ptr& ptr) const {
+		return (size_t(ptr.dindex) * size_t(hpx_size()) + size_t(ptr.rank)) % size_t(TREE_CACHE_SIZE);
 	}
 };
 
@@ -20,8 +27,9 @@ struct cache_entry_t {
 	std::shared_ptr<tree_database_t> data;
 };
 
-static mutex_type mutex;
-static std::unordered_map<tree_ptr, cache_entry_t, tree_ptr_hash> tree_cache;
+using cache_type = std::unordered_map<tree_ptr, cache_entry_t, tree_ptr_hi_hash>;
+static array<mutex_type, TREE_CACHE_SIZE> mutexes;
+static array<cache_type, TREE_CACHE_SIZE> tree_caches;
 
 void tree_data_initialize_kick();
 void tree_data_initialize_groups();
@@ -93,40 +101,48 @@ tree_database_t tree_cache_line_fetch(int index) {
 }
 
 void tree_cache_clear() {
-	tree_cache = decltype(tree_cache)();
+	for( int i = 0; i < TREE_CACHE_SIZE; i++) {
+		tree_caches[i] = cache_type();
+	}
 }
 
 void tree_cache_get(std::shared_ptr<tree_database_t>& data_ptr, int& offset, tree_ptr ptr) {
+	static tree_ptr_lo_hash key;
 	tree_ptr base;
+	int cache_index = key(ptr);
 	tree_cache_load(ptr);
 	tree_cache_compute_indices(base, offset, ptr);
-	std::lock_guard<mutex_type> lock(mutex);
-	data_ptr = tree_cache[base].data;
+	std::lock_guard<mutex_type> lock(mutexes[cache_index]);
+	data_ptr = tree_caches[cache_index][base].data;
 }
 
 void tree_cache_load(tree_ptr tptr) {
 	static thread_local auto prms = std::make_shared<hpx::lcos::local::promise<void>>();
 	static auto localities = hpx_localities();
-	std::unique_lock<mutex_type> lock(mutex);
+	static tree_ptr_lo_hash key;
+	int cache_index = key(tptr);
+	std::unique_lock<mutex_type> lock(mutexes[cache_index]);
 	const auto base = tree_cache_compute_base(tptr);
-	if (tree_cache.find(base) == tree_cache.end()) {
-		auto& entry = tree_cache[base];
+	if (tree_caches[cache_index].find(base) == tree_caches[cache_index].end()) {
+		auto& entry = tree_caches[cache_index][base];
 		entry.fut = std::make_shared<hpx::shared_future<void>>(prms->get_future());
 		lock.unlock();
 		hpx::apply(
-				[base]() {
+				[base, cache_index]() {
 					tree_cache_line_fetch_action action;
-					auto& entry = tree_cache[base];
+					auto& entry = tree_caches[cache_index][base];
+					std::unique_lock<mutex_type> lock(mutexes[cache_index]);
 					entry.data = std::shared_ptr<tree_database_t>(new tree_database_t(action(localities[base.rank],base.dindex)), [](tree_database_t* ptr) {
 								deallocate_cache_line(*ptr);
 								delete ptr;
 							});
+					lock.unlock();
 					prms->set_value();
 				});
 		prms = std::make_shared<hpx::lcos::local::promise<void>>();
 		lock.lock();
 	}
-	auto fut = tree_cache[base].fut;
+	auto fut = tree_caches[cache_index][base].fut;
 	lock.unlock();
 	fut->get();
 }
