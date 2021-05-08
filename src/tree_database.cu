@@ -23,10 +23,8 @@ void free_if_needed(T** ptr) {
 
 void tree_data_initialize_kick() {
 
-
 	gpu_tree_data_.chunk_size = 1;
 	gpu_tree_data_.ntrees = 5 * global().opts.nparts / global().opts.bucket_size;
-	printf( "Initializing %i trees\n", gpu_tree_data_.ntrees);
 	if (global().opts.sph) {
 		gpu_tree_data_.ntrees *= 2;
 	}
@@ -53,10 +51,10 @@ void tree_data_initialize_kick() {
 		CUDA_MALLOC(gpu_tree_data_.ranges, gpu_tree_data_.ntrees);
 		CUDA_MALLOC(gpu_tree_data_.sph_ranges, gpu_tree_data_.ntrees);
 	}
+	printf( "Done allocating for kick\n");
 	tree_data_clear();
 
 	cpu_tree_data_ = gpu_tree_data_;
-
 }
 
 void tree_data_initialize_groups() {

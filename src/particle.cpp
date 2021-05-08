@@ -248,6 +248,10 @@ size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
 
 particle_arc particle_set::save_particle_archive(size_t b, size_t e) {
 	particle_arc pa;
+	if( b < offset_ || e > size_ + offset_) {
+		printf( "%li %li %li %li\n", b, e, offset_, offset_ + size_);
+		ERROR();
+	}
 	pa.range.first = b;
 	pa.range.second = e;
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -270,6 +274,10 @@ particle_arc particle_set::save_particle_archive(size_t b, size_t e) {
 void particle_set::load_particle_archive(const particle_arc& pa) {
 	const size_t b = pa.range.first;
 	const size_t e = pa.range.second;
+	if( b < offset_ || e > size_ + offset_) {
+		printf( "%li %li %li %li\n", b, e, offset_, offset_ + size_);
+		ERROR();
+	}
 	int j;
 	j = 0;
 	for (int dim = 0; dim < NDIM; dim++) {

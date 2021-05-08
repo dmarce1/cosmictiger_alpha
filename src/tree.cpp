@@ -84,7 +84,7 @@ sort_return tree::sort(sort_params params) {
 	size_t active_nodes = 0;
 	parts_type parts;
 	const int npart_types = global().opts.sph ? 2 : 1;
-	//printf("Sorting at depth %i\n", params.depth);
+	printf("Sorting at depth %i\n", params.depth);
 	if (params.iamroot()) {
 		int dummy;
 		params.set_root();

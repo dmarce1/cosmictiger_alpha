@@ -42,7 +42,7 @@ void particle_server::init() {
 	global_size = global().opts.nparts;
 	my_start = (rank * global_size) / nprocs;
 	my_stop = ((rank + 1) * global_size) / nprocs;
-	printf( "range on rank %i is %li %li %li\n", rank,  my_start, my_stop, global_size);
+	printf("range on rank %i is %li %li %li\n", rank, my_start, my_stop, global_size);
 	my_size = my_stop - my_start;
 	parts = new particle_sets(my_size, my_start);
 	printf("Done on rank %i\n", rank);
@@ -93,9 +93,10 @@ void particle_server::execute_swaps(int pi, std::vector<sort_quantum> swaps) {
 size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int xdim) {
 
 	const int rank_start = index_to_rank(begin);
-	const int rank_stop = index_to_rank(end);
+	const int rank_stop = index_to_rank(end - 1);
 	size_t part_mid;
 	if (rank_start == rank_stop) {
+		printf("Local sort on range %li - %li around %e in dimension %i\n", begin, end, xmid, xdim);
 		if (rank == rank_start) {
 			part_mid = parts->sets[pi]->sort_range(begin, end, xmid, xdim);
 		} else {
@@ -151,7 +152,7 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 				auto& hirange = sort_ranges[hi_rank - rank_start];
 				size_t loinhi_count = hirange.lo.second - hirange.lo.first;
 				if (loinhi_count) {
-					size_t count = std::min((size_t)SORT_SWAP_MAX,std::min(hiinlo_count, loinhi_count));
+					size_t count = std::min((size_t) SORT_SWAP_MAX, std::min(hiinlo_count, loinhi_count));
 					sort_quantum sq;
 					sq.rank_from = lo_rank;
 					sq.rank_to = hi_rank;
@@ -159,8 +160,8 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 					sq.range_from.second = lorange.hi.first + count;
 					sq.range_to.first = hirange.lo.second - count;
 					sq.range_to.second = hirange.lo.second;
-					printf("---> %i %i %li %li %li %li\n", sq.rank_from, sq.rank_to, sq.range_from.first, sq.range_from.second,
-							sq.range_to.first, sq.range_to.second);
+					printf("---> %i %i %li %li %li %li\n", sq.rank_from, sq.rank_to, sq.range_from.first,
+							sq.range_from.second, sq.range_to.first, sq.range_to.second);
 					swaps.push_back(sq);
 					lorange.hi.first += count;
 					hirange.lo.second -= count;

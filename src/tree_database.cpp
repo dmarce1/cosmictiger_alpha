@@ -37,21 +37,10 @@ void tree_data_free_all_cu();
 void tree_data_set_groups_cu();
 
 HPX_PLAIN_ACTION (tree_data_initialize_kick);
-HPX_REGISTER_BROADCAST_ACTION_DECLARATION (tree_data_initialize_kick_action);
-HPX_REGISTER_BROADCAST_ACTION (tree_data_initialize_kick_action);
 
 HPX_PLAIN_ACTION (tree_data_initialize_groups);
-HPX_REGISTER_BROADCAST_ACTION_DECLARATION (tree_data_initialize_groups_action);
-HPX_REGISTER_BROADCAST_ACTION (tree_data_initialize_groups_action);
-
 HPX_PLAIN_ACTION (tree_data_free_all_cu);
-HPX_REGISTER_BROADCAST_ACTION_DECLARATION (tree_data_free_all_cu_action);
-HPX_REGISTER_BROADCAST_ACTION (tree_data_free_all_cu_action);
-
 HPX_PLAIN_ACTION (tree_data_set_groups_cu);
-HPX_REGISTER_BROADCAST_ACTION_DECLARATION (tree_data_set_groups_cu_action);
-HPX_REGISTER_BROADCAST_ACTION (tree_data_set_groups_cu_action);
-
 HPX_PLAIN_ACTION (tree_cache_line_fetch);
 
 tree_database_t allocate_cache_line();
@@ -101,7 +90,7 @@ tree_database_t tree_cache_line_fetch(int index) {
 }
 
 void tree_cache_clear() {
-	for( int i = 0; i < TREE_CACHE_SIZE; i++) {
+	for (int i = 0; i < TREE_CACHE_SIZE; i++) {
 		tree_caches[i] = cache_type();
 	}
 }
@@ -192,21 +181,33 @@ void deallocate_cache_line(tree_database_t td) {
 
 void tree_data_initialize(tree_use_type use_type) {
 	tree_type = use_type;
-	if (hpx_rank() == 0) {
+	std::vector<hpx::future<void>> futs;
+	for (int i = 0; i < hpx_size(); i++) {
 		if (use_type == KICK) {
-			hpx::lcos::broadcast < tree_data_initialize_kick_action > (hpx_localities()).get();
+			futs.push_back(hpx::async<tree_data_initialize_kick_action>(hpx_localities()[i]));
 		} else {
-			hpx::lcos::broadcast < tree_data_initialize_groups_action > (hpx_localities()).get();
+			futs.push_back(hpx::async<tree_data_initialize_groups_action>(hpx_localities()[i]));
 		}
 	}
+	hpx::wait_all(futs.begin(), futs.end());
+	printf("tree_data_initialize done\n");
 }
 
 void tree_data_free_all() {
-	hpx::lcos::broadcast < tree_data_free_all_cu_action > (hpx_localities()).get();
+	std::vector<hpx::future<void>> futs;
+	for (int i = 0; i < hpx_size(); i++) {
+		futs.push_back(hpx::async < tree_data_free_all_cu_action > (hpx_localities()[i]));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+
 }
 
 void tree_data_set_groups() {
-	hpx::lcos::broadcast < tree_data_set_groups_cu_action > (hpx_localities()).get();
+	std::vector<hpx::future<void>> futs;
+	for (int i = 0; i < hpx_size(); i++) {
+		futs.push_back(hpx::async < tree_data_set_groups_cu_action > (hpx_localities()[i]));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
 }
 
 tree_allocator::tree_allocator() {
@@ -226,16 +227,12 @@ tree_ptr tree_allocator::allocate() {
 	return ptr;
 }
 
-
-
 float tree_cache_get_radius(tree_ptr ptr) {
 	std::shared_ptr<tree_database_t> data_ptr;
 	int offset;
 	tree_cache_get(data_ptr, offset, ptr);
 	return data_ptr->data[offset].radius;
 }
-
-
 
 bool tree_cache_get_all_local(tree_ptr ptr) {
 	std::shared_ptr<tree_database_t> data_ptr;
