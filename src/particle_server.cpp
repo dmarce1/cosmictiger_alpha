@@ -127,7 +127,7 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 			lo_cnt += sort_ranges[index].lo.second - sort_ranges[index].lo.first;
 		}
 		part_mid = begin + lo_cnt;
-		const int rank_mid = index_to_rank(begin + part_mid);
+		const int rank_mid = index_to_rank(part_mid);
 		printf("lo_cnt = %li mid part is %li mid_rank is %i\n", lo_cnt, part_mid, rank_mid);
 		printf("Computing global sort strategy\n");
 		auto& rng = sort_ranges[rank_mid - rank_start];

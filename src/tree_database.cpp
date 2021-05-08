@@ -192,7 +192,7 @@ void deallocate_cache_line(tree_database_t td) {
 
 void tree_data_initialize(tree_use_type use_type) {
 	tree_type = use_type;
-	if (hpx_rank == 0) {
+	if (hpx_rank() == 0) {
 		if (use_type == KICK) {
 			hpx::lcos::broadcast < tree_data_initialize_kick_action > (hpx_localities()).get();
 		} else {

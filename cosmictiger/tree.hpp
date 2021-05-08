@@ -13,8 +13,6 @@
 #include <cosmictiger/tree_database.hpp>
 #include <cosmictiger/particle_server.hpp>
 
-
-
 #include <functional>
 
 #include <queue>
@@ -64,7 +62,6 @@ struct sort_params {
 	bool group_sort;
 	std::shared_ptr<tree_allocator> alloc;
 
-
 	HPX_SERIALIZATION_SPLIT_MEMBER();
 
 	template<class A>
@@ -106,9 +103,13 @@ struct sort_params {
 			box.begin[dim] = 0.f;
 			box.end[dim] = 1.f;
 		}
-		for( int i = 0; i < NPART_TYPES; i++) {
+		const int npart_types = global().opts.sph ? 2 : 1;
+		for (int i = 0; i < npart_types; i++) {
 			parts[i].first = 0;
 			parts[i].second = global().opts.nparts;
+		}
+		for (int i = npart_types; i < NPART_TYPES; i++) {
+			parts[i].first = parts[i].second = 0;
 		}
 	}
 
@@ -341,5 +342,5 @@ struct kick_constants {
 	int npart_types;
 };
 
-void cuda_set_kick_constants(kick_constants consts,particle_sets&);
+void cuda_set_kick_constants(kick_constants consts, particle_sets&);
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params);

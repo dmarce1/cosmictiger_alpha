@@ -83,6 +83,8 @@ sort_return tree::sort(sort_params params) {
 	size_t active_parts = 0;
 	size_t active_nodes = 0;
 	parts_type parts;
+	const int npart_types = global().opts.sph ? 2 : 1;
+	//printf("Sorting at depth %i\n", params.depth);
 	if (params.iamroot()) {
 		int dummy;
 		params.set_root();
@@ -98,7 +100,6 @@ sort_return tree::sort(sort_params params) {
 		ERROR()
 		;
 	}
-
 	const auto& box = params.box;
 	sort_return rc;
 	array<tree_ptr, NCHILD> children;
@@ -114,11 +115,15 @@ sort_return tree::sort(sort_params params) {
 			const int xdim = params.depth % NDIM;
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
-			for (int pi = 0; pi < NPART_TYPES; pi++) {
+			for (int pi = 0; pi < npart_types; pi++) {
 				const size_t pmid = pserv.sort(pi, parts[pi].first, parts[pi].second, xmid, xdim);
 				child_params[LEFT].parts[pi].first = parts[pi].first;
 				child_params[LEFT].parts[pi].second = child_params[RIGHT].parts[pi].first = pmid;
 				child_params[RIGHT].parts[pi].second = parts[pi].second;
+			}
+			for (int pi = npart_types; pi < NPART_TYPES; pi++) {
+				child_params[LEFT].parts[pi].first = child_params[LEFT].parts[pi].second =
+						child_params[RIGHT].parts[pi].first = child_params[RIGHT].parts[pi].second = 0;
 			}
 			for (int ci = 0; ci < NCHILD; ci++) {
 				futs[ci] = create_child(child_params[ci], ci == LEFT);
@@ -356,7 +361,6 @@ sort_return tree::sort(sort_params params) {
 		rc.stats.e_depth = params.min_depth;
 	}
 	rc.check = self;
-	const int npart_types = global().opts.sph ? 2 : 1;
 	for (int pi = 0; pi < npart_types; pi++) {
 		all_local = all_local && (pserv.index_to_rank(parts[pi].first) != hpx_rank());
 		all_local = all_local && (pserv.index_to_rank(parts[pi].second) != hpx_rank());
