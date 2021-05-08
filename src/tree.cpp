@@ -47,7 +47,6 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	return lev;
 }
 
-
 fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	fast_future<sort_return> fut;
 	tree_ptr id;
@@ -107,6 +106,7 @@ sort_return tree::sort(sort_params params) {
 	size_t total_parts = parts.size();
 	const bool sph = global().opts.sph;
 	const bool groups = params.group_sort;
+	bool all_local = true;
 	if (total_parts > max_part || (params.depth < params.min_depth && total_parts > 0)) {
 		std::array<fast_future<sort_return>, NCHILD> futs;
 		{
@@ -115,7 +115,7 @@ sort_return tree::sort(sort_params params) {
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
 			for (int pi = 0; pi < NPART_TYPES; pi++) {
-				const size_t pmid = pserv.sort(pi,parts[pi].first, parts[pi].second, xmid, xdim);
+				const size_t pmid = pserv.sort(pi, parts[pi].first, parts[pi].second, xmid, xdim);
 				child_params[LEFT].parts[pi].first = parts[pi].first;
 				child_params[LEFT].parts[pi].second = child_params[RIGHT].parts[pi].first = pmid;
 				child_params[RIGHT].parts[pi].second = parts[pi].second;
@@ -145,6 +145,7 @@ sort_return tree::sort(sort_params params) {
 		for (int ci = 0; ci < NCHILD; ci++) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
+			all_local = all_local && (hpx_rank() == this_rc.check.rank) && this_rc.all_local;
 			rc.active_nodes += this_rc.active_nodes;
 			if (sph || groups) {
 				ranges[ci] = this_rc.check.get_range();
@@ -355,6 +356,13 @@ sort_return tree::sort(sort_params params) {
 		rc.stats.e_depth = params.min_depth;
 	}
 	rc.check = self;
+	const int npart_types = global().opts.sph ? 2 : 1;
+	for (int pi = 0; pi < npart_types; pi++) {
+		all_local = all_local && (pserv.index_to_rank(parts[pi].first) != hpx_rank());
+		all_local = all_local && (pserv.index_to_rank(parts[pi].second) != hpx_rank());
+	}
+	self.set_all_local(all_local);
+	rc.all_local = all_local;
 	return rc;
 }
 

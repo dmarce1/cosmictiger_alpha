@@ -3,6 +3,25 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/memory.hpp>
 #include <cosmictiger/hpx.hpp>
+#include <unordered_map>
+
+#define TREE_CACHE_LINE_SIZE 64
+
+static tree_use_type tree_type;
+
+struct tree_ptr_hash {
+	size_t operator()(const tree_ptr& ptr) const {
+		return size_t(ptr.dindex) * size_t(hpx_size()) + size_t(ptr.rank);
+	}
+};
+
+struct cache_entry_t {
+	std::shared_ptr<hpx::shared_future<void>> fut;
+	std::shared_ptr<tree_database_t> data;
+};
+
+static mutex_type mutex;
+static std::unordered_map<tree_ptr, cache_entry_t, tree_ptr_hash> tree_cache;
 
 void tree_data_initialize_kick();
 void tree_data_initialize_groups();
@@ -25,7 +44,138 @@ HPX_PLAIN_ACTION (tree_data_set_groups_cu);
 HPX_REGISTER_BROADCAST_ACTION_DECLARATION (tree_data_set_groups_cu_action);
 HPX_REGISTER_BROADCAST_ACTION (tree_data_set_groups_cu_action);
 
+HPX_PLAIN_ACTION (tree_cache_line_fetch);
+
+tree_database_t allocate_cache_line();
+void deallocate_cache_line(tree_database_t td);
+void tree_cache_load(tree_ptr ptr);
+
+void tree_cache_compute_indices(tree_ptr& base, int& offset, tree_ptr ptr) {
+	int base_index = ptr.dindex - (ptr.dindex % TREE_CACHE_LINE_SIZE);
+	offset = ptr.dindex - base_index;
+	base.dindex = base_index;
+	base.rank = ptr.rank;
+}
+
+tree_ptr tree_cache_compute_base(tree_ptr ptr) {
+	tree_ptr base;
+	int base_index = ptr.dindex - (ptr.dindex % TREE_CACHE_LINE_SIZE);
+	base.dindex = base_index;
+	base.rank = ptr.rank;
+	return base;
+}
+
+int tree_cache_compute_base_index(int dindex) {
+	return dindex - (dindex % TREE_CACHE_LINE_SIZE);
+}
+
+tree_database_t tree_cache_line_fetch(int index) {
+	index = tree_cache_compute_base_index(index);
+	tree_database_t db = allocate_cache_line();
+	for (int dindex = index; dindex < index + TREE_CACHE_LINE_SIZE; dindex++) {
+		int j = dindex - index;
+		db.data[j] = cpu_tree_data_.data[dindex];
+		db.parts[j] = cpu_tree_data_.parts[dindex];
+		db.active_nodes[j] = cpu_tree_data_.active_nodes[dindex];
+		db.active_parts[j] = cpu_tree_data_.active_parts[dindex];
+		db.all_local[j] = cpu_tree_data_.all_local[dindex];
+		if (db.ranges) {
+			db.ranges[j] = cpu_tree_data_.ranges[dindex];
+		}
+		if (db.sph_ranges) {
+			db.sph_ranges[j] = cpu_tree_data_.sph_ranges[dindex];
+		}
+		if (db.multi) {
+			db.multi[j] = cpu_tree_data_.multi[dindex];
+		}
+	}
+	return db;
+}
+
+void tree_cache_clear() {
+	tree_cache = decltype(tree_cache)();
+}
+
+void tree_cache_get(std::shared_ptr<tree_database_t>& data_ptr, int& offset, tree_ptr ptr) {
+	tree_ptr base;
+	tree_cache_load(ptr);
+	tree_cache_compute_indices(base, offset, ptr);
+	std::lock_guard<mutex_type> lock(mutex);
+	data_ptr = tree_cache[base].data;
+}
+
+void tree_cache_load(tree_ptr tptr) {
+	static thread_local auto prms = std::make_shared<hpx::lcos::local::promise<void>>();
+	static auto localities = hpx_localities();
+	std::unique_lock<mutex_type> lock(mutex);
+	const auto base = tree_cache_compute_base(tptr);
+	if (tree_cache.find(base) == tree_cache.end()) {
+		auto& entry = tree_cache[base];
+		entry.fut = std::make_shared<hpx::shared_future<void>>(prms->get_future());
+		lock.unlock();
+		hpx::apply(
+				[base]() {
+					tree_cache_line_fetch_action action;
+					auto& entry = tree_cache[base];
+					entry.data = std::shared_ptr<tree_database_t>(new tree_database_t(action(localities[base.rank],base.dindex)), [](tree_database_t* ptr) {
+								deallocate_cache_line(*ptr);
+								delete ptr;
+							});
+					prms->set_value();
+				});
+		prms = std::make_shared<hpx::lcos::local::promise<void>>();
+		lock.lock();
+	}
+	auto fut = tree_cache[base].fut;
+	lock.unlock();
+	fut->get();
+}
+
+tree_database_t allocate_cache_line() {
+	tree_database_t td;
+
+	td.data = new tree_data_t[TREE_CACHE_LINE_SIZE];
+	td.parts = new parts_type[TREE_CACHE_LINE_SIZE];
+	td.active_nodes = new size_t[TREE_CACHE_LINE_SIZE];
+	td.active_parts = new size_t[TREE_CACHE_LINE_SIZE];
+	td.all_local = new bool[TREE_CACHE_LINE_SIZE];
+	if (tree_type == KICK) {
+		td.ranges = nullptr;
+		td.multi = new multipole_pos[TREE_CACHE_LINE_SIZE];
+		if (global().opts.sph) {
+			td.ranges = new range[TREE_CACHE_LINE_SIZE];
+			td.sph_ranges = new range[TREE_CACHE_LINE_SIZE];
+		}
+	} else {
+		td.sph_ranges = nullptr;
+		td.multi = nullptr;
+		td.ranges = new range[TREE_CACHE_LINE_SIZE];
+	}
+	td.chunk_size = TREE_CACHE_LINE_SIZE;
+	td.nchunks = 1;
+	td.ntrees = TREE_CACHE_LINE_SIZE;
+	return td;
+}
+
+void deallocate_cache_line(tree_database_t td) {
+	delete[] td.data;
+	delete[] td.parts;
+	delete[] td.active_nodes;
+	delete[] td.active_parts;
+	delete[] td.all_local;
+	if (td.ranges) {
+		delete[] td.ranges;
+	}
+	if (td.sph_ranges) {
+		delete[] td.sph_ranges;
+	}
+	if (td.multi) {
+		delete[] td.multi;
+	}
+}
+
 void tree_data_initialize(tree_use_type use_type) {
+	tree_type = use_type;
 	if (hpx_rank == 0) {
 		if (use_type == KICK) {
 			hpx::lcos::broadcast < tree_data_initialize_kick_action > (hpx_localities()).get();
@@ -43,12 +193,10 @@ void tree_data_set_groups() {
 	hpx::lcos::broadcast < tree_data_set_groups_cu_action > (hpx_localities()).get();
 }
 
-
 tree_allocator::tree_allocator() {
 	current_alloc = tree_data_allocate();
 	next = current_alloc.first;
 }
-
 
 tree_ptr tree_allocator::allocate() {
 	next++;
@@ -60,5 +208,93 @@ tree_ptr tree_allocator::allocate() {
 	ptr.dindex = next;
 	ptr.rank = hpx_rank();
 	return ptr;
+}
+
+
+
+float tree_cache_get_radius(tree_ptr ptr) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->data[offset].radius;
+}
+
+
+
+bool tree_cache_get_all_local(tree_ptr ptr) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->all_local[offset];
+}
+
+array<fixed32, NDIM> tree_cache_get_pos(tree_ptr ptr) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->data[offset].pos;
+}
+
+multipole tree_cache_get_multi(tree_ptr ptr) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->multi[offset].multi;
+}
+
+bool tree_cache_get_isleaf(tree_ptr ptr) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->data[offset].children[0].dindex == -1;
+}
+
+array<tree_ptr, NCHILD> tree_cache_get_children(tree_ptr ptr) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->data[offset].children;
+}
+
+part_iters tree_cache_get_parts(tree_ptr ptr, int pi) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->parts[offset][pi];
+}
+
+parts_type tree_cache_get_parts(tree_ptr ptr) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->parts[offset];
+}
+
+size_t tree_cache_get_active_parts(tree_ptr ptr) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->active_parts[offset];
+}
+
+size_t tree_cache_get_active_nodes(tree_ptr ptr) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->active_nodes[offset];
+}
+
+range tree_cache_get_range(tree_ptr ptr) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->ranges[offset];
+}
+
+range tree_cache_get_sph_range(tree_ptr ptr) {
+	std::shared_ptr<tree_database_t> data_ptr;
+	int offset;
+	tree_cache_get(data_ptr, offset, ptr);
+	return data_ptr->sph_ranges[offset];
 }
 

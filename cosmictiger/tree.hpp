@@ -138,12 +138,14 @@ struct sort_return {
 	tree_ptr check;
 	size_t active_parts;
 	size_t active_nodes;
+	bool all_local;
 	template<class A>
 	void serialize(A &&arc, unsigned) {
 		arc & stats;
 		arc & check;
 		arc & active_parts;
 		arc & active_nodes;
+		arc & all_local;
 	}
 };
 
