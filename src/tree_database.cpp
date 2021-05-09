@@ -132,6 +132,7 @@ void tree_cache_load(tree_ptr tptr) {
 			auto data = action(localities[base.rank],base.dindex);
 			std::unique_lock<spinlock_type> lock(mutexes[cache_index]);
 			auto& entry = tree_caches[cache_index][base];
+			data.deleteme = false;
 			entry.data = std::shared_ptr<tree_database_t>(new tree_database_t(std::move(data.data)), [](tree_database_t* ptr) {
 						deallocate_cache_line(*ptr);
 						delete ptr;

@@ -547,8 +547,10 @@ struct tree_database_parcel_t {
 		other.deleteme = false;
 		return *this;
 	}
+#ifndef __CUDACC__
 	~tree_database_parcel_t() {
 		if (deleteme) {
+			printf( "Deleting parcel %i\n", hpx_rank());
 			delete[] data.data;
 			delete[] data.parts;
 			delete[] data.active_nodes;
@@ -565,6 +567,7 @@ struct tree_database_parcel_t {
 			}
 		}
 	}
+#endif
 	template<class A>
 	void serialize(A&& arc, unsigned) {
 		arc & data;

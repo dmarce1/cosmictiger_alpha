@@ -361,7 +361,7 @@ sort_return tree::sort(sort_params params) {
 	}
 	self.set_all_local(all_local);
 	rc.all_local = all_local;
-	printf("Finished sorting at depth %i on rank %i\n", params.depth, hpx_rank());
+//	printf("Finished sorting at depth %i on rank %i\n", params.depth, hpx_rank());
 	return rc;
 }
 
