@@ -156,13 +156,13 @@ std::vector<rung_t> particle_server::read_rungs(int pi, size_t b, size_t e) {
 	const int rank_start = index_to_rank(b);
 	const int rank_stop = index_to_rank(e - 1);
 
-	std::vector<hpx::future<std::vector<rung_t>>>futs;
 	if (rank_start == rank_stop && rank_start == rank) {
 		for (size_t i = b; i < e; i++) {
 			rungs.push_back(parts->sets[pi]->rung(i));
 		}
 	} else {
 		printf( "REMOTE RUNGS %li %li %i %i\n", b, e, rank_start, rank_stop);
+		std::vector<hpx::future<std::vector<rung_t>>>futs;
 		for (int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
 			const size_t this_b = std::max(b, this_rank * global_size / nprocs);
 			const size_t this_e = std::min(e, (this_rank + 1) * global_size / nprocs);

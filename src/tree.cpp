@@ -209,11 +209,6 @@ sort_return tree::sort(sort_params params) {
 				rmax = std::max((float) std::sqrt(d), rmax);
 			}
 			radius = std::min(radius, rmax);
-
-			//    printf("x      = %e\n", pos[0].to_float());
-			//   printf("y      = %e\n", pos[1].to_float());
-			//  printf("z      = %e\n", pos[2].to_float());
-			// printf("radius = %e\n", radius);
 			self.set_pos(pos);
 			self.set_radius(radius);
 			self.set_multi(M);
@@ -265,7 +260,7 @@ sort_return tree::sort(sort_params params) {
 			multipole M;
 			M = 0.0;
 			float radius = 0.0;
-			for (int pi = 0; pi < NPART_TYPES; pi++) {
+			for (int pi = 0; pi < npart_types; pi++) {
 				const float wt = particles.weights[pi];
 				for (auto i = parts[pi].first; i < parts[pi].second; i++) {
 					double this_radius = 0.0;
@@ -289,7 +284,7 @@ sort_return tree::sort(sort_params params) {
 			}
 			rc.active_parts = 0;
 			rc.active_nodes = 0;
-			for (int pi = 0; pi < NPART_TYPES; pi++) {
+			for (int pi = 0; pi < npart_types; pi++) {
 				const auto this_size = parts[pi].second - parts[pi].first;
 				auto rungs = pserv.read_rungs(pi, parts[pi].first, parts[pi].second);
 				for (size_t k = 0; k < this_size; k++) {

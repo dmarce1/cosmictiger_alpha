@@ -448,9 +448,9 @@ struct tree_database_t {
 
 	template<class A>
 	void save(A&& arc, unsigned) const {
-		arc & bool(multi);
-		arc & bool(ranges);
-		arc & bool(sph_ranges);
+		arc & int(bool(multi));
+		arc & int(bool(ranges));
+		arc & int(bool(sph_ranges));
 		arc & ntrees;
 		arc & nchunks;
 		arc & chunk_size;
@@ -468,7 +468,7 @@ struct tree_database_t {
 				arc & ranges[i];
 			}
 			arc & active_parts[i];
-			arc & all_local[i];
+			arc & int(all_local[i]);
 		}
 		delete[] data;
 		delete[] parts;
@@ -489,7 +489,7 @@ struct tree_database_t {
 
 	template<class A>
 	void load(A&& arc, unsigned) {
-		bool has_multi, has_ranges, has_sph_ranges;
+		int has_multi, has_ranges, has_sph_ranges;
 		arc & has_multi;
 		arc & has_ranges;
 		arc & has_sph_ranges;
@@ -530,7 +530,9 @@ struct tree_database_t {
 				arc & ranges[i];
 			}
 			arc & active_parts[i];
-			arc & all_local[i];
+			int tmp;
+			arc & tmp;
+			all_local[i] = tmp;
 		}
 	}
 #endif
@@ -540,21 +542,22 @@ struct tree_database_t {
 
 #ifdef TREE_DATABASE_CU
 __constant__ tree_database_t gpu_tree_data_;
-tree_database_t cpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
 #else
 extern __constant__ tree_database_t gpu_tree_data_;
-extern tree_database_t cpu_tree_data_;
 #endif
 
+tree_database_t& cpu_tree_data();
+
+
 inline bool tree_data_all_local(int i) {
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	return tree_data_.all_local[i];
 }
 
 inline void tree_data_set_all_local(int i, bool b) {
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.all_local[i] = b;
@@ -565,7 +568,7 @@ float tree_data_get_radius(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -574,7 +577,7 @@ float tree_data_get_radius(int i) {
 
 inline
 void tree_data_set_radius(int i, float r) {
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.data[i].radius = r;
@@ -584,7 +587,7 @@ CUDA_EXPORT inline array<fixed32, NDIM> tree_data_get_pos(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -605,7 +608,7 @@ CUDA_EXPORT inline array<fixed32, NDIM> tree_data_get_pos(int i) {
 
 inline
 void tree_data_set_pos(int i, const array<fixed32, NDIM>& p) {
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.multi[i].pos = p;
@@ -616,7 +619,7 @@ CUDA_EXPORT inline multipole tree_data_get_multi(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -632,7 +635,7 @@ CUDA_EXPORT inline float* tree_data_get_multi_ptr(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -641,7 +644,7 @@ CUDA_EXPORT inline float* tree_data_get_multi_ptr(int i) {
 
 inline
 void tree_data_set_multi(int i, const multipole& m) {
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.multi[i].multi = m;
@@ -652,7 +655,7 @@ bool tree_data_get_isleaf(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -668,7 +671,7 @@ CUDA_EXPORT inline array<tree_ptr, NCHILD> tree_data_get_children(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -683,7 +686,7 @@ CUDA_EXPORT inline array<tree_ptr, NCHILD> tree_data_get_children(int i) {
 
 inline
 void tree_data_set_children(int i, const array<tree_ptr, NCHILD>& c) {
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.data[i].children[0] = c[0];
@@ -694,7 +697,7 @@ CUDA_EXPORT inline part_iters tree_data_get_parts(int i, int pi) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -717,7 +720,7 @@ CUDA_EXPORT inline parts_type tree_data_get_parts(int i) {
 
 inline
 void tree_data_set_parts(int i, const parts_type& p) {
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.parts[i] = p;
@@ -727,7 +730,7 @@ CUDA_EXPORT inline size_t tree_data_get_active_parts(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -736,7 +739,7 @@ CUDA_EXPORT inline size_t tree_data_get_active_parts(int i) {
 
 inline
 void tree_data_set_active_parts(int i, size_t p) {
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.active_parts[i] = p;
@@ -746,7 +749,7 @@ CUDA_EXPORT inline size_t tree_data_get_active_nodes(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -758,7 +761,7 @@ void tree_data_set_active_nodes(int i, size_t p) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -769,7 +772,7 @@ CUDA_EXPORT inline range tree_data_get_range(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -778,7 +781,7 @@ CUDA_EXPORT inline range tree_data_get_range(int i) {
 
 inline
 void tree_data_set_range(int i, const range& r) {
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.ranges[i] = r;
@@ -788,7 +791,7 @@ CUDA_EXPORT inline range tree_data_get_sph_range(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
@@ -797,7 +800,7 @@ CUDA_EXPORT inline range tree_data_get_sph_range(int i) {
 
 inline
 void tree_data_set_sph_range(int i, const range& r) {
-	auto& tree_data_ = cpu_tree_data_;
+	auto& tree_data_ = cpu_tree_data();
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.sph_ranges[i] = r;

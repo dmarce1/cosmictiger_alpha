@@ -66,24 +66,29 @@ int tree_cache_compute_base_index(int dindex) {
 	return dindex - (dindex % TREE_CACHE_LINE_SIZE);
 }
 
+tree_database_t& cpu_tree_data() {
+	static tree_database_t data;
+	return data;
+}
+
 tree_database_t tree_cache_line_fetch(int index) {
 	index = tree_cache_compute_base_index(index);
 	tree_database_t db = allocate_cache_line();
 	for (int dindex = index; dindex < index + TREE_CACHE_LINE_SIZE; dindex++) {
 		int j = dindex - index;
-		db.data[j] = cpu_tree_data_.data[dindex];
-		db.parts[j] = cpu_tree_data_.parts[dindex];
-		db.active_nodes[j] = cpu_tree_data_.active_nodes[dindex];
-		db.active_parts[j] = cpu_tree_data_.active_parts[dindex];
-		db.all_local[j] = cpu_tree_data_.all_local[dindex];
+		db.data[j] = cpu_tree_data().data[dindex];
+		db.parts[j] = cpu_tree_data().parts[dindex];
+		db.active_nodes[j] = cpu_tree_data().active_nodes[dindex];
+		db.active_parts[j] = cpu_tree_data().active_parts[dindex];
+		db.all_local[j] = cpu_tree_data().all_local[dindex];
 		if (db.ranges) {
-			db.ranges[j] = cpu_tree_data_.ranges[dindex];
+			db.ranges[j] = cpu_tree_data().ranges[dindex];
 		}
 		if (db.sph_ranges) {
-			db.sph_ranges[j] = cpu_tree_data_.sph_ranges[dindex];
+			db.sph_ranges[j] = cpu_tree_data().sph_ranges[dindex];
 		}
 		if (db.multi) {
-			db.multi[j] = cpu_tree_data_.multi[dindex];
+			db.multi[j] = cpu_tree_data().multi[dindex];
 		}
 	}
 	return db;
