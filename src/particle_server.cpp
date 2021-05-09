@@ -10,6 +10,7 @@ HPX_PLAIN_ACTION(particle_server::swap_particles, particle_server_swap_particles
 HPX_PLAIN_ACTION(particle_server::execute_swaps, particle_server_execute_swaps_action);
 HPX_PLAIN_ACTION(particle_server::read_pos_cache_line, particle_server_read_pos_cache_line_action);
 HPX_PLAIN_ACTION(particle_server::read_rungs, particle_server_read_rungs_action);
+HPX_PLAIN_ACTION(particle_server::write_rungs_inc_vel, particle_server_write_rungs_inc_vel_action);
 
 struct sort_iters {
 	part_iters lo;
@@ -149,6 +150,41 @@ void particle_server::execute_swaps(int pi, std::vector<sort_quantum> swaps) {
 	}
 }
 
+void particle_server::write_rungs_inc_vel(int pi, part_iters range, std::vector<rung_t> rungs,
+		std::vector<std::array<float, NDIM>> dv) {
+	const int rank_start = index_to_rank(range.first);
+	const int rank_stop = index_to_rank(range.second - 1);
+	if (rank_start == rank_stop && rank_start == rank) {
+		for (size_t i = range.first; i != range.second; i++) {
+			parts->sets[pi]->set_rung(rungs[i - range.first], i);
+			for (int dim = 0; dim < NDIM; dim++) {
+				auto& v = parts->sets[pi]->vel(dim, i);
+				v += dv[i - range.first][dim];
+			}
+		}
+	} else {
+		std::vector<hpx::future<void>> futs;
+		for (int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
+			const size_t this_b = std::max(range.first, this_rank * global_size / nprocs);
+			const size_t this_e = std::min(range.second, (this_rank + 1) * global_size / nprocs);
+			std::vector<rung_t> these_rungs;
+			std::vector<std::array<float, NDIM>> these_dvs;
+			for (size_t i = this_b; i != this_e; i++) {
+				const int index = i - range.first;
+				these_rungs.push_back(rungs[index]);
+				these_dvs.push_back(dv[index]);
+			}
+			part_iters this_range;
+			this_range.first = this_b;
+			this_range.second = this_e;
+			futs.push_back(
+					hpx::async<particle_server_write_rungs_inc_vel_action>(localities[this_rank], pi, this_range, std::move(these_rungs),
+							std::move(these_dvs)));
+		}
+		hpx::wait_all(futs.begin(), futs.end());
+	}
+}
+
 std::vector<rung_t> particle_server::read_rungs(int pi, size_t b, size_t e) {
 	std::vector<rung_t> rungs;
 	const size_t size = e - b;
@@ -161,7 +197,7 @@ std::vector<rung_t> particle_server::read_rungs(int pi, size_t b, size_t e) {
 			rungs.push_back(parts->sets[pi]->rung(i));
 		}
 	} else {
-		printf( "REMOTE RUNGS %li %li %i %i\n", b, e, rank_start, rank_stop);
+		printf("REMOTE RUNGS %li %li %i %i\n", b, e, rank_start, rank_stop);
 		std::vector<hpx::future<std::vector<rung_t>>>futs;
 		for (int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
 			const size_t this_b = std::max(b, this_rank * global_size / nprocs);
