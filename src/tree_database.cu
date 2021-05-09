@@ -22,6 +22,16 @@ void free_if_needed(T** ptr) {
 }
 
 
+void tree_data_free_all_cu() {
+	free_if_needed(&cpu_tree_data().data);
+	free_if_needed(&cpu_tree_data().parts);
+	free_if_needed(&cpu_tree_data().multi);
+	free_if_needed(&cpu_tree_data().sph_ranges);
+	free_if_needed(&cpu_tree_data().ranges);
+	free_if_needed(&cpu_tree_data().active_nodes);
+	free_if_needed(&cpu_tree_data().active_parts);
+	free_if_needed(&cpu_tree_data().all_local);
+}
 
 void tree_data_initialize_kick() {
 
@@ -42,7 +52,7 @@ void tree_data_initialize_kick() {
 	printf("Allocating %i trees in %i chunks of %i each for kick\n", cpu_tree_data().ntrees, cpu_tree_data().nchunks,
 			cpu_tree_data().chunk_size);
 
-	tree_data_free_all();
+	tree_data_free_all_cu();
 	CUDA_MALLOC(cpu_tree_data().data, cpu_tree_data().ntrees);
 	CUDA_MALLOC(cpu_tree_data().parts, cpu_tree_data().ntrees);
 	CUDA_MALLOC(cpu_tree_data().multi, cpu_tree_data().ntrees);
@@ -75,7 +85,7 @@ void tree_data_initialize_groups() {
 	printf("Allocating %i trees in %i chunks of %i each for group search\n", cpu_tree_data().ntrees,
 			cpu_tree_data().nchunks, cpu_tree_data().chunk_size);
 
-	tree_data_free_all();
+	tree_data_free_all_cu();
 	CUDA_MALLOC(cpu_tree_data().data, cpu_tree_data().ntrees);
 	CUDA_MALLOC(cpu_tree_data().parts, cpu_tree_data().ntrees);
 	CUDA_MALLOC(cpu_tree_data().ranges, cpu_tree_data().ntrees);
@@ -117,16 +127,6 @@ size_t tree_data_bytes_used() {
 }
 
 
-void tree_data_free_all_cu() {
-	free_if_needed(&cpu_tree_data().data);
-	free_if_needed(&cpu_tree_data().parts);
-	free_if_needed(&cpu_tree_data().multi);
-	free_if_needed(&cpu_tree_data().sph_ranges);
-	free_if_needed(&cpu_tree_data().ranges);
-	free_if_needed(&cpu_tree_data().active_nodes);
-	free_if_needed(&cpu_tree_data().active_parts);
-	free_if_needed(&cpu_tree_data().all_local);
-}
 
 void tree_data_set_groups_cu() {
 	for (int i = 0; i < cpu_tree_data().ntrees; i++) {

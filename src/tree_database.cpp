@@ -66,11 +66,6 @@ int tree_cache_compute_base_index(int dindex) {
 	return dindex - (dindex % TREE_CACHE_LINE_SIZE);
 }
 
-tree_database_t& cpu_tree_data() {
-	static tree_database_t data;
-	return data;
-}
-
 tree_database_t tree_cache_line_fetch(int index) {
 	index = tree_cache_compute_base_index(index);
 	tree_database_t db = allocate_cache_line();
@@ -199,6 +194,13 @@ void tree_data_initialize(tree_use_type use_type) {
 	hpx::wait_all(futs.begin(), futs.end());
 	printf("tree_data_initialize done\n");
 }
+
+
+tree_database_t& cpu_tree_data() {
+	static tree_database_t data = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
+	return data;
+}
+
 
 void tree_data_free_all() {
 	std::vector<hpx::future<void>> futs;
