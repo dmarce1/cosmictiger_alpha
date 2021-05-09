@@ -150,11 +150,13 @@ tree_database_t allocate_cache_line() {
 	td.active_parts = new size_t[TREE_CACHE_LINE_SIZE];
 	td.all_local = new bool[TREE_CACHE_LINE_SIZE];
 	if (tree_type == KICK) {
-		td.ranges = nullptr;
 		td.multi = new multipole_pos[TREE_CACHE_LINE_SIZE];
 		if (global().opts.sph) {
 			td.ranges = new range[TREE_CACHE_LINE_SIZE];
 			td.sph_ranges = new range[TREE_CACHE_LINE_SIZE];
+		} else {
+			td.ranges = nullptr;
+			td.sph_ranges = nullptr;
 		}
 	} else {
 		td.sph_ranges = nullptr;
