@@ -252,8 +252,8 @@ particle_arc particle_set::save_particle_archive(size_t b, size_t e) {
 		printf( "%li %li %li %li\n", b, e, offset_, offset_ + size_);
 		ERROR();
 	}
-	pa.range.first = b;
-	pa.range.second = e;
+	pa.range_from.first = b;
+	pa.range_from.second = e;
 	for (int dim = 0; dim < NDIM; dim++) {
 		for (auto i = b; i < e; i++) {
 			pa.fixed32_data.push_back(pos(dim, i));
@@ -271,9 +271,47 @@ particle_arc particle_set::save_particle_archive(size_t b, size_t e) {
 	return std::move(pa);
 }
 
+void particle_set::swap_particle_archive(particle_arc& pa) {
+	const size_t b = pa.range_to.first;
+	const size_t e = pa.range_to.second;
+	if( b < offset_ || e > size_ + offset_) {
+		printf( "%li %li %li %li\n", b, e, offset_, offset_ + size_);
+		ERROR();
+	}
+	int j;
+	j = 0;
+	for (int dim = 0; dim < NDIM; dim++) {
+		for (auto i = b; i < e; i++) {
+			swap(pos(dim, i), pa.fixed32_data[j]);
+			j++;
+		}
+	}
+		j = 0;
+	for (auto i = b; i < e; i++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			std::swap(vel(dim, i), pa.float_data[j]);
+			j++;
+		}
+	}
+	j = 0;
+	for (auto i = b; i < e; i++) {
+		auto r = rung(i);
+		set_rung(pa.int8_data[j], i);
+		pa.int8_data[j] = r;
+		j++;
+	}
+	if (global().opts.groups) {
+		j = 0;
+		for (auto i = b; i < e; i++) {
+			std::swap(group(i), pa.ulli_data[j]);
+			j++;
+		}
+	}
+}
+
 void particle_set::load_particle_archive(const particle_arc& pa) {
-	const size_t b = pa.range.first;
-	const size_t e = pa.range.second;
+	const size_t b = pa.range_to.first;
+	const size_t e = pa.range_to.second;
 	if( b < offset_ || e > size_ + offset_) {
 		printf( "%li %li %li %li\n", b, e, offset_, offset_ + size_);
 		ERROR();

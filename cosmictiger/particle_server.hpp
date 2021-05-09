@@ -36,7 +36,7 @@ public:
 	static void init();
 	static void generate_random();
 	static size_t sort(int, size_t, size_t, double, int);
-	static void swap_particles(int,particle_arc);
+	static particle_arc swap_particles(int,particle_arc);
 	static void execute_swaps(int, std::vector<sort_quantum>);
 
 };

@@ -51,10 +51,10 @@ void tree_data_initialize_kick() {
 		CUDA_MALLOC(gpu_tree_data_.ranges, gpu_tree_data_.ntrees);
 		CUDA_MALLOC(gpu_tree_data_.sph_ranges, gpu_tree_data_.ntrees);
 	}
-	printf( "Done allocating for kick\n");
 	tree_data_clear();
-
 	cpu_tree_data_ = gpu_tree_data_;
+	printf( "Done allocating for kick\n");
+
 }
 
 void tree_data_initialize_groups() {
@@ -151,6 +151,7 @@ void tree_data_clear() {
 	next_chunk = 0;
 	if (gpu_tree_data_.data) {
 		for (int i = 0; i < gpu_tree_data_.ntrees; i++) {
+			assert(gpu_tree_data_.data);
 			gpu_tree_data_.data[i].children[0].dindex = -1;
 		}
 	}

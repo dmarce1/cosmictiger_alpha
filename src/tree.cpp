@@ -84,7 +84,7 @@ sort_return tree::sort(sort_params params) {
 	size_t active_nodes = 0;
 	parts_type parts;
 	const int npart_types = global().opts.sph ? 2 : 1;
-	printf("Sorting at depth %i\n", params.depth);
+//	printf("Sorting at depth %i\n", params.depth);
 	if (params.iamroot()) {
 		int dummy;
 		params.set_root();
@@ -363,7 +363,7 @@ sort_return tree::sort(sort_params params) {
 	rc.check = self;
 	for (int pi = 0; pi < npart_types; pi++) {
 		all_local = all_local && (pserv.index_to_rank(parts[pi].first) != hpx_rank());
-		all_local = all_local && (pserv.index_to_rank(parts[pi].second) != hpx_rank());
+		all_local = all_local && (pserv.index_to_rank(parts[pi].second - 1) != hpx_rank());
 	}
 	self.set_all_local(all_local);
 	rc.all_local = all_local;

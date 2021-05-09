@@ -50,7 +50,7 @@ static void tree_test() {
 		printf("Done sorting in %e\n", tm.read());
 	}
 	{
-		timer tm;
+	/*	timer tm;
 		tm.start();
 		tree root;
 		sort_params params;
@@ -59,7 +59,7 @@ static void tree_test() {
 		params.group_sort = false;
 		root.sort(params);
 		tm.stop();
-		printf("Done sorting in %e\n", tm.read());
+		printf("Done sorting in %e\n", tm.read());*/
 	}
 }
 

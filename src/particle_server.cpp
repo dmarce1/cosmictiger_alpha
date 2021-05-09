@@ -74,20 +74,26 @@ size_t particle_server::local_sort(int pi, size_t begin, size_t end, double xmid
 	return part_mid;
 }
 
-void particle_server::swap_particles(int pi, particle_arc arc) {
-	parts->sets[pi]->load_particle_archive(std::move(arc));
+particle_arc particle_server::swap_particles(int pi, particle_arc arc) {
+	parts->sets[pi]->swap_particle_archive(arc);
+	return arc;
 }
 
 void particle_server::execute_swaps(int pi, std::vector<sort_quantum> swaps) {
-	std::vector<hpx::future<void>> futs;
+	std::vector<hpx::future<particle_arc>> futs;
 	for (const auto swap : swaps) {
 		printf("Executing swap %li - %li / %li - %li between %i and %i\n", swap.range_from.first, swap.range_from.second,
 				swap.range_to.first, swap.range_to.second, swap.rank_from, swap.rank_to);
 		auto parc = parts->sets[pi]->save_particle_archive(swap.range_from.first, swap.range_from.second);
-		parc.range = swap.range_to;
+		parc.range_to = swap.range_to;
 		futs.push_back(hpx::async<particle_server_swap_particles_action>(localities[swap.rank_to], pi, std::move(parc)));
 	}
-	hpx::wait_all(futs.begin(), futs.end());
+	for( auto& f : futs) {
+		auto arc = f.get();
+		std::swap(arc.range_from.first,arc.range_to.first);
+		std::swap(arc.range_from.second,arc.range_to.second);
+		parts->sets[pi]->load_particle_archive(std::move(arc));
+	}
 }
 
 size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int xdim) {
@@ -96,7 +102,7 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 	const int rank_stop = index_to_rank(end - 1);
 	size_t part_mid;
 	if (rank_start == rank_stop) {
-		printf("Local sort on range %li - %li around %e in dimension %i\n", begin, end, xmid, xdim);
+	//	printf("Local sort on range %li - %li around %e in dimension %i\n", begin, end, xmid, xdim);
 		if (rank == rank_start) {
 			part_mid = parts->sets[pi]->sort_range(begin, end, xmid, xdim);
 		} else {

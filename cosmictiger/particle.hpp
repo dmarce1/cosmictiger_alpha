@@ -20,14 +20,16 @@
 struct range;
 
 struct particle_arc {
-	pair<size_t, size_t> range;
+	pair<size_t, size_t> range_to;
+	pair<size_t, size_t> range_from;
 	std::vector<fixed32> fixed32_data;
 	std::vector<float> float_data;
 	std::vector<int8_t> int8_data;
 	std::vector<unsigned long long int> ulli_data;
 	template<class Arc>
 	void serialize(Arc&& a, unsigned) {
-		a & range;
+		a & range_to;
+		a & range_from;
 		a & fixed32_data;
 		a & float_data;
 		a & int8_data;
@@ -116,6 +118,7 @@ struct particle_set {
 
 	particle_arc save_particle_archive(size_t b, size_t e);
 	void load_particle_archive(const particle_arc& pa);
+	void swap_particle_archive(particle_arc& pa);
 
 #ifndef __CUDACC__
 protected:
