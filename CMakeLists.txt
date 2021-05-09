@@ -163,7 +163,7 @@ target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
                         >)
 target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
+                        -dc --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
                         >)
 
 #SET_SOURCE_FILES_PROPERTIES( src/math.cu PROPERTIES COMPILE_FLAGS -G )
