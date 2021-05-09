@@ -82,7 +82,6 @@ sort_return tree::sort(sort_params params) {
 	size_t active_nodes = 0;
 	parts_type parts;
 	const int npart_types = global().opts.sph ? 2 : 1;
-//	printf("Sorting at depth %i\n", params.depth);
 	if (params.iamroot()) {
 		int dummy;
 		params.set_root();
@@ -124,7 +123,7 @@ sort_return tree::sort(sort_params params) {
 						child_params[RIGHT].parts[pi].first = child_params[RIGHT].parts[pi].second = 0;
 			}
 			for (int ci = 0; ci < NCHILD; ci++) {
-				futs[ci] = create_child(child_params[ci], ci == LEFT);
+				futs[ci] = create_child(child_params[ci], true);
 			}
 		}
 
@@ -362,6 +361,7 @@ sort_return tree::sort(sort_params params) {
 	}
 	self.set_all_local(all_local);
 	rc.all_local = all_local;
+	printf("Finished sorting at depth %i on rank %i\n", params.depth, hpx_rank());
 	return rc;
 }
 

@@ -36,7 +36,7 @@ void tree_data_initialize_groups();
 void tree_data_free_all_cu();
 void tree_data_set_groups_cu();
 
-HPX_PLAIN_ACTION (tree_data_initialize_kick);
+HPX_PLAIN_ACTION (tree_data_initialize);
 
 HPX_PLAIN_ACTION (tree_data_initialize_groups);
 HPX_PLAIN_ACTION (tree_data_free_all_cu);
@@ -56,6 +56,10 @@ void tree_cache_compute_indices(tree_ptr& base, int& offset, tree_ptr ptr) {
 
 tree_ptr tree_cache_compute_base(tree_ptr ptr) {
 	tree_ptr base;
+	assert(ptr.dindex>=0);
+	assert(ptr.dindex<cpu_tree_data().ntrees);
+	assert(ptr.rank>=0);
+	assert(ptr.rank< hpx_size());
 	int base_index = ptr.dindex - (ptr.dindex % TREE_CACHE_LINE_SIZE);
 	base.dindex = base_index;
 	base.rank = ptr.rank;
@@ -70,7 +74,9 @@ tree_database_t tree_cache_line_fetch(int index) {
 	index = tree_cache_compute_base_index(index);
 	tree_database_t db = allocate_cache_line();
 	for (int dindex = index; dindex < index + TREE_CACHE_LINE_SIZE; dindex++) {
+		assert(dindex < cpu_tree_data().ntrees && dindex >= 0);
 		int j = dindex - index;
+		assert( j < TREE_CACHE_LINE_SIZE);
 		db.data[j] = cpu_tree_data().data[dindex];
 		db.parts[j] = cpu_tree_data().parts[dindex];
 		db.active_nodes[j] = cpu_tree_data().active_nodes[dindex];
@@ -184,12 +190,17 @@ void deallocate_cache_line(tree_database_t td) {
 void tree_data_initialize(tree_use_type use_type) {
 	tree_type = use_type;
 	std::vector<hpx::future<void>> futs;
-	for (int i = 0; i < hpx_size(); i++) {
+	for (int i = 1; i < hpx_size(); i++) {
 		if (use_type == KICK) {
-			futs.push_back(hpx::async<tree_data_initialize_kick_action>(hpx_localities()[i]));
+			futs.push_back(hpx::async<tree_data_initialize_action>(hpx_localities()[i], use_type));
 		} else {
-			futs.push_back(hpx::async<tree_data_initialize_groups_action>(hpx_localities()[i]));
+			futs.push_back(hpx::async<tree_data_initialize_action>(hpx_localities()[i], use_type));
 		}
+	}
+	if (use_type == KICK) {
+		tree_data_initialize_kick();
+	} else {
+		tree_data_initialize_groups();
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	printf("tree_data_initialize done\n");
@@ -203,6 +214,7 @@ tree_database_t& cpu_tree_data() {
 
 
 void tree_data_free_all() {
+	printf( "Freeing tree data for ALL\n");
 	std::vector<hpx::future<void>> futs;
 	for (int i = 0; i < hpx_size(); i++) {
 		futs.push_back(hpx::async<tree_data_free_all_cu_action>(hpx_localities()[i]));

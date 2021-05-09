@@ -101,9 +101,9 @@ struct tree_ptr {
 #endif
 };
 
-enum tree_use_type {
-	KICK, GROUP
-};
+using tree_use_type = int;
+#define KICK 0
+#define GROUP 1
 
 void tree_data_initialize(tree_use_type use_type);
 void tree_data_free_all();
@@ -444,7 +444,8 @@ struct tree_database_t {
 	int chunk_size;
 
 #ifndef __CUDACC__
-	HPX_SERIALIZATION_SPLIT_MEMBER();
+	HPX_SERIALIZATION_SPLIT_MEMBER()
+	;
 
 	template<class A>
 	void save(A&& arc, unsigned) const {
@@ -454,6 +455,11 @@ struct tree_database_t {
 		arc & ntrees;
 		arc & nchunks;
 		arc & chunk_size;
+		assert(active_nodes);
+		assert(parts);
+		assert(data);
+		assert(active_parts);
+		assert(all_local);
 		for (int i = 0; i < ntrees; i++) {
 			if (multi) {
 				arc & multi[i];
@@ -538,8 +544,6 @@ struct tree_database_t {
 #endif
 };
 
-
-
 #ifdef TREE_DATABASE_CU
 __constant__ tree_database_t gpu_tree_data_;
 #else
@@ -547,7 +551,6 @@ extern __constant__ tree_database_t gpu_tree_data_;
 #endif
 
 tree_database_t& cpu_tree_data();
-
 
 inline bool tree_data_all_local(int i) {
 	auto& tree_data_ = cpu_tree_data();
