@@ -123,7 +123,7 @@ hpx::future<size_t> tree_ptr::find_groups(group_param_type* params_ptr, bool thr
 
 	} else {
 		if (thread) {
-			const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
+			const int max_threads = OVERSUBSCRIPTION * hardware_concurrency();
 			if (used_threads++ > max_threads) {
 				used_threads--;
 				thread = false;

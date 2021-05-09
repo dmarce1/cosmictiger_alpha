@@ -64,14 +64,12 @@ fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread
 		const size_t min_parts2thread = particles.size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
 		thread = try_thread && (nparts >= min_parts2thread);
 		if (!thread) {
-			sort_return rc = tree::sort(params);
-			fut.set_value(std::move(rc));
+			fut.set_value(tree::sort(params));
 		} else {
 			fut = hpx::async([id, params]() {
 				sort_params new_params = params;
 				new_params.alloc = std::make_shared<tree_allocator>();
-				auto rc = tree::sort(new_params);
-				return rc;
+				return tree::sort(new_params);
 			});
 		}
 	}
@@ -359,8 +357,8 @@ sort_return tree::sort(sort_params params) {
 	}
 	rc.check = self;
 	for (int pi = 0; pi < npart_types; pi++) {
-		all_local = all_local && (pserv.index_to_rank(parts[pi].first) != hpx_rank());
-		all_local = all_local && (pserv.index_to_rank(parts[pi].second - 1) != hpx_rank());
+		all_local = all_local && (pserv.index_to_rank(parts[pi].first) == hpx_rank());
+		all_local = all_local && (pserv.index_to_rank(parts[pi].second - 1) == hpx_rank());
 	}
 	self.set_all_local(all_local);
 	rc.all_local = all_local;
@@ -388,7 +386,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	} else {
 		static std::atomic<int> used_threads(0);
 		if (thread) {
-			const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
+			const int max_threads = OVERSUBSCRIPTION * hardware_concurrency();
 			if (used_threads++ > max_threads) {
 				used_threads--;
 				thread = false;

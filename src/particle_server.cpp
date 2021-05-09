@@ -61,7 +61,7 @@ fixed32 particle_server::pos_cache_read(int pi, int dim, size_t i) {
 		auto& entry = pos_caches[pi][cache][i0];
 		entry.fut = std::make_shared<hpx::shared_future<void>>(prms->get_future());
 		lock.unlock();
-		hpx::apply([i0,cache,pi,prms]() {
+		hpx::async([i0,cache,pi,prms]() {
 			particle_server_read_pos_cache_line_action action;
 			auto data = action(localities[index_to_rank(i0)], pi, i0);
 			std::unique_lock<spinlock_type> lock(mutexes[pi][cache]);
@@ -175,6 +175,7 @@ std::vector<rung_t> particle_server::read_rungs(int pi, size_t b, size_t e) {
 			}
 		}
 	}
+	assert(rungs.size() == size);
 	return std::move(rungs);
 }
 

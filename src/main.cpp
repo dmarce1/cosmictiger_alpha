@@ -15,7 +15,6 @@ void yield() {
 	hpx::this_thread::yield();
 }
 
-HPX_REGISTER_COMPONENT_MODULE();
 
 int hpx_main(int argc, char *argv[]) {
 	options opts;
@@ -42,8 +41,10 @@ int hpx_main(int argc, char *argv[]) {
 	return hpx::finalize();
 }
 
+#ifdef USE_HPX
 int main(int argc, char *argv[]) {
 	std::vector<std::string> cfg = { "hpx.commandline.allow_unknown=1" };
 	cfg.push_back("hpx.stacks.small_size=2097152");
 	hpx::init(argc, argv, cfg);
 }
+#endif

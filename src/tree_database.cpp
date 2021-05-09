@@ -115,13 +115,14 @@ void tree_cache_load(tree_ptr tptr) {
 	static tree_ptr_lo_hash key;
 	int cache_index = key(tptr);
 	std::unique_lock<spinlock_type> lock(mutexes[cache_index]);
+	assert(tptr.dindex >= 0 && tptr.dindex < cpu_tree_data().ntrees);
 	const auto base = tree_cache_compute_base(tptr);
 	if (tree_caches[cache_index].find(base) == tree_caches[cache_index].end()) {
 		auto prms = std::make_shared<hpx::lcos::local::promise<void>>();
 		auto& entry = tree_caches[cache_index][base];
 		entry.fut = std::make_shared<hpx::shared_future<void>>(prms->get_future());
 		lock.unlock();
-		hpx::apply([base, cache_index, prms]() {
+		hpx::async([base, cache_index, prms]() {
 			tree_cache_line_fetch_action action;
 			auto data = action(localities[base.rank],base.dindex);
 			std::unique_lock<spinlock_type> lock(mutexes[cache_index]);

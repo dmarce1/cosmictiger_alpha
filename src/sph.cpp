@@ -1,6 +1,7 @@
 #include <cosmictiger/sph.hpp>
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/particle_sets.hpp>
+#include <cosmictiger/hpx.hpp>
 
 struct gpu_sph_neighbors {
 	sph_neighbor_params_type* params;
@@ -45,7 +46,7 @@ hpx::future<bool> tree_ptr::sph_neighbors(sph_neighbor_params_type* params_ptr, 
 
 	} else {
 		if (thread) {
-			const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
+			const int max_threads = OVERSUBSCRIPTION * hardware_concurrency();
 			if (used_threads++ > max_threads) {
 				used_threads--;
 				thread = false;
