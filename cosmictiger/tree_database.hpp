@@ -476,20 +476,6 @@ struct tree_database_t {
 			arc & active_parts[i];
 			arc & int(all_local[i]);
 		}
-		delete[] data;
-		delete[] parts;
-		delete[] active_nodes;
-		delete[] active_parts;
-		delete[] all_local;
-		if (multi) {
-			delete[] multi;
-		}
-		if (ranges) {
-			delete[] ranges;
-		}
-		if (sph_ranges) {
-			delete[] sph_ranges;
-		}
 
 	}
 
@@ -542,6 +528,47 @@ struct tree_database_t {
 		}
 	}
 #endif
+};
+
+struct tree_database_parcel_t {
+	tree_database_t data;
+	bool deleteme;
+	tree_database_parcel_t() {
+		deleteme = false;
+	}
+	tree_database_parcel_t(const tree_database_parcel_t&) = delete;
+	tree_database_parcel_t(tree_database_parcel_t&& other) {
+		*this = std::move(other);
+	}
+	tree_database_parcel_t& operator=(const tree_database_parcel_t&) = delete;
+	tree_database_parcel_t& operator=(tree_database_parcel_t&& other) {
+		data = other.data;
+		deleteme = true;
+		other.deleteme = false;
+		return *this;
+	}
+	~tree_database_parcel_t() {
+		if (deleteme) {
+			delete[] data.data;
+			delete[] data.parts;
+			delete[] data.active_nodes;
+			delete[] data.active_parts;
+			delete[] data.all_local;
+			if (data.multi) {
+				delete[] data.multi;
+			}
+			if (data.ranges) {
+				delete[] data.ranges;
+			}
+			if (data.sph_ranges) {
+				delete[] data.sph_ranges;
+			}
+		}
+	}
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & data;
+	}
 };
 
 #ifdef TREE_DATABASE_CU
@@ -811,6 +838,6 @@ void tree_data_set_sph_range(int i, const range& r) {
 
 void tree_database_set_readonly();
 void tree_database_unset_readonly();
-tree_database_t tree_cache_line_fetch(int index);
+tree_database_parcel_t tree_cache_line_fetch(int index);
 void tree_cache_clear();
 

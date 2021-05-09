@@ -70,7 +70,8 @@ int tree_cache_compute_base_index(int dindex) {
 	return dindex - (dindex % TREE_CACHE_LINE_SIZE);
 }
 
-tree_database_t tree_cache_line_fetch(int index) {
+tree_database_parcel_t tree_cache_line_fetch(int index) {
+	printf( "Fetching line\n");
 	index = tree_cache_compute_base_index(index);
 	tree_database_t db = allocate_cache_line();
 	for (int dindex = index; dindex < index + TREE_CACHE_LINE_SIZE; dindex++) {
@@ -92,7 +93,10 @@ tree_database_t tree_cache_line_fetch(int index) {
 			db.multi[j] = cpu_tree_data().multi[dindex];
 		}
 	}
-	return db;
+	tree_database_parcel_t parcel;
+	parcel.deleteme = true;
+	parcel.data = std::move(db);
+	return parcel;
 }
 
 void tree_cache_clear() {
@@ -128,7 +132,7 @@ void tree_cache_load(tree_ptr tptr) {
 			auto data = action(localities[base.rank],base.dindex);
 			std::unique_lock<spinlock_type> lock(mutexes[cache_index]);
 			auto& entry = tree_caches[cache_index][base];
-			entry.data = std::shared_ptr<tree_database_t>(new tree_database_t(std::move(data)), [](tree_database_t* ptr) {
+			entry.data = std::shared_ptr<tree_database_t>(new tree_database_t(std::move(data.data)), [](tree_database_t* ptr) {
 						deallocate_cache_line(*ptr);
 						delete ptr;
 					});
