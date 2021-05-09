@@ -44,7 +44,7 @@ cuda_properties cuda_init() {
 	printf("Detected %i CUDA devices.\n", props.num_devices);
 	for (int i = 0; i < props.num_devices; i++) {
 	}
-	CUDA_CHECK(cudaDeviceReset());
+//	CUDA_CHECK(cudaDeviceReset());
 	size_t value;
 	CUDA_CHECK(cudaDeviceGetLimit(&value, cudaLimitStackSize));
 	bool fail = false;

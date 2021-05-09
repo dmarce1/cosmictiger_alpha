@@ -18,6 +18,7 @@
 #include <hpx/collectives/broadcast_direct.hpp>
 
 using mutex_type = hpx::lcos::local::mutex;
+using spinlock_type = hpx::lcos::local::spinlock;
 
 void hpx_init();
 int hpx_rank();

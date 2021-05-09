@@ -8,6 +8,8 @@ HPX_PLAIN_ACTION(particle_server::generate_random, particle_server_generate_rand
 HPX_PLAIN_ACTION(particle_server::local_sort, particle_server_local_sort_action);
 HPX_PLAIN_ACTION(particle_server::swap_particles, particle_server_swap_particles_action);
 HPX_PLAIN_ACTION(particle_server::execute_swaps, particle_server_execute_swaps_action);
+HPX_PLAIN_ACTION(particle_server::read_pos_cache_line, particle_server_read_pos_cache_line_action);
+HPX_PLAIN_ACTION(particle_server::read_rungs, particle_server_read_rungs_action);
 
 struct sort_iters {
 	part_iters lo;
@@ -19,14 +21,64 @@ struct sort_iters {
 	}
 };
 
-static particle_sets* parts;
-static size_t my_start;
-static size_t my_stop;
-static size_t my_size;
-static size_t global_size;
-static int nprocs;
-static int rank;
-static std::vector<hpx::id_type> localities;
+#define POS_CACHE_LINE_SIZE_MAX 1024
+
+std::array<std::array<pos_cache_type, POS_CACHE_SIZE>, NPART_TYPES> particle_server::pos_caches;
+std::array<std::array<spinlock_type, POS_CACHE_SIZE>, NPART_TYPES> particle_server::mutexes;
+particle_sets* particle_server::parts;
+size_t particle_server::my_start;
+size_t particle_server::my_stop;
+size_t particle_server::my_size;
+size_t particle_server::global_size;
+size_t particle_server::pos_cache_line_size;
+int particle_server::nprocs;
+int particle_server::rank;
+std::vector<hpx::id_type> particle_server::localities;
+
+size_t particle_server::pos_cache_line_index(size_t i) {
+	return i - (i % pos_cache_line_size);
+}
+
+pos_line_type particle_server::read_pos_cache_line(int pi, size_t i) {
+	i = pos_cache_line_index(i);
+	pos_line_type x;
+	for (int dim = 0; dim < NDIM; dim++) {
+		for (size_t j = i; j < std::min(i + pos_cache_line_size, my_stop); j++) {
+			x[dim].push_back(parts->sets[pi]->pos(dim, j));
+		}
+	}
+	return std::move(x);
+}
+
+fixed32 particle_server::pos_cache_read(int pi, int dim, size_t i) {
+	static const auto localities = hpx_localities();
+	size_t i0 = pos_cache_line_index(i);
+	size_t cache = part_hash_lo()(i0);
+	std::unique_lock<spinlock_type> lock(mutexes[pi][cache]);
+	auto entry_iter = pos_caches[pi][cache].find(i0);
+	if (entry_iter == pos_caches[pi][cache].end()) {
+		auto prms = std::make_shared<hpx::lcos::local::promise<void>>();
+		auto& entry = pos_caches[pi][cache][i0];
+		entry.fut = std::make_shared<hpx::shared_future<void>>(prms->get_future());
+		lock.unlock();
+		hpx::apply([i0,cache,pi,prms]() {
+			particle_server_read_pos_cache_line_action action;
+			auto data = action(localities[index_to_rank(i0)], pi, i0);
+			std::unique_lock<spinlock_type> lock(mutexes[pi][cache]);
+			auto& entry = pos_caches[pi][cache][i0];
+			entry.data = std::make_shared<pos_line_type>(std::move(data));
+			lock.unlock();
+			prms->set_value();
+		});
+		lock.lock();
+		entry_iter = pos_caches[pi][cache].find(i0);
+	}
+	auto& fut = entry_iter->second.fut;
+	const auto& data = entry_iter->second.data;
+	lock.unlock();
+	fut->get();
+	return (*data)[dim][i - i0];
+}
 
 void particle_server::init() {
 	printf("Initializing particle server on rank %i\n", hpx_rank());
@@ -45,6 +97,7 @@ void particle_server::init() {
 	printf("range on rank %i is %li %li %li\n", rank, my_start, my_stop, global_size);
 	my_size = my_stop - my_start;
 	parts = new particle_sets(my_size, my_start);
+	pos_cache_line_size = std::min((size_t) POS_CACHE_LINE_SIZE_MAX, global_size / nprocs);
 	printf("Done on rank %i\n", rank);
 	hpx::wait_all(futs.begin(), futs.end());
 }
@@ -88,12 +141,41 @@ void particle_server::execute_swaps(int pi, std::vector<sort_quantum> swaps) {
 		parc.range_to = swap.range_to;
 		futs.push_back(hpx::async<particle_server_swap_particles_action>(localities[swap.rank_to], pi, std::move(parc)));
 	}
-	for( auto& f : futs) {
+	for (auto& f : futs) {
 		auto arc = f.get();
-		std::swap(arc.range_from.first,arc.range_to.first);
-		std::swap(arc.range_from.second,arc.range_to.second);
+		std::swap(arc.range_from.first, arc.range_to.first);
+		std::swap(arc.range_from.second, arc.range_to.second);
 		parts->sets[pi]->load_particle_archive(std::move(arc));
 	}
+}
+
+std::vector<rung_t> particle_server::read_rungs(int pi, size_t b, size_t e) {
+	std::vector<rung_t> rungs;
+	const size_t size = e - b;
+	rungs.reserve(size);
+	const int rank_start = index_to_rank(b);
+	const int rank_stop = index_to_rank(e - 1);
+
+	std::vector<hpx::future<std::vector<rung_t>>>futs;
+	if (rank_start == rank_stop && rank_start == rank) {
+		for (size_t i = b; i < e; i++) {
+			rungs.push_back(parts->sets[pi]->rung(i));
+		}
+	} else {
+		printf( "REMOTE RUNGS %li %li %i %i\n", b, e, rank_start, rank_stop);
+		for (int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
+			const size_t this_b = std::max(b, this_rank * global_size / nprocs);
+			const size_t this_e = std::min(e, (this_rank + 1) * global_size / nprocs);
+			futs.push_back(hpx::async<particle_server_read_rungs_action>(localities[this_rank], pi, this_b, this_e));
+		}
+		for (auto& f : futs) {
+			auto these_rungs = f.get();
+			for (const auto& rung : these_rungs) {
+				rungs.push_back(rung);
+			}
+		}
+	}
+	return std::move(rungs);
 }
 
 size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int xdim) {
@@ -102,7 +184,7 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int 
 	const int rank_stop = index_to_rank(end - 1);
 	size_t part_mid;
 	if (rank_start == rank_stop) {
-	//	printf("Local sort on range %li - %li around %e in dimension %i\n", begin, end, xmid, xdim);
+		//	printf("Local sort on range %li - %li around %e in dimension %i\n", begin, end, xmid, xdim);
 		if (rank == rank_start) {
 			part_mid = parts->sets[pi]->sort_range(begin, end, xmid, xdim);
 		} else {

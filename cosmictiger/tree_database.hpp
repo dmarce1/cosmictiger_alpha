@@ -539,10 +539,10 @@ struct tree_database_t {
 
 
 #ifdef TREE_DATABASE_CU
-__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
-tree_database_t cpu_tree_data_;
+__constant__ tree_database_t gpu_tree_data_;
+tree_database_t cpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
 #else
-extern __managed__ tree_database_t gpu_tree_data_;
+extern __constant__ tree_database_t gpu_tree_data_;
 extern tree_database_t cpu_tree_data_;
 #endif
 

@@ -84,7 +84,7 @@ sort_return tree::sort(sort_params params) {
 	size_t active_nodes = 0;
 	parts_type parts;
 	const int npart_types = global().opts.sph ? 2 : 1;
-//	printf("Sorting at depth %i\n", params.depth);
+	printf("Sorting at depth %i\n", params.depth);
 	if (params.iamroot()) {
 		int dummy;
 		params.set_root();
@@ -246,7 +246,7 @@ sort_return tree::sort(sort_params params) {
 				for (auto i = parts[pi].first; i < parts[pi].second; i++) {
 					total_weight += wt;
 					for (int dim = 0; dim < NDIM; dim++) {
-						com[dim] += wt * particles.sets[pi]->pos(dim, i).to_double();
+						com[dim] += wt * pserv.pos_read(pi, dim, i).to_double();
 					}
 				}
 			}
@@ -271,14 +271,14 @@ sort_return tree::sort(sort_params params) {
 					double this_radius = 0.0;
 					M() += wt;
 					for (int n = 0; n < NDIM; n++) {
-						const auto xn = particles.sets[pi]->pos(n, i).to_double() - com[n];
+						const auto xn = pserv.pos_read(pi, n, i).to_double() - com[n];
 						this_radius += xn * xn;
 						for (int m = n; m < NDIM; m++) {
-							const auto xm = particles.sets[pi]->pos(m, i).to_double() - com[m];
+							const auto xm = pserv.pos_read(pi, m, i).to_double() - com[m];
 							const auto xnm = xn * xm;
 							M(n, m) += wt * xnm;
 							for (int l = m; l > NDIM; l++) {
-								const auto xl = particles.sets[pi]->pos(l, i).to_double() - com[l];
+								const auto xl = pserv.pos_read(pi, l, i).to_double() - com[l];
 								M(n, m, l) -= wt * xnm * xl;
 							}
 						}
@@ -290,8 +290,10 @@ sort_return tree::sort(sort_params params) {
 			rc.active_parts = 0;
 			rc.active_nodes = 0;
 			for (int pi = 0; pi < NPART_TYPES; pi++) {
-				for (size_t k = parts[pi].first; k < parts[pi].second; k++) {
-					if (particles.sets[pi]->rung(k) >= params.min_rung) {
+				const auto this_size = parts[pi].second - parts[pi].first;
+				auto rungs = pserv.read_rungs(pi, parts[pi].first, parts[pi].second);
+				for (size_t k = 0; k < this_size; k++) {
+					if (rungs[k] >= params.min_rung) {
 						rc.active_parts++;
 						rc.active_nodes = 1;
 					}
