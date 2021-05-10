@@ -154,7 +154,7 @@ add_executable( cosmictiger_lite
  
 set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
-target_link_libraries(cosmictiger_lite PUBLIC siloh5 boost_program_options tcmalloc hpx_lite hwloc)
+target_link_libraries(cosmictiger_lite PUBLIC siloh5 boost_program_options tcmalloc hpx_lite hwloc cudart)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite/)
 target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite/)

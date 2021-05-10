@@ -14,36 +14,76 @@
 
 #include <cmath>
 
-#define USE_AVX2
+#define USE_AVX
+
+#define SIMD_VLEN 8
+
+#define SIMDALIGN                  __attribute__((aligned(32)))
 
 #ifdef USE_AVX2
-#define SIMDALIGN                  __attribute__((aligned(32)))
-#define SIMD_VLEN 8
+#define SIMD_N    1
 #define _simd_float                 __m256
 #define _simd_int                   __m256i
-#define _mmx_add_ps(a,b)            _mm256_add_ps((a),(b))
-#define _mmx_sub_ps(a,b)            _mm256_sub_ps((a),(b))
-#define _mmx_mul_ps(a,b)            _mm256_mul_ps((a),(b))
-#define _mmx_div_ps(a,b)            _mm256_div_ps((a),(b))
-#define _mmx_add_pd(a,b)            _mm256_add_pd((a),(b))
-#define _mmx_sub_pd(a,b)            _mm256_sub_pd((a),(b))
-#define _mmx_mul_pd(a,b)            _mm256_mul_pd((a),(b))
-#define _mmx_div_pd(a,b)            _mm256_div_pd((a),(b))
-#define _mmx_sqrt_ps(a)             _mm256_sqrt_ps(a)
-#define _mmx_min_ps(a, b)           _mm256_min_ps((a),(b))
-#define _mmx_max_ps(a, b)           _mm256_max_ps((a),(b))
-#define _mmx_max_pd(a, b)           _mm256_max_pd((a),(b))
-#define _mmx_or_ps(a, b)            _mm256_or_ps((a),(b))
-#define _mmx_and_ps(a, b)           _mm256_and_ps((a),(b))
-#define _mmx_andnot_ps(a, b)        _mm256_andnot_ps((a),(b))
-#define _mmx_rsqrt_ps(a)            _mm256_rsqrt_ps(a)
-#define _mmx_add_epi32(a,b)         _mm256_add_epi32((a),(b))
-#define _mmx_sub_epi32(a,b)         _mm256_sub_epi32((a),(b))
-#define _mmx_mul_epi32(a,b)         _mm256_mullo_epi32((a),(b))
-#define _mmx_cvtps_epi32(a)         _mm256_cvtps_epi32((a))
-#define _mmx_fmadd_ps(a,b,c)        _mm256_fmadd_ps ((a),(b),(c))
-#define _mmx_cmp_ps(a,b,c)        	_mm256_cmp_ps(a,b,c)
+#define mmx_add_ps(a,b)            _mm256_add_ps((a),(b))
+#define mmx_sub_ps(a,b)            _mm256_sub_ps((a),(b))
+#define mmx_mul_ps(a,b)            _mm256_mul_ps((a),(b))
+#define mmx_div_ps(a,b)            _mm256_div_ps((a),(b))
+#define mmx_add_pd(a,b)            _mm256_add_pd((a),(b))
+#define mmx_sub_pd(a,b)            _mm256_sub_pd((a),(b))
+#define mmx_mul_pd(a,b)            _mm256_mul_pd((a),(b))
+#define mmx_div_pd(a,b)            _mm256_div_pd((a),(b))
+#define mmx_sqrt_ps(a)             _mm256_sqrt_ps(a)
+#define mmx_min_ps(a, b)           _mm256_min_ps((a),(b))
+#define mmx_max_ps(a, b)           _mm256_max_ps((a),(b))
+#define mmx_max_pd(a, b)           _mm256_max_pd((a),(b))
+#define mmx_or_ps(a, b)            _mm256_or_ps((a),(b))
+#define mmx_and_ps(a, b)           _mm256_and_ps((a),(b))
+#define mmx_andnot_ps(a, b)        _mm256_andnot_ps((a),(b))
+#define mmx_rsqrt_ps(a)            _mm256_rsqrt_ps(a)
+#define mmx_add_epi32(a,b)         _mm256_add_epi32((a),(b))
+#define mmx_sub_epi32(a,b)         _mm256_sub_epi32((a),(b))
+#define mmx_mul_epi32(a,b)         _mm256_mullo_epi32((a),(b))
+#define mmx_cvtepi32_ps(a)         _mm256_cvtepi32_ps((a))
+#define mmx_cvtps_epi32(a)         _mm256_cvtps_epi32((a))
+#define mmx_fmadd_ps(a,b,c)        _mm256_fmadd_ps ((a),(b),(c))
+#define mmx_cmp_ps(a,b,c)          _mm256_cmp_ps(a,b,c)
+#define mmx_round_ps(a,b)			  _mm256_round_ps(a,b)
+#define mmx_slli_epi32(a,b)	     _mm256_slli_epi32(a,b)
+#define mmx_floor_ps(a)            _mm256_floor_ps(a)
+#define mmx_castsi_ps(a)        _mm256_castsi256_ps(a)
+#elif defined( USE_AVX)
+#define SIMD_N    2
+#define _simd_float                 __m128
+#define _simd_int                   __m128i
+#define mmx_add_ps(a,b)            _mm_add_ps((a),(b))
+#define mmx_sub_ps(a,b)            _mm_sub_ps((a),(b))
+#define mmx_mul_ps(a,b)            _mm_mul_ps((a),(b))
+#define mmx_div_ps(a,b)            _mm_div_ps((a),(b))
+#define mmx_add_pd(a,b)            _mm_add_pd((a),(b))
+#define mmx_sub_pd(a,b)            _mm_sub_pd((a),(b))
+#define mmx_mul_pd(a,b)            _mm_mul_pd((a),(b))
+#define mmx_div_pd(a,b)            _mm_div_pd((a),(b))
+#define mmx_sqrt_ps(a)             _mm_sqrt_ps(a)
+#define mmx_min_ps(a, b)           _mm_min_ps((a),(b))
+#define mmx_max_ps(a, b)           _mm_max_ps((a),(b))
+#define mmx_max_pd(a, b)           _mm_max_pd((a),(b))
+#define mmx_or_ps(a, b)            _mm_or_ps((a),(b))
+#define mmx_and_ps(a, b)           _mm_and_ps((a),(b))
+#define mmx_andnot_ps(a, b)        _mm_andnot_ps((a),(b))
+#define mmx_rsqrt_ps(a)            _mm_rsqrt_ps(a)
+#define mmx_add_epi32(a,b)         _mm_add_epi32((a),(b))
+#define mmx_sub_epi32(a,b)         _mm_sub_epi32((a),(b))
+#define mmx_mul_epi32(a,b)         _mm_mullo_epi32((a),(b))
+#define mmx_cvtepi32_ps(a)         _mm_cvtepi32_ps((a))
+#define mmx_cvtps_epi32(a)         _mm_cvtps_epi32((a))
+#define mmx_fmadd_ps(a,b,c)        _mm_fmadd_ps ((a),(b),(c))
+#define mmx_cmp_ps(a,b,c)          _mm_cmp_ps(a,b,c)
+#define mmx_round_ps(a,b)			  _mm_round_ps(a,b)
+#define mmx_slli_epi32(a,b)	     _mm_slli_epi32(a,b)
+#define mmx_floor_ps(a)            _mm_floor_ps(a)
+#define mmx_castsi_ps(a)           _mm_castsi128_ps(a)
 #endif
+
 
 class simd_float;
 class simd_int;
@@ -51,7 +91,7 @@ class simd_int;
 class simd_float {
 private:
 	union {
-		_simd_float v;
+		_simd_float v[SIMD_N];
 		float floats[8];
 	};
 public:
@@ -62,10 +102,21 @@ public:
 	inline ~simd_float() = default;
 	simd_float(const simd_float&) = default;
 	inline simd_float(float d) {
-		v = _mm256_set_ps(d, d, d, d, d, d, d, d);
+#ifdef USE_AVX2
+		v[0] = _mm256_set_ps(d, d, d, d, d, d, d, d);
+#else
+		for( int i = 0; i < SIMD_N; i++) {
+			v[i] = _mm_set_ps(d, d, d, d);
+		}
+#endif
 	}
 	inline simd_float(float d0, float d1, float d2, float d3, float d4, float d5, float d6, float d7) {
-		v = _mm256_set_ps(d7, d6, d5, d4, d3, d2, d1, d0);
+#ifdef USE_AVX2
+		v[0] = _mm256_set_ps(d7, d6, d5, d4, d3, d2, d1, d0);
+#else
+		v[0] = _mm_set_ps(d3, d2, d1, d0);
+		v[1] = _mm_set_ps(d7, d6, d5, d4);
+#endif
 	}
 	inline float sum() const {
 		float sum = 0.0f;
@@ -81,22 +132,30 @@ public:
 	simd_float& operator=(simd_float &&other) = default;
 	inline simd_float operator+(const simd_float &other) const {
 		simd_float r;
-		r.v = _mmx_add_ps(v, other.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			r.v[i] = mmx_add_ps(v[i], other.v[i]);
+		}
 		return r;
 	}
 	inline simd_float operator-(const simd_float &other) const {
 		simd_float r;
-		r.v = _mmx_sub_ps(v, other.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			r.v[i] = mmx_sub_ps(v[i], other.v[i]);
+		}
 		return r;
 	}
 	inline simd_float operator*(const simd_float &other) const {
 		simd_float r;
-		r.v = _mmx_mul_ps(v, other.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			r.v[i] = mmx_mul_ps(v[i], other.v[i]);
+		}
 		return r;
 	}
 	inline simd_float operator/(const simd_float &other) const {
 		simd_float r;
-		r.v = _mmx_div_ps(v, other.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			r.v[i] = mmx_div_ps(v[i], other.v[i]);
+		}
 		return r;
 	}
 	inline simd_float operator+() const {
@@ -106,19 +165,27 @@ public:
 		return simd_float(0.0) - *this;
 	}
 	inline simd_float& operator+=(const simd_float &other) {
-		v = _mmx_add_ps(v, other.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			v[i] = mmx_add_ps(v[i], other.v[i]);
+		}
 		return *this;
 	}
 	inline simd_float& operator-=(const simd_float &other) {
-		v = _mmx_sub_ps(v, other.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			v[i] = mmx_sub_ps(v[i], other.v[i]);
+		}
 		return *this;
 	}
 	inline simd_float& operator*=(const simd_float &other) {
-		v = _mmx_mul_ps(v, other.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			v[i] = mmx_mul_ps(v[i], other.v[i]);
+		}
 		return *this;
 	}
 	inline simd_float& operator/=(const simd_float &other) {
-		v = _mmx_div_ps(v, other.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			v[i] = mmx_div_ps(v[i], other.v[i]);
+		}
 		return *this;
 	}
 
@@ -169,16 +236,20 @@ public:
 		simd_float rc;
 		static const simd_float one(1);
 		static const simd_float zero(0);
-		auto mask0 = _mmx_cmp_ps(v, other.v, _CMP_LT_OQ);
-		rc.v = _mmx_and_ps(mask0, one.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			auto mask0 = mmx_cmp_ps(v[i], other.v[i], _CMP_LT_OQ);
+			rc.v[i] = mmx_and_ps(mask0, one.v[i]);
+		}
 		return rc;
 	}
 	simd_float operator>(simd_float other) const { // 2
 		simd_float rc;
 		static const simd_float one(1);
 		static const simd_float zero(0);
-		auto mask0 = _mmx_cmp_ps(v, other.v, _CMP_GT_OQ);
-		rc.v = _mmx_and_ps(mask0, one.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			auto mask0 = mmx_cmp_ps(v[i], other.v[i], _CMP_GT_OQ);
+			rc.v[i] = mmx_and_ps(mask0, one.v[i]);
+		}
 		return rc;
 	}
 
@@ -189,7 +260,7 @@ public:
 class simd_int {
 private:
 	union {
-		_simd_int v;
+		_simd_int v[SIMD_N];
 		int ints[8];
 	};
 public:
@@ -200,26 +271,40 @@ public:
 	inline ~simd_int() = default;
 	simd_int(const simd_int&) = default;
 	simd_int(simd_float r) {
-		v = _mm256_cvtps_epi32(_mm256_floor_ps(r.v));
+		for( int i = 0; i < SIMD_N; i++) {
+			v[i] = mmx_cvtps_epi32(mmx_floor_ps(r.v[i]));
+		}
 	}
 	inline simd_int(int d) {
-		v = _mm256_set_epi32(d, d, d, d, d, d, d, d);
+#ifdef USE_AVX2
+		v[0] = _mm256_set_epi32(d, d, d, d, d, d, d, d);
+#else
+		for( int i = 0; i < SIMD_N; i++) {
+			v[i] = _mm_set_epi32(d, d, d, d);
+		}
+#endif
 	}
 	inline simd_int& operator=(const simd_int &other) = default;
 	simd_int& operator=(simd_int &&other) = default;
 	inline simd_int operator+(const simd_int &other) const {
 		simd_int r;
-		r.v = _mmx_add_epi32(v, other.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			r.v[i] = mmx_add_epi32(v[i], other.v[i]);
+		}
 		return r;
 	}
 	inline simd_int operator-(const simd_int &other) const {
 		simd_int r;
-		r.v = _mmx_sub_epi32(v, other.v);
+		for( int i = 0; i < SIMD_N; i++) {
+			r.v[i] = mmx_sub_epi32(v[i], other.v[i]);
+		}
 		return r;
 	}
 	inline simd_int operator*(const simd_int &other) const {
 		simd_int r;
-		r.v = _mmx_mul_epi32(v, other.v);
+		for( int i = 0; i < SIMD_N; i++) {
+				r.v[i] = mmx_mul_epi32(v[i], other.v[i]);
+		}
 		return r;
 	}
 	inline simd_int operator+() const {
@@ -238,6 +323,19 @@ public:
 	inline int operator[](std::size_t i) const {
 		return ints[i];
 	}
+	inline simd_int operator<<=(int shft) {
+		for( int i = 0; i < SIMD_N; i++) {
+			v[i] = mmx_slli_epi32(v[i], shft);
+		}
+		return *this;
+	}
+	simd_float cast2float() const {
+		simd_float r;
+		for( int i = 0; i < SIMD_N; i++) {
+			r.v[i] = mmx_castsi_ps(v[i]);
+		}
+		return r;
+	}
 	inline int sum() const {
 		int sum = 0;
 		for (int i = 0; i < simd_int::size(); i++) {
@@ -249,10 +347,21 @@ public:
 
 }SIMDALIGN;
 
-inline simd_float::simd_float(simd_int i) {
-	v = _mm256_cvtepi32_ps(i.v);
-
+inline simd_float::simd_float(simd_int ints) {
+	for( int i = 0; i < SIMD_N; i++) {
+		v[i] = mmx_cvtepi32_ps(ints.v[i]);
+	}
 }
+
+
+inline simd_float round(const simd_float a) {
+	simd_float v;
+	for( int i = 0; i < SIMD_N; i++) {
+		v.v[i] = mmx_round_ps(a.v[i], _MM_FROUND_TO_NEAREST_INT);
+	}
+	return v;
+}
+
 inline simd_float two_pow(const simd_float &r) {											// 21
 	static const simd_float zero = simd_float(0.0);
 	static const simd_float one = simd_float(1.0);
@@ -265,9 +374,9 @@ inline simd_float two_pow(const simd_float &r) {											// 21
 	static const simd_float c7 = simd_float((1.0 / 5040.0) * std::pow(std::log(2), 7));
 	static const simd_float c8 = simd_float((1.0 / 40320.0) * std::pow(std::log(2), 8));
 	simd_float r0;
-	__m256i n;
-	r0.v = _mm256_round_ps(r.v, _MM_FROUND_TO_NEAREST_INT);							// 1
-	n = _mm256_cvtps_epi32(r0.v);														// 1
+	simd_int n;
+	r0 = round(r);							// 1
+	n = simd_int(r0);														// 1
 	auto x = r - r0;
 	auto y = c8;
 	y = fma(y, x, c7);																		// 2
@@ -278,18 +387,12 @@ inline simd_float two_pow(const simd_float &r) {											// 21
 	y = fma(y, x, c2);																		// 2
 	y = fma(y, x, c1);																		// 2
 	y = fma(y, x, one);																		// 2
-	static const auto sevenf = _mm256_set_epi32(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f);
-	auto imm00 = _mm256_add_epi32(n, sevenf);
-	imm00 = _mm256_slli_epi32(imm00, 23);
-	r0.v = _mm256_castsi256_ps(imm00);
+	simd_int sevenf(0x7f);
+	simd_int imm00 = n + sevenf;
+	imm00 <<= 23;
+	r0 = imm00.cast2float();
 	auto res = y * r0;																			// 1
 	return res;
-}
-
-inline simd_float round(const simd_float a) {
-	simd_float v;
-	v.v = _mm256_round_ps(a.v, _MM_FROUND_TO_NEAREST_INT);
-	return v;
 }
 
 inline simd_float sin(const simd_float &x0) {						// 17
@@ -352,7 +455,9 @@ inline simd_float erfcexp(const simd_float &x, simd_float *e) {				// 76
 inline simd_float fma(const simd_float &a, const simd_float &b, const simd_float &c) {
 
 	simd_float v;
-	v.v = _mmx_fmadd_ps(a.v, b.v, c.v);
+	for( int i = 0; i < SIMD_N; i++) {
+		v.v[i] = mmx_fmadd_ps(a.v[i], b.v[i], c.v[i]);
+	}
 	return v;
 }
 
@@ -362,14 +467,18 @@ inline simd_float fmaf(const simd_float &a, const simd_float &b, const simd_floa
 
 inline simd_float sqrt(const simd_float &vec) {
 	simd_float r;
-	r.v = _mmx_sqrt_ps(vec.v);
+	for( int i = 0; i < SIMD_N; i++) {
+		r.v[i] = mmx_sqrt_ps(vec.v[i]);
+	}
 	return r;
 
 }
 
 inline simd_float rsqrt(const simd_float &vec) {
 	simd_float r;
-	r.v = _mmx_rsqrt_ps(vec.v);
+	for( int i = 0; i < SIMD_N; i++) {
+		r.v[i] = mmx_rsqrt_ps(vec.v[i]);
+	}
 	return r;
 
 }
@@ -383,9 +492,12 @@ inline simd_float operator/(float d, const simd_float &other) {
 	const simd_float a = d;
 	return a / other;
 }
+
 inline simd_float min(const simd_float &a, const simd_float &b) {
 	simd_float r;
-	r.v = _mmx_min_ps(a.v, b.v);
+	for( int i = 0; i < SIMD_N; i++) {
+		r.v[i] = mmx_min_ps(a.v[i], b.v[i]);
+	}
 	return r;
 }
 
@@ -393,9 +505,11 @@ inline simd_float copysign(const simd_float &y, const simd_float &x) {
 	simd_float v;
 	constexpr float signbit = -0.f;
 	static simd_float const avx_signbit = simd_float(signbit);
-	const auto tmp0 = _mmx_andnot_ps(avx_signbit.v, y.v);
-	const auto tmp2 = _mmx_and_ps(avx_signbit.v, x.v);
-	v.v = _mmx_or_ps(tmp2, tmp0); // (avx_signbit & from) | (~avx_signbit & to)
+	for( int i = 0; i < SIMD_N; i++) {
+		const auto tmp0 = mmx_andnot_ps(avx_signbit.v[i], y.v[i]);
+		const auto tmp2 = mmx_and_ps(avx_signbit.v[i], x.v[i]);
+		v.v[i] = mmx_or_ps(tmp2, tmp0); // (avx_signbit & from) | (~avx_signbit & to)
+	}
 	return v;
 }
 
@@ -405,7 +519,9 @@ inline simd_float abs(const simd_float &a) {
 
 inline simd_float max(const simd_float &a, const simd_float &b) {
 	simd_float r;
-	r.v = _mmx_max_ps(a.v, b.v);
+	for( int i = 0; i < SIMD_N; i++) {
+		r.v[i] = mmx_max_ps(a.v[i], b.v[i]);
+	}
 	return r;
 }
 

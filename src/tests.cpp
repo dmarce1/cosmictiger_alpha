@@ -307,20 +307,17 @@ void drift_test() {
 void force_test() {
 	printf("Doing force test\n");
 	printf("Generating particles\n");
-	particle_sets parts(global().opts.nparts);
+	particle_server pserv;
+	pserv.init();
+	pserv.generate_random();
 //	 parts.load_particles("ics");
-	parts.generate_random();
 	tree root;
 	sort_params params;
-	params.part_sets = &parts;
 	params.theta = global().opts.theta;
 	params.min_rung = 0;
 	tree_ptr root_ptr;
-
-	root_ptr.dindex = 0;
-	params.tptr = root_ptr;
 	tree_data_initialize(KICK);
-	root.sort(params);
+	root_ptr = root.sort(params).check;
 	//  root_ptr.rank = hpx_rank();
 	// printf( "%li", size_t(WORKSPACE_SIZE));
 	kick_params_type *params_ptr;
@@ -329,7 +326,7 @@ void force_test() {
 	params_ptr->tptr = root_ptr;
 	params_ptr->dchecks.push(root_ptr);
 	params_ptr->echecks.push(root_ptr);
-	params_ptr->part_sets = &parts;
+	params_ptr->part_sets = &pserv.get_particle_sets();
 
 	// printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
 	array<fixed32, NDIM> Lpos;
@@ -346,6 +343,7 @@ void force_test() {
 	params_ptr->full_eval = true;
 	kick_return_init(0);
 	params_ptr->theta = 0.4;
+	printf( "Kicking\n");
 	root.kick(params_ptr).get();
 	kick_return_show();
 	tree::cleanup();
@@ -354,7 +352,7 @@ void force_test() {
 	timer tm;
 	tm.start();
 	printf("Doing comparison\n");
-	cuda_compare_with_direct(parts.cdm.get_virtual_particle_set());
+	cuda_compare_with_direct(pserv.get_particle_sets().cdm.get_virtual_particle_set());
 	tm.stop();
 	printf("Comparison took %e s\n", tm.read());
 	// printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);

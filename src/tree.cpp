@@ -435,7 +435,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto& phi = params.Phi;
 	parts_type parts;
 	parts = self.get_parts();
-//	printf( "%i %i\n", parts[1].first, parts[1].second);
+//	printf( "%i %i\n", parts[0].first, parts[0].second);
 //	abort();
 	if (params.depth == 0) {
 		kick_timer.start();
@@ -471,7 +471,6 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 #ifdef TEST_CHECKLIST_TIME
 	static timer tm;
 #endif
-	//  printf( "%li\n", params.depth);
 	assert(params.depth < TREE_MAX_DEPTH);
 	auto &L = params.L[params.depth];
 	const auto &Lpos = params.Lpos[params.depth];

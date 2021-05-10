@@ -53,7 +53,7 @@ void silo_out(particle_sets partsets, const char* filename) {
 					DB_LONG_LONG, NULL);
 		}
 #ifdef TEST_FORCE
-		printf( "forces\n");
+		printf("forces\n");
 		{
 			std::vector<float> g(size_);
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -65,13 +65,14 @@ void silo_out(particle_sets partsets, const char* filename) {
 				DBPutPointvar1(db, name.c_str(), mesh_name.c_str(), g.data(), size_, DB_FLOAT, NULL);
 			}
 		}
-		printf( "potential\n");
+		printf("potential\n");
 		{
 			std::vector<float> p(size_);
 			for (int i = 0; i < size_; i++) {
 				p[i] = parts.pot(i);
 			}
-			DBPutPointvar1(db, (std::string("phi_") + set_names[pi]).c_str(), mesh_name.c_str(), p.data(), size_, DB_FLOAT, NULL);
+			DBPutPointvar1(db, (std::string("phi_") + set_names[pi]).c_str(), mesh_name.c_str(), p.data(), size_, DB_FLOAT,
+					NULL);
 		}
 #endif
 	}
@@ -100,12 +101,14 @@ void particle_sets::generate_random() {
 	if (hpx_rank() != 0) {
 		return;
 	}
-	const float h = std::pow(baryon.size(), -1.0 / 3.0);
 	cdm.generate_random(42);
-	baryon.generate_random(1234);
-	for (int i = 0; i < baryon.size(); i++) {
-		baryon.energy(i) = 0.0;
-		baryon.smooth_len(i) = h;
+	if (global().opts.sph) {
+		const float h = std::pow(baryon.size(), -1.0 / 3.0);
+		baryon.generate_random(1234);
+		for (int i = 0; i < baryon.size(); i++) {
+			baryon.energy(i) = 0.0;
+			baryon.smooth_len(i) = h;
+		}
 	}
 }
 
