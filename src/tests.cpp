@@ -87,7 +87,7 @@ void kick_test() {
 		params.min_rung = 0;
 		tree_ptr root_ptr;
 
-		root.sort(params);
+		root_ptr = root.sort(params).check;
 		tm_sort.stop();
 		tm_kick.start();
 		//  root_ptr.rank = hpx_rank();
@@ -338,7 +338,7 @@ void force_test() {
 	}
 	params_ptr->L[0] = L;
 	params_ptr->Lpos[0] = Lpos;
-	params_ptr->t0 = true;
+	params_ptr->t0 = 1.0;
 	params_ptr->full_eval = true;
 	kick_return_init(0);
 	params_ptr->theta = 0.4;

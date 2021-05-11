@@ -68,7 +68,7 @@ __constant__ float rung_dt[MAX_RUNG] = { 1.0 / (1 << 0), 1.0 / (1 << 1), 1.0 / (
 CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	kick_params_type &params = *params_ptr;
 	auto* part_sets = (particle_sets*) constant.partsets;
-		__shared__
+	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	tree_ptr tptr = shmem.self;
@@ -367,65 +367,72 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		for (int pi = 0; pi < constant.npart_types; pi++) {
 			auto& parts = *part_sets->sets[pi];
 			const int offset = myparts.index_offset(pi);
-			for (int k = tid; k < myparts[pi].second - myparts[pi].first; k += KICK_BLOCK_SIZE) {
-				const auto index = k + myparts[pi].first;
-				const int kpo = k + offset;
-				const auto this_rung = parts.rung(index);
-				if (this_rung >= constant.rung || constant.full_eval) {
-					array<float, NDIM> g;
-					float this_phi;
-					for (int dim = 0; dim < NDIM; dim++) {
-						const auto x2 = mypos[dim];
-						const auto x1 = parts.pos(dim, index);
-						dx[dim] = distance(x1, x2);
-					}
-					shift_expansion(L, g, this_phi, dx, constant.full_eval);
-					for (int dim = 0; dim < NDIM; dim++) {
-						F[dim][kpo] += g[dim];
-					}
-					phi[kpo] += this_phi;
-					for (int dim = 0; dim < NDIM; dim++) {
-						F[dim][kpo] *= GM;
-					}
-					phi[kpo] *= GM;
-					if (constant.groups) {
-						const int id = parts.group(index);
-						gpu_groups_kick_update(id, phi[kpo]);
-					}
+			const int nk = round_up(myparts[pi].second - myparts[pi].first, size_t(KICK_BLOCK_SIZE));
+			for (int k = tid; k < nk; k += KICK_BLOCK_SIZE) {
+				if (k < myparts[pi].second - myparts[pi].first) {
+					const auto index = k + myparts[pi].first;
+					const int kpo = k + offset;
+					const auto this_rung = parts.rung(index);
+					if (this_rung >= constant.rung || constant.full_eval) {
+						array<float, NDIM> g;
+						float this_phi;
+						for (int dim = 0; dim < NDIM; dim++) {
+							const auto x2 = mypos[dim];
+							const auto x1 = parts.pos(dim, index);
+							dx[dim] = distance(x1, x2);
+						}
+						shift_expansion(L, g, this_phi, dx, constant.full_eval);
+						for (int dim = 0; dim < NDIM; dim++) {
+							F[dim][kpo] += g[dim];
+						}
+						phi[kpo] += this_phi;
+						for (int dim = 0; dim < NDIM; dim++) {
+							F[dim][kpo] *= GM;
+						}
+						phi[kpo] *= GM;
+						if (constant.groups) {
+							const int id = parts.group(index);
+							gpu_groups_kick_update(id, phi[kpo]);
+						}
 #ifdef TEST_FORCE
-					for (int dim = 0; dim < NDIM; dim++) {
-						parts.force(dim, k + myparts[pi].first) = F[dim][kpo];
-					}
-					parts.pot(k + myparts[pi].first) = phi[kpo];
+						for (int dim = 0; dim < NDIM; dim++) {
+							parts.force(dim, k + myparts[pi].first) = F[dim][kpo];
+						}
+						parts.pot(k + myparts[pi].first) = phi[kpo];
 #endif
-					if (this_rung >= constant.rung) {
-						float dt = halft0 * rung_dt[this_rung];
-						auto& vx = parts.vel(0, index);
-						auto& vy = parts.vel(1, index);
-						auto& vz = parts.vel(2, index);
-						if (!constant.first) {
+						if (this_rung >= constant.rung) {
+							float dt = halft0 * rung_dt[this_rung];
+							auto& vx = parts.vel(0, index);
+							auto& vy = parts.vel(1, index);
+							auto& vz = parts.vel(2, index);
+							if (!constant.first) {
+								vx = fmaf(dt, F[0][kpo], vx);
+								vy = fmaf(dt, F[1][kpo], vy);
+								vz = fmaf(dt, F[2][kpo], vz);
+							}
+							const float fmag2 = fmaf(F[0][kpo], F[0][kpo], fmaf(F[1][kpo], F[1][kpo], sqr(F[2][kpo])));
+							if (fmag2 != 0.f) {
+								dt = fminf(tfactor * rsqrt(sqrtf(fmag2)), params.t0);
+							} else {
+								dt = 1.0e+30;
+							}
+							const int new_rung = fmaxf(fmaxf(ceilf((logt0 - logf(dt)) * invlog2), this_rung - 1), minrung);
+							dt = halft0 * rung_dt[new_rung];
 							vx = fmaf(dt, F[0][kpo], vx);
 							vy = fmaf(dt, F[1][kpo], vy);
 							vz = fmaf(dt, F[2][kpo], vz);
+							parts.set_rung(new_rung, index);
 						}
-						const float fmag2 = fmaf(F[0][kpo], F[0][kpo], fmaf(F[1][kpo], F[1][kpo], sqr(F[2][kpo])));
-						if (fmag2 != 0.f) {
-							dt = fminf(tfactor * rsqrt(sqrtf(fmag2)), params.t0);
-						} else {
-							dt = 1.0e+30;
+						if (constant.full_eval) {
+							kick_return_update_pot_gpu(phi[kpo], F[0][kpo], F[1][kpo], F[2][kpo]);
 						}
-						const int new_rung = fmaxf(fmaxf(ceilf((logt0 - logf(dt)) * invlog2), this_rung - 1), minrung);
-						dt = halft0 * rung_dt[new_rung];
-						vx = fmaf(dt, F[0][kpo], vx);
-						vy = fmaf(dt, F[1][kpo], vy);
-						vz = fmaf(dt, F[2][kpo], vz);
-						parts.set_rung(new_rung, index);
 					}
+					kick_return_update_rung_gpu(parts.rung(index));
+				} else {
 					if (constant.full_eval) {
-						kick_return_update_pot_gpu(phi[kpo], F[0][kpo], F[1][kpo], F[2][kpo]);
+						kick_return_update_pot_gpu(0.f, 0.f, 0.f, 0.f);
 					}
 				}
-				kick_return_update_rung_gpu(parts.rung(index));
 			}
 		}
 	}
