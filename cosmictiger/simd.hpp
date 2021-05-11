@@ -17,6 +17,7 @@
 #ifdef __AVX2__
 #define USE_AVX2
 #elif defined(__AVX__)
+#define USE_AVX
 #else
 #define USE_SCALAR
 #endif
