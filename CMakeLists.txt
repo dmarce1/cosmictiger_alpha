@@ -18,7 +18,7 @@ project(cosmictiger CXX C)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 find_package(HPX REQUIRED NO_CMAKE_PACKAGE_REGISTRY)
-find_package(Boost REQUIRED)
+#find_package(Boost REQUIRED)
 find_package(Silo REQUIRED)
 enable_language(CUDA)
 
@@ -127,7 +127,7 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    siloh5  cuda cudart tcmalloc boost_program_options
+    siloh5  cuda cudart tcmalloc z hdf5
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
@@ -156,7 +156,7 @@ add_executable( cosmictiger_lite
  
 set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 target_link_libraries(hpx2mw PUBLIC siloh5 boost_program_options)
-target_link_libraries(cosmictiger_lite PUBLIC siloh5 boost_program_options tcmalloc hpx_lite hwloc cudart)
+target_link_libraries(cosmictiger_lite PUBLIC siloh5 boost_program_options tcmalloc hpx_lite hwloc cudart hdf5 z)
 target_include_directories(hpx2mw PUBLIC ${PROJECT_SOURCE_DIR})
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite/)

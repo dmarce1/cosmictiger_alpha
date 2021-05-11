@@ -17,10 +17,10 @@ void yield() {
 
 
 int hpx_main(int argc, char *argv[]) {
+	printf("Size of cuda_kick_shmem is %li\n", sizeof(cuda_kick_shmem));
 	options opts;
 	//  printf( "%li\n", sizeof(std::shared_ptr<int>));
 	//  printf( "%li\n", sizeof(sort_params));
-	printf("Size of cuda_kick_shmem is %li\n", sizeof(cuda_kick_shmem));
 
 	if (process_options(argc, argv, opts)) {
 
@@ -43,8 +43,10 @@ int hpx_main(int argc, char *argv[]) {
 
 #ifdef USE_HPX
 int main(int argc, char *argv[]) {
+	printf( "Starting main\n");
 	std::vector<std::string> cfg = { "hpx.commandline.allow_unknown=1" };
 	cfg.push_back("hpx.stacks.small_size=2097152");
+	printf( "Starting hpx_init\n");
 	hpx::init(argc, argv, cfg);
 }
 #endif
