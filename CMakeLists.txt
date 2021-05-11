@@ -18,14 +18,15 @@ project(cosmictiger CXX C)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 find_package(HPX REQUIRED NO_CMAKE_PACKAGE_REGISTRY)
-#find_package(Boost REQUIRED)
+find_package(Boost REQUIRED)
 find_package(Silo REQUIRED)
 enable_language(CUDA)
+add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=0)
+
 
 set(CMAKE_CXX_FLAGS "-Wno-attributes -ffast-math -march=native -Wno-deprecated-declarations")
 
 set(cosmictiger_source_files
-    chealpix/chealpix.c
     src/chemistry.cpp
     src/cosmos.cpp
     src/cuda.cpp
@@ -76,8 +77,7 @@ set(cosmictiger_source_files
                         
 
 set(cosmictiger_header_files
-    chealpix/chealpix.h
-	cosmictiger/boltzmann.hpp
+ 	cosmictiger/boltzmann.hpp
 	cosmictiger/chemistry.hpp
 	cosmictiger/cosmos.hpp
 	cosmictiger/defs.hpp
@@ -127,17 +127,13 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    siloh5  cuda cudart tcmalloc z hdf5
+    siloh5  cuda cudart tcmalloc z hdf5 boost_program_options
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
     ${cosmictiger_header_files}
  )
  
- add_executable(
- 	hpx2mw
- 	src/hpx2mw.cpp
- )
  
 add_library(hpx_lite 
 	hpx_lite/src/hpx.cpp
@@ -155,9 +151,7 @@ add_executable( cosmictiger_lite
 
  
 set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-target_link_libraries(hpx2mw PUBLIC siloh5 boost_program_options)
 target_link_libraries(cosmictiger_lite PUBLIC siloh5 boost_program_options tcmalloc hpx_lite hwloc cudart hdf5 z)
-target_include_directories(hpx2mw PUBLIC ${PROJECT_SOURCE_DIR})
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite/)
 target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite/)

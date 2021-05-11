@@ -150,6 +150,48 @@ void particle_server::execute_swaps(int pi, std::vector<sort_quantum> swaps) {
 	}
 }
 
+int particle_server::compute_target_rank(parts_type pranges) {
+	particle_server pserv;
+	const int npart_types = global().opts.sph ? 2 : 1;
+	bool all_same = true;
+	int target_rank = pserv.index_to_rank(pranges[0].first);
+	for( int pi = 0; pi < npart_types; pi++) {
+		if( pserv.index_to_rank(pranges[pi].first) != target_rank ) {
+			all_same = false;
+			break;
+		}
+		if( pserv.index_to_rank(pranges[pi].second - 1) != target_rank ) {
+			all_same = false;
+			break;
+		}
+	}
+	if( !all_same ) {
+		for( int pi = 0; pi < npart_types; pi++) {
+			std::unordered_map<int,size_t> counts;
+			int rank_start = pserv.index_to_rank(pranges[pi].first);
+			int rank_stop = pserv.index_to_rank(pranges[pi].second - 1);
+			for( int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
+				const size_t this_b = std::max(pranges[pi].first, this_rank * global_size / nprocs);
+				const size_t this_e = std::min(pranges[pi].second, (this_rank + 1) * global_size / nprocs);
+				if( counts.find(this_rank) == counts.end()) {
+					counts[this_rank] = this_e - this_b;
+				} else {
+					counts[this_rank] += this_e - this_b;
+				}
+			}
+			size_t highest_count = 0;
+			for( auto i = counts.begin(); i != counts.end(); i++) {
+				if( i->second > highest_count) {
+					highest_count = i->second;
+					target_rank = i->first;
+				}
+			}
+		}
+	}
+	return target_rank;
+}
+
+
 void particle_server::write_rungs_inc_vel(int pi, part_iters range, std::vector<rung_t> rungs,
 		std::vector<std::array<float, NDIM>> dv) {
 	const int rank_start = index_to_rank(range.first);

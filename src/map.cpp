@@ -7,9 +7,6 @@
 #include <cosmictiger/math.hpp>
 #include <atomic>
 #include <unordered_map>
-
-#include <chealpix/chealpix.h>
-
 static mutex_type mtx;
 static std::unordered_map<int, map_type> maps;
 //static std::stack<map_workspace> workspaces;

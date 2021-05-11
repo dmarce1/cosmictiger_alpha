@@ -56,7 +56,7 @@ fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread
 	for (int pi = 0; pi < NPART_TYPES; pi++) {
 		nparts += params.parts[pi].second - params.parts[pi].first;
 	}
-	int target_rank = pserv.index_to_rank(params.parts[0].first);
+	int target_rank = pserv.compute_target_rank(params.parts);
 	if (target_rank != hpx_rank()) {
 		fut = hpx::async<tree_sort_action>(hpx_localities()[target_rank], params);
 	} else {
@@ -123,7 +123,7 @@ sort_return tree::sort(sort_params params) {
 						child_params[RIGHT].parts[pi].first = child_params[RIGHT].parts[pi].second = 0;
 			}
 			for (int ci = 0; ci < NCHILD; ci++) {
-				futs[ci] = create_child(child_params[ci], true);
+				futs[ci] = create_child(child_params[ci], ci == LEFT || children[ci].rank != hpx_rank());
 			}
 		}
 

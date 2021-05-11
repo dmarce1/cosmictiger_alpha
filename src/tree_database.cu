@@ -33,13 +33,12 @@ void tree_data_free_all_cu() {
 	free_if_needed(&cpu_tree_data().all_local);
 }
 
+int hpx_size();
+
 void tree_data_initialize_kick() {
 
 	cpu_tree_data().chunk_size = 1;
-	cpu_tree_data().ntrees = 5 * global().opts.nparts / global().opts.bucket_size;
-	if (global().opts.sph) {
-		cpu_tree_data().ntrees *= 2;
-	}
+	cpu_tree_data().ntrees = 5 * global().opts.nparts / global().opts.bucket_size / hpx_size();
 	cpu_tree_data().ntrees = std::max(cpu_tree_data().ntrees, min_trees);
 	const int target_chunk_size = cpu_tree_data().ntrees / (16 * OVERSUBSCRIPTION * hardware_concurrency());
 	while (cpu_tree_data().chunk_size < target_chunk_size) {
