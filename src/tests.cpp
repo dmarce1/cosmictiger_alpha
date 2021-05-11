@@ -310,7 +310,6 @@ void force_test() {
 	particle_server pserv;
 	pserv.init();
 	pserv.generate_random();
-//	 parts.load_particles("ics");
 	tree root;
 	sort_params params;
 	params.theta = global().opts.theta;
