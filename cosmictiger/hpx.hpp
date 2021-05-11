@@ -16,7 +16,6 @@
 #include <hpx/hpx_finalize.hpp>
 #include <hpx/hpx_init.hpp>
 #include <hpx/include/components.hpp>
-#include <hpx/collectives/broadcast_direct.hpp>
 #else
 #include <hpx_lite/hpx/hpx_lite.hpp>
 #endif

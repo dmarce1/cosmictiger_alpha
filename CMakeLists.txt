@@ -25,6 +25,7 @@ enable_language(CUDA)
 set(CMAKE_CXX_FLAGS "-Wno-attributes -ffast-math -march=native -Wno-deprecated-declarations")
 
 set(cosmictiger_source_files
+    chealpix/chealpix.c
     src/chemistry.cpp
     src/cosmos.cpp
     src/cuda.cpp
@@ -75,6 +76,7 @@ set(cosmictiger_source_files
                         
 
 set(cosmictiger_header_files
+    chealpix/chealpix.h
 	cosmictiger/boltzmann.hpp
 	cosmictiger/chemistry.hpp
 	cosmictiger/cosmos.hpp
@@ -153,8 +155,9 @@ add_executable( cosmictiger_lite
 
  
 set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
+target_link_libraries(hpx2mw PUBLIC siloh5 boost_program_options)
 target_link_libraries(cosmictiger_lite PUBLIC siloh5 boost_program_options tcmalloc hpx_lite hwloc cudart)
+target_include_directories(hpx2mw PUBLIC ${PROJECT_SOURCE_DIR})
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite/)
 target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite/)

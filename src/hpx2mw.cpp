@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <silo.h>
 
-#include <chealpix.h>
+#include <chealpix/chealpix.h>
 
 #include <boost/program_options.hpp>
 
