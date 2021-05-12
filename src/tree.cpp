@@ -47,6 +47,10 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	return lev;
 }
 
+
+#define SORT_OVER_SUBSCRIPTION 1
+#define YIELD_OVER_SUBSCRIPTION 32
+
 fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	fast_future<sort_return> fut;
 	tree_ptr id;
@@ -61,7 +65,7 @@ fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread
 		fut = hpx::async<tree_sort_action>(hpx_localities()[target_rank], params);
 	} else {
 		bool thread = false;
-		const size_t min_parts2thread = particles.size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
+		const size_t min_parts2thread = particles.size() / (hpx::thread::hardware_concurrency() * SORT_OVER_SUBSCRIPTION);
 		thread = try_thread && (nparts >= min_parts2thread);
 		if (!thread) {
 			fut.set_value(tree::sort(params));
@@ -112,18 +116,36 @@ sort_return tree::sort(sort_params params) {
 			const int xdim = params.depth % NDIM;
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
+			std::array<bool, NCHILD> child_local = {true,true};
+			bool iamlocal = true;
 			for (int pi = 0; pi < npart_types; pi++) {
 				const size_t pmid = pserv.sort(pi, parts[pi].first, parts[pi].second, xmid, xdim);
 				child_params[LEFT].parts[pi].first = parts[pi].first;
+				if( pserv.index_to_rank(parts[pi].first) != hpx_rank() ) {
+					child_local[LEFT] = false;
+					iamlocal = false;
+				}
 				child_params[LEFT].parts[pi].second = child_params[RIGHT].parts[pi].first = pmid;
+				if( pserv.index_to_rank(pmid-1) != hpx_rank() ) {
+					child_local[LEFT] = false;
+				}
+				if( pserv.index_to_rank(pmid) != hpx_rank() ) {
+					child_local[RIGHT] = false;
+				}
 				child_params[RIGHT].parts[pi].second = parts[pi].second;
+				if( pserv.index_to_rank(parts[pi].second-1) != hpx_rank() ) {
+					child_local[RIGHT] = false;
+					iamlocal = false;
+				}
 			}
 			for (int pi = npart_types; pi < NPART_TYPES; pi++) {
 				child_params[LEFT].parts[pi].first = child_params[LEFT].parts[pi].second =
 						child_params[RIGHT].parts[pi].first = child_params[RIGHT].parts[pi].second = 0;
 			}
-			for (int ci = 0; ci < NCHILD; ci++) {
-				futs[ci] = create_child(child_params[ci], ci == LEFT || children[ci].rank != hpx_rank());
+			futs[LEFT] = create_child(child_params[LEFT], true);
+			futs[RIGHT] = create_child(child_params[RIGHT], false);
+			if( iamlocal && parts.size() >= particles.size() / (hpx::thread::hardware_concurrency() * YIELD_OVER_SUBSCRIPTION)) {
+				hpx::this_thread::yield();	
 			}
 		}
 

@@ -74,6 +74,7 @@ public:
 	static size_t pos_cache_line_index(size_t i);
 	static std::vector<rung_t> read_rungs(int pi, size_t, size_t);
 	static void write_rungs_inc_vel(int pi, part_iters, std::vector<rung_t>, std::vector<std::array<float,NDIM>> dv);
+	static int compute_target_rank(parts_type pranges);
 	inline static fixed32 pos_read(int pi, int dim, size_t i) {
 		if (i >= my_start & i < my_stop) {
 			return parts->sets[pi]->pos(dim, i);

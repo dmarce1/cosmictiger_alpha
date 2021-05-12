@@ -17,7 +17,7 @@
 #define NNEIGHBORS 32
 #define SPH_TOLER 1.0e-6
 
-#define SORT_SWAP_MAX (16*1024*1024)
+#define SORT_SWAP_MAX (8*1024*1024)
 
 //#define TEST_CHECKLIST_TIME
 

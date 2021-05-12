@@ -21,7 +21,7 @@ find_package(HPX REQUIRED NO_CMAKE_PACKAGE_REGISTRY)
 find_package(Boost REQUIRED)
 find_package(Silo REQUIRED)
 enable_language(CUDA)
-add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=0)
+#add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=0)
 
 
 set(CMAKE_CXX_FLAGS "-Wno-attributes -ffast-math -march=native -Wno-deprecated-declarations")
