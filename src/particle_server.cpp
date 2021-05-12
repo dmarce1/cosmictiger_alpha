@@ -25,7 +25,7 @@ struct sort_iters {
 #define POS_CACHE_LINE_SIZE_MAX 1024
 
 std::array<std::array<pos_cache_type, POS_CACHE_SIZE>, NPART_TYPES> particle_server::pos_caches;
-std::array<std::array<spinlock_type, POS_CACHE_SIZE>, NPART_TYPES> particle_server::mutexes;
+std::array<std::array<mutex_type, POS_CACHE_SIZE>, NPART_TYPES> particle_server::mutexes;
 particle_sets* particle_server::parts;
 size_t particle_server::my_start;
 size_t particle_server::my_stop;
@@ -55,7 +55,7 @@ fixed32 particle_server::pos_cache_read(int pi, int dim, size_t i) {
 	static const auto localities = hpx_localities();
 	size_t i0 = pos_cache_line_index(i);
 	size_t cache = part_hash_lo()(i0);
-	std::unique_lock<spinlock_type> lock(mutexes[pi][cache]);
+	std::unique_lock<mutex_type> lock(mutexes[pi][cache]);
 	auto entry_iter = pos_caches[pi][cache].find(i0);
 	if (entry_iter == pos_caches[pi][cache].end()) {
 		auto prms = std::make_shared<hpx::lcos::local::promise<void>>();
@@ -65,7 +65,7 @@ fixed32 particle_server::pos_cache_read(int pi, int dim, size_t i) {
 		hpx::async([i0,cache,pi,prms]() {
 			particle_server_read_pos_cache_line_action action;
 			auto data = action(localities[index_to_rank(i0)], pi, i0);
-			std::unique_lock<spinlock_type> lock(mutexes[pi][cache]);
+			std::unique_lock<mutex_type> lock(mutexes[pi][cache]);
 			auto& entry = pos_caches[pi][cache][i0];
 			entry.data = std::make_shared<pos_line_type>(std::move(data));
 			lock.unlock();

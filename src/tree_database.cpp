@@ -28,7 +28,7 @@ struct cache_entry_t {
 };
 
 using cache_type = std::unordered_map<tree_ptr, cache_entry_t, tree_ptr_hi_hash>;
-static array<spinlock_type, TREE_CACHE_SIZE> mutexes;
+static array<mutex_type, TREE_CACHE_SIZE> mutexes;
 static array<cache_type, TREE_CACHE_SIZE> tree_caches;
 
 void tree_data_initialize_kick();
