@@ -10,6 +10,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <utility>
 
 #define NDIM 3
 #define FULL_MASK 0xFFFFFFFF
@@ -17,7 +18,7 @@
 #define NNEIGHBORS 32
 #define SPH_TOLER 1.0e-6
 
-#define SORT_SWAP_MAX (8*1024*1024)
+#define SORT_SWAP_MAX (256*1024)
 
 //#define TEST_CHECKLIST_TIME
 
@@ -126,6 +127,12 @@ struct pair {
 		arc & second;
 	}
 };
+
+template<class A, class B>
+void swap(pair<A,B>& a, pair<A,B>& b ) {
+	std::swap(a.first,b.first);
+	std::swap(a.second,b.second);
+}
 
 #ifdef __CUDA_ARCH__
 #define LDG(a) __ldg(a)

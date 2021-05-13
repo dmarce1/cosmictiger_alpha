@@ -22,6 +22,109 @@ struct sort_iters {
 	}
 };
 
+template<class Arc>
+void particle_arc::save(Arc&& a, unsigned) const {
+	size_t size = range_from.second - range_from.first;
+	a & range_to;
+	a & range_from;
+	a & zero_load;
+	a & size;
+	if (zero_save) {
+		particle_server pserv;
+		auto* parts = pserv.get_particle_sets().sets[pi];
+		const auto b = range_from.first;
+		const auto e = range_from.second;
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (auto i = b; i < e; i++) {
+				a & parts->pos(dim, i);
+			}
+		}
+		for (auto i = b; i < e; i++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				a & parts->vel(dim, i);
+			}
+			a & parts->rung(i);
+			if (global().opts.groups) {
+				a & parts->group(i);
+			}
+		}
+	} else {
+		for( size_t i = 0; i < NDIM * size; i++) {
+			a & fixed32_data[i];
+		}
+		for( size_t i = 0; i < NDIM * size; i++) {
+			a & float_data[i];
+		}
+		for( size_t i = 0; i < size; i++) {
+			a & int8_data[i];
+		}
+		if( global().opts.groups ) {
+			for( size_t i = 0; i < size; i++) {
+				a & ulli_data[i];
+			}
+		}
+	}
+}
+template<class Arc>
+void particle_arc::load(Arc&& a, unsigned) {
+	size_t size;
+	a & range_to;
+	a & range_from;
+	a & zero_load;
+	a & size;
+	fixed32_data.resize(size*NDIM);
+	float_data.resize(size*NDIM);
+	int8_data.resize(size);
+	for( size_t i = 0; i < NDIM * size; i++) {
+		a & fixed32_data[i];
+	}
+	for( size_t i = 0; i < NDIM * size; i++) {
+		a & float_data[i];
+	}
+	for( size_t i = 0; i < size; i++) {
+		a & int8_data[i];
+	}
+	if( global().opts.groups ) {
+		ulli_data.resize(size);
+		for( size_t i = 0; i < size; i++) {
+			a & ulli_data[i];
+		}
+	}
+	if (zero_load) {
+		particle_server pserv;
+		const auto b = range_to.first;
+		const auto e = range_to.second;
+		auto* parts = pserv.get_particle_sets().sets[pi];
+		int j;
+		j = 0;
+		for (int dim = 0; dim < NDIM; dim++) {
+			for (auto i = b; i < e; i++) {
+				parts->pos(dim, i) = fixed32_data[j];
+				j++;
+			}
+		}
+		j = 0;
+		for (auto i = b; i < e; i++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				parts->vel(dim, i) = float_data[j];
+				j++;
+			}
+		}
+		j = 0;
+		for (auto i = b; i < e; i++) {
+			parts->set_rung(int8_data[j], i);
+			j++;
+		}
+		if (global().opts.groups) {
+			j = 0;
+			for (auto i = b; i < e; i++) {
+				parts->group(i) = ulli_data[j];
+				j++;
+			}
+		}
+	}
+}
+
 #define POS_CACHE_LINE_SIZE_MAX 1024
 
 std::array<std::array<pos_cache_type, POS_CACHE_SIZE>, NPART_TYPES> particle_server::pos_caches;
@@ -130,6 +233,10 @@ size_t particle_server::local_sort(int pi, size_t begin, size_t end, double xmid
 
 particle_arc particle_server::swap_particles(int pi, particle_arc arc) {
 	parts->sets[pi]->swap_particle_archive(arc);
+	arc.zero_save = false;
+	arc.zero_load = true;
+	arc.pi = pi;
+	swap(arc.range_to, arc.range_from);
 	return arc;
 }
 
@@ -138,15 +245,20 @@ void particle_server::execute_swaps(int pi, std::vector<sort_quantum> swaps) {
 	for (const auto swap : swaps) {
 		printf("Executing swap %li - %li / %li - %li between %i and %i\n", swap.range_from.first, swap.range_from.second,
 				swap.range_to.first, swap.range_to.second, swap.rank_from, swap.rank_to);
-		auto parc = parts->sets[pi]->save_particle_archive(swap.range_from.first, swap.range_from.second);
+//		auto parc = parts->sets[pi]->save_particle_archive(swap.range_from.first, swap.range_from.second);
+		particle_arc parc;
+		parc.zero_save = true;
+		parc.zero_load = false;
+		parc.pi = pi;
 		parc.range_to = swap.range_to;
+		parc.range_from = swap.range_from;
 		futs.push_back(hpx::async<particle_server_swap_particles_action>(localities[swap.rank_to], pi, std::move(parc)));
 	}
 	for (auto& f : futs) {
 		auto arc = f.get();
-		std::swap(arc.range_from.first, arc.range_to.first);
-		std::swap(arc.range_from.second, arc.range_to.second);
-		parts->sets[pi]->load_particle_archive(std::move(arc));
+//		std::swap(arc.range_from.first, arc.range_to.first);
+//		std::swap(arc.range_from.second, arc.range_to.second);
+//		parts->sets[pi]->load_particle_archive(std::move(arc));
 	}
 }
 
@@ -155,33 +267,33 @@ int particle_server::compute_target_rank(parts_type pranges) {
 	const int npart_types = global().opts.sph ? 2 : 1;
 	bool all_same = true;
 	int target_rank = pserv.index_to_rank(pranges[0].first);
-	for( int pi = 0; pi < npart_types; pi++) {
-		if( pserv.index_to_rank(pranges[pi].first) != target_rank ) {
+	for (int pi = 0; pi < npart_types; pi++) {
+		if (pserv.index_to_rank(pranges[pi].first) != target_rank) {
 			all_same = false;
 			break;
 		}
-		if( pserv.index_to_rank(pranges[pi].second - 1) != target_rank ) {
+		if (pserv.index_to_rank(pranges[pi].second - 1) != target_rank) {
 			all_same = false;
 			break;
 		}
 	}
-	if( !all_same ) {
-		for( int pi = 0; pi < npart_types; pi++) {
-			std::unordered_map<int,size_t> counts;
+	if (!all_same) {
+		for (int pi = 0; pi < npart_types; pi++) {
+			std::unordered_map<int, size_t> counts;
 			int rank_start = pserv.index_to_rank(pranges[pi].first);
 			int rank_stop = pserv.index_to_rank(pranges[pi].second - 1);
-			for( int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
+			for (int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
 				const size_t this_b = std::max(pranges[pi].first, this_rank * global_size / nprocs);
 				const size_t this_e = std::min(pranges[pi].second, (this_rank + 1) * global_size / nprocs);
-				if( counts.find(this_rank) == counts.end()) {
+				if (counts.find(this_rank) == counts.end()) {
 					counts[this_rank] = this_e - this_b;
 				} else {
 					counts[this_rank] += this_e - this_b;
 				}
 			}
 			size_t highest_count = 0;
-			for( auto i = counts.begin(); i != counts.end(); i++) {
-				if( i->second > highest_count) {
+			for (auto i = counts.begin(); i != counts.end(); i++) {
+				if (i->second > highest_count) {
 					highest_count = i->second;
 					target_rank = i->first;
 				}
@@ -190,7 +302,6 @@ int particle_server::compute_target_rank(parts_type pranges) {
 	}
 	return target_rank;
 }
-
 
 void particle_server::write_rungs_inc_vel(int pi, part_iters range, std::vector<rung_t> rungs,
 		std::vector<std::array<float, NDIM>> dv) {
@@ -220,8 +331,8 @@ void particle_server::write_rungs_inc_vel(int pi, part_iters range, std::vector<
 			this_range.first = this_b;
 			this_range.second = this_e;
 			futs.push_back(
-					hpx::async<particle_server_write_rungs_inc_vel_action>(localities[this_rank], pi, this_range, std::move(these_rungs),
-							std::move(these_dvs)));
+					hpx::async<particle_server_write_rungs_inc_vel_action>(localities[this_rank], pi, this_range,
+							std::move(these_rungs), std::move(these_dvs)));
 		}
 		hpx::wait_all(futs.begin(), futs.end());
 	}

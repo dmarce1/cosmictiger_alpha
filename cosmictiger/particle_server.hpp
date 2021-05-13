@@ -49,7 +49,7 @@ using pos_cache_type = std::unordered_map<size_t, pos_cache_entry, part_hash_hi>
 class particle_server {
 #ifndef __CUDACC__
 	static std::array<std::array<pos_cache_type, POS_CACHE_SIZE>, NPART_TYPES> pos_caches;
-	static std::array<std::array<spinlock_type, POS_CACHE_SIZE>, NPART_TYPES> mutexes;
+	static std::array<std::array<mutex_type, POS_CACHE_SIZE>, NPART_TYPES> mutexes;
 	static std::vector<hpx::id_type> localities;
 #endif
 	static particle_sets* parts;

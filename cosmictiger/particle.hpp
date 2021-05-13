@@ -13,7 +13,8 @@
 #include <cosmictiger/fixed.hpp>
 #include <cosmictiger/range.hpp>
 #include <cosmictiger/array.hpp>
-#ifdef _CUDA_ARCH_
+#include <boost/serialization/split_member.hpp>
+#ifndef __CUDA_ARCH__
 #include <cosmictiger/hpx.hpp>
 #endif
 
@@ -26,15 +27,26 @@ struct particle_arc {
 	std::vector<float> float_data;
 	std::vector<int8_t> int8_data;
 	std::vector<unsigned long long int> ulli_data;
-	template<class Arc>
-	void serialize(Arc&& a, unsigned) {
-		a & range_to;
-		a & range_from;
-		a & fixed32_data;
-		a & float_data;
-		a & int8_data;
-		a & ulli_data;
+	int pi;
+	bool zero_save;
+	bool zero_load;
+	particle_arc() {
+		zero_save = false;
+		zero_load = false;
+		pi = 0;
 	}
+#ifndef __CUDACC__
+#ifdef USE_HPX
+	HPX_SERIALIZATION_SPLIT_MEMBER()
+	;
+#else
+	BOOST_SERIALIZATION_SPLIT_MEMBER();
+#endif
+	template<class Arc>
+	void save(Arc&& a, unsigned) const;
+	template<class Arc>
+	void load(Arc&& a, unsigned);
+#endif
 };
 
 #define NO_GROUP (0x7FFFFFFFFFFF)
