@@ -66,7 +66,7 @@ struct particle_set {
 	CUDA_EXPORT
 	rung_t rung(size_t index) const;
 
-	size_t sort_range(size_t begin, size_t end, double xmid, int xdim);
+	size_t sort_range(size_t begin, size_t end, range xmid, int xdim, size_t bucket_size=0);
 
 	CUDA_EXPORT
 	fixed32& pos(int dim, size_t index);

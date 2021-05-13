@@ -23,11 +23,11 @@ hydro_particle_set hydro_particle_set::get_virtual_particle_set() const {
 	return parts;
 }
 
-size_t hydro_particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
+size_t hydro_particle_set::sort_range(size_t begin, size_t end, range box, int xdim, size_t bucket_size) {
 
 	size_t lo = begin;
 	size_t hi = end;
-	fixed32 xmid(xm);
+	fixed32 xmid = (box.begin[xdim] + box.end[xdim])/2.0;
 	auto& xptr_dim = xptr_[xdim];
 	auto& x = xptr_[0];
 	auto& y = xptr_[1];
@@ -55,6 +55,29 @@ size_t hydro_particle_set::sort_range(size_t begin, size_t end, double xm, int x
 			}
 		}
 		lo++;
+	}
+	if( bucket_size && end - begin > bucket_size ) {
+		range left, right;
+		int next_dim = (xdim + 1) % NDIM;
+		left = right = box;
+		left.end[xdim] = xmid.to_float();
+		right.begin[xdim] = xmid.to_float();
+		const auto left_func = [this,begin,hi,left,next_dim,bucket_size](){
+			sort_range(begin,hi,left,next_dim,bucket_size);
+		};
+		const auto right_func = [this,end,hi,right,next_dim,bucket_size](){
+			sort_range(hi,end,right,next_dim,bucket_size);
+		};
+		if( end - begin > 65536 ) {
+			hpx::future<void> futl, futr;
+			futl  = hpx::async(left_func);
+			futr  = hpx::async(right_func);
+			futl.get();
+			futr.get();
+		} else {
+			left_func();
+			right_func();
+		}
 	}
 	return hi;
 }

@@ -24,7 +24,12 @@ static void parallel_sort_test() {
 	printf( "Generating random positions\n");
 	pserv.generate_random();
 	printf( "Doing sort\n");
-	pserv.sort(0,0,global().opts.nparts, 0.5, 0);
+	range box;
+	for( int dim = 0; dim < NDIM; dim++) {
+		box.begin[dim] = 0.0;
+		box.end[dim] = 1.0;
+	}
+	pserv.sort(0,0,global().opts.nparts, box, 0);
 	printf( "Done\n");
 }
 
