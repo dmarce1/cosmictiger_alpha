@@ -119,7 +119,7 @@ sort_return tree::sort(sort_params params) {
 			std::array<bool, NCHILD> child_local = {true,true};
 			bool iamlocal = true;
 			for (int pi = 0; pi < npart_types; pi++) {
-				const size_t pmid = pserv.sort(pi, parts[pi].first, parts[pi].second, box, xdim);
+				const size_t pmid = pserv.sort(pi, parts[pi].first, parts[pi].second, xmid, xdim);
 				child_params[LEFT].parts[pi].first = parts[pi].first;
 				if( pserv.index_to_rank(parts[pi].first) != hpx_rank() ) {
 					child_local[LEFT] = false;

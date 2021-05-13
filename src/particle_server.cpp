@@ -121,9 +121,9 @@ int particle_server::index_to_rank(size_t index) {
 	return std::min((int) ((index + int(global_size % nprocs != 0)) * nprocs / global_size), nprocs - 1);
 }
 
-size_t particle_server::local_sort(int pi, size_t begin, size_t end, range xmid, int xdim, size_t bucket_size) {
+size_t particle_server::local_sort(int pi, size_t begin, size_t end, double xmid, int xdim) {
 	printf("local sort begin : %i %li %li\n", rank, begin, end);
-	const size_t part_mid = parts->sets[pi]->sort_range(begin, end, xmid, xdim, bucket_size);
+	const size_t part_mid = parts->sets[pi]->sort_range(begin, end, xmid, xdim);
 	printf("local sort done  : %i %li %li %li\n", rank, begin, part_mid, end);
 	return part_mid;
 }
@@ -155,33 +155,33 @@ int particle_server::compute_target_rank(parts_type pranges) {
 	const int npart_types = global().opts.sph ? 2 : 1;
 	bool all_same = true;
 	int target_rank = pserv.index_to_rank(pranges[0].first);
-	for (int pi = 0; pi < npart_types; pi++) {
-		if (pserv.index_to_rank(pranges[pi].first) != target_rank) {
+	for( int pi = 0; pi < npart_types; pi++) {
+		if( pserv.index_to_rank(pranges[pi].first) != target_rank ) {
 			all_same = false;
 			break;
 		}
-		if (pserv.index_to_rank(pranges[pi].second - 1) != target_rank) {
+		if( pserv.index_to_rank(pranges[pi].second - 1) != target_rank ) {
 			all_same = false;
 			break;
 		}
 	}
-	if (!all_same) {
-		for (int pi = 0; pi < npart_types; pi++) {
-			std::unordered_map<int, size_t> counts;
+	if( !all_same ) {
+		for( int pi = 0; pi < npart_types; pi++) {
+			std::unordered_map<int,size_t> counts;
 			int rank_start = pserv.index_to_rank(pranges[pi].first);
 			int rank_stop = pserv.index_to_rank(pranges[pi].second - 1);
-			for (int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
+			for( int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
 				const size_t this_b = std::max(pranges[pi].first, this_rank * global_size / nprocs);
 				const size_t this_e = std::min(pranges[pi].second, (this_rank + 1) * global_size / nprocs);
-				if (counts.find(this_rank) == counts.end()) {
+				if( counts.find(this_rank) == counts.end()) {
 					counts[this_rank] = this_e - this_b;
 				} else {
 					counts[this_rank] += this_e - this_b;
 				}
 			}
 			size_t highest_count = 0;
-			for (auto i = counts.begin(); i != counts.end(); i++) {
-				if (i->second > highest_count) {
+			for( auto i = counts.begin(); i != counts.end(); i++) {
+				if( i->second > highest_count) {
 					highest_count = i->second;
 					target_rank = i->first;
 				}
@@ -190,6 +190,7 @@ int particle_server::compute_target_rank(parts_type pranges) {
 	}
 	return target_rank;
 }
+
 
 void particle_server::write_rungs_inc_vel(int pi, part_iters range, std::vector<rung_t> rungs,
 		std::vector<std::array<float, NDIM>> dv) {
@@ -219,8 +220,8 @@ void particle_server::write_rungs_inc_vel(int pi, part_iters range, std::vector<
 			this_range.first = this_b;
 			this_range.second = this_e;
 			futs.push_back(
-					hpx::async<particle_server_write_rungs_inc_vel_action>(localities[this_rank], pi, this_range,
-							std::move(these_rungs), std::move(these_dvs)));
+					hpx::async<particle_server_write_rungs_inc_vel_action>(localities[this_rank], pi, this_range, std::move(these_rungs),
+							std::move(these_dvs)));
 		}
 		hpx::wait_all(futs.begin(), futs.end());
 	}
@@ -256,7 +257,7 @@ std::vector<rung_t> particle_server::read_rungs(int pi, size_t b, size_t e) {
 	return std::move(rungs);
 }
 
-size_t particle_server::sort(int pi, size_t begin, size_t end, range box, int xdim) {
+size_t particle_server::sort(int pi, size_t begin, size_t end, double xmid, int xdim) {
 
 	const int rank_start = index_to_rank(begin);
 	const int rank_stop = index_to_rank(end - 1);
@@ -264,23 +265,22 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, range box, int xd
 	if (rank_start == rank_stop) {
 		//	printf("Local sort on range %li - %li around %e in dimension %i\n", begin, end, xmid, xdim);
 		if (rank == rank_start) {
-			part_mid = parts->sets[pi]->sort_range(begin, end, box, xdim);
+			part_mid = parts->sets[pi]->sort_range(begin, end, xmid, xdim);
 		} else {
-			part_mid = particle_server_local_sort_action()(localities[rank_start], pi, begin, end, box, xdim, 0);
+			part_mid = particle_server_local_sort_action()(localities[rank_start], pi, begin, end, xmid, xdim);
 		}
 	} else {
-		printf("Global sort on range %li - %li in dimension %i\n", begin, end, xdim);
+		printf("Global sort on range %li - %li around %e in dimension %i\n", begin, end, xmid, xdim);
 		std::vector<hpx::future<size_t>> futs;
 		const int num_ranks = rank_stop - rank_start + 1;
 		futs.reserve(num_ranks);
 		printf("Doing local sorts\n");
-		size_t bucket_size = std::max((end - begin) / (rank_stop - rank_start + 1) / 64, size_t(1024));
 		for (int this_rank = rank_start; this_rank <= rank_stop; this_rank++) {
 			const size_t this_begin = std::max(begin, this_rank * global_size / nprocs);
 			const size_t this_end = std::min(end, (this_rank + 1) * global_size / nprocs);
 			futs.push_back(
-					hpx::async<particle_server_local_sort_action>(localities[this_rank], pi, this_begin, this_end, box,
-							xdim, bucket_size));
+					hpx::async<particle_server_local_sort_action>(localities[this_rank], pi, this_begin, this_end, xmid,
+							xdim));
 		}
 		std::vector<sort_iters> sort_ranges(num_ranks);
 		size_t lo_cnt = 0;
@@ -325,13 +325,13 @@ size_t particle_server::sort(int pi, size_t begin, size_t end, range box, int xd
 					sq.rank_to = hi_rank;
 					sq.range_from.first = lorange.hi.first;
 					sq.range_from.second = lorange.hi.first + count;
-					sq.range_to.first = hirange.lo.first;
-					sq.range_to.second = hirange.lo.first + count;
+					sq.range_to.first = hirange.lo.second - count;
+					sq.range_to.second = hirange.lo.second;
 					printf("---> %i %i %li %li %li %li\n", sq.rank_from, sq.rank_to, sq.range_from.first,
 							sq.range_from.second, sq.range_to.first, sq.range_to.second);
 					swaps.push_back(sq);
 					lorange.hi.first += count;
-					hirange.lo.first += count;
+					hirange.lo.second -= count;
 				} else {
 					hi_rank++;
 				}

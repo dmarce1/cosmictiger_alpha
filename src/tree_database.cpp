@@ -111,7 +111,7 @@ void tree_cache_get(std::shared_ptr<tree_database_t>& data_ptr, int& offset, tre
 	int cache_index = key(ptr);
 	tree_cache_load(ptr);
 	tree_cache_compute_indices(base, offset, ptr);
-	std::lock_guard<mutex_type> lock(mutexes[cache_index]);
+	std::lock_guard<spinlock_type> lock(mutexes[cache_index]);
 	data_ptr = tree_caches[cache_index][base].data;
 }
 
@@ -119,7 +119,7 @@ void tree_cache_load(tree_ptr tptr) {
 	static auto localities = hpx_localities();
 	static tree_ptr_lo_hash key;
 	int cache_index = key(tptr);
-	std::unique_lock<mutex_type> lock(mutexes[cache_index]);
+	std::unique_lock<spinlock_type> lock(mutexes[cache_index]);
 	assert(tptr.dindex >= 0 && tptr.dindex < cpu_tree_data().ntrees);
 	const auto base = tree_cache_compute_base(tptr);
 	if (tree_caches[cache_index].find(base) == tree_caches[cache_index].end()) {
@@ -130,7 +130,7 @@ void tree_cache_load(tree_ptr tptr) {
 		hpx::async([base, cache_index, prms]() {
 			tree_cache_line_fetch_action action;
 			auto data = action(localities[base.rank],base.dindex);
-			std::unique_lock<mutex_type> lock(mutexes[cache_index]);
+			std::unique_lock<spinlock_type> lock(mutexes[cache_index]);
 			auto& entry = tree_caches[cache_index][base];
 			data.deleteme = false;
 			entry.data = std::shared_ptr<tree_database_t>(new tree_database_t(std::move(data.data)), [](tree_database_t* ptr) {

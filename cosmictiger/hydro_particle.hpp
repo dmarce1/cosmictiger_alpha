@@ -65,7 +65,7 @@ public:
 	}
 
 	CUDA_EXPORT
-	size_t sort_range(size_t begin, size_t end, range xm, int xdim, size_t=0);
+	size_t sort_range(size_t begin, size_t end, double xm, int xdim);
 
 
 	CUDA_EXPORT
