@@ -100,7 +100,7 @@ hpx::future<size_t> tree_ptr::find_groups(group_param_type* params_ptr, bool thr
 	static std::atomic<int> used_threads(0);
 	static unified_allocator alloc;
 	static const bool use_cuda = global().opts.cuda;
-	const auto myparts = get_parts(CDM_SET);
+	const auto myparts = get_parts();
 	if (use_cuda && get_active_parts() <= params.block_cutoff) {
 		group_param_type *new_params;
 		new_params = (group_param_type*) alloc.allocate(sizeof(group_param_type));
@@ -201,12 +201,12 @@ hpx::future<size_t> find_groups(group_param_type* params_ptr) {
 		checks.push(opened_checks[i]);
 	}
 	if (iamleaf) {
-		const auto myparts = self.get_parts(CDM_SET);
+		const auto myparts = self.get_parts();
 		const auto linklen2 = sqr(params.link_len);
 		bool found_link;
 		found_link = false;
 		for (int i = 0; i < checks.size(); i++) {
-			const auto other_parts = checks[i].get_parts(CDM_SET);
+			const auto other_parts = checks[i].get_parts();
 			for (int j = myparts.first; j != myparts.second; j++) {
 				for (int k = other_parts.first; k != other_parts.second; k++) {
 					float dx0, dx1, dx2;
@@ -259,7 +259,7 @@ hpx::future<size_t> find_groups(group_param_type* params_ptr) {
 						return rc;
 					});
 		} else {
-			const auto myparts = self.get_parts(CDM_SET);
+			const auto myparts = self.get_parts();
 			self.set_active_nodes(0);
 			parts_covered += myparts.second - myparts.first;
 			if (parts_covered == params.parts.size()) {

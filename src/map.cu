@@ -24,11 +24,11 @@ __device__
 void vec2pix_ring(int nside, const float *vec, int *ipix);
 __global__
 void healpix_kernel(const float * __restrict__ x, const float * __restrict__ y, const float * __restrict__ z,
-		const float * __restrict__ vx, const float * __restrict__ vy, const float * __restrict__ vz, float mass, float taui,
+		const float * __restrict__ vx, const float * __restrict__ vy, const float * __restrict__ vz, float taui,
 		float tau0, float dtau, float * __restrict__ map, int Npts, int Nside);
 
 void healpix2_map(const vector<float>& x, const vector<float>& y, const vector<float>& z, const vector<float>& vx,
-		const vector<float>& vy, const vector<float>& vz,float mass, float taui, float tau0, float dtau, map_type map, int Nside) {
+		const vector<float>& vy, const vector<float>& vz, float taui, float tau0, float dtau, map_type map, int Nside) {
 	auto stream = get_stream();
 	//cudaFuncAttributes attribs;
 //	CUDA_CHECK(cudaFuncGetAttributes(&attribs, healpix_kernel));
@@ -44,7 +44,7 @@ void healpix2_map(const vector<float>& x, const vector<float>& y, const vector<f
 	CUDA_CHECK(cudaMemPrefetchAsync(vx.data(), sizeof(float) * vx.size(), 0, stream));
 	CUDA_CHECK(cudaMemPrefetchAsync(vy.data(), sizeof(float) * vy.size(), 0, stream));
 	CUDA_CHECK(cudaMemPrefetchAsync(vz.data(), sizeof(float) * vz.size(), 0, stream));
-	healpix_kernel<<<num_blocks,num_threads,0,stream>>>(x.data(),y.data(),z.data(),vx.data(),vy.data(),vz.data(),mass, taui, tau0, dtau,*map,x.size(),Nside);
+	healpix_kernel<<<num_blocks,num_threads,0,stream>>>(x.data(),y.data(),z.data(),vx.data(),vy.data(),vz.data(), taui, tau0, dtau,*map,x.size(),Nside);
 	while (cudaStreamSynchronize(stream) != cudaSuccess) {
 		hpx_yield();
 	}
@@ -54,7 +54,7 @@ void healpix2_map(const vector<float>& x, const vector<float>& y, const vector<f
 
 __global__
 void healpix_kernel(const float * __restrict__ x, const float * __restrict__ y, const float * __restrict__ z,
-		const float * __restrict__ vx, const float * __restrict__ vy, const float * __restrict__ vz, float mass, float taui,
+		const float * __restrict__ vx, const float * __restrict__ vy, const float * __restrict__ vz, float taui,
 		float tau0, float dtau, float * __restrict__ map, int Npts, int Nside) {
 	const int tid = threadIdx.x;
 	const int bsz = blockDim.x;
@@ -79,7 +79,7 @@ void healpix_kernel(const float * __restrict__ x, const float * __restrict__ y, 
 		const float y1 = y[i] + vy[i] * t;
 		const float z1 = z[i] + vz[i] * t;
 		if (sqr(x1, y1, z1) <= 1.f) {
-			mag = mass / sqr(x1, y1, z1);
+			mag = 1.f / sqr(x1, y1, z1);
 			vec[0] = x1;
 			vec[1] = y1;
 			vec[2] = z1;

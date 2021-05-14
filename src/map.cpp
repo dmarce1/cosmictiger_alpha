@@ -45,7 +45,7 @@ void maps_from_file(FILE*fp) {
 }
 
 map_workspace get_map_workspace() {
-	return {std::make_shared<std::unordered_map<int, map_workspace_data>>(), 0.0};
+	return {std::make_shared<std::unordered_map<int, map_workspace_data>>()};
 }
 
 void prepare_map(int i) {
@@ -69,7 +69,7 @@ void cleanup_map_workspace(map_workspace ws, double tau, double dtau, double tau
 			}
 			const auto freq = global().opts.map_freq * tau_max;
 			const auto taui = i->first * freq;
-			healpix2_map(i->second.x, i->second.y, i->second.z, i->second.vx, i->second.vy, i->second.vz, ws.wt, taui, tau, dtau, maps[i->first], Nside);
+			healpix2_map(i->second.x, i->second.y, i->second.z, i->second.vx, i->second.vy, i->second.vz,taui, tau, dtau, maps[i->first], Nside);
 		}
 	}
 //	std::lock_guard<mutex_type> lock(mtx);

@@ -51,8 +51,6 @@ static void tree_test() {
 		printf("Done sorting in %e\n", tm.read());
 	}
 }
-
-void load_from_file(particle_set& parts, int& step, time_type& itime, double& time, double& a, double& cosmicK);
 void kick_test() {
 /*	printf("Doing kick test\n");
 	printf("Generating particles\n");

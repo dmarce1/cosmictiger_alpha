@@ -69,8 +69,8 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 }
 
 CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
+	particle_set& parts = *(particle_set*) constant.particles;
 	kick_params_type &params = *params_ptr;
-	auto* part_sets = (particle_sets*) constant.partsets;
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
@@ -86,15 +86,11 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	int flops = 0;
 	int interacts = 0;
 	expansion<float> L;
-	part_iters these_parts;
-	for (int pi = 0; pi < constant.npart_types; pi++) {
+	if (parti.size() > 0) {
 		for (int j = 0; j < LP; j++) {
 			L[j] = 0.0;
 		}
-
-		float mass = part_sets->weights[pi];
-		auto& parts = *part_sets->sets[pi];
-		these_parts = parti[0].get_parts(pi);
+		auto these_parts = parti[0].get_parts();
 		int i = 0;
 		const auto pos = shmem.self.get_pos();
 		const auto partsz = parti.size();
@@ -102,8 +98,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 			part_index = 0;
 			while (part_index < KICK_PP_MAX && i < partsz) {
 				while (i + 1 < partsz) {
-					part_iters other_tree_parts;
-					other_tree_parts = parti[i + 1].get_parts(pi);
+					const auto other_tree_parts = parti[i + 1].get_parts();
 					if (these_parts.second == other_tree_parts.first) {
 						these_parts.second = other_tree_parts.second;
 						i++;
@@ -124,7 +119,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				if (these_parts.first == these_parts.second) {
 					i++;
 					if (i < parti.size()) {
-						these_parts = parti[i].get_parts(pi);
+						these_parts = parti[i].get_parts();
 					}
 				}
 			}
@@ -145,9 +140,10 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
 			}
 		}
+		L.scale_back();
 		for (int i = tid; i < LP; i += warpSize) {
 			NAN_TEST(L[i]);
-			params.L[shmem.depth][i] += mass * L[i];
+			params.L[shmem.depth][i] += L[i];
 		}
 	}
 	__syncwarp();
@@ -157,74 +153,68 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 }
 
 CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
+	particle_set& parts = *(particle_set*) constant.particles;
 	const int &tid = threadIdx.x;
-	auto* part_sets = (particle_sets*) constant.partsets;
 	__shared__
 	extern int shmem_ptr[];
 	cuda_kick_shmem &shmem = *(cuda_kick_shmem*) shmem_ptr;
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
 
-	parts_type myparts = shmem.self.get_parts();
+	const auto myparts = shmem.self.get_parts();
+	const int nsinks = myparts.second - myparts.first;
+	const int nsinks_max = max(((nsinks - 1) / warpSize + 1) * warpSize, 0);
 
 	int my_index;
 	bool found;
 	int base = 0;
-	int nactive;
-	int tot_nactive = 0;
+	int nactive = 0;
 	int total;
 
-	for (int pi = 0; pi < constant.npart_types; pi++) {
-		nactive = 0;
-		const int nsinks = myparts[pi].second - myparts[pi].first;
-		const int nsinks_max = round_up(nsinks, warpSize);
-		auto& parts = *part_sets->sets[pi];
-		const int offset = myparts.index_offset(pi);
-		for (int i = tid; i < nsinks_max; i += warpSize) {
+	for (int i = tid; i < nsinks_max; i += warpSize) {
+		my_index = 0;
+		found = false;
+		if (i < nsinks) {
+			if (parts.rung(i + myparts.first) >= constant.rung || constant.full_eval) {
+				found = true;
+				my_index = 1;
+				nactive++;
+			}
+		}
+		int tmp;
+		for (int P = 1; P < warpSize; P *= 2) {
+			tmp = __shfl_up_sync(0xFFFFFFFF, my_index, P);
+			if (tid >= P) {
+				my_index += tmp;
+			}
+		}
+		total = __shfl_sync(0xFFFFFFFF, my_index, warpSize - 1);
+		tmp = __shfl_up_sync(0xFFFFFFFF, my_index, 1);
+		if (tid > 0) {
+			my_index = tmp;
+		} else {
 			my_index = 0;
-			found = false;
-			if (i < nsinks) {
-				if (parts.rung(i + myparts[pi].first) >= constant.rung || constant.full_eval) {
-					found = true;
-					my_index = 1;
-					nactive++;
-				}
-			}
-			int tmp;
-			for (int P = 1; P < warpSize; P *= 2) {
-				tmp = __shfl_up_sync(0xFFFFFFFF, my_index, P);
-				if (tid >= P) {
-					my_index += tmp;
-				}
-			}
-			total = __shfl_sync(0xFFFFFFFF, my_index, warpSize - 1);
-			tmp = __shfl_up_sync(0xFFFFFFFF, my_index, 1);
-			if (tid > 0) {
-				my_index = tmp;
-			} else {
-				my_index = 0;
-			}
-			if (found) {
-				act_map[base + my_index] = i + offset;
-			}
-			base += total;
 		}
-		for (int P = warpSize / 2; P >= 1; P /= 2) {
-			nactive += __shfl_xor_sync(0xFFFFFFFF, nactive, P);
+		if (found) {
+			act_map[base + my_index] = i;
+			//		printf( "%i %i\n", base+my_index, i);
 		}
-		for (int i = tid; i < nactive; i += warpSize) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				sinks[dim][i + tot_nactive] = parts.pos(dim, act_map[i + tot_nactive] + myparts[pi].first - offset);
-			}
-		}
-		tot_nactive += nactive;
+		base += total;
 	}
-	return tot_nactive;
+	for (int P = warpSize / 2; P >= 1; P /= 2) {
+		nactive += __shfl_xor_sync(0xFFFFFFFF, nactive, P);
+	}
+	for (int i = tid; i < nactive; i += warpSize) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			sinks[dim][i] = parts.pos(dim, act_map[i] + myparts.first);
+		}
+	}
+	return nactive;
 }
 
 CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive) {
+	particle_set& parts = *(particle_set*) constant.particles;
 	kick_params_type &params = *params_ptr;
-	auto* part_sets = (particle_sets*) constant.partsets;
 	const int &tid = threadIdx.x;
 	__shared__
 	extern int shmem_ptr[];
@@ -243,93 +233,144 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	if (parti.size() == 0) {
 		return;
 	}
-	for (int pi = 0; pi < constant.npart_types; pi++) {
-		auto& parts = *part_sets->sets[pi];
-		float mass = part_sets->weights[pi];
-		int i = 0;
-		part_iters these_parts;
-		these_parts = parti[0].get_parts(pi);
-		const auto partsz = parti.size();
-		while (i < partsz) {
-			part_index = 0;
-			while (part_index < KICK_PP_MAX && i < partsz) {
-				while (i + 1 < partsz) {
-					part_iters other_tree_parts;
-					other_tree_parts = parti[i + 1].get_parts(pi);
-					if (these_parts.second == other_tree_parts.first) {
-						these_parts.second = other_tree_parts.second;
-						i++;
-					} else {
-						break;
-					}
-				}
-				const size_t imin = these_parts.first;
-				const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
-				const int sz = imax - imin;
-				for (int j = tid; j < sz; j += warpSize) {
-					for (int dim = 0; dim < NDIM; dim++) {
-						sources[dim][part_index + j] = parts.pos(dim, j + imin);
-					}
-				}
-				these_parts.first += sz;
-				part_index += sz;
-				if (these_parts.first == these_parts.second) {
+//   printf( "%i\n", parti.size());
+	const auto myparts = shmem.self.get_parts();
+	int i = 0;
+	auto these_parts = parti[0].get_parts();
+	const auto partsz = parti.size();
+	while (i < partsz) {
+		part_index = 0;
+		while (part_index < KICK_PP_MAX && i < partsz) {
+			while (i + 1 < partsz) {
+				const auto other_tree_parts = parti[i + 1].get_parts();
+				if (these_parts.second == other_tree_parts.first) {
+					these_parts.second = other_tree_parts.second;
 					i++;
-					if (i < partsz) {
-						these_parts = parti[i].get_parts(pi);
-					}
+				} else {
+					break;
 				}
 			}
-			float fx;
-			float fy;
-			float fz;
-			float phi;
-			float dx0, dx1, dx2;
-			float r3inv, r1inv;
-			__syncwarp();
-			int kmid;
-			if ((nactive % warpSize) < MIN_KICK_WARP) {
-				kmid = nactive - (nactive % warpSize);
-			} else {
-				kmid = nactive;
-			}
-			for (int k = tid; k < kmid; k += warpSize) {
-				fx = 0.f;
-				fy = 0.f;
-				fz = 0.f;
-				phi = 0.f;
-				for (int j = 0; j < part_index; j++) {
-					dx0 = distance(sinks[0][k], sources[0][j]);
-					dx1 = distance(sinks[1][k], sources[1][j]);
-					dx2 = distance(sinks[2][k], sources[2][j]);               // 3
-					const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 5
-					if (r2 >= h2) {
-						r1inv = rsqrt(r2);                                    // FLOP_RSQRT
-						r3inv = r1inv * r1inv * r1inv;                        // 2
-						flops += 2 + FLOP_RSQRT;
-					} else {
-						const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
-						const float r2oh2 = r1oh1 * r1oh1;           // 1
-						r3inv = +15.0f / 8.0f;
-						r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
-						r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
-						if (constant.full_eval) {
-							r1inv = -5.0f / 16.0f;
-							r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
-							r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
-							r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
-						}
-						flops += FLOP_SQRT + 16;
-					}
-					const float massr3inv = mass * r3inv;
-					fx = fmaf(dx0, massr3inv, fx); // 2
-					fy = fmaf(dx1, massr3inv, fy); // 2
-					fz = fmaf(dx2, massr3inv, fz); // 2
-					NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
-					phi -= r1inv * mass; // 1
-					flops += 15;
-					interacts++;
+			const size_t imin = these_parts.first;
+			const size_t imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
+			const int sz = imax - imin;
+			for (int j = tid; j < sz; j += warpSize) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					sources[dim][part_index + j] = parts.pos(dim, j + imin);
 				}
+			}
+			these_parts.first += sz;
+			part_index += sz;
+			if (these_parts.first == these_parts.second) {
+				i++;
+				if (i < partsz) {
+					these_parts = parti[i].get_parts();
+				}
+			}
+		}
+		float fx;
+		float fy;
+		float fz;
+		float phi;
+		float dx0, dx1, dx2;
+		float r3inv, r1inv;
+		__syncwarp();
+		int kmid;
+		if ((nactive % warpSize) < MIN_KICK_WARP) {
+			kmid = nactive - (nactive % warpSize);
+		} else {
+			kmid = nactive;
+		}
+		for (int k = tid; k < kmid; k += warpSize) {
+			fx = 0.f;
+			fy = 0.f;
+			fz = 0.f;
+			phi = 0.f;
+			for (int j = 0; j < part_index; j++) {
+				dx0 = distance(sinks[0][k], sources[0][j]);
+				dx1 = distance(sinks[1][k], sources[1][j]);
+				dx2 = distance(sinks[2][k], sources[2][j]);               // 3
+				const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 5
+				if (r2 >= h2) {
+					r1inv = rsqrt(r2);                                    // FLOP_RSQRT
+					r3inv = r1inv * r1inv * r1inv;                        // 2
+					flops += 2 + FLOP_RSQRT;
+				} else {
+					const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
+					const float r2oh2 = r1oh1 * r1oh1;           // 1
+					r3inv = +15.0f / 8.0f;
+					r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
+					r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
+					if (constant.full_eval) {
+						r1inv = -5.0f / 16.0f;
+						r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
+						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
+						r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
+					}
+					flops += FLOP_SQRT + 16;
+				}
+				fx = fmaf(dx0, r3inv, fx); // 2
+				fy = fmaf(dx1, r3inv, fy); // 2
+				fz = fmaf(dx2, r3inv, fz); // 2
+				NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
+				phi -= r1inv; // 1
+				flops += 15;
+				interacts++;
+			}
+			const auto l = act_map[k];
+			F[0][l] -= fx;
+			F[1][l] -= fy;
+			F[2][l] -= fz;
+			if (constant.full_eval) {
+				Phi[l] += phi;
+			}
+//			}
+		}
+		__syncwarp();
+		for (int k = kmid; k < nactive; k++) {
+			fx = 0.f;
+			fy = 0.f;
+			fz = 0.f;
+			phi = 0.f;
+			for (int j = tid; j < part_index; j += warpSize) {
+				dx0 = distance(sinks[0][k], sources[0][j]);
+				dx1 = distance(sinks[1][k], sources[1][j]);
+				dx2 = distance(sinks[2][k], sources[2][j]);               // 3
+				const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 5
+				if (r2 >= h2) {
+					r1inv = rsqrt(r2);                                    // FLOP_RSQRT
+					r3inv = r1inv * r1inv * r1inv;                        // 2
+					flops += 2 + FLOP_RSQRT;
+				} else {
+					const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
+					const float r2oh2 = r1oh1 * r1oh1;           // 1
+					r3inv = +15.0f / 8.0f;
+					r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
+					r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
+					if (constant.full_eval) {
+						r1inv = -5.0f / 16.0f;
+						r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
+						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
+						r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
+					}
+					flops += FLOP_SQRT + 16;
+				}
+				fx = fmaf(dx0, r3inv, fx); // 2
+				fy = fmaf(dx1, r3inv, fy); // 2
+				fz = fmaf(dx2, r3inv, fz); // 2
+				NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
+				phi -= r1inv; // 1
+				flops += 15;
+				interacts++;
+			}
+			for (int P = warpSize / 2; P >= 1; P /= 2) {
+				fx += __shfl_down_sync(0xffffffff, fx, P);
+				fy += __shfl_down_sync(0xffffffff, fy, P);
+				fz += __shfl_down_sync(0xffffffff, fz, P);
+				if (constant.full_eval) {
+					phi += __shfl_down_sync(0xffffffff, phi, P);
+				}
+			}
+			if (tid == 0) {
 				const auto l = act_map[k];
 				F[0][l] -= fx;
 				F[1][l] -= fy;
@@ -337,67 +378,10 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 				if (constant.full_eval) {
 					Phi[l] += phi;
 				}
-//			}
-			}
-			__syncwarp();
-			for (int k = kmid; k < nactive; k++) {
-				fx = 0.f;
-				fy = 0.f;
-				fz = 0.f;
-				phi = 0.f;
-				for (int j = tid; j < part_index; j += warpSize) {
-					dx0 = distance(sinks[0][k], sources[0][j]);
-					dx1 = distance(sinks[1][k], sources[1][j]);
-					dx2 = distance(sinks[2][k], sources[2][j]);               // 3
-					const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 5
-					if (r2 >= h2) {
-						r1inv = rsqrt(r2);                                    // FLOP_RSQRT
-						r3inv = r1inv * r1inv * r1inv;                        // 2
-						flops += 2 + FLOP_RSQRT;
-					} else {
-						const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
-						const float r2oh2 = r1oh1 * r1oh1;           // 1
-						r3inv = +15.0f / 8.0f;
-						r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
-						r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
-						if (constant.full_eval) {
-							r1inv = -5.0f / 16.0f;
-							r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
-							r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
-							r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
-						}
-						flops += FLOP_SQRT + 16;
-					}
-					const float massr3inv = mass * r3inv;
-					fx = fmaf(dx0, massr3inv, fx); // 2
-					fy = fmaf(dx1, massr3inv, fy); // 2
-					fz = fmaf(dx2, massr3inv, fz); // 2
-					NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
-					phi -= r1inv * mass; // 1
-					flops += 15;
-					interacts++;
-				}
-				for (int P = warpSize / 2; P >= 1; P /= 2) {
-					fx += __shfl_down_sync(0xffffffff, fx, P);
-					fy += __shfl_down_sync(0xffffffff, fy, P);
-					fz += __shfl_down_sync(0xffffffff, fz, P);
-					if (constant.full_eval) {
-						phi += __shfl_down_sync(0xffffffff, phi, P);
-					}
-				}
-				if (tid == 0) {
-					const auto l = act_map[k];
-					F[0][l] -= fx;
-					F[1][l] -= fy;
-					F[2][l] -= fz;
-					if (constant.full_eval) {
-						Phi[l] += phi;
-					}
-				}
 			}
 		}
-		__syncwarp();
 	}
+	__syncwarp();
 	if (constant.full_eval) {
 		kick_return_update_interactions_gpu(KR_PP, interacts, flops);
 	}

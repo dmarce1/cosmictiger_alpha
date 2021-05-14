@@ -12,6 +12,8 @@
 
 #include <cmath>
 
+particle_set* tree::particles;
+
 #define CPU_LOAD (0)
 
 static unified_allocator kick_params_alloc;
@@ -19,6 +21,10 @@ static unified_allocator kick_params_alloc;
 static std::atomic<size_t> parts_covered;
 
 timer tmp_tm;
+
+void tree::set_particle_set(particle_set *parts) {
+	particles = parts;
+}
 
 static std::atomic<int> kick_block_count;
 
@@ -48,15 +54,11 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	fast_future<sort_return> fut;
 	tree_ptr id;
-	auto& particles = *params.part_sets;
 	id.dindex = params.alloc->allocate();
 	params.tptr = id;
-	size_t nparts = 0;
-	for (int pi = 0; pi < NPART_TYPES; pi++) {
-		nparts += params.parts[pi].second - params.parts[pi].first;
-	}
+	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
-	const size_t min_parts2thread = particles.size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
+	const size_t min_parts2thread = particles->size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
 	thread = try_thread && (nparts >= min_parts2thread);
 #ifdef TEST_STACK
 	thread = false;
@@ -82,7 +84,7 @@ sort_return tree::sort(sort_params params) {
 	static std::atomic<int> gpu_searches(0);
 	size_t active_parts = 0;
 	size_t active_nodes = 0;
-	parts_type parts;
+	pair<size_t, size_t> parts;
 	tree_ptr self = params.tptr;
 	if (params.iamroot()) {
 		gpu_searches = 0;
@@ -92,10 +94,8 @@ sort_return tree::sort(sort_params params) {
 		params.alloc = std::make_shared<tree_allocator>();
 //		printf("min ewald = %i\n", params.min_depth);
 	}
-	auto& particles = *params.part_sets;
 	parts = params.parts;
 	self.set_parts(parts);
-//	printf( "%i %i %i %i\n", parts[0].first, parts[0].second, parts[1].first, parts[1].second);
 	if (params.depth == TREE_MAX_DEPTH) {
 		printf("Exceeded maximum tree depth\n");
 		abort();
@@ -136,22 +136,21 @@ sort_return tree::sort(sort_params params) {
 	sort_return rc;
 	array<tree_ptr, NCHILD> children;
 	const int max_part = params.group_sort ? GROUP_BUCKET_SIZE : global().opts.bucket_size;
-	size_t total_parts = parts.size();
-	const bool sph = global().opts.sph;
-	const bool groups = params.group_sort;
-	if (total_parts > max_part || (params.depth < params.min_depth && total_parts > 0)) {
+	if (parts.second - parts.first > max_part || (params.depth < params.min_depth && parts.second - parts.first > 0)) {
 		std::array<fast_future<sort_return>, NCHILD> futs;
 		{
+			const auto size = parts.second - parts.first;
 			auto child_params = params.get_children();
 			const int xdim = params.depth % NDIM;
+			auto part_handle = particles->get_virtual_particle_set();
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
+			size_t pmid;
+			pmid = particles->sort_range(parts.first, parts.second, xmid, xdim);
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
-			for (int i = 0; i < NPART_TYPES; i++) {
-				const size_t pmid = particles.sets[i]->sort_range(parts[i].first, parts[i].second, xmid, xdim);
-				child_params[LEFT].parts[i].first = parts[i].first;
-				child_params[LEFT].parts[i].second = child_params[RIGHT].parts[i].first = pmid;
-				child_params[RIGHT].parts[i].second = parts[i].second;
-			}
+			child_params[LEFT].parts.first = parts.first;
+			child_params[LEFT].parts.second = child_params[RIGHT].parts.first = pmid;
+			child_params[RIGHT].parts.second = parts.second;
+
 			for (int ci = 0; ci < NCHILD; ci++) {
 				futs[ci] = create_child(child_params[ci], ci == LEFT);
 			}
@@ -160,8 +159,6 @@ sort_return tree::sort(sort_params params) {
 		std::array<multipole, NCHILD> Mc;
 		std::array<array<fixed32, NDIM>, NCHILD> Xc;
 		std::array<float, NCHILD> Rc;
-		std::array<range, NCHILD> sph_ranges;
-		std::array<range, NCHILD> ranges;
 		multipole M;
 		if (!params.group_sort) {
 			rc.active_nodes = 1;
@@ -178,15 +175,9 @@ sort_return tree::sort(sort_params params) {
 			sort_return this_rc = futs[ci].get();
 			children[ci] = this_rc.check;
 			rc.active_nodes += this_rc.active_nodes;
-			if (sph || groups) {
-				ranges[ci] = this_rc.check.get_range();
-			}
 			if (!params.group_sort) {
 				Mc[ci] = this_rc.check.get_multi();
 				Xc[ci] = this_rc.check.get_pos();
-				if (sph) {
-					sph_ranges[ci] = this_rc.check.get_sph_range();
-				}
 				rc.active_parts += this_rc.active_parts;
 				rc.stats.nparts += this_rc.stats.nparts;
 				rc.stats.nleaves += this_rc.stats.nleaves;
@@ -246,40 +237,18 @@ sort_return tree::sort(sort_params params) {
 		}
 		self.set_leaf(false);
 		self.set_children(children);
-		if (sph) {
-			range myrange;
-			for (int dim = 0; dim < NDIM; dim++) {
-				myrange.begin[dim] = std::min(sph_ranges[LEFT].begin[dim], sph_ranges[RIGHT].begin[dim]);
-				myrange.end[dim] = std::max(sph_ranges[LEFT].end[dim], sph_ranges[RIGHT].end[dim]);
-			}
-			self.set_sph_range(myrange);
-		}
-		if (groups || sph) {
-			range myrange;
-			for (int dim = 0; dim < NDIM; dim++) {
-				myrange.begin[dim] = std::min(ranges[LEFT].begin[dim], ranges[RIGHT].begin[dim]);
-				myrange.end[dim] = std::max(ranges[LEFT].end[dim], ranges[RIGHT].end[dim]);
-			}
-			self.set_range(myrange);
-		}
 	} else {
 		if (!params.group_sort) {
 			std::array<double, NDIM> com = { 0, 0, 0 };
 			array<fixed32, NDIM> pos;
-			double total_weight = 0;
-			for (int pi = 0; pi < NPART_TYPES; pi++) {
-				const double wt = params.part_sets->weights[pi];
-				for (auto i = parts[pi].first; i < parts[pi].second; i++) {
-					total_weight += wt;
+			if (parts.second - parts.first != 0) {
+				for (auto i = parts.first; i < parts.second; i++) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						com[dim] += wt * particles.sets[pi]->pos(dim, i).to_double();
+						com[dim] += particles->pos(dim, i).to_double();
 					}
 				}
-			}
-			if (total_weight) {
-				const auto twinv = 1.0 / total_weight;
 				for (int dim = 0; dim < NDIM; dim++) {
-					com[dim] *= twinv;
+					com[dim] /= (parts.second - parts.first);
 					pos[dim] = com[dim];
 
 				}
@@ -291,39 +260,34 @@ sort_return tree::sort(sort_params params) {
 			multipole M;
 			M = 0.0;
 			float radius = 0.0;
-			for (int pi = 0; pi < NPART_TYPES; pi++) {
-				const float wt = params.part_sets->weights[pi];
-				for (auto i = parts[pi].first; i < parts[pi].second; i++) {
-					double this_radius = 0.0;
-					M() += wt;
-					for (int n = 0; n < NDIM; n++) {
-						const auto xn = particles.sets[pi]->pos(n, i).to_double() - com[n];
-						this_radius += xn * xn;
-						for (int m = n; m < NDIM; m++) {
-							const auto xm = particles.sets[pi]->pos(m, i).to_double() - com[m];
-							const auto xnm = xn * xm;
-							M(n, m) += wt * xnm;
-							for (int l = m; l > NDIM; l++) {
-								const auto xl = particles.sets[pi]->pos(l, i).to_double() - com[l];
-								M(n, m, l) -= wt * xnm * xl;
-							}
+			for (auto i = parts.first; i < parts.second; i++) {
+				double this_radius = 0.0;
+				M() += 1.0;
+				for (int n = 0; n < NDIM; n++) {
+					const auto xn = particles->pos(n, i).to_double() - com[n];
+					this_radius += xn * xn;
+					for (int m = n; m < NDIM; m++) {
+						const auto xm = particles->pos(m, i).to_double() - com[m];
+						const auto xnm = xn * xm;
+						M(n, m) += xnm;
+						for (int l = m; l > NDIM; l++) {
+							const auto xl = particles->pos(l, i).to_double() - com[l];
+							M(n, m, l) -= xnm * xl;
 						}
 					}
-					this_radius = std::sqrt(this_radius);
-					radius = std::max(radius, (float) (this_radius));
 				}
+				this_radius = std::sqrt(this_radius);
+				radius = std::max(radius, (float) (this_radius));
 			}
 			rc.active_parts = 0;
 			rc.active_nodes = 0;
-			for (int pi = 0; pi < NPART_TYPES; pi++) {
-				for (size_t k = parts[pi].first; k < parts[pi].second; k++) {
-					if (particles.sets[pi]->rung(k) >= params.min_rung) {
-						rc.active_parts++;
-						rc.active_nodes = 1;
-					}
+			for (size_t k = parts.first; k < parts.second; k++) {
+				if (particles->rung(k) >= params.min_rung) {
+					rc.active_parts++;
+					rc.active_nodes = 1;
 				}
 			}
-			rc.stats.nparts = total_parts;
+			rc.stats.nparts = parts.second - parts.first;
 			rc.stats.max_depth = rc.stats.min_depth = params.depth;
 			rc.stats.nnodes = 1;
 			rc.stats.nleaves = 1;
@@ -338,45 +302,6 @@ sort_return tree::sort(sort_params params) {
 		}
 		self.set_leaf(true);
 		self.set_children(children);
-		if (sph && !groups) {
-			range myrange;
-			for (int dim = 0; dim < NDIM; dim++) {
-				myrange.begin[dim] = 1.0;
-				myrange.end[dim] = 0.0;
-			}
-			const auto& particles = params.part_sets->baryon;
-			for (size_t i = parts[BARY_SET].first; i != parts[BARY_SET].second; i++) {
-				const float h = particles.smooth_len(i);
-				for (int dim = 0; dim < NDIM; dim++) {
-					const float pos = particles.pos(dim, i).to_float();
-					myrange.begin[dim] = std::min(myrange.begin[dim], pos - h);
-					myrange.end[dim] = std::max(myrange.end[dim], pos + h);
-				}
-			}
-			self.set_sph_range(myrange);
-		}
-		if (groups || sph) {
-			range myrange;
-			for (int dim = 0; dim < NDIM; dim++) {
-				myrange.begin[dim] = 1.0;
-				myrange.end[dim] = 0.0;
-			}
-			for (int pi = 0; pi < NPART_TYPES; pi++) {
-				if (!groups && pi == CDM_SET) {
-					continue;
-				}
-				const auto& particles = *params.part_sets->sets[pi];
-				for (size_t i = parts[pi].first; i != parts[pi].second; i++) {
-					for (int dim = 0; dim < NDIM; dim++) {
-						const float pos = particles.pos(dim, i).to_float();
-						myrange.begin[dim] = std::min(myrange.begin[dim], pos);
-						myrange.end[dim] = std::max(myrange.end[dim], pos);
-					}
-				}
-			}
-			self.set_range(myrange);
-		}
-
 	}
 	active_nodes = rc.active_nodes;
 	self.set_active_nodes(active_nodes);
@@ -385,6 +310,8 @@ sort_return tree::sort(sort_params params) {
 		self.set_active_parts(active_parts);
 		self.set_active_nodes(active_nodes);
 		rc.stats.e_depth = params.min_depth;
+	} else {
+		self.set_range(box);
 	}
 	return rc;
 }
@@ -403,6 +330,9 @@ void tree::cleanup() {
 hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	static const bool use_cuda = global().opts.cuda;
 	kick_params_type &params = *params_ptr;
+	const auto parts = get_parts();
+	const auto part_begin = parts.first;
+	const auto part_end = parts.second;
 	const auto num_active = get_active_nodes();
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
 	if (use_cuda && num_active <= params.block_cutoff && num_active) {
@@ -457,10 +387,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	}
 	auto& F = params.F;
 	auto& phi = params.Phi;
-	parts_type parts;
-	parts = self.get_parts();
-//	printf( "%i %i\n", parts[1].first, parts[1].second);
-//	abort();
+	const auto parts = self.get_parts();
 	if (params.depth == 0) {
 		kick_timer.start();
 		parts_covered = 0;
@@ -468,13 +395,13 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		size_t dummy, total_mem;
 		CUDA_CHECK(cudaMemGetInfo(&dummy, &total_mem));
 		total_mem /= 8;
-		size_t used_mem = (sizeof(rung_t) + NDIM * sizeof(float) + sizeof(fixed32) * NDIM) * params.part_sets->size()
+		size_t used_mem = (sizeof(rung_t) + NDIM * sizeof(float) + sizeof(fixed32) * NDIM) * particles->size()
 				+ tree_data_bytes_used();
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
-		int numBlocks;
-		CUDA_CHECK(
-				cudaOccupancyMaxActiveBlocksPerMultiprocessor ( &numBlocks, cuda_kick_kernel, KICK_BLOCK_SIZE, sizeof(cuda_kick_shmem) ));
-		const int block_count = oversubscription * numBlocks * global().cuda.devices[0].multiProcessorCount + 0.5;
+		int num_blocks;
+		CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
+		const int block_count = oversubscription * num_blocks
+				* global().cuda.devices[0].multiProcessorCount + 0.5;
 		size_t active_nodes = self.get_active_nodes();
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
 		int min_gpu_nodes = block_count / 8;
@@ -484,7 +411,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		tree_database_set_readonly();
 	}
 	if (self.is_leaf()) {
-		for (int i = 0; i < parts.size(); i++) {
+		for (int i = 0; i < parts.second - parts.first; i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				F[dim][i] = 0.f;
 			}
@@ -529,6 +456,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			const auto th = params.theta * std::max(params.hsoft, MIN_DX);
 			for (int ci = 0; ci < checks.size(); ci++) {
 				const auto other_radius = checks[ci].get_radius();
+				const auto other_parts = checks[ci].get_parts();
 				const auto other_pos = checks[ci].get_pos();
 				float d2 = 0.f;
 				for (int dim = 0; dim < NDIM; dim++) {
@@ -586,7 +514,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 //  printf( "%li\n", params.depth);
 	if (!params.tptr.is_leaf()) {
 // printf("4\n");
-		const bool try_thread = parts.size() > TREE_MIN_PARTS2THREAD;
+		const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
 		array<hpx::future<void>, NCHILD> futs;
 		futs[LEFT] = hpx::make_ready_future();
 		futs[RIGHT] = hpx::make_ready_future();
@@ -607,11 +535,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
 			params.depth--;
 		} else if (children[LEFT].get_active_parts()) {
-			parts_type other_parts;
-			other_parts = children[RIGHT].get_parts();
+			const auto other_parts = children[RIGHT].get_parts();
 //			covered_ranges.add_range(parts);
-			parts_covered += other_parts.size();
-			if (parts_covered == params.part_sets->size()) {
+			parts_covered += other_parts.second - other_parts.first;
+			if (parts_covered == global().opts.nparts) {
 				gpu_daemon();
 			}
 			int depth0 = params.depth;
@@ -622,11 +549,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			futs[LEFT] = children[LEFT].kick(params_ptr, false);
 			params.depth--;
 		} else if (children[RIGHT].get_active_parts()) {
-			parts_type other_parts;
-			other_parts = children[LEFT].get_parts();
+			const auto other_parts = children[LEFT].get_parts();
 //			covered_ranges.add_range(parts);
-			parts_covered += other_parts.size();
-			if (parts_covered == params.part_sets->size()) {
+			parts_covered += other_parts.second - other_parts.first;
+			if (parts_covered == global().opts.nparts) {
 				gpu_daemon();
 			}
 			int depth0 = params.depth;
@@ -649,71 +575,77 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	} else {
 		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
-		for (int pi = 0; pi < NPART_TYPES; pi++) {
-			auto& particles = params.part_sets->sets[pi];
-			const auto offset = parts.index_offset(pi);
-			for (int k = 0; k < parts[pi].second - parts[pi].first; k++) {
-				const size_t index = k + parts[pi].first;
-				const auto this_rung = particles->rung(index);
-				if (this_rung >= params.rung || params.full_eval) {
-					array<float, NDIM> g;
-					float this_phi;
-					for (int dim = 0; dim < NDIM; dim++) {
-						const auto x2 = pos[dim];
-						const auto x1 = particles->pos(dim, k + parts[pi].first);
-						dx[dim] = distance(x1, x2);
-					}
-					shift_expansion(L, g, this_phi, dx, params.full_eval);
-					//		int dummy;
-					//		printf( "%li\n", params.stack_top - (uintptr_t)(&dummy));
-					for (int dim = 0; dim < NDIM; dim++) {
-						F[dim][k + offset] += g[dim];
-					}
-					phi[k] += this_phi;
-					for (int dim = 0; dim < NDIM; dim++) {
-						F[dim][k + offset] *= params.G * params.M;
-					}
-					phi[k + offset] *= params.G * params.M;
-					if (params.groups) {
-						cpu_groups_kick_update(particles->group(index), phi[k]);
-					}
+		for (int k = 0; k < parts.second - parts.first; k++) {
+			const size_t index = k + parts.first;
+			const auto this_rung = particles->rung(index);
+			if (this_rung >= params.rung || params.full_eval) {
+				array<float, NDIM> g;
+				float this_phi;
+				for (int dim = 0; dim < NDIM; dim++) {
+					const auto x2 = pos[dim];
+					const auto x1 = particles->pos(dim, k + parts.first);
+					dx[dim] = distance(x1, x2);
+				}
+				shift_expansion(L, g, this_phi, dx, params.full_eval);
+				//		int dummy;
+				//		printf( "%li\n", params.stack_top - (uintptr_t)(&dummy));
+				for (int dim = 0; dim < NDIM; dim++) {
+					F[dim][k] += g[dim];
+				}
+				phi[k] += this_phi;
+				for (int dim = 0; dim < NDIM; dim++) {
+					F[dim][k] *= params.G * params.M;
+				}
+				phi[k] *= params.G * params.M;
+				if (params.groups) {
+					cpu_groups_kick_update(particles->group(index), phi[k]);
+				}
 #ifdef TEST_FORCE
-					for (int dim = 0; dim < NDIM; dim++) {
-						particles->force(dim, k + parts[pi].first) = F[dim][k];
-					}
-					particles->pot(k + parts[pi].first) = phi[k];
+				for (int dim = 0; dim < NDIM; dim++) {
+					particles->force(dim, k + parts.first) = F[dim][k];
+				}
+				particles->pot(k + parts.first) = phi[k];
 #endif
-					if (this_rung >= params.rung) {
-						float dt = params.t0 / (1 << this_rung);
-						if (!params.first) {
-							particles->vel(0, index) += 0.5 * dt * F[0][k];
-							particles->vel(1, index) += 0.5 * dt * F[1][k];
-							particles->vel(2, index) += 0.5 * dt * F[2][k];
-						}
-						float fmag = 0.0;
-						for (int dim = 0; dim < NDIM; dim++) {
-							fmag += sqr(F[dim][k]);
-						}
-						fmag = sqrtf(fmag);
-						assert(fmag > 0.0);
-						dt = std::min(params.eta * std::sqrt(params.scale * params.hsoft / fmag), params.t0);
-						int new_rung = std::max(
-								std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1),
-										params.rung),
-								MIN_RUNG);
-						dt = params.t0 / (1 << new_rung);
+				if (this_rung >= params.rung) {
+					float dt = params.t0 / (1 << this_rung);
+#ifndef CONFORMAL_TIME
+					dt *= 1.f / params.scale;
+#endif
+					if (!params.first) {
 						particles->vel(0, index) += 0.5 * dt * F[0][k];
 						particles->vel(1, index) += 0.5 * dt * F[1][k];
 						particles->vel(2, index) += 0.5 * dt * F[2][k];
-						max_rung = std::max(max_rung, new_rung);
-						particles->set_rung(new_rung, index);
 					}
-					if (params.full_eval) {
-						kick_return_update_pot_cpu(phi[k], F[0][k], F[1][k], F[2][k]);
+					float fmag = 0.0;
+					for (int dim = 0; dim < NDIM; dim++) {
+						fmag += sqr(F[dim][k]);
 					}
+					fmag = sqrtf(fmag);
+					assert(fmag > 0.0);
+#ifdef CONFORMAL_TIME
+					dt = std::min(params.eta * std::sqrt(params.scale * params.hsoft / fmag), params.t0);
+#else
+					dt = std::min(params.eta * std::sqrt(params.scale * sqr(params.scale) * params.hsoft / fmag), params.t0);
+#endif
+					int new_rung = std::max(
+							std::max(std::max(int(std::ceil(std::log(params.t0 / dt) * invlog2)), this_rung - 1), params.rung),
+							MIN_RUNG);
+					dt = params.t0 / (1 << new_rung);
+#ifndef CONFORMAL_TIME
+					dt *= 1.f / params.scale;
+#endif
+					particles->vel(0, index) += 0.5 * dt * F[0][k];
+					particles->vel(1, index) += 0.5 * dt * F[1][k];
+					particles->vel(2, index) += 0.5 * dt * F[2][k];
+					max_rung = std::max(max_rung, new_rung);
+					particles->set_rung(new_rung, index);
 				}
-				kick_return_update_rung_cpu(particles->rung(index));
+				if (params.full_eval) {
+					kick_return_update_pot_cpu(phi[k], F[0][k], F[1][k], F[2][k]);
+				}
 			}
+			kick_return_update_rung_cpu(particles->rung(index));
+
 		}
 		//	rc.rung = max_rung;
 		return hpx::make_ready_future();
@@ -740,10 +672,9 @@ void tree::gpu_daemon() {
 	timer.reset();
 	timer.start();
 	first_call = false;
-	int numBlocks;
-	CUDA_CHECK(
-			cudaOccupancyMaxActiveBlocksPerMultiprocessor ( &numBlocks, cuda_kick_kernel, KICK_BLOCK_SIZE, sizeof(cuda_kick_shmem) ));
-	int max_oc = numBlocks * global().cuda.devices[0].multiProcessorCount;
+	int num_blocks;
+	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
+	int max_oc = num_blocks * global().cuda.devices[0].multiProcessorCount;
 	max_blocks_active = 2 * max_oc;
 	bool first_pass = true;
 	bool alldone;
@@ -769,7 +700,7 @@ void tree::gpu_daemon() {
 				kicks.push_back(gpu_queue.pop());
 			}
 			std::sort(kicks.begin(), kicks.end(), [&](const gpu_kick& a, const gpu_kick& b) {
-				return a.parts[CDM_SET].first < b.parts[CDM_SET].first;
+				return a.parts.first < b.parts.first;
 			});
 			while (kicks.size() > kick_grid_size) {
 				gpu_queue.push(kicks.back());
@@ -813,7 +744,8 @@ void tree::gpu_daemon() {
 				consts.theta = gpu_params[0].theta;
 				consts.first = gpu_params[0].first;
 				consts.groups = gpu_params[0].groups;
-				cuda_set_kick_constants(consts, *gpu_params[0].part_sets);
+				memcpy(consts.particles, particles, sizeof(particle_set));
+				cuda_set_kick_constants(consts);
 			}
 			cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
 			completions.push_back(std::function<bool()>([=]() {
@@ -869,8 +801,8 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 	gpu.parts = params->tptr.get_parts();
 	gpu_queue.push(std::move(gpu));
 //	covered_ranges.add_range(parts);
-	parts_covered += gpu.parts.size();
-	if (parts_covered == params->part_sets->size()) {
+	parts_covered += gpu.parts.second - gpu.parts.first;
+	if (parts_covered == global().opts.nparts) {
 		gpu_daemon();
 	}
 	return std::move(fut);

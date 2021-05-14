@@ -196,4 +196,5 @@ CUDA_EXPORT inline void particle_set::set_last_group(size_t index, group_t g) {
 	lidptr2_[index] = g >> 32ULL;
 }
 
+using part_iters = pair<size_t,size_t>;
 #endif /* COSMICTIGER_PARTICLE_HPP_ */

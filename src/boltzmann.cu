@@ -222,7 +222,7 @@ void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, flo
 	}
 }
 
-void einstein_boltzmann_interpolation_function(interp_functor<float>* cdm_k_func, interp_functor<float>* bary_k_func,
+void einstein_boltzmann_interpolation_function(interp_functor<float>* cdm_k_func,
 		interp_functor<float>* vel_k_func, cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm,
 		int N, float astart, float astop, bool cont, float ns) {
 	int block_size = 32;
@@ -240,7 +240,7 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* cdm_k_func
 	einstein_boltzman_kernel<<<nblocks,block_size>>>(U, uni,ks, astart, astop, norm, N, cont, ns);
 	CUDA_CHECK(cudaDeviceSynchronize());
 
-	vector<float> cdm_k(N), bary_k(N), vel_k(N);
+	vector<float> cdm_k(N), vel_k(N);
 	float oc = uni->params.omega_c;
 	float ob = uni->params.omega_b;
 	float om = oc + ob;
@@ -254,22 +254,16 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* cdm_k_func
 	for (int i = 0; i < N; i++) {
 		float k = ks[i];
 		float eps = k / (astop * H);
-		if (global().opts.sph) {
-			cdm_k[i] = sqr(U[i][deltaci]);
-			bary_k[i] = sqr(U[i][deltabi]);
-		} else {
-			cdm_k[i] = sqr(oc * U[i][deltaci] + ob * U[i][deltabi]);
-		}
+		cdm_k[i] = sqr(oc * U[i][deltaci] + ob * U[i][deltabi]);
 		vel_k[i] = sqr((ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / eps);
 		//	printf("%e %e\n", k, vel_k[i]);
 	}
-	build_interpolation_function(bary_k_func, bary_k, expf(logkmin), expf(logkmax));
 	build_interpolation_function(cdm_k_func, cdm_k, expf(logkmin), expf(logkmax));
 	build_interpolation_function(vel_k_func, vel_k, expf(logkmin), expf(logkmax));
 	FILE* fp = fopen("power.dat", "wt");
 	for (int i = 0; i < N; i++) {
 		float k = expf(logkmin + (float) i * dlogk);
-		fprintf(fp, "%e %e %e %e\n", k, cdm_k[i], bary_k[i], vel_k[i]);
+		fprintf(fp, "%e %e %e\n", k, cdm_k[i],  vel_k[i]);
 	}
 	fclose(fp);
 	CUDA_FREE(ks);

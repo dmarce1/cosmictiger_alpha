@@ -12,7 +12,6 @@
 #include <cosmictiger/drift.hpp>
 #include <cstdlib>
 
-CUDA_KERNEL cuda_kick_kernel(kick_params_type *params);
 CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, float *ferr, float *fnorm, float* perr,
 		float* pnorm, float GM, float);
 

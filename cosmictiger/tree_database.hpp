@@ -6,11 +6,11 @@
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/range.hpp>
+#include <cosmictiger/particle.hpp>
 
 class tree;
 struct kick_params_type;
 struct group_param_type;
-struct sph_neighbor_params_type;
 
 size_t tree_data_bytes_used();
 
@@ -57,10 +57,10 @@ struct tree_ptr {
 	inline part_iters get_parts(int) const;
 
 	CUDA_EXPORT
-	inline parts_type get_parts() const;
+	inline part_iters get_parts() const;
 
 	CUDA_EXPORT
-	inline void set_parts(const parts_type& p) const;
+	inline void set_parts(const part_iters& p) const;
 
 	CUDA_EXPORT
 	inline size_t get_active_parts() const;
@@ -78,18 +78,11 @@ struct tree_ptr {
 	range get_range() const;
 
 	CUDA_EXPORT
-	range get_sph_range() const;
-
-	CUDA_EXPORT
 	void set_range(const range&) const;
-
-	CUDA_EXPORT
-	void set_sph_range(const range&) const;
 
 #ifndef __CUDACC__
 	hpx::future<size_t> find_groups(group_param_type*, bool);
 	hpx::future<void> kick(kick_params_type*, bool);
-	hpx::future<bool> sph_neighbors(sph_neighbor_params_type*, bool);
 #endif
 };
 
@@ -135,10 +128,10 @@ CUDA_EXPORT
 part_iters tree_data_get_parts(int i, int pi);
 
 CUDA_EXPORT
-parts_type tree_data_get_parts(int i);
+part_iters tree_data_get_parts(int i);
 
 CUDA_EXPORT
-void tree_data_set_parts(int i, const parts_type& p);
+void tree_data_set_parts(int i, const part_iters& p);
 
 CUDA_EXPORT
 size_t tree_data_get_active_parts(int i);
@@ -158,11 +151,6 @@ range tree_data_get_range(int i);
 CUDA_EXPORT
 void tree_data_set_range(int i, const range& r);
 
-CUDA_EXPORT
-range tree_data_get_sph_range(int i);
-
-CUDA_EXPORT
-void tree_data_set_sph_range(int i, const range& r);
 
 void tree_data_clear();
 
@@ -248,12 +236,12 @@ inline part_iters tree_ptr::get_parts(int pi) const {
 }
 
 CUDA_EXPORT
-inline parts_type tree_ptr::get_parts() const {
+inline part_iters tree_ptr::get_parts() const {
 	return tree_data_get_parts(dindex);
 }
 
 CUDA_EXPORT
-inline void tree_ptr::set_parts(const parts_type& p) const {
+inline void tree_ptr::set_parts(const part_iters& p) const {
 	tree_data_set_parts(dindex, p);
 }
 
@@ -287,16 +275,6 @@ inline void tree_ptr::set_range(const range& r) const {
 	tree_data_set_range(dindex, r);
 }
 
-CUDA_EXPORT
-inline range tree_ptr::get_sph_range() const {
-	return tree_data_get_sph_range(dindex);
-}
-
-CUDA_EXPORT
-inline void tree_ptr::set_sph_range(const range& r) const {
-	tree_data_set_sph_range(dindex, r);
-}
-
 struct multipole_pos {
 	multipole multi;
 	array<fixed32, NDIM> pos;
@@ -316,10 +294,9 @@ struct tree_data_t {
 struct tree_database_t {
 	multipole_pos* multi;
 	size_t* active_nodes;
-	parts_type* parts;
+	part_iters* parts;
 	tree_data_t* data;
 	range* ranges;
-	range* sph_ranges;
 	size_t* active_parts;
 	int ntrees;
 	int nchunks;
@@ -327,7 +304,7 @@ struct tree_database_t {
 };
 
 #ifdef TREE_DATABASE_CU
-__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
+__managed__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
 tree_database_t cpu_tree_data_;
 #else
 extern __managed__ tree_database_t gpu_tree_data_;
@@ -480,7 +457,7 @@ void tree_data_set_children(int i, const array<tree_ptr, NCHILD>& c) {
 	tree_data_.data[i].children[1] = c[1];
 }
 
-CUDA_EXPORT inline part_iters tree_data_get_parts(int i, int pi) {
+CUDA_EXPORT inline part_iters tree_data_get_parts(int i) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
@@ -493,20 +470,13 @@ CUDA_EXPORT inline part_iters tree_data_get_parts(int i, int pi) {
 		int4 ints;
 	};
 	parts_union p;
-	p.ints = LDG((int4* )(&tree_data_.parts[i][pi]));
+	p.ints = LDG((int4* )(&tree_data_.parts[i]));
 	return p.parts;
 }
 
-CUDA_EXPORT inline parts_type tree_data_get_parts(int i) {
-	parts_type parts;
-	for (int pi = 0; pi < NPART_TYPES; pi++) {
-		parts[pi] = tree_data_get_parts(i, pi);
-	}
-	return parts;
-}
 
 CUDA_EXPORT inline
-void tree_data_set_parts(int i, const parts_type& p) {
+void tree_data_set_parts(int i, const part_iters& p) {
 #ifdef __CUDACC__
 	auto& tree_data_ = gpu_tree_data_;
 #else
@@ -584,29 +554,6 @@ void tree_data_set_range(int i, const range& r) {
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	tree_data_.ranges[i] = r;
-}
-
-CUDA_EXPORT inline range tree_data_get_sph_range(int i) {
-#ifdef __CUDACC__
-	auto& tree_data_ = gpu_tree_data_;
-#else
-	auto& tree_data_ = cpu_tree_data_;
-#endif
-	assert(i >= 0);
-	assert(i < tree_data_.ntrees);
-	return tree_data_.sph_ranges[i];
-}
-
-CUDA_EXPORT inline
-void tree_data_set_sph_range(int i, const range& r) {
-#ifdef __CUDACC__
-	auto& tree_data_ = gpu_tree_data_;
-#else
-	auto& tree_data_ = cpu_tree_data_;
-#endif
-	assert(i >= 0);
-	assert(i < tree_data_.ntrees);
-	tree_data_.sph_ranges[i] = r;
 }
 
 void tree_database_set_readonly();

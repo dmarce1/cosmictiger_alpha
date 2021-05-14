@@ -4,45 +4,39 @@
 #include <cosmictiger/constants.hpp>
 #include <cosmictiger/global.hpp>
 
-__global__ void power_spectrum_init(particle_sets partsets, cmplx* den_k, size_t N, float mass0, bool sph) {
+__global__ void power_spectrum_init(particle_set parts, cmplx* den_k, size_t N, float mass0) {
 	const auto& tid = threadIdx.x;
 	const auto& bid = blockIdx.x;
 	const auto& bsz = blockDim.x;
 	const auto& gsz = gridDim.x;
-	const int npart_types = sph ? 2 : 1;
-	partsets.sets[CDM_SET] = &partsets.cdm;
-	partsets.sets[BARY_SET] = &partsets.baryon;
-	for (int pi = 0; pi < npart_types; pi++) {
-		auto& parts = *partsets.sets[pi];
-		const auto start = bid * parts.size() / gsz;
-		const auto stop = (bid + 1) * parts.size() / gsz;
-		const float floatN = (float) N;
-		const float mass = mass0 * partsets.weights[pi];
-		for (auto i = start + tid; i < stop; i += bsz) {
-			const auto x = parts.pos(0, i).to_float() * floatN;
-			const auto y = parts.pos(1, i).to_float() * floatN;
-			const auto z = parts.pos(2, i).to_float() * floatN;
-			const int xi0 = (int) x % N;
-			const int yi0 = (int) y % N;
-			const int zi0 = (int) z % N;
-			const int xi1 = (xi0 + 1) % N;
-			const int yi1 = (yi0 + 1) % N;
-			const int zi1 = (zi0 + 1) % N;
-			const float w1x = x - xi0;
-			const float w1y = y - yi0;
-			const float w1z = z - zi0;
-			const float w0x = 1.f - w1x;
-			const float w0y = 1.f - w1y;
-			const float w0z = 1.f - w1z;
-			atomicAdd(&(den_k[xi0 * N * N + yi0 * N + zi0].real()), mass * w0x * w0y * w0z);
-			atomicAdd(&(den_k[xi0 * N * N + yi0 * N + zi1].real()), mass * w0x * w0y * w1z);
-			atomicAdd(&(den_k[xi0 * N * N + yi1 * N + zi0].real()), mass * w0x * w1y * w0z);
-			atomicAdd(&(den_k[xi0 * N * N + yi1 * N + zi1].real()), mass * w0x * w1y * w1z);
-			atomicAdd(&(den_k[xi1 * N * N + yi0 * N + zi0].real()), mass * w1x * w0y * w0z);
-			atomicAdd(&(den_k[xi1 * N * N + yi0 * N + zi1].real()), mass * w1x * w0y * w1z);
-			atomicAdd(&(den_k[xi1 * N * N + yi1 * N + zi0].real()), mass * w1x * w1y * w0z);
-			atomicAdd(&(den_k[xi1 * N * N + yi1 * N + zi1].real()), mass * w1x * w1y * w1z);
-		}
+	const auto start = bid * parts.size() / gsz;
+	const auto stop = (bid + 1) * parts.size() / gsz;
+	const float floatN = (float) N;
+	const float mass = mass0;
+	for (auto i = start + tid; i < stop; i += bsz) {
+		const auto x = parts.pos(0, i).to_float() * floatN;
+		const auto y = parts.pos(1, i).to_float() * floatN;
+		const auto z = parts.pos(2, i).to_float() * floatN;
+		const int xi0 = (int) x % N;
+		const int yi0 = (int) y % N;
+		const int zi0 = (int) z % N;
+		const int xi1 = (xi0 + 1) % N;
+		const int yi1 = (yi0 + 1) % N;
+		const int zi1 = (zi0 + 1) % N;
+		const float w1x = x - xi0;
+		const float w1y = y - yi0;
+		const float w1z = z - zi0;
+		const float w0x = 1.f - w1x;
+		const float w0y = 1.f - w1y;
+		const float w0z = 1.f - w1z;
+		atomicAdd(&(den_k[xi0 * N * N + yi0 * N + zi0].real()), mass * w0x * w0y * w0z);
+		atomicAdd(&(den_k[xi0 * N * N + yi0 * N + zi1].real()), mass * w0x * w0y * w1z);
+		atomicAdd(&(den_k[xi0 * N * N + yi1 * N + zi0].real()), mass * w0x * w1y * w0z);
+		atomicAdd(&(den_k[xi0 * N * N + yi1 * N + zi1].real()), mass * w0x * w1y * w1z);
+		atomicAdd(&(den_k[xi1 * N * N + yi0 * N + zi0].real()), mass * w1x * w0y * w0z);
+		atomicAdd(&(den_k[xi1 * N * N + yi0 * N + zi1].real()), mass * w1x * w0y * w1z);
+		atomicAdd(&(den_k[xi1 * N * N + yi1 * N + zi0].real()), mass * w1x * w1y * w0z);
+		atomicAdd(&(den_k[xi1 * N * N + yi1 * N + zi1].real()), mass * w1x * w1y * w1z);
 	}
 }
 
@@ -97,7 +91,7 @@ void compute_power_spectrum(cmplx* den, float* spec, int N) {
 	CUDA_FREE(count);
 }
 
-void compute_particle_power_spectrum(particle_sets& parts, int filenum) {
+void compute_particle_power_spectrum(particle_set& parts, int filenum) {
 	cmplx* den;
 	size_t N = global().opts.parts_dim;
 	size_t N3 = N * sqr(N);
@@ -115,7 +109,7 @@ void compute_particle_power_spectrum(particle_sets& parts, int filenum) {
 	int num_blocks;
 	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, power_spectrum_init, block_size, 0));
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
-	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_sets(),den,N,(float) N3 / (float)parts.size(), global().opts.sph);
+	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_set(),den,N,(float) N3 / (float)parts.size());
 	CUDA_CHECK(cudaDeviceSynchronize());
 	compute_power_spectrum(den, spec, N);
 	std::string filename = std::string("power.") + std::to_string(filenum) + std::string(".txt");

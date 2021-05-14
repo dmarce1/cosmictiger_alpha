@@ -342,7 +342,7 @@ void group_data_save(double scale, int filenum) {
 	std::vector<float, my_allocator<float>> reffs;
 	std::vector<float, my_allocator<float>> quads;
 	std::vector<float, my_allocator<float>> vdisps;
-	std::vector<int, my_allocator<float>> sizes;
+	std::vector<int, my_allocator<int>> sizes;
 	std::string filename = std::string("groups.") + std::to_string(filenum) + std::string(".dat");
 	FILE* fp = fopen(filename.c_str(), "wb");
 	if (fp == NULL) {

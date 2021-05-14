@@ -42,9 +42,7 @@ set(cosmictiger_source_files
     src/memory.cpp
     src/options.cpp
     src/particle.cpp
-    src/particle_sets.cpp
     src/rand.cpp
-    src/sph.cpp
     src/hydro_particle.cpp
     src/tests.cpp
     src/tree.cpp
@@ -62,7 +60,6 @@ set(cosmictiger_source_files
     src/math.cu
     src/particle.cu
     src/power.cu
-    src/sph.cu
     src/tree.cu
     src/tree_database.cu
     src/zeldovich.cu
@@ -96,7 +93,6 @@ set(cosmictiger_header_files
 	cosmictiger/particle.hpp
 	cosmictiger/rand.hpp
 	cosmictiger/range.hpp
-	cosmictiger/sph.hpp
 	cosmictiger/stack_vector.hpp
 	cosmictiger/timer.hpp
 	cosmictiger/tree.hpp
@@ -110,7 +106,6 @@ set(cosmictiger_header_files
 	cosmictiger/multipole.hpp
 	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
-	cosmictiger/particle_sets.hpp
 	cosmictiger/rand.hpp
 	cosmictiger/range.hpp
 	cosmictiger/timer.hpp

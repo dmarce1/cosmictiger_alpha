@@ -13,10 +13,11 @@
 double T0;
 #define NTIMESTEP 100.0
 
-tree build_tree(particle_sets& parts, int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm,
+tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm,
 		bool group_sort = false) {
 	timer time;
 	time.start();
+	tree::set_particle_set(&parts);
 	static bool last_was_group_sort = true;
 	static int last_bucket_size = global().opts.bucket_size;
 	int bucket_size = global().opts.bucket_size;
@@ -28,12 +29,17 @@ tree build_tree(particle_sets& parts, int min_rung, double theta, size_t& num_ac
 		tree_data_initialize_groups();
 	}
 	last_bucket_size = bucket_size;
+	static particle_set *parts_ptr = nullptr;
+	if (parts_ptr == nullptr) {
+		CUDA_MALLOC(parts_ptr, sizeof(particle_set));
+		new (parts_ptr) particle_set(parts.get_virtual_particle_set());
+		tree::cuda_set_kick_params(parts_ptr);
+	}
 	tree root;
 	tree_ptr root_ptr;
 
 	root_ptr.dindex = 0;
 	sort_params params;
-	params.part_sets = &parts;
 	params.tptr = root_ptr;
 	params.min_rung = min_rung;
 	params.theta = theta;
@@ -47,8 +53,7 @@ tree build_tree(particle_sets& parts, int min_rung, double theta, size_t& num_ac
 
 }
 
-int kick(particle_sets& parts, tree root, double theta, double a, int min_rung, bool full_eval, bool first_call,
-		bool groups, double& tm) {
+int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool first_call, bool groups, double& tm) {
 	timer time;
 	time.start();
 	tree_ptr root_ptr;
@@ -57,7 +62,6 @@ int kick(particle_sets& parts, tree root, double theta, double a, int min_rung, 
 	kick_params_type *params_ptr;
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) kick_params_type();
-	params_ptr->part_sets = &parts;
 	params_ptr->tptr = root_ptr;
 	params_ptr->dchecks.push(root_ptr);
 	params_ptr->echecks.push(root_ptr);
@@ -94,11 +98,11 @@ int kick(particle_sets& parts, tree root, double theta, double a, int min_rung, 
 	return kick_return_max_rung();
 }
 
-int drift(particle_sets& parts, double dt, double a0, double a1, double*ekin, double*momx, double*momy, double*momz,
+int drift(particle_set& parts, double dt, double a0, double a1, double*ekin, double*momx, double*momy, double*momz,
 		double tau, double tau_max, double& tm) {
 	timer time;
 	time.start();
-	int rc = drift_particles(parts.get_virtual_particle_sets(), dt, a0, ekin, momx, momy, momz, tau, tau_max);
+	int rc = drift_particles(parts.get_virtual_particle_set(), dt, a0, ekin, momx, momy, momz, tau, tau_max);
 	time.stop();
 	tm = time.read();
 	return rc;
@@ -106,7 +110,7 @@ int drift(particle_sets& parts, double dt, double a0, double a1, double*ekin, do
 
 #define EVAL_FREQ 25
 
-void save_to_file(particle_sets& parts, int step, time_type itime, double time, double a, double cosmicK) {
+void save_to_file(particle_set& parts, int step, time_type itime, double time, double a, double cosmicK) {
 	std::string filename = std::string("checkpoint.") + std::to_string(step) + std::string(".dat");
 	printf("Saving %s...", filename.c_str());
 	fflush(stdout);
@@ -126,10 +130,8 @@ void save_to_file(particle_sets& parts, int step, time_type itime, double time, 
 	printf(" done\n");
 }
 
-void load_from_file(particle_sets& parts, int& step, time_type& itime, double& time, double& a, double& cosmicK, std::string filename="") {
-	if( filename == "") {
-		filename = global().opts.checkpt_file;
-	}
+void load_from_file(particle_set& parts, int& step, time_type& itime, double& time, double& a, double& cosmicK) {
+	std::string filename = global().opts.checkpt_file;
 	printf("Loading %s...", filename.c_str());
 	FILE* fp = fopen(filename.c_str(), "rb");
 	if (!fp) {
@@ -148,7 +150,7 @@ void load_from_file(particle_sets& parts, int& step, time_type& itime, double& t
 
 }
 
-std::pair<int, hpx::future<void>> find_groups(particle_sets& parts, double& time) {
+std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time) {
 	timer tm;
 	tm.start();
 	double sort_tm;
@@ -168,14 +170,14 @@ std::pair<int, hpx::future<void>> find_groups(particle_sets& parts, double& time
 	new (params_ptr) group_param_type();
 	params_ptr->self = root_ptr;
 	params_ptr->link_len = 1.0 / pow(global().opts.nparts, 1.0 / 3.0) * 0.2;
-	params_ptr->parts = parts.cdm.get_virtual_particle_set();
+	params_ptr->parts = parts.get_virtual_particle_set();
 	params_ptr->checks.push(root_ptr);
 	params_ptr->first_round = true;
 	int iters = 1;
-	parts.cdm.init_groups();
+	parts.init_groups();
 	tree_database_set_groups();
 	size_t active = find_groups(params_ptr).get();
-	printf("%li nodes active\n", active);
+	printf( "%li nodes active\n", active);
 	while (active) {
 		tree_database_set_groups();
 		params_ptr->self = root_ptr;
@@ -184,13 +186,13 @@ std::pair<int, hpx::future<void>> find_groups(particle_sets& parts, double& time
 		params_ptr->first_round = false;
 		iters++;
 		active = find_groups(params_ptr).get();
-		printf("%li nodes active\n", active);
+		printf( "%li nodes active\n", active);
 	}
 	params_ptr->~group_param_type();
 	tree_data_free_all();
 	CUDA_FREE(params_ptr);
 	alloc.reset();
-	auto fut = group_data_create(parts.cdm);
+	auto fut = group_data_create(parts);
 	tm.stop();
 	time = tm.read();
 	tree::cleanup();
@@ -201,7 +203,7 @@ void drive_cosmos() {
 
 	bool have_checkpoint = global().opts.checkpt_file != "";
 
-	particle_sets parts(global().opts.nparts);
+	particle_set parts(global().opts.nparts);
 	int max_iter = 100;
 
 	int iter = 0;
@@ -220,26 +222,24 @@ void drive_cosmos() {
 	double parts_total;
 	double time_total;
 	double time;
+
 	if (!have_checkpoint) {
 		//parts.load_particles("ics");
 		if (global().opts.glass) {
-			parts.generate_random();
+			parts.generate_random(42);
 		} else {
-			if( global().opts.glass_file != "") {
-				load_from_file(parts, iter, itime, time, a, cosmicK, global().opts.glass_file);
+			if (global().opts.glass_file != "") {
+				load_from_file(parts, iter, itime, time, a,cosmicK);
 			} else {
-				const int npart_types = global().opts.sph ? 2 : 1;
-				for (int pi = 0; pi < npart_types; pi++) {
-					const int N = global().opts.parts_dim;
-					const float Ninv = 1.0f / N;
-					for (size_t i = 0; i < N; i++) {
-						for (size_t j = 0; j < N; j++) {
-							for (size_t k = 0; k < N; k++) {
-								const size_t l = N * (N * i + j) + k;
-								parts.sets[pi]->pos(0, l) = (i) * Ninv;
-								parts.sets[pi]->pos(1, l) = (j) * Ninv;
-								parts.sets[pi]->pos(2, l) = (k) * Ninv;
-							}
+				const int N = global().opts.parts_dim;
+				const float Ninv = 1.0f / N;
+				for (size_t i = 0; i < N; i++) {
+					for (size_t j = 0; j < N; j++) {
+						for (size_t k = 0; k < N; k++) {
+							const size_t l = N * (N * i + j) + k;
+							parts.pos(0, l) = (i) * Ninv;
+							parts.pos(1, l) = (j) * Ninv;
+							parts.pos(2, l) = (k) * Ninv;
 						}
 					}
 				}
@@ -290,23 +290,19 @@ void drive_cosmos() {
 					"theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
 		}
 		static double last_theta = -1.0;
-		options opts = global().opts;
-		int& bucket_size = opts.bucket_size;
-		if (global().opts.glass) {
-			theta = 0.7;
-			bucket_size = 160;
+		auto opts = global().opts;
+		int bucket_size = global().opts.bucket_size;
+		if (z > 20.0) {
+			bucket_size = 96;
+			theta = 0.4;
+		} else if (z > 2.0) {
+			bucket_size = 128;
+			theta = 0.55;
 		} else {
-			if (z > 20.0) {
-				bucket_size = 96;
-				theta = 0.4;
-			} else if (z > 2.0) {
-				bucket_size = 128;
-				theta = 0.55;
-			} else {
-				bucket_size = 160;
-				theta = 0.7;
-			}
+			bucket_size = 160;
+			theta = 0.7;
 		}
+		opts.bucket_size = bucket_size;
 		global_set_options(opts);
 		if (theta != last_theta) {
 			reset_list_sizes();
@@ -343,7 +339,7 @@ void drive_cosmos() {
 		}
 		tree root = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
 		tree_use = tree_data_use();
-		max_rung = kick(parts, root, theta, a, min_rung(itime), full_eval, iter == 0, groups && full_eval, kick_tm);
+		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, groups && full_eval, kick_tm);
 		if (full_eval && groups) {
 			group_fut.get();
 			group_data_save(a, time + 0.5);
@@ -354,11 +350,15 @@ void drive_cosmos() {
 		if (silo_int > 0) {
 			if (full_eval) {
 				std::string filename = "points." + std::to_string(silo_outs) + ".silo";
-				silo_out(parts, filename.c_str());
+//				parts.silo_out(filename.c_str());
 				silo_outs++;
 			}
 		}
 
+//		if (last_theta != theta) {
+		//cuda_compare_with_direct(&parts);
+//			last_theta = theta;
+		//	}
 		kick_return kr = kick_return_get();
 		if (full_eval) {
 			pot = 0.5 * kr.phis / a;
@@ -373,7 +373,7 @@ void drive_cosmos() {
 		real_time += a * dt * 0.5;
 		z = 1.0 / a - 1.0;
 		if (global().opts.map_size > 0) {
-			load_and_save_maps(time * T0 - dt, NTIMESTEP * T0);
+			load_and_save_maps(time * T0, NTIMESTEP * T0);
 		}
 		int mapped_cnt = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time - dt, NTIMESTEP * T0, drift_tm);
 		cosmicK += kin * (a - a0);
@@ -384,7 +384,7 @@ void drive_cosmos() {
 		}
 		sum = (sum - esum0) / (std::abs(a * kin) + std::abs(a * pot) + std::abs(cosmicK));
 		parts_total += num_active;
-		double act_pct = 100.0 * (double) num_active * partfac / (global().opts.sph ? 2.0 : 1.0);
+		double act_pct = 100.0 * (double) num_active * partfac;
 		tm.stop();
 		time_total += tm.read();
 		tm.reset();
@@ -418,12 +418,6 @@ void drive_cosmos() {
 		iter++;
 	} while (z > 0.0);
 	double total_time = drift_total + sort_total + kick_total;
-	if (global().opts.map_size > 0) {
-		load_and_save_maps(time * T0, NTIMESTEP * T0);
-	}
-	if (global().opts.glass) {
-		save_to_file(parts, 0, time_type(0), 0.0, 0.0, 0.0);
-	}
 	printf("Sort  time = %e (%.2f) %%\n", sort_total, sort_total / total_time * 100.0);
 	printf("Kick  time = %e (%.2f) %%\n", kick_total, kick_total / total_time * 100.0);
 	printf("Drift time = %e (%.2f) %%\n", drift_total, drift_total / total_time * 100.0);

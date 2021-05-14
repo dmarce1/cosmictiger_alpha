@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cosmictiger/defs.hpp>
-#include <cosmictiger/particle_sets.hpp>
+#include <cosmictiger/particle.hpp>
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/fast_future.hpp>
@@ -47,11 +47,10 @@ struct sort_params {
 	int8_t depth;
 	int8_t min_depth;
 	double theta;
-	parts_type parts;
+	pair<size_t, size_t> parts;
 	int min_rung;
 	tree_ptr tptr;
 	bool group_sort;
-	particle_sets* part_sets;
 	std::shared_ptr<tree_allocator> alloc;
 	template<class A>
 	void serialization(A &&arc, unsigned) {
@@ -69,15 +68,13 @@ struct sort_params {
 
 	void set_root() {
 		const auto opts = global().opts;
-		depth = 0;
 		for (int dim = 0; dim < NDIM; dim++) {
 			box.begin[dim] = 0.f;
 			box.end[dim] = 1.f;
 		}
-		for( int i = 0; i < NPART_TYPES; i++) {
-			parts[i].first = 0;
-			parts[i].second = part_sets->sets[i]->size();
-		}
+		parts.first = 0;
+		parts.second = global().opts.nparts;
+		depth = 0;
 	}
 
 	std::array<sort_params, NCHILD> get_children() const {
@@ -89,8 +86,6 @@ struct sort_params {
 			child[i].min_rung = min_rung;
 			child[i].alloc = alloc;
 			child[i].group_sort = group_sort;
-			child[i].part_sets = part_sets;
-
 		}
 		return child;
 	}
@@ -159,7 +154,6 @@ struct kick_params_type {
 	array<float, MAX_BUCKET_SIZE> Phi;
 	array<expansion<float>, TREE_MAX_DEPTH> L;
 	array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
-	particle_sets* part_sets;
 	tree_ptr tptr;
 	int depth;
 	size_t block_cutoff;
@@ -194,7 +188,6 @@ struct kick_params_type {
 		M = other.M;
 		tptr = other.tptr;
 		groups = other.groups;
-		part_sets = other.part_sets;
 		return *this;
 	}
 
@@ -229,7 +222,7 @@ struct kick_params_type;
 struct gpu_kick {
 	kick_params_type *params;
 	std::shared_ptr<hpx::lcos::local::promise<void>> promise;
-	parts_type parts;
+	pair<size_t, size_t> parts;
 	gpu_kick() {
 		promise = std::make_shared<hpx::lcos::local::promise<void>>();
 	}
@@ -245,6 +238,7 @@ struct tree {
 #ifndef __CUDACC__
 private:
 #endif //*** multi and pos MUST be adjacent and ordered multi then pos !!!!!!! *****/
+	static particle_set* particles;
 public:
 	static std::atomic<int> cuda_node_count;
 	static std::atomic<int> cpu_node_count;
@@ -253,6 +247,7 @@ public:
 	static void show_timings();
 #ifndef __CUDACC__
 //		static pranges covered_ranges;
+	static void set_particle_set(particle_set*);
 	inline static fast_future<sort_return> create_child(sort_params&, bool try_thread);
 	static fast_future<sort_return> cleanup_child();
 	static hpx::lcos::local::mutex mtx;
@@ -278,7 +273,7 @@ public:
 void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);
 
 struct kick_constants {
-	char partsets[sizeof(particle_sets)];
+	char particles[sizeof(particle_set)];
 	float theta;
 	float eta;
 	float scale;
@@ -301,8 +296,7 @@ struct kick_constants {
 	bool full_eval;
 	bool first;
 	bool groups;
-	int npart_types;
 };
 
-void cuda_set_kick_constants(kick_constants consts,particle_sets&);
+void cuda_set_kick_constants(kick_constants consts);
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params);

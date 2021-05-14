@@ -5,7 +5,7 @@
 #include <cosmictiger/zero_order.hpp>
 #include <cosmictiger/zeldovich.hpp>
 #include <cosmictiger/constants.hpp>
-#include <cosmictiger/particle_sets.hpp>
+#include <cosmictiger/particle.hpp>
 #include <cosmictiger/power.hpp>
 
 #include <unistd.h>
@@ -114,8 +114,9 @@ __global__ void phi_to_grid(particle_set parts, cmplx* phi1, cmplx* phi2, float 
 			const float this_disp2 = D2 * dphi2dx[dim] * unitinv;
 			const float this_disp = this_disp1 + this_disp2;
 			maxes[tid] = fmaxf(maxes[tid], fabs(this_disp * N));
-			const float x0 = constrain_range(parts.pos(dim, l).to_float() + this_disp1);
+			const float x0 = constrain_range(parts.pos(dim, l).to_float() + this_disp);
 			parts.pos(dim, l) = x0;
+	//		printf( "%e\n", this_disp);
 			parts.vel(dim, l) = prefactor1 * this_disp1 + prefactor2 * this_disp2;
 		}
 	}
@@ -237,7 +238,7 @@ void transform_laplacian(cmplx* phi, float box_size, int N) {
 	__syncthreads();
 }
 
-void initial_conditions(particle_sets& parts) {
+void initial_conditions(particle_set& parts) {
 
 	sigma8_integrand *func_ptr;
 	zero_order_universe* zeroverse_ptr;
@@ -245,7 +246,6 @@ void initial_conditions(particle_sets& parts) {
 	cos_state* states;
 	cosmic_params params;
 	interp_functor<float>* cdm_k;
-	interp_functor<float>* bary_k;
 	interp_functor<float>* vel_k;
 	cmplx* phi1;
 	cmplx* phi2;
@@ -260,7 +260,6 @@ void initial_conditions(particle_sets& parts) {
 	CUDA_MALLOC(phi2, N3);
 	CUDA_MALLOC(rands, N3);
 	CUDA_MALLOC(cdm_k, 1);
-	CUDA_MALLOC(bary_k, 1);
 	CUDA_MALLOC(vel_k, 1);
 	CUDA_MALLOC(zeroverse_ptr, 1);
 	CUDA_MALLOC(result_ptr, 1);
@@ -269,7 +268,6 @@ void initial_conditions(particle_sets& parts) {
 
 
 	*max_disp = 0.f;
-	new (bary_k) interp_functor<float>();
 	new (cdm_k) interp_functor<float>();
 	new (vel_k) interp_functor<float>();
 
@@ -314,11 +312,10 @@ void initial_conditions(particle_sets& parts) {
 	kmax = std::max((float) M_PI / (float) code_to_mpc * (float) (global().opts.parts_dim), kmax);
 	printf("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	const float ainit = 1.0f / (global().opts.z0 + 1.0f);
-	einstein_boltzmann_interpolation_function(cdm_k, bary_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
+	einstein_boltzmann_interpolation_function(cdm_k,vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
 			zeroverse_ptr->amin, 1.0, false, ns);
 #ifndef __CUDA_ARCH__
 	auto cdm_destroy = cdm_k->to_device();
-	auto bary_destroy = bary_k->to_device();
 	auto vel_destroy = vel_k->to_device();
 #endif
 
@@ -349,8 +346,6 @@ void initial_conditions(particle_sets& parts) {
 	float xdisp = 0.0;
 	const double omega_m = params.omega_b + params.omega_c;
 	const double a = ainit;
-	const int num_parts = global().opts.sph ? 2 : 1;
-	printf("%i species\n", num_parts);
 	const double Om = omega_m / (omega_m + (a * a * a) * (1.0 - omega_m));
 	const float D1 = growth_factor(omega_m, a) / growth_factor(omega_m, 1.0);
 	const float D2 = -3.f * sqr(D1) / 7.f;
@@ -374,7 +369,7 @@ void initial_conditions(particle_sets& parts) {
 	int num_blocks;
 	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, power_spectrum_init, block_size, 0));
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
-	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_sets(),phi1,N,(float) N3 / (float)parts.size(), false);
+	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_set(),phi1,N,(float) N3 / (float)parts.size());
 	CUDA_CHECK(cudaDeviceSynchronize());
 	for( int i = 0; i < N*N*N; i++) {
 		phi1[i].real() = -phi1[i].real();
@@ -396,7 +391,7 @@ void initial_conditions(particle_sets& parts) {
 	transform_laplacian<<<1,ZELDOSIZE>>>(phi2, code_to_mpc, N);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	fft3d_inv(phi2, N);
-	phi_to_grid<<<gdim,32>>>(parts.cdm.get_virtual_particle_set(),phi1, phi2, code_to_mpc,D1,D2, a*prefac1,a*prefac2,max_disp);
+	phi_to_grid<<<gdim,32>>>(parts.get_virtual_particle_set(),phi1, phi2, code_to_mpc,D1,D2, a*prefac1,a*prefac2,max_disp);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	xdisp = 0.0;
 	for (int i = 0; i < N * N; i++) {
@@ -406,19 +401,16 @@ void initial_conditions(particle_sets& parts) {
 
 #ifndef __CUDA_ARCH__
 	cdm_destroy();
-	bary_destroy();
 	vel_destroy();
 	cs_destroy();
 	sigma_destroy();
 #endif
 	vector_free_kernel<<<1,1>>>(&vel_k->values);
 	vector_free_kernel<<<1,1>>>(&cdm_k->values);
-	vector_free_kernel<<<1,1>>>(&bary_k->values);
 	vector_free_kernel<<<1,1>>>(&uni.sigma_T.values);
 	vector_free_kernel<<<1,1>>>(&uni.cs2.values);
 
 	cdm_k->~interp_functor<float>();
-	bary_k->~interp_functor<float>();
 	vel_k->~interp_functor<float>();
 	zeroverse_ptr->~zero_order_universe();
 	CUDA_FREE(zeroverse_ptr);
@@ -427,7 +419,6 @@ void initial_conditions(particle_sets& parts) {
 	CUDA_FREE(states);
 	CUDA_FREE(vel_k);
 	CUDA_FREE(cdm_k);
-	CUDA_FREE(bary_k);
 	CUDA_FREE(rands);
 	CUDA_FREE(phi1);
 	CUDA_FREE(phi2);

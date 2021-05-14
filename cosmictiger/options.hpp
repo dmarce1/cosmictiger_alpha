@@ -21,7 +21,6 @@ struct options {
 	bool groups;
 	bool power;
 	bool maps;
-	bool sph;
 
 	double code_to_cm;
 	double code_to_cms;
@@ -66,7 +65,6 @@ struct options {
 		arc & groups;
 		arc & power;
 		arc & maps;
-		arc & sph;
 		arc & code_to_cm;
 		arc & code_to_cms;
 		arc & code_to_g;
