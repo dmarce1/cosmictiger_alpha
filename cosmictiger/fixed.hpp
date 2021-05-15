@@ -18,7 +18,7 @@
 template<class >
 class fixed;
 
-using morton_t = uint64_t;
+using morton_t = uint32_t;
 
 using fixed32 = fixed<uint32_t>;
 using fixed64 = fixed<uint64_t>;
@@ -264,7 +264,6 @@ inline uint64_t split3(uint64_t a) {
 }
 
 CUDA_EXPORT
-CUDA_EXPORT
 inline uint64_t morton_magicbits(uint64_t x, uint64_t y, uint64_t z) {
 	uint64_t answer = 0;
 	answer |= split3(x) | split3(y) << 1 | split3(z) << 2;
@@ -273,10 +272,12 @@ inline uint64_t morton_magicbits(uint64_t x, uint64_t y, uint64_t z) {
 
 template<class T>
 CUDA_EXPORT
-inline morton_t morton_key(T x, T y, T z, int64_t depth) {
-	const int shift = sizeof(float) * CHAR_BIT - (depth + NDIM) / NDIM;
-	morton_t key = morton_magicbits(z.get_integer() >> shift, y.get_integer() >> shift, x.get_integer() >> shift);
-	key >>= NDIM - (depth % NDIM);
+inline morton_t morton_key(T x, T y, T z) {
+	constexpr int depth = sizeof(morton_t) * CHAR_BIT;
+	constexpr int shift1 = sizeof(float) * CHAR_BIT - (depth + NDIM) / NDIM;
+	constexpr int shift2 = NDIM - (depth % NDIM);
+	morton_t key = morton_magicbits(z.get_integer() >> shift1, y.get_integer() >> shift1, x.get_integer() >> shift1);
+	key >>= shift2;
 	return key;
 }
 

@@ -17,6 +17,22 @@
 #include <cosmictiger/time.hpp>
 #include <cmath>
 
+static void psort_test() {
+	particle_set parts(global().opts.nparts);
+	parts.generate_random(1243);
+	timer tm;
+	tm.start();
+	parts.create_keys();
+	parts.generate_keys();
+	tm.stop();
+	printf("Done generating keys in %e\n", tm.read());
+	tm.start();
+	parts.sort_keys();
+	parts.destroy_keys();
+	tm.stop();
+	printf("Done sorting keys in %e\n", tm.read());
+}
+
 static void tree_test() {
 	printf("Doing tree test\n");
 	printf("Generating particles\n");
@@ -394,6 +410,8 @@ void test_run(const std::string test) {
 		drift_test();
 	} else if (test == "kick") {
 		kick_test();
+	} else if (test == "psort") {
+		psort_test();
 	} else if (test == "group") {
 		group_test();
 #ifdef TEST_FORCE

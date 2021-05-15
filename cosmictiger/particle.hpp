@@ -31,8 +31,7 @@ using rung_t = int8_t;
 
 struct particle_set {
 	particle_set() = default;
-	particle_set(size_t, size_t = 0);
-	CUDA_EXPORT
+	particle_set(size_t, size_t = 0);CUDA_EXPORT
 	~particle_set();CUDA_EXPORT
 	fixed32 pos_ldg(int, size_t index) const;CUDA_EXPORT
 	fixed32 pos(int, size_t index) const;CUDA_EXPORT
@@ -49,7 +48,7 @@ struct particle_set {
 	group_t group(size_t) const;CUDA_EXPORT
 	group_t& group(size_t);CUDA_EXPORT
 	group_t get_last_group(size_t) const;CUDA_EXPORT
-	void set_last_group(size_t,group_t);CUDA_EXPORT
+	void set_last_group(size_t, group_t);CUDA_EXPORT
 	size_t size() const {
 		return size_;
 	}
@@ -58,16 +57,28 @@ struct particle_set {
 	float force(int dim, size_t index) const;CUDA_EXPORT
 	float& force(int dim, size_t index);CUDA_EXPORT
 	float pot(size_t index) const;CUDA_EXPORT
-	float& pot(size_t index);
-	#ifndef __CUDACC__
+	float& pot(size_t index);CUDA_EXPORT
+	inline morton_t& key(size_t i) {
+		return keyptr_[i];
+	}
+	void create_keys() {
+		CUDA_MALLOC(keyptr_,size_);
+	}
+	void destroy_keys() {
+		CUDA_FREE(keyptr_);
+	}
+	void generate_keys();
+	void sort_keys();
+#ifndef __CUDACC__
 protected:
 #endif
 	array<fixed32*, NDIM> xptr_;
-	array<float,NDIM>* uptr_;
+	array<float, NDIM>* uptr_;
 	rung_t* rptr_;
 	group_t* idptr_;
 	uint32_t* lidptr1_;
 	uint16_t* lidptr2_;
+	morton_t* keyptr_;
 	array<float*, NDIM> gptr_;
 	float* eptr_;
 	size_t size_;
@@ -82,6 +93,7 @@ public:
 		v.idptr_ = idptr_;
 		v.lidptr1_ = lidptr1_;
 		v.lidptr2_ = lidptr2_;
+		v.keyptr_ = keyptr_;
 		v.uptr_ = uptr_;
 		for (int dim = 0; dim < NDIM; dim++) {
 			v.xptr_[dim] = xptr_[dim];
@@ -130,9 +142,9 @@ inline rung_t particle_set::rung(size_t index) const {
 
 	assert(index < size_);
 	/*if (rptr_[index] != uptr_[index].p.r) {
-		printf("%i %i\n", rptr_[index], uptr_[index].p.r);
-	}
-	return uptr_[index].p.r;*/
+	 printf("%i %i\n", rptr_[index], uptr_[index].p.r);
+	 }
+	 return uptr_[index].p.r;*/
 	return rptr_[index];
 }
 
