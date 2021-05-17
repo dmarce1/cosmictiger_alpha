@@ -47,7 +47,7 @@ struct sort_params {
 	int8_t depth;
 	int8_t min_depth;
 	double theta;
-	pair<size_t, size_t> parts;
+	part_iters parts;
 	int min_rung;
 	tree_ptr tptr;
 	bool group_sort;
@@ -156,7 +156,7 @@ struct kick_params_type {
 	array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
 	tree_ptr tptr;
 	int depth;
-	size_t block_cutoff;
+	part_int block_cutoff;
 	float theta;
 	float M;
 	float G;
@@ -222,7 +222,7 @@ struct kick_params_type;
 struct gpu_kick {
 	kick_params_type *params;
 	std::shared_ptr<hpx::lcos::local::promise<void>> promise;
-	pair<size_t, size_t> parts;
+	part_iters parts;
 	gpu_kick() {
 		promise = std::make_shared<hpx::lcos::local::promise<void>>();
 	}

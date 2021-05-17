@@ -19,9 +19,9 @@ int drift_particles(particle_set parts, double dt, double a0, double* ekin, doub
 		auto func = [a,bid, gsz, dt,ekin, momx, momy, momz, tau, tau_max,&parts]() {
 			auto map_ws = get_map_workspace();
 			const bool map = global().opts.map_size > 0;
-			const size_t nparts = parts.size();
-			const size_t start = bid * nparts / gsz;
-			const size_t stop = (bid + 1) * nparts / gsz;
+			const part_int nparts = parts.size();
+			const part_int start = (size_t)bid * (size_t)nparts / (size_t)gsz;
+			const part_int stop = (size_t)(bid + 1) * (size_t)nparts / (size_t)gsz;
 			const float ainv = 1.0f / a;
 			const float dtinv = 1.f / dt;
 			const float dteff = dt * ainv;
@@ -32,7 +32,7 @@ int drift_particles(particle_set parts, double dt, double a0, double* ekin, doub
 			mymomy = 0;
 			mymomz = 0;
 			array<double,NDIM> x0, x1;
-			for (size_t i = start; i < stop; i++) {
+			for (part_int i = start; i < stop; i++) {
 				double x = parts.pos(0, i).to_double();
 				double y = parts.pos(1, i).to_double();
 				double z = parts.pos(2, i).to_double();

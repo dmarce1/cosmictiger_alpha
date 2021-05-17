@@ -466,7 +466,7 @@ CUDA_EXPORT inline part_iters tree_data_get_parts(int i) {
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
 	union parts_union {
-		pair<size_t, size_t> parts;
+		part_iters parts;
 		int4 ints;
 	};
 	parts_union p;

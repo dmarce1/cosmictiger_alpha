@@ -9,8 +9,8 @@ __global__ void power_spectrum_init(particle_set parts, cmplx* den_k, size_t N, 
 	const auto& bid = blockIdx.x;
 	const auto& bsz = blockDim.x;
 	const auto& gsz = gridDim.x;
-	const auto start = bid * parts.size() / gsz;
-	const auto stop = (bid + 1) * parts.size() / gsz;
+	const auto start = (size_t)bid * (size_t)parts.size() / (size_t)gsz;
+	const auto stop = (size_t)(bid + 1) * (size_t)parts.size() / (size_t)gsz;
 	const float floatN = (float) N;
 	const float mass = mass0;
 	for (auto i = start + tid; i < stop; i += bsz) {

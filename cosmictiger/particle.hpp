@@ -29,46 +29,37 @@ using group_t = unsigned long long int;
 
 using rung_t = int8_t;
 
+using part_int = unsigned;
+
 struct particle_set {
 	particle_set() = default;
-	particle_set(size_t, size_t = 0);CUDA_EXPORT
+	particle_set(part_int);CUDA_EXPORT
 	~particle_set();CUDA_EXPORT
-	fixed32 pos_ldg(int, size_t index) const;CUDA_EXPORT
-	fixed32 pos(int, size_t index) const;CUDA_EXPORT
-	float vel(int dim, size_t index) const;CUDA_EXPORT
-	rung_t rung(size_t index) const;
-	size_t sort_range(size_t begin, size_t end, double xmid, int xdim);CUDA_EXPORT
-	fixed32& pos(int dim, size_t index);CUDA_EXPORT
-	float& vel(int dim, size_t index);CUDA_EXPORT
-	void set_rung(rung_t t, size_t index);
+	fixed32 pos_ldg(int, part_int index) const;CUDA_EXPORT
+	fixed32 pos(int, part_int index) const;CUDA_EXPORT
+	float vel(int dim, part_int index) const;CUDA_EXPORT
+	rung_t rung(part_int index) const;
+	part_int sort_range(part_int begin, part_int end, double xmid, int xdim);CUDA_EXPORT
+	fixed32& pos(int dim, part_int index);CUDA_EXPORT
+	float& vel(int dim, part_int index);CUDA_EXPORT
+	void set_rung(rung_t t, part_int index);
 	void generate_random(int seed);
 	void load_from_file(FILE* fp);
 	void save_to_file(FILE* fp);
 	void generate_grid();CUDA_EXPORT
-	group_t group(size_t) const;CUDA_EXPORT
-	group_t& group(size_t);CUDA_EXPORT
-	group_t get_last_group(size_t) const;CUDA_EXPORT
-	void set_last_group(size_t, group_t);CUDA_EXPORT
-	size_t size() const {
+	group_t group(part_int) const;CUDA_EXPORT
+	group_t& group(part_int);CUDA_EXPORT
+	group_t get_last_group(part_int) const;CUDA_EXPORT
+	void set_last_group(part_int, group_t);CUDA_EXPORT
+	part_int size() const {
 		return size_;
 	}
 	void finish_groups();
 	void init_groups();CUDA_EXPORT
-	float force(int dim, size_t index) const;CUDA_EXPORT
-	float& force(int dim, size_t index);CUDA_EXPORT
-	float pot(size_t index) const;CUDA_EXPORT
-	float& pot(size_t index);CUDA_EXPORT
-	inline morton_t& key(size_t i) {
-		return keyptr_[i];
-	}
-	void create_keys() {
-		CUDA_MALLOC(keyptr_,size_);
-	}
-	void destroy_keys() {
-		CUDA_FREE(keyptr_);
-	}
-	void generate_keys();
-	void sort_keys();
+	float force(int dim, part_int index) const;CUDA_EXPORT
+	float& force(int dim, part_int index);CUDA_EXPORT
+	float pot(part_int index) const;CUDA_EXPORT
+	float& pot(part_int index);
 #ifndef __CUDACC__
 protected:
 #endif
@@ -78,11 +69,9 @@ protected:
 	group_t* idptr_;
 	uint32_t* lidptr1_;
 	uint16_t* lidptr2_;
-	morton_t* keyptr_;
 	array<float*, NDIM> gptr_;
 	float* eptr_;
-	size_t size_;
-	size_t offset_;
+	part_int size_;
 	bool virtual_;
 
 public:
@@ -93,7 +82,6 @@ public:
 		v.idptr_ = idptr_;
 		v.lidptr1_ = lidptr1_;
 		v.lidptr2_ = lidptr2_;
-		v.keyptr_ = keyptr_;
 		v.uptr_ = uptr_;
 		for (int dim = 0; dim < NDIM; dim++) {
 			v.xptr_[dim] = xptr_[dim];
@@ -104,7 +92,6 @@ public:
 		v.eptr_ = eptr_;
 #endif
 		v.size_ = size_;
-		v.offset_ = offset_;
 		v.virtual_ = true;
 		return v;
 	}
@@ -112,7 +99,7 @@ public:
 ;
 
 CUDA_EXPORT
-inline fixed32 particle_set::pos_ldg(int dim, size_t index) const {
+inline fixed32 particle_set::pos_ldg(int dim, part_int index) const {
 
 	assert(index < size_);
 	union fixed_union {
@@ -125,20 +112,20 @@ inline fixed32 particle_set::pos_ldg(int dim, size_t index) const {
 }
 
 CUDA_EXPORT
-inline fixed32 particle_set::pos(int dim, size_t index) const {
+inline fixed32 particle_set::pos(int dim, part_int index) const {
 
 	assert(index < size_);
 	return xptr_[dim][index];
 }
 
-inline float particle_set::vel(int dim, size_t index) const {
+inline float particle_set::vel(int dim, part_int index) const {
 
 	assert(index < size_);
 	return uptr_[index][dim];
 }
 
 CUDA_EXPORT
-inline rung_t particle_set::rung(size_t index) const {
+inline rung_t particle_set::rung(part_int index) const {
 
 	assert(index < size_);
 	/*if (rptr_[index] != uptr_[index].p.r) {
@@ -149,64 +136,64 @@ inline rung_t particle_set::rung(size_t index) const {
 }
 
 CUDA_EXPORT
-inline fixed32& particle_set::pos(int dim, size_t index) {
+inline fixed32& particle_set::pos(int dim, part_int index) {
 
 	assert(index < size_);
 	return xptr_[dim][index];
 }
 
 CUDA_EXPORT
-inline float& particle_set::vel(int dim, size_t index) {
+inline float& particle_set::vel(int dim, part_int index) {
 
 	assert(index < size_);
 	return uptr_[index][dim];
 }
 
 CUDA_EXPORT
-inline void particle_set::set_rung(rung_t t, size_t index) {
+inline void particle_set::set_rung(rung_t t, part_int index) {
 
 	assert(index < size_);
 	rptr_[index] = t;
 	//uptr_[index].p.r = t;
 }
 
-CUDA_EXPORT inline float particle_set::force(int dim, size_t index) const {
+CUDA_EXPORT inline float particle_set::force(int dim, part_int index) const {
 	assert(index < size_);
 	return gptr_[dim][index];
 
 }
-CUDA_EXPORT inline float& particle_set::force(int dim, size_t index) {
+CUDA_EXPORT inline float& particle_set::force(int dim, part_int index) {
 	assert(index < size_);
 	return gptr_[dim][index];
 
 }
-CUDA_EXPORT inline float particle_set::pot(size_t index) const {
+CUDA_EXPORT inline float particle_set::pot(part_int index) const {
 	assert(index < size_);
 	return eptr_[index];
 
 }
-CUDA_EXPORT inline float& particle_set::pot(size_t index) {
+CUDA_EXPORT inline float& particle_set::pot(part_int index) {
 	assert(index < size_);
 	return eptr_[index];
 
 }
 
-CUDA_EXPORT inline group_t particle_set::group(size_t index) const {
+CUDA_EXPORT inline group_t particle_set::group(part_int index) const {
 	return idptr_[index];
 }
 
-CUDA_EXPORT inline group_t& particle_set::group(size_t index) {
+CUDA_EXPORT inline group_t& particle_set::group(part_int index) {
 	return idptr_[index];
 }
 
-CUDA_EXPORT inline group_t particle_set::get_last_group(size_t index) const {
+CUDA_EXPORT inline group_t particle_set::get_last_group(part_int index) const {
 	return lidptr1_[index] | (group_t(lidptr2_[index]) << 32ULL);
 }
 
-CUDA_EXPORT inline void particle_set::set_last_group(size_t index, group_t g) {
+CUDA_EXPORT inline void particle_set::set_last_group(part_int index, group_t g) {
 	lidptr1_[index] = g & 0xFFFFFFFFULL;
 	lidptr2_[index] = g >> 32ULL;
 }
 
-using part_iters = pair<size_t,size_t>;
+using part_iters = pair<part_int,part_int>;
 #endif /* COSMICTIGER_PARTICLE_HPP_ */

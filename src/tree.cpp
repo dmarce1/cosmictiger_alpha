@@ -18,7 +18,7 @@ particle_set* tree::particles;
 
 static unified_allocator kick_params_alloc;
 //pranges tree::covered_ranges;
-static std::atomic<size_t> parts_covered;
+static std::atomic<part_int> parts_covered;
 
 timer tmp_tm;
 
@@ -58,7 +58,7 @@ fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread
 	params.tptr = id;
 	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
-	const size_t min_parts2thread = particles->size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
+	const part_int min_parts2thread = particles->size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
 	thread = try_thread && (nparts >= min_parts2thread);
 #ifdef TEST_STACK
 	thread = false;
@@ -84,7 +84,7 @@ sort_return tree::sort(sort_params params) {
 	static std::atomic<int> gpu_searches(0);
 	size_t active_parts = 0;
 	size_t active_nodes = 0;
-	pair<size_t, size_t> parts;
+	part_iters parts;
 	tree_ptr self = params.tptr;
 	if (params.iamroot()) {
 		gpu_searches = 0;
@@ -105,7 +105,7 @@ sort_return tree::sort(sort_params params) {
 	const auto& box = params.box;
 #ifdef TEST_TREE
 	bool failed = false;
-	for (size_t i = parts.first; i < parts.second; i++) {
+	for (part_int i = parts.first; i < parts.second; i++) {
 		particle p = particles->part(i);
 		if (!box.contains(p.x)) {
 			printf("Particle out of range !\n");
@@ -144,7 +144,7 @@ sort_return tree::sort(sort_params params) {
 			const int xdim = params.depth % NDIM;
 			auto part_handle = particles->get_virtual_particle_set();
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
-			size_t pmid;
+			part_int pmid;
 			pmid = particles->sort_range(parts.first, parts.second, xmid, xdim);
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
 			child_params[LEFT].parts.first = parts.first;
@@ -281,7 +281,7 @@ sort_return tree::sort(sort_params params) {
 			}
 			rc.active_parts = 0;
 			rc.active_nodes = 0;
-			for (size_t k = parts.first; k < parts.second; k++) {
+			for (part_int k = parts.first; k < parts.second; k++) {
 				if (particles->rung(k) >= params.min_rung) {
 					rc.active_parts++;
 					rc.active_nodes = 1;
@@ -576,7 +576,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
 		for (int k = 0; k < parts.second - parts.first; k++) {
-			const size_t index = k + parts.first;
+			const part_int index = k + parts.first;
 			const auto this_rung = particles->rung(index);
 			if (this_rung >= params.rung || params.full_eval) {
 				array<float, NDIM> g;

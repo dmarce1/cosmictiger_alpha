@@ -33,8 +33,8 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	auto& table_size = group_table_size();
 	const int nthreads = 2 * hpx::thread::hardware_concurrency();
 	std::vector<hpx::future<void>> futs;
-	const size_t parts_per_thread = parts.size() / nthreads;
-	size_t ngroups;
+	const part_int parts_per_thread = parts.size() / nthreads;
+	part_int ngroups;
 	ngroups = 0;
 	table.resize(table_size);
 	group_t last1, last2;
@@ -43,10 +43,10 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	tm.start();
 	mutex_type mtx;
 	vector<uint8_t> counts(parts.size());
-	for (size_t i = 0; i < parts.size(); i += parts_per_thread) {
+	for (part_int i = 0; i < parts.size(); i += parts_per_thread) {
 		const auto func = [i,&parts,parts_per_thread,table_size, &table,&mtx, &counts]() {
 			const auto jend = std::min(i + parts_per_thread,parts.size());
-			for( size_t j = i; j < jend; j++) {
+			for( part_int j = i; j < jend; j++) {
 				counts[j] = 0;
 			}
 		};
@@ -54,10 +54,10 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	futs.resize(0);
-	for (size_t i = 0; i < parts.size(); i += parts_per_thread) {
+	for (part_int i = 0; i < parts.size(); i += parts_per_thread) {
 		const auto func = [i,&parts,parts_per_thread,table_size, &table,&mtx, &counts]() {
 			const auto jend = std::min(i + parts_per_thread,parts.size());
-			for( size_t j = i; j < jend; j++) {
+			for( part_int j = i; j < jend; j++) {
 				const auto id = parts.group(j);
 				if( id != NO_GROUP ) {
 					counts[id] = std::min(255,counts[id]+1);
@@ -92,7 +92,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	tm.reset();
 	tm.start();
 	futs.resize(0);
-	for (size_t i = 0; i < counts.size(); i++) {
+	for (part_int i = 0; i < counts.size(); i++) {
 		if (counts[i] >= MIN_GROUP_SIZE) {
 			int index = i % table_size;
 			auto& entries = table[index];
@@ -349,7 +349,7 @@ void group_data_save(double scale, int filenum) {
 		printf("Unable to open %s for writing!\n", filename.c_str());
 		abort();
 	}
-	size_t numparts = 0;
+	part_int numparts = 0;
 	const auto ainv = 1.0 / scale;
 	const auto ainv2 = ainv * ainv;
 	const auto reff_factor = std::pow(2, 1.0 / 3.0);

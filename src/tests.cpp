@@ -18,19 +18,6 @@
 #include <cmath>
 
 static void psort_test() {
-	particle_set parts(global().opts.nparts);
-	parts.generate_random(1243);
-	timer tm;
-	tm.start();
-	parts.create_keys();
-	parts.generate_keys();
-	tm.stop();
-	printf("Done generating keys in %e\n", tm.read());
-	tm.start();
-	parts.sort_keys();
-	parts.destroy_keys();
-	tm.stop();
-	printf("Done sorting keys in %e\n", tm.read());
 }
 
 static void tree_test() {
@@ -68,19 +55,11 @@ static void tree_test() {
 	}
 }
 void kick_test() {
-/*	printf("Doing kick test\n");
+	printf("Doing kick test\n");
 	printf("Generating particles\n");
 	particle_set parts(global().opts.nparts);
-	if( global().opts.checkpt_file == "") {
-		parts.load_particles("ics");
-	} else {
-		int step;
-		time_type itime;
-		double a, cosmicK, time;
-		load_from_file(parts,step,itime,time,a,cosmicK);
-	}
-	// parts.generate_grid();
-//	parts.generate_random();
+	tree::set_particle_set(&parts);
+	parts.generate_random(42);
 	particle_set *parts_ptr;
 	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
 	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
@@ -167,7 +146,7 @@ void kick_test() {
 	CUDA_FREE(parts_ptr);
 	FILE* fp = fopen("timings.dat", "at");
 	fprintf(fp, "%i %e %e\n", global().opts.bucket_size, avg, dev);
-	fclose(fp);*/
+	fclose(fp);
 }
 
 void group_test() {

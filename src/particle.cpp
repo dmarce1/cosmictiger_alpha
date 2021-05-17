@@ -24,10 +24,9 @@ void particle_set::finish_groups() {
 	CUDA_FREE(lidptr2_);
 }
 
-particle_set::particle_set(size_t size, size_t offset) {
+particle_set::particle_set(part_int size) {
 	size_ = size;
 	if (size) {
-		offset_ = offset;
 		virtual_ = false;
 		printf("Allocating space for particles\n");
 		CUDA_MALLOC(xptr_[0], size);
@@ -117,7 +116,7 @@ void particle_set::save_to_file(FILE* fp) {
 }
 
 //
-//void particle_set::prefetch(size_t b, size_t e, cudaStream_t stream) {
+//void particle_set::prefetch(part_int b, part_int e, cudaStream_t stream) {
 //   for (int dim = 0; dim < NDIM; dim++) {
 //      CUDA_CHECK(cudaMemPrefetchAsync((void* ) (xptr_[dim] + b), sizeof(fixed32) * (e - b), 0, stream));
 //      CUDA_CHECK(cudaMemPrefetchAsync((void* ) (vptr_[dim] + b), sizeof(float) * (e - b), 0, stream));
@@ -130,10 +129,10 @@ particle_set::~particle_set() {
 
 void particle_set::generate_grid() {
 	const auto dim = global().opts.parts_dim;
-	for (size_t i = 0; i < dim; i++) {
-		for (size_t j = 0; j < dim; j++) {
-			for (size_t k = 0; k < dim; k++) {
-				const size_t iii = i * dim * dim + j * dim + k;
+	for (part_int i = 0; i < dim; i++) {
+		for (part_int j = 0; j < dim; j++) {
+			for (part_int k = 0; k < dim; k++) {
+				const part_int iii = i * dim * dim + j * dim + k;
 				pos(0, iii) = (i + 0.5) / dim;
 				pos(1, iii) = (j + 0.5) / dim;
 				pos(2, iii) = (k + 0.5) / dim;
@@ -195,10 +194,10 @@ void load_header(io_header_1 *header, std::string filename) {
 
 }
 
-size_t particle_set::sort_range(size_t begin, size_t end, double xm, int xdim) {
+part_int particle_set::sort_range(part_int begin, part_int end, double xm, int xdim) {
 
-	size_t lo = begin;
-	size_t hi = end;
+	part_int lo = begin;
+	part_int hi = end;
 	fixed32 xmid(xm);
 	auto& xptr_dim = xptr_[xdim];
 	auto& x = xptr_[0];

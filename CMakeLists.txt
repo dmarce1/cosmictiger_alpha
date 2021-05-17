@@ -43,7 +43,6 @@ set(cosmictiger_source_files
     src/options.cpp
     src/particle.cpp
     src/rand.cpp
-    src/hydro_particle.cpp
     src/tests.cpp
     src/tree.cpp
     src/tree_database.cpp
