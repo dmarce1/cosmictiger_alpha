@@ -98,8 +98,9 @@ void particle_set::free_particles(std::vector<part_int>& free_indices) {
 	std::sort(free_indices.begin(), free_indices.end(), [](part_int a, part_int b) {
 		return a > b;
 	});
+	printf( "Freeing %li\n", free_indices.size());
 	for (auto i : free_indices) {
-		const particle p = get_particle(size());
+		const particle p = get_particle(size() - 1);
 		set_particle(p, i);
 		resize(size() - 1);
 	}
