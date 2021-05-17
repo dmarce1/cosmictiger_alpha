@@ -118,6 +118,11 @@ template<class A, class B>
 struct pair {
 	A first;
 	B second;
+	template<class Arc>
+	void serialize(Arc&& arc, unsigned) {
+		arc & first;
+		arc & second;
+	}
 };
 
 #ifdef __CUDA_ARCH__

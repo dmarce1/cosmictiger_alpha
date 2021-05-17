@@ -42,6 +42,13 @@ public:
       return ptr + N;
    }
 
+   template<class A>
+   void serialize(A&& arc, unsigned) {
+   	for( int i = 0; i < N; i++) {
+   		arc & (*this)[i];
+   	}
+   }
+
 };
 
 #endif /* COSMICTIGER_ARRAY_HPP_ */
