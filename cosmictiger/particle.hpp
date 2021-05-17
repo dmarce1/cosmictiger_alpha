@@ -32,8 +32,10 @@ using rung_t = int8_t;
 using part_int = unsigned;
 
 struct particle_set {
-	particle_set() = default;
-	particle_set(part_int);CUDA_EXPORT
+	CUDA_EXPORT particle_set();
+	particle_set(part_int);
+	void resize(part_int);
+	CUDA_EXPORT
 	~particle_set();CUDA_EXPORT
 	fixed32 pos_ldg(int, part_int index) const;CUDA_EXPORT
 	fixed32 pos(int, part_int index) const;CUDA_EXPORT
@@ -72,12 +74,14 @@ protected:
 	array<float*, NDIM> gptr_;
 	float* eptr_;
 	part_int size_;
+	part_int cap_;
 	bool virtual_;
 
 public:
 	CUDA_EXPORT
 	particle_set get_virtual_particle_set() const {
 		particle_set v;
+		v.cap_ = cap_;
 		v.rptr_ = rptr_;
 		v.idptr_ = idptr_;
 		v.lidptr1_ = lidptr1_;

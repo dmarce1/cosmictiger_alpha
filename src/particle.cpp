@@ -24,34 +24,68 @@ void particle_set::finish_groups() {
 	CUDA_FREE(lidptr2_);
 }
 
-particle_set::particle_set(part_int size) {
-	size_ = size;
-	if (size) {
-		virtual_ = false;
-		printf("Allocating space for particles\n");
-		CUDA_MALLOC(xptr_[0], size);
-		CUDA_MALLOC(xptr_[1], size);
-		CUDA_MALLOC(xptr_[2], size);
-		CUDA_MALLOC(uptr_, size);
-		CUDA_MALLOC(rptr_, size);
-		if (global().opts.groups) {
-			CUDA_MALLOC(idptr_, size);
-		}
+#define PART_BUFFER 1.2
+
+particle_set::particle_set() {
+	size_ = 0;
+	cap_ = 0;
 #ifdef TEST_FORCE
-		CUDA_MALLOC(gptr_[0], size);
-		CUDA_MALLOC(gptr_[1], size);
-		CUDA_MALLOC(gptr_[2], size);
-		CUDA_MALLOC(eptr_, size);
+	for( int dim = 0; dim < NDIM; dim++) {
+		gptr_[dim] = nullptr;
+	}
+	eptr_ = nullptr;
 #endif
-		for (int i = 0; i < size; i++) {
-			rptr_[i] = 0;
+	for (int dim = 0; dim < NDIM; dim++) {
+		xptr_[dim] = nullptr;
+	}
+	uptr_ = nullptr;
+	idptr_ = nullptr;
+	rptr_ = nullptr;
+	lidptr1_ = nullptr;
+	lidptr2_ = nullptr;
+}
+
+template<class T>
+void realloc(T*& old, part_int oldsz, part_int new_cap) {
+	assert(oldsz <= new_cap);
+	T* new_;
+	CUDA_MALLOC(new_, new_cap);
+	if (oldsz) {
+		memcpy(new_, old, sizeof(T) * oldsz);
+		CUDA_FREE(old);
+	}
+	old = new_;
+}
+
+void particle_set::resize(part_int sz) {
+	if (cap_ < sz) {
+		cap_ = 1024;
+		while (cap_ < sz) {
+			cap_ = PART_BUFFER * cap_;
 		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			realloc(xptr_[dim], size_, cap_);
+		}
+		realloc(uptr_, size_, cap_);
+		realloc(rptr_, size_, cap_);
+#ifdef TEST_FORCE
+		for (int dim = 0; dim < NDIM; dim++) {
+			realloc(gptr_[dim], size_, cap_);
+		}
+		realloc(eptr_, size_, cap_);
+#endif
 		if (global().opts.groups) {
-			for (int i = 0; i < size; i++) {
-				idptr_[i] = NO_GROUP;
-			}
+			realloc(idptr_, size_, cap_);
 		}
-		printf("Done\n");
+	}
+	size_ = sz;
+}
+
+particle_set::particle_set(part_int size) {
+	size_ = 0;
+	cap_ = 0;
+	if (size) {
+		resize(size);
 	}
 }
 
@@ -69,11 +103,11 @@ void particle_set::load_from_file(FILE* fp) {
 	FREAD(&opts.M, sizeof(opts.M), 1, fp);
 	double m_tot = opts.omega_m * 3.0 * sqr(opts.H0 * opts.hubble) / (8 * M_PI * std::abs(opts.G));
 	opts.M = m_tot / opts.nparts;
-	if( opts.glass_file != "") {
+	if (opts.glass_file != "") {
 		opts.z0 = z0;
 		opts.G = std::abs(opts.G);
 	}
-	if( hpx_rank() == 0 ) {
+	if (hpx_rank() == 0) {
 		global_set_options(opts);
 	}
 	for (int dim = 0; dim < NDIM; dim++) {
