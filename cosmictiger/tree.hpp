@@ -49,7 +49,6 @@ struct sort_params {
 	double theta;
 	part_iters parts;
 	int min_rung;
-	tree_ptr tptr;
 	bool group_sort;
 	std::shared_ptr<tree_allocator> alloc;
 	template<class A>

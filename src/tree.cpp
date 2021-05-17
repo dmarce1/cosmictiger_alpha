@@ -53,9 +53,6 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 
 fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	fast_future<sort_return> fut;
-	tree_ptr id;
-	id.dindex = params.alloc->allocate();
-	params.tptr = id;
 	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
 	const part_int min_parts2thread = particles->size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
@@ -65,14 +62,12 @@ fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread
 #endif
 	if (!thread) {
 		sort_return rc = tree::sort(params);
-		rc.check = id;
 		fut.set_value(std::move(rc));
 	} else {
-		fut = hpx::async([id, params]() {
+		fut = hpx::async([params]() {
 			sort_params new_params = params;
 			new_params.alloc = std::make_shared<tree_allocator>();
 			auto rc = tree::sort(new_params);
-			rc.check = id;
 			return rc;
 		});
 	}
@@ -85,7 +80,7 @@ sort_return tree::sort(sort_params params) {
 	size_t active_parts = 0;
 	size_t active_nodes = 0;
 	part_iters parts;
-	tree_ptr self = params.tptr;
+
 	if (params.iamroot()) {
 		gpu_searches = 0;
 		int dummy;
@@ -94,6 +89,9 @@ sort_return tree::sort(sort_params params) {
 		params.alloc = std::make_shared<tree_allocator>();
 //		printf("min ewald = %i\n", params.min_depth);
 	}
+	tree_ptr self;
+	self.dindex = params.alloc->allocate();
+	self.rank = hpx_rank();
 	parts = params.parts;
 	self.set_parts(parts);
 	if (params.depth == TREE_MAX_DEPTH) {
@@ -313,6 +311,7 @@ sort_return tree::sort(sort_params params) {
 	} else {
 		self.set_range(box);
 	}
+	rc.check = self;
 	return rc;
 }
 

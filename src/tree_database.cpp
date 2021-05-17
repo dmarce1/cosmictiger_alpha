@@ -6,6 +6,7 @@
 
 HPX_PLAIN_ACTION(tree_data_initialize);
 HPX_PLAIN_ACTION(tree_data_free_all);
+
 #define TREE_CACHE_SIZE 1024
 
 struct tree_cache_entry {
@@ -31,6 +32,7 @@ static std::array<mutex_type, TREE_CACHE_SIZE> mutexes;
 static std::array<std::unordered_map<tree_ptr, tree_cache_entry, tree_hash_hi>, TREE_CACHE_SIZE> caches;
 
 std::vector<tree_node_t> tree_data_fetch_cache_line(int index);
+void tree_data_clear_cache();
 
 static int cache_line_index(int index) {
 	return index - index % TREE_CACHE_LINE_SIZE;
@@ -38,6 +40,14 @@ static int cache_line_index(int index) {
 }
 
 HPX_PLAIN_ACTION(tree_data_fetch_cache_line);
+HPX_PLAIN_ACTION(tree_data_clear_cache);
+
+void tree_data_clear_cache() {
+	std::vector<hpx::future<void>> futs;
+	if( hpx_rank() == 0 ) {
+
+	}
+}
 
 tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 	static const tree_hash_lo hashlo;
@@ -51,7 +61,7 @@ tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 	auto i = cache.find(line_ptr);
 	if (i == cache.end()) {
 		auto& entry = cache[line_ptr];
-		auto prms = std::make_shared<hpx::promise<void>>();
+		auto prms = std::make_shared<hpx::lcos::local::promise<void>>();
 		entry.ready_fut = prms->get_future();
 		lock.unlock();
 		hpx::apply([prms,i,loindex,line_ptr]() {

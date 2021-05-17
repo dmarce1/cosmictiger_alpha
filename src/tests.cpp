@@ -98,10 +98,7 @@ void kick_test() {
 		params.theta = global().opts.theta;
 		params.min_rung = 0;
 		tree_ptr root_ptr;
-
-		root_ptr.dindex = 0;
-		params.tptr = root_ptr;
-		root.sort(params);
+		root_ptr = root.sort(params).check;
 		tm_sort.stop();
 		tm_kick.start();
 		//  root_ptr.rank = hpx_rank();
@@ -190,13 +187,11 @@ void group_test() {
 	params.min_rung = 0;
 	tree_ptr root_ptr;
 	parts.init_groups();
-	root_ptr.dindex = 0;
-	params.tptr = root_ptr;
 	params.group_sort = true;
 	parts.init_groups();
 	printf("Sorting\n");
 	tree_data_initialize_groups();
-	root.sort(params);
+	root_ptr = root.sort(params).check;
 	printf("Done Sorting\n");
 	tm_sort.stop();
 	tm_kick.start();
@@ -337,10 +332,8 @@ void force_test() {
 	params.min_rung = 0;
 	tree_ptr root_ptr;
 
-	root_ptr.dindex = 0;
-	params.tptr = root_ptr;
 	tree_data_initialize_kick();
-	root.sort(params);
+	root_ptr = root.sort(params).check;
 	//  root_ptr.rank = hpx_rank();
 	// printf( "%li", size_t(WORKSPACE_SIZE));
 	kick_params_type *params_ptr;

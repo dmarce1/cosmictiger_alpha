@@ -13,7 +13,7 @@
 double T0;
 #define NTIMESTEP 100.0
 
-tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm,
+tree_ptr build_tree(particle_set& parts, int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm,
 		bool group_sort = false) {
 	timer time;
 	time.start();
@@ -38,27 +38,23 @@ tree build_tree(particle_set& parts, int min_rung, double theta, size_t& num_act
 	tree root;
 	tree_ptr root_ptr;
 
-	root_ptr.dindex = 0;
 	sort_params params;
-	params.tptr = root_ptr;
 	params.min_rung = min_rung;
 	params.theta = theta;
 	params.group_sort = group_sort;
 	sort_return rc = root.sort(params);
+	root_ptr = rc.check;
 	num_active = rc.active_parts;
 	time.stop();
 	tm = time.read();
 	stats = rc.stats;
-	return root;
+	return root_ptr;
 
 }
 
-int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool first_call, bool groups, double& tm) {
+int kick(tree_ptr root_ptr, double theta, double a, int min_rung, bool full_eval, bool first_call, bool groups, double& tm) {
 	timer time;
 	time.start();
-	tree_ptr root_ptr;
-
-	root_ptr.dindex = 0;
 	kick_params_type *params_ptr;
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) kick_params_type();
@@ -84,7 +80,7 @@ int kick(tree root, double theta, double a, int min_rung, bool full_eval, bool f
 	params_ptr->first = first_call;
 	params_ptr->t0 = T0;
 	params_ptr->scale = a;
-	root.kick(params_ptr).get();
+	tree::kick(params_ptr).get();
 
 	tree::cleanup();
 	if (full_eval) {
@@ -158,13 +154,11 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 	tree_stats stats;
 	printf("Finding Groups\n");
 
-	tree root = build_tree(parts, 0, 1.0, num_active, stats, sort_tm, true);
+	tree_ptr root_ptr = build_tree(parts, 0, 1.0, num_active, stats, sort_tm, true);
 
 	unified_allocator alloc;
 	alloc.reset();
 
-	tree_ptr root_ptr;
-	root_ptr.dindex = 0;
 	group_param_type *params_ptr;
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) group_param_type();
@@ -337,9 +331,9 @@ void drive_cosmos() {
 				group_fut = std::move(rc.second);
 			}
 		}
-		tree root = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
+		tree_ptr root_ptr = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
 		tree_use = tree_data_use();
-		max_rung = kick(root, theta, a, min_rung(itime), full_eval, iter == 0, groups && full_eval, kick_tm);
+		max_rung = kick(root_ptr, theta, a, min_rung(itime), full_eval, iter == 0, groups && full_eval, kick_tm);
 		if (full_eval && groups) {
 			group_fut.get();
 			group_data_save(a, time + 0.5);
