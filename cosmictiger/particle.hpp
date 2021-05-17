@@ -9,6 +9,7 @@
 #define COSMICTIGER_PARTICLE_HPP_
 
 #include <cosmictiger/defs.hpp>
+#include <cosmictiger/global.hpp>
 #include <cosmictiger/memory.hpp>
 #include <cosmictiger/fixed.hpp>
 #include <cosmictiger/range.hpp>
@@ -23,19 +24,62 @@ struct range;
 
 using group_t = unsigned long long int;
 
+#include <cosmictiger/domain.hpp>
 #include <cosmictiger/array.hpp>
 #include <atomic>
 #include <vector>
+#include <unordered_map>
 
 using rung_t = int8_t;
 
 using part_int = unsigned;
 
+struct particle {
+	array<fixed32, NDIM> x;
+	array<float, NDIM> v;
+	rung_t rung;
+	unsigned long long group;
+#ifdef TEST_FORCE
+	array<float, NDIM> g;
+	float phi;
+#endif
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			arc & x[dim];
+			arc & v[dim];
+#ifdef TEST_FORCE
+			arc & g[dim];
+#endif
+		}
+		arc & rung;
+		static bool groups = global().opts.groups;
+		if (groups) {
+			arc & group;
+		}
+#ifdef TEST_FORCE
+		arc & phi;
+#endif
+	}
+};
+
+#ifndef __CUDACC__
+struct particle_send_entry {
+	std::vector<particle> parts;
+	mutex_type mutex;
+};
+
+using particle_send_type = std::unordered_map<int,particle_send_entry>;
+#endif
+
 struct particle_set {
-	CUDA_EXPORT particle_set();
-	particle_set(part_int);
-	void resize(part_int);
+	particle get_particle(part_int i);
+	void set_particle(const particle&, part_int i);
+	void free_particles(std::vector<part_int>&);
 	CUDA_EXPORT
+	particle_set();
+	particle_set(part_int);
+	void resize(part_int);CUDA_EXPORT
 	~particle_set();CUDA_EXPORT
 	fixed32 pos_ldg(int, part_int index) const;CUDA_EXPORT
 	fixed32 pos(int, part_int index) const;CUDA_EXPORT
@@ -63,6 +107,7 @@ struct particle_set {
 	float pot(part_int index) const;CUDA_EXPORT
 	float& pot(part_int index);
 #ifndef __CUDACC__
+	void gather_sends(particle_send_type&, std::vector<part_int>&, domain_bounds);
 protected:
 #endif
 	array<fixed32*, NDIM> xptr_;

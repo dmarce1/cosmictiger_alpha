@@ -137,4 +137,8 @@ static void __safe_fread(void* src, size_t size, size_t count, FILE* fp, int lin
 	}
 }
 
+#define ERROR() \
+	printf( "ERROR in %s line %i\n", __FILE__, __LINE__); \
+	abort()
+
 #endif /* COSMICTIGER_DEFS_HPP_ */

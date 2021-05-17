@@ -16,13 +16,15 @@
 #include <hpx/hpx_init.hpp>
 
 using mutex_type = hpx::lcos::local::mutex;
+using spinlock_type = hpx::lcos::local::spinlock;
 
-void hpx_init();
-int hpx_rank();
-int hpx_size();
 const std::vector<hpx::id_type>& hpx_localities();
 const std::pair<hpx::id_type,hpx::id_type>& hpx_child_localities();
 #endif
+void hpx_init();
+int hpx_rank();
+int hpx_size();
+int hardware_concurrency();
 
 
 #endif /* COSMICTIGER_HPX_HPP_ */

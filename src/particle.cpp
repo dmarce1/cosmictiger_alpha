@@ -26,11 +26,108 @@ void particle_set::finish_groups() {
 
 #define PART_BUFFER 1.2
 
+particle particle_set::get_particle(part_int i) {
+	particle p;
+	for (int dim = 0; dim < NDIM; dim++) {
+		p.x[dim] = pos(dim, i);
+		p.v[dim] = vel(dim, i);
+#ifdef TEST_FORCE
+		p.g[dim] = force(dim, i);
+#endif
+	}
+#ifdef TEST_FORCE
+	p.phi = pot(i);
+#endif
+	p.rung = rung(i);
+	static bool groups = global().opts.groups;
+	if (groups) {
+		p.group = group(i);
+	}
+	return p;
+}
+
+void particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>& free_indices, domain_bounds bounds) {
+	const auto my_range = bounds.find_proc_range(hpx_rank());
+	for( int dim = 0; dim < NDIM; dim++) {
+	//	printf( "%i %e %e\n", hpx_rank(), my_range.begin[dim], my_range.end[dim]);
+	}
+	for (int i = 0; i < hpx_size(); i++) {
+		sends[i].parts = std::vector<particle>();
+	}
+
+	const int num_threads = hardware_concurrency();
+	static spinlock_type mutex;
+	std::vector<hpx::future<void>> futs;
+	for (int i = 0; i < num_threads; i++) {
+		const auto func = [i,this,num_threads,my_range, bounds,&sends,&free_indices]() {
+			const part_int start = size_t(i) * size_t(size_) / size_t(num_threads);
+			const part_int stop = size_t(i+1) * size_t(size_) / size_t(num_threads);
+			for( part_int j = start; j < stop; j++) {
+				bool foreign = false;
+				for( int dim = 0; dim < NDIM; dim++) {
+					const auto x = pos(dim,j).to_double();
+					if(x < my_range.begin[dim] || x > my_range.end[dim]) {
+						foreign = true;
+						break;
+					}
+				}
+				if( foreign ) {
+					array<fixed32,NDIM> x;
+					for( int dim = 0; dim < NDIM; dim++) {
+						x[dim] = pos(dim,j);
+					}
+					const int proc = bounds.find_proc(x);
+					if( proc == hpx_rank() ) {
+						ERROR();
+					}
+					auto& entry = sends[proc];
+					particle p = get_particle(j);
+					std::lock_guard<spinlock_type> lock(mutex);
+					free_indices.push_back(j);
+					entry.parts.push_back(p);
+				}
+			}
+		};
+		futs.push_back(hpx::async(func));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+//	printf( "%i gathered\n", free_indices.size());
+}
+
+void particle_set::free_particles(std::vector<part_int>& free_indices) {
+	std::sort(free_indices.begin(), free_indices.end(), [](part_int a, part_int b) {
+		return a > b;
+	});
+	for (auto i : free_indices) {
+		const particle p = get_particle(size());
+		set_particle(p, i);
+		resize(size() - 1);
+	}
+}
+
+void particle_set::set_particle(const particle& p, part_int i) {
+	for (int dim = 0; dim < NDIM; dim++) {
+		xptr_[dim][i] = p.x[dim];
+		uptr_[i][dim] = p.v[dim];
+#ifdef TEST_FORCE
+		gptr_[dim][i] = p.g[dim];
+#endif
+	}
+#ifdef TEST_FORCE
+	eptr_[i] = p.phi;
+#endif
+	rptr_[i] = p.rung;
+	static bool groups = global().opts.groups;
+	if (groups) {
+		idptr_[i] = p.group;
+	}
+}
+
 particle_set::particle_set() {
 	size_ = 0;
 	cap_ = 0;
 #ifdef TEST_FORCE
-	for( int dim = 0; dim < NDIM; dim++) {
+	for (int dim = 0; dim < NDIM; dim++) {
 		gptr_[dim] = nullptr;
 	}
 	eptr_ = nullptr;

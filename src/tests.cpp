@@ -11,13 +11,34 @@
 #include <cosmictiger/tests.hpp>
 #include <cosmictiger/timer.hpp>
 #include <cosmictiger/tree.hpp>
-#include <cosmictiger/particle.hpp>
+#include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/drift.hpp>
 #include <cosmictiger/groups.hpp>
 #include <cosmictiger/time.hpp>
 #include <cmath>
 
 static void psort_test() {
+	particle_server pserv;
+	pserv.init();
+	timer tm;
+	pserv.generate_random();
+	printf("Gathering\n");
+	tm.start();
+	pserv.domain_decomp_gather();
+	tm.stop();
+	printf( "took %e s\n", tm.read());
+	tm.reset();
+	tm.start();
+	printf("Sending\n");
+	pserv.domain_decomp_send();
+	tm.stop();
+	printf( "took %e s\n", tm.read());
+	tm.reset();
+	tm.start();
+	printf("Finishing\n");
+	pserv.domain_decomp_finish();
+	tm.stop();
+	printf( "took %e s\n", tm.read());
 }
 
 static void tree_test() {
@@ -173,10 +194,10 @@ void group_test() {
 	params.tptr = root_ptr;
 	params.group_sort = true;
 	parts.init_groups();
-	printf( "Sorting\n");
+	printf("Sorting\n");
 	tree_data_initialize_groups();
 	root.sort(params);
-	printf( "Done Sorting\n");
+	printf("Done Sorting\n");
 	tm_sort.stop();
 	tm_kick.start();
 	//  root_ptr.rank = hpx_rank();
@@ -197,7 +218,7 @@ void group_test() {
 //	find_groups_phase1(params_ptr).get();
 	while (find_groups(params_ptr).get()) {
 		tree_database_set_groups();
-		printf( "Iterating\n");
+		printf("Iterating\n");
 		params_ptr->self = root_ptr;
 		params_ptr->checks.resize(0);
 		params_ptr->checks.push(root_ptr);
@@ -210,92 +231,92 @@ void group_test() {
 	printf("Groups found in %e s\n", tm.read());
 	tm.reset();
 	tm.start();
-/*	group_data_create(parts);
-	group_data_reduce();
-	group_data_output(stdout);
-	group_data_destroy();*/
+	/*	group_data_create(parts);
+	 group_data_reduce();
+	 group_data_output(stdout);
+	 group_data_destroy();*/
 	tm.stop();
 	printf("Table created in %e s\n", tm.read());
 
 }
 
 void drift_test() {
-/*	printf("Doing kick test\n");
-	printf("Generating particles\n");
-	particle_set parts(global().opts.nparts);
-	parts.load_particles("ics");
-	// parts.generate_grid();
-	particle_set *parts_ptr;
-	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
-	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-	for (int i = 0; i < 2; i++) {
-		tree root;
-		timer tm_sort, tm_kick, tm_cleanup;
-		tm_sort.start();
-		sort_params params;
-		params.theta = global().opts.theta;
-		params.min_rung = 0;
-		tree_data_initialize_kick();
-		root.sort(params);
-		tm_sort.stop();
-		tm_kick.start();
-		tree_ptr root_ptr;
+	/*	printf("Doing kick test\n");
+	 printf("Generating particles\n");
+	 particle_set parts(global().opts.nparts);
+	 parts.load_particles("ics");
+	 // parts.generate_grid();
+	 particle_set *parts_ptr;
+	 CUDA_MALLOC(parts_ptr, sizeof(particle_set));
+	 new (parts_ptr) particle_set(parts.get_virtual_particle_set());
+	 for (int i = 0; i < 2; i++) {
+	 tree root;
+	 timer tm_sort, tm_kick, tm_cleanup;
+	 tm_sort.start();
+	 sort_params params;
+	 params.theta = global().opts.theta;
+	 params.min_rung = 0;
+	 tree_data_initialize_kick();
+	 root.sort(params);
+	 tm_sort.stop();
+	 tm_kick.start();
+	 tree_ptr root_ptr;
 
-		root_ptr.dindex = 0;
-		//  root_ptr.rank = hpx_rank();
-		// printf( "%li", size_t(WORKSPACE_SIZE));
-		kick_params_type *params_ptr;
-		CUDA_MALLOC(params_ptr, 1);
-		new (params_ptr) kick_params_type();
-		params_ptr->dchecks.push(root_ptr);
-		params_ptr->echecks.push(root_ptr);
-		params_ptr->full_eval = true;
+	 root_ptr.dindex = 0;
+	 //  root_ptr.rank = hpx_rank();
+	 // printf( "%li", size_t(WORKSPACE_SIZE));
+	 kick_params_type *params_ptr;
+	 CUDA_MALLOC(params_ptr, 1);
+	 new (params_ptr) kick_params_type();
+	 params_ptr->dchecks.push(root_ptr);
+	 params_ptr->echecks.push(root_ptr);
+	 params_ptr->full_eval = true;
 
-		// printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
-		array<fixed32, NDIM> Lpos;
-		expansion<float> L;
-		for (int i = 0; i < LP; i++) {
-			L[i] = 0.f;
-		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			Lpos[dim] = 0.5;
-		}
-		kick_return_init(0);
-		params_ptr->L[0] = L;
-		params_ptr->Lpos[0] = Lpos;
-		params_ptr->t0 = true;
-		root.kick(params_ptr).get();
-		tm_kick.stop();
-		tree::cleanup();
-		tm_cleanup.start();
-		managed_allocator<sort_params>::cleanup();
-		managed_allocator<multipole>::cleanup();
-		managed_allocator<tree>::cleanup();
-		tm_cleanup.stop();
-		const auto total = tm_sort.read() + tm_kick.read() + tm_cleanup.read();
-		kick_return_show();
-		timer tm_drift;
-		printf("Doing drift\n");
-		tm_drift.start();
-		const int max_rung = kick_return_max_rung();
-		double dt = params_ptr->t0 / (1 << max_rung);
-		printf("Maximum rung = %i timestep = %e\n", max_rung, dt);
-		double a, b, c, d;
-		drift_particles(parts.get_virtual_particle_set(), dt, 1.0, &a, &b, &c, &d, 0.0, 1.0);
-		tm_drift.stop();
-		printf("Drift took %e seconds\n", tm_drift.read());
+	 // printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
+	 array<fixed32, NDIM> Lpos;
+	 expansion<float> L;
+	 for (int i = 0; i < LP; i++) {
+	 L[i] = 0.f;
+	 }
+	 for (int dim = 0; dim < NDIM; dim++) {
+	 Lpos[dim] = 0.5;
+	 }
+	 kick_return_init(0);
+	 params_ptr->L[0] = L;
+	 params_ptr->Lpos[0] = Lpos;
+	 params_ptr->t0 = true;
+	 root.kick(params_ptr).get();
+	 tm_kick.stop();
+	 tree::cleanup();
+	 tm_cleanup.start();
+	 managed_allocator<sort_params>::cleanup();
+	 managed_allocator<multipole>::cleanup();
+	 managed_allocator<tree>::cleanup();
+	 tm_cleanup.stop();
+	 const auto total = tm_sort.read() + tm_kick.read() + tm_cleanup.read();
+	 kick_return_show();
+	 timer tm_drift;
+	 printf("Doing drift\n");
+	 tm_drift.start();
+	 const int max_rung = kick_return_max_rung();
+	 double dt = params_ptr->t0 / (1 << max_rung);
+	 printf("Maximum rung = %i timestep = %e\n", max_rung, dt);
+	 double a, b, c, d;
+	 drift_particles(parts.get_virtual_particle_set(), dt, 1.0, &a, &b, &c, &d, 0.0, 1.0);
+	 tm_drift.stop();
+	 printf("Drift took %e seconds\n", tm_drift.read());
 
-		params_ptr->kick_params_type::~kick_params_type();
-		CUDA_FREE(params_ptr);
-		printf("Sort    = %e s\n", tm_sort.read());
-		printf("Kick    = %e s\n", tm_kick.read());
-		printf("Cleanup = %e s\n", tm_cleanup.read());
-		printf("Total   = %e s\n", total);
-		//  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
-		// printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
-	}
-	parts_ptr->particle_set::~particle_set();
-	CUDA_FREE(parts_ptr);*/
+	 params_ptr->kick_params_type::~kick_params_type();
+	 CUDA_FREE(params_ptr);
+	 printf("Sort    = %e s\n", tm_sort.read());
+	 printf("Kick    = %e s\n", tm_kick.read());
+	 printf("Cleanup = %e s\n", tm_cleanup.read());
+	 printf("Total   = %e s\n", total);
+	 //  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
+	 // printf("GFLOP/s = %e\n", rc.flops / 1024. / 1024. / 1024. / total);
+	 }
+	 parts_ptr->particle_set::~particle_set();
+	 CUDA_FREE(parts_ptr);*/
 }
 
 #ifdef TEST_FORCE

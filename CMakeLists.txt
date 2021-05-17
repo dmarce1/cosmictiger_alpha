@@ -28,6 +28,7 @@ set(cosmictiger_source_files
     src/chemistry.cpp
     src/cosmos.cpp
     src/cuda.cpp
+    src/domain.cpp
     src/drift.cpp
     src/driver.cpp
     src/ewald_indices.cpp
@@ -42,6 +43,7 @@ set(cosmictiger_source_files
     src/memory.cpp
     src/options.cpp
     src/particle.cpp
+    src/particle_server.cpp
     src/rand.cpp
     src/tests.cpp
     src/tree.cpp
@@ -73,7 +75,7 @@ set(cosmictiger_header_files
 	cosmictiger/boltzmann.hpp
 	cosmictiger/chemistry.hpp
 	cosmictiger/cosmos.hpp
-	cosmictiger/unrolled.hpp
+	cosmictiger/domain.hpp
 	cosmictiger/defs.hpp
 	cosmictiger/drift.hpp
 	cosmictiger/ewald_indices.hpp
@@ -90,6 +92,7 @@ set(cosmictiger_header_files
 	cosmictiger/multipole.hpp
 	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
+	cosmictiger/particle_server.hpp
 	cosmictiger/rand.hpp
 	cosmictiger/range.hpp
 	cosmictiger/stack_vector.hpp

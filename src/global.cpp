@@ -20,7 +20,7 @@ void global_init(options opts, cuda_properties cuda) {
    if (mychildren.first != hpx::invalid_id) {
       left = hpx::async < global_init_action > (mychildren.first, opts, cuda);
    }
-   if (mychildren.first != hpx::invalid_id) {
+   if (mychildren.second != hpx::invalid_id) {
       right = hpx::async < global_init_action > (mychildren.second, opts, cuda);
    }
    glob.opts = opts;
