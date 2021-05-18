@@ -23,17 +23,17 @@ void particle_server::check_domain_bounds() {
 		}
 	}
 	auto myrange = dbounds.find_proc_range(hpx_rank());
-	for( part_int i = 0; i < parts->size(); i++) {
-		for( int dim = 0; dim < NDIM; dim++) {
-			const auto x = parts->pos(dim,i).to_double();
-			if( x < myrange.begin[dim] || x > myrange.end[dim]) {
-				ERROR();
+	for (part_int i = 0; i < parts->size(); i++) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			const auto x = parts->pos(dim, i).to_double();
+			if (x < myrange.begin[dim] || x > myrange.end[dim]) {
+				ERROR()
+				;
 			}
 		}
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 }
-
 
 void particle_server::generate_random() {
 	std::vector<hpx::future<void>> futs;
@@ -98,15 +98,20 @@ void particle_server::domain_decomp_transmit(std::vector<particle> new_parts) {
 
 }
 
-void particle_server::domain_decomp_gather() {
-	std::vector<hpx::future<void>> futs;
+bool particle_server::domain_decomp_gather() {
+	std::vector<hpx::future<bool>> futs;
 	if (hpx_rank() == 0) {
 		for (int i = 1; i < hpx_size(); i++) {
 			futs.push_back(hpx::async<particle_server_domain_decomp_gather_action>(hpx_localities()[i]));
 		}
 	}
-	parts->gather_sends(part_sends, free_indices, dbounds);
-	hpx::wait_all(futs.begin(), futs.end());
+	bool gathered_all = parts->gather_sends(part_sends, free_indices, dbounds);
+	for (auto& b : futs) {
+		if (!b.get()) {
+			gathered_all = false;
+		}
+	}
+	return gathered_all;
 }
 
 particle_set& particle_server::get_particle_set() {
@@ -116,7 +121,6 @@ particle_set& particle_server::get_particle_set() {
 const domain_bounds& particle_server::get_domain_bounds() {
 	return dbounds;
 }
-
 
 void particle_server::init() {
 	std::vector<hpx::future<void>> futs;

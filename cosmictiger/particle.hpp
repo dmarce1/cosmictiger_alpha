@@ -107,7 +107,7 @@ struct particle_set {
 	float pot(part_int index) const;CUDA_EXPORT
 	float& pot(part_int index);
 #ifndef __CUDACC__
-	void gather_sends(particle_send_type&, std::vector<part_int>&, domain_bounds);
+	bool gather_sends(particle_send_type&, std::vector<part_int>&, domain_bounds);
 protected:
 #endif
 	array<fixed32*, NDIM> xptr_;

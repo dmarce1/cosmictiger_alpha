@@ -20,7 +20,7 @@ class particle_server {
 	static spinlock_type mutex;
 public:
 	static void init();
-	static void domain_decomp_gather();
+	static bool domain_decomp_gather();
 	static void domain_decomp_send();
 	static void domain_decomp_finish();
 	static void generate_random();

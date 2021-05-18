@@ -46,8 +46,13 @@ particle particle_set::get_particle(part_int i) {
 	return p;
 }
 
-void particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>& free_indices, domain_bounds bounds) {
+#define PARTICLE_SET_MAX_SEND (8*1024*1024)
+
+bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>& free_indices, domain_bounds bounds) {
 	const auto my_range = bounds.find_proc_range(hpx_rank());
+	static std::atomic<int> finished_cnt;
+	static part_int max_send_parts = std::min(part_int(size()*0.1), part_int(PARTICLE_SET_MAX_SEND));
+	finished_cnt = 0;
 	for( int dim = 0; dim < NDIM; dim++) {
 	//	printf( "%i %e %e\n", hpx_rank(), my_range.begin[dim], my_range.end[dim]);
 	}
@@ -62,6 +67,7 @@ void particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 		const auto func = [i,this,num_threads,my_range, bounds,&sends,&free_indices]() {
 			const part_int start = size_t(i) * size_t(size_) / size_t(num_threads);
 			const part_int stop = size_t(i+1) * size_t(size_) / size_t(num_threads);
+			bool finished = true;
 			for( part_int j = start; j < stop; j++) {
 				bool foreign = false;
 				for( int dim = 0; dim < NDIM; dim++) {
@@ -85,13 +91,20 @@ void particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 					std::lock_guard<spinlock_type> lock(mutex);
 					free_indices.push_back(j);
 					entry.parts.push_back(p);
+					if( free_indices.size() >= max_send_parts ) {
+						finished = false;
+						break;
+					}
 				}
+			}
+			if( finished ) {
+				finished_cnt++;
 			}
 		};
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-//	printf( "%i gathered\n", free_indices.size());
+	return (int) finished_cnt == num_threads;
 }
 
 void particle_set::free_particles(std::vector<part_int>& free_indices) {

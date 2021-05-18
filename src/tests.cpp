@@ -23,23 +23,26 @@ static void psort_test() {
 	timer tm;
 	pserv.generate_random();
 	tree_data_initialize(TREE_KICK);
-	printf("Gathering\n");
-	tm.start();
-	pserv.domain_decomp_gather();
-	tm.stop();
-	printf( "took %e s\n", tm.read());
-	tm.reset();
-	tm.start();
-	printf("Sending\n");
-	pserv.domain_decomp_send();
-	tm.stop();
-	printf( "took %e s\n", tm.read());
-	tm.reset();
-	tm.start();
-	printf("Finishing\n");
-	pserv.domain_decomp_finish();
-	tm.stop();
-	tm.reset();
+	bool gathered_all;
+	do {
+		printf("Gathering\n");
+		tm.start();
+		gathered_all = pserv.domain_decomp_gather();
+		tm.stop();
+		printf("took %e s\n", tm.read());
+		tm.reset();
+		tm.start();
+		printf("Sending\n");
+		pserv.domain_decomp_send();
+		tm.stop();
+		printf("took %e s\n", tm.read());
+		tm.reset();
+		tm.start();
+		printf("Finishing\n");
+		pserv.domain_decomp_finish();
+		tm.stop();
+		tm.reset();
+	} while (!gathered_all);
 
 	pserv.check_domain_bounds();
 
@@ -52,8 +55,7 @@ static void psort_test() {
 	tm.stop();
 	printf("Done sorting in %e\n", tm.read());
 
-
-	printf( "took %e s\n", tm.read());
+	printf("took %e s\n", tm.read());
 }
 
 static void tree_test() {
