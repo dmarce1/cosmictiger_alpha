@@ -316,6 +316,7 @@ public:
 	static hpx::future<void> send_kick_to_gpu(kick_params_type *params);
 	static void gpu_daemon();
 	static void cleanup();
+	static void add_parts_covered(part_iters);
 	static void cpu_cc_direct(kick_params_type *params);
 	static void cpu_cp_direct(kick_params_type *params);
 	static void cpu_pp_direct(kick_params_type *params);

@@ -61,9 +61,6 @@ tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 		printf( "Rank out of range %i\n", ptr.rank);
 		ERROR()
 		;
-	} else {
-		if( hpx_rank() == 0 )
-		printf( "loading cache on rank %i\n", hpx_rank());
 	}
 	if (ptr.dindex > cpu_tree_data_.ntrees) {
 		ERROR()

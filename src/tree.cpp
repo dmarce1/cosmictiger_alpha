@@ -20,6 +20,17 @@ static unified_allocator kick_params_alloc;
 //pranges tree::covered_ranges;
 static std::atomic<part_int> parts_covered;
 
+void tree::add_parts_covered(part_iters num) {
+	static particle_server pserv;
+	static const auto& parts = pserv.get_particle_set();
+	parts_covered += num.second - num.first;
+	if (parts_covered == parts.size()) {
+		gpu_daemon();
+	}
+//	printf( "%i of %i on %i\n", (part_int) parts_covered, parts.size(), hpx_rank());
+}
+
+
 timer tmp_tm;
 
 static std::atomic<int> kick_block_count;
@@ -573,10 +584,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		} else if (children[LEFT].get_active_parts()) {
 			const auto other_parts = children[RIGHT].get_parts();
 //			covered_ranges.add_range(parts);
-			parts_covered += other_parts.second - other_parts.first;
-			if (parts_covered == global().opts.nparts) {
-				gpu_daemon();
-			}
+			add_parts_covered(other_parts);
 			int depth0 = params.depth;
 			params.depth++;
 			params.L[params.depth] = L;
@@ -587,10 +595,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		} else if (children[RIGHT].get_active_parts()) {
 			const auto other_parts = children[LEFT].get_parts();
 //			covered_ranges.add_range(parts);
-			parts_covered += other_parts.second - other_parts.first;
-			if (parts_covered == global().opts.nparts) {
-				gpu_daemon();
-			}
+			add_parts_covered(other_parts);
 			int depth0 = params.depth;
 			params.depth++;
 			params.L[params.depth] = L;
@@ -682,10 +687,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					kick_return_update_pot_cpu(phi[k], F[0][k], F[1][k], F[2][k]);
 				}
 			}
-			parts_covered += parts.second - parts.first;
 			kick_return_update_rung_cpu(particles->rung(index));
-
 		}
+		add_parts_covered(parts);
 		//	rc.rung = max_rung;
 		if( self.local_root() ) {
 			tree_database_unset_readonly();
@@ -847,10 +851,7 @@ hpx::future<void> tree::send_kick_to_gpu(kick_params_type * params) {
 	gpu.parts = params->tptr.get_parts();
 	gpu_queue.push(std::move(gpu));
 //	covered_ranges.add_range(parts);
-	parts_covered += gpu.parts.second - gpu.parts.first;
-	if (parts_covered == global().opts.nparts) {
-		gpu_daemon();
-	}
+	add_parts_covered(gpu.parts);
 	return std::move(fut);
 
 }
