@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cosmictiger/defs.hpp>
+#include <cosmictiger/domain.hpp>
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/multipole.hpp>
@@ -237,16 +238,14 @@ struct tree {
 #ifndef __CUDACC__
 private:
 #endif //*** multi and pos MUST be adjacent and ordered multi then pos !!!!!!! *****/
-	static particle_set* particles;
+	static domain_bounds domain_boundaries;
 public:
 	static std::atomic<int> cuda_node_count;
 	static std::atomic<int> cpu_node_count;
-	static void set_cuda_particle_set(particle_set*);
-	static void cuda_set_kick_params(particle_set *p);
 	static void show_timings();
+	static void set_domain_bounds(domain_bounds);
 #ifndef __CUDACC__
 //		static pranges covered_ranges;
-	static void set_particle_set(particle_set*);
 	inline static fast_future<sort_return> create_child(sort_params&, bool try_thread);
 	static fast_future<sort_return> cleanup_child();
 	static hpx::lcos::local::mutex mtx;

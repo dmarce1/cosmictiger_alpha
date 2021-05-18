@@ -78,12 +78,9 @@ static void tree_test() {
 void kick_test() {
 	printf("Doing kick test\n");
 	printf("Generating particles\n");
-	particle_set parts(global().opts.nparts);
-	tree::set_particle_set(&parts);
-	parts.generate_random(42);
-	particle_set *parts_ptr;
-	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
-	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
+	particle_server pserv;
+	pserv.init();
+	pserv.generate_random();
 	timer ttime;
 	std::vector<double> timings;
 	tree_data_initialize_kick();
@@ -160,8 +157,6 @@ void kick_test() {
 	}
 	dev = std::sqrt(dev / NKICKS);
 	printf("---- Bucket Size = %i, Score = %e +/- %e\n", global().opts.bucket_size, avg, dev);
-	parts_ptr->particle_set::~particle_set();
-	CUDA_FREE(parts_ptr);
 	FILE* fp = fopen("timings.dat", "at");
 	fprintf(fp, "%i %e %e\n", global().opts.bucket_size, avg, dev);
 	fclose(fp);
@@ -318,14 +313,9 @@ void drift_test() {
 void force_test() {
 	printf("Doing force test\n");
 	printf("Generating particles\n");
-	particle_set parts(global().opts.nparts);
-//	 parts.load_particles("ics");
-	parts.generate_random(52);
-	tree::set_particle_set(&parts);
-	particle_set *parts_ptr;
-	CUDA_MALLOC(parts_ptr, sizeof(particle_set));
-	new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-	tree::cuda_set_kick_params(parts_ptr);
+	particle_server pserv;
+	pserv.init();
+	pserv.generate_random();
 	tree root;
 	sort_params params;
 	params.theta = global().opts.theta;
@@ -366,12 +356,11 @@ void force_test() {
 	timer tm;
 	tm.start();
 	printf("Doing comparison\n");
-	cuda_compare_with_direct(parts_ptr);
+	cuda_compare_with_direct(&pserv.get_particle_set());
 	tm.stop();
 	printf("Comparison took %e s\n", tm.read());
 	// printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
 	CUDA_FREE(params_ptr);
-	CUDA_FREE(parts_ptr);
 }
 #endif
 

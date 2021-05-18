@@ -14,6 +14,7 @@
 #include <hpx/async.hpp>
 #include <hpx/hpx_finalize.hpp>
 #include <hpx/hpx_init.hpp>
+#include <hpx/include/serialization.hpp>
 
 using mutex_type = hpx::lcos::local::mutex;
 using spinlock_type = hpx::lcos::local::spinlock;

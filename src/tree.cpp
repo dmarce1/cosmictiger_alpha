@@ -6,13 +6,14 @@
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/kick_return.hpp>
 #include <cosmictiger/groups.hpp>
+#include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/tree_database.hpp>
 
 #include <set>
 
 #include <cmath>
 
-particle_set* tree::particles;
+domain_bounds tree::domain_boundaries;
 
 #define CPU_LOAD (0)
 
@@ -22,11 +23,22 @@ static std::atomic<part_int> parts_covered;
 
 timer tmp_tm;
 
-void tree::set_particle_set(particle_set *parts) {
-	particles = parts;
-}
 
 static std::atomic<int> kick_block_count;
+
+HPX_PLAIN_ACTION(tree::set_domain_bounds, tree_set_domain_bounds_action);
+
+void tree::set_domain_bounds(domain_bounds bnds) {
+	std::vector<hpx::future<void>> futs;
+	if (hpx_rank() == 0) {
+		for (int i = 1; i < hpx_size(); i++) {
+			futs.push_back(hpx::async<tree_set_domain_bounds_action>(hpx_localities()[i],bnds));
+		}
+	}
+	domain_boundaries.destroy();
+	domain_boundaries = bnds;
+	hpx::wait_all(futs.begin(),futs.end());
+}
 
 CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	int lev = 12;
@@ -53,6 +65,8 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 
 fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	fast_future<sort_return> fut;
+	particle_server pserv;
+	auto* particles = &pserv.get_particle_set();
 	const auto nparts = params.parts.second - params.parts.first;
 	bool thread = false;
 	const part_int min_parts2thread = particles->size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
@@ -76,6 +90,8 @@ fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread
 
 sort_return tree::sort(sort_params params) {
 	const auto &opts = global().opts;
+	particle_server pserv;
+	auto* particles = &pserv.get_particle_set();
 	static std::atomic<int> gpu_searches(0);
 	size_t active_parts = 0;
 	size_t active_nodes = 0;
@@ -327,6 +343,8 @@ void tree::cleanup() {
 }
 
 hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
+	particle_server pserv;
+	auto* particles = &pserv.get_particle_set();
 	static const bool use_cuda = global().opts.cuda;
 	kick_params_type &params = *params_ptr;
 	const auto parts = get_parts();
@@ -378,6 +396,8 @@ timer kick_timer;
 #define MIN_WORK 0
 
 hpx::future<void> tree::kick(kick_params_type * params_ptr) {
+	particle_server pserv;
+	auto* particles = &pserv.get_particle_set();
 	kick_params_type &params = *params_ptr;
 	tree_ptr self = params.tptr;
 	const size_t active_parts = self.get_active_parts();
@@ -399,8 +419,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
 		int num_blocks;
 		CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
-		const int block_count = oversubscription * num_blocks
-				* global().cuda.devices[0].multiProcessorCount + 0.5;
+		const int block_count = oversubscription * num_blocks * global().cuda.devices[0].multiProcessorCount + 0.5;
 		size_t active_nodes = self.get_active_nodes();
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
 		int min_gpu_nodes = block_count / 8;
@@ -659,6 +678,8 @@ std::atomic<bool> tree::shutdown_daemon(false);
 void cuda_execute_kick_kernel(kick_params_type **params, int grid_size);
 
 void tree::gpu_daemon() {
+	particle_server pserv;
+	auto* particles = &pserv.get_particle_set();
 	static bool first_call = true;
 	static std::vector<std::function<bool()>> completions;
 	static timer timer;

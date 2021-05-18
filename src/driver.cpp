@@ -9,15 +9,16 @@
 #include <cosmictiger/initial.hpp>
 #include <cosmictiger/groups.hpp>
 #include <cosmictiger/power.hpp>
+#include <cosmictiger/driver.hpp>
+#include <cosmictiger/particle_server.hpp>
 
 double T0;
 #define NTIMESTEP 100.0
 
-tree_ptr build_tree(particle_set& parts, int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm,
+tree_ptr build_tree(int min_rung, double theta, size_t& num_active, tree_stats& stats, double& tm,
 		bool group_sort = false) {
 	timer time;
 	time.start();
-	tree::set_particle_set(&parts);
 	static bool last_was_group_sort = true;
 	static int last_bucket_size = global().opts.bucket_size;
 	int bucket_size = global().opts.bucket_size;
@@ -30,11 +31,6 @@ tree_ptr build_tree(particle_set& parts, int min_rung, double theta, size_t& num
 	}
 	last_bucket_size = bucket_size;
 	static particle_set *parts_ptr = nullptr;
-	if (parts_ptr == nullptr) {
-		CUDA_MALLOC(parts_ptr, sizeof(particle_set));
-		new (parts_ptr) particle_set(parts.get_virtual_particle_set());
-		tree::cuda_set_kick_params(parts_ptr);
-	}
 	tree root;
 	tree_ptr root_ptr;
 
@@ -154,7 +150,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 	tree_stats stats;
 	printf("Finding Groups\n");
 
-	tree_ptr root_ptr = build_tree(parts, 0, 1.0, num_active, stats, sort_tm, true);
+	tree_ptr root_ptr = build_tree(0, 1.0, num_active, stats, sort_tm, true);
 
 	unified_allocator alloc;
 	alloc.reset();
@@ -197,7 +193,6 @@ void drive_cosmos() {
 
 	bool have_checkpoint = global().opts.checkpt_file != "";
 
-	particle_set parts(global().opts.nparts);
 	int max_iter = 100;
 
 	int iter = 0;
@@ -217,10 +212,14 @@ void drive_cosmos() {
 	double time_total;
 	double time;
 
+	particle_server pserv;
+	pserv.init();
+	auto& parts = pserv.get_particle_set();
+
 	if (!have_checkpoint) {
 		//parts.load_particles("ics");
 		if (global().opts.glass) {
-			parts.generate_random(42);
+			pserv.generate_random();
 		} else {
 			if (global().opts.glass_file != "") {
 				load_from_file(parts, iter, itime, time, a,cosmicK);
@@ -331,7 +330,7 @@ void drive_cosmos() {
 				group_fut = std::move(rc.second);
 			}
 		}
-		tree_ptr root_ptr = build_tree(parts, min_r, theta, num_active, stats, sort_tm);
+		tree_ptr root_ptr = build_tree(min_r, theta, num_active, stats, sort_tm);
 		tree_use = tree_data_use();
 		max_rung = kick(root_ptr, theta, a, min_rung(itime), full_eval, iter == 0, groups && full_eval, kick_tm);
 		if (full_eval && groups) {

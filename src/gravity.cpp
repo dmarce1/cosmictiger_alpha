@@ -1,5 +1,7 @@
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/kick_return.hpp>
+#include <cosmictiger/particle_server.hpp>
+
 
 void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
@@ -67,6 +69,8 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 }
 
 void tree::cpu_cp_direct(kick_params_type *params_ptr) {
+	particle_server pserv;
+	auto* particles = &pserv.get_particle_set();
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
 	const auto parts = params.tptr.get_parts();
@@ -140,6 +144,8 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 }
 
 void tree::cpu_pp_direct(kick_params_type *params_ptr) {
+	particle_server pserv;
+	auto* particles = &pserv.get_particle_set();
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
 	auto& F = params.F;
@@ -240,6 +246,8 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 }
 
 void tree::cpu_pc_direct(kick_params_type *params_ptr) {
+	particle_server pserv;
+	auto* particles = &pserv.get_particle_set();
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
 	auto &multis = params.multi_interactions;
