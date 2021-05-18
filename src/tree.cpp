@@ -545,12 +545,11 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		case PC_PP_EWALD:
 			break;
 		}
-
+		parts_covered += parts.second - parts.first;
 	}
-//  printf( "%li\n", params.depth);
 	if (!params.tptr.is_leaf()) {
-// printf("4\n");
-		const bool try_thread = parts.second - parts.first > TREE_MIN_PARTS2THREAD;
+		auto procs = self.get_proc_range();
+		const bool try_thread = (procs.second - procs.first) > 1 || (parts.second - parts.first > TREE_MIN_PARTS2THREAD);
 		array<hpx::future<void>, NCHILD> futs;
 		futs[LEFT] = hpx::make_ready_future();
 		futs[RIGHT] = hpx::make_ready_future();
