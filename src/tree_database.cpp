@@ -28,8 +28,9 @@ struct tree_hash_hi {
 	}
 };
 
+using tree_cache_map_type =std::unordered_map<tree_ptr, std::shared_ptr<tree_cache_entry>, tree_hash_hi>;
 static std::array<mutex_type, TREE_CACHE_SIZE> mutexes;
-static std::array<std::unordered_map<tree_ptr, std::shared_ptr<tree_cache_entry>, tree_hash_hi>, TREE_CACHE_SIZE> caches;
+static std::array<tree_cache_map_type, TREE_CACHE_SIZE> caches;
 
 std::vector<tree_node_t> tree_data_fetch_cache_line(int index);
 void tree_data_clear_cache();
@@ -46,6 +47,12 @@ void tree_data_clear_cache() {
 	std::vector<hpx::future<void>> futs;
 	if (hpx_rank() == 0) {
 
+	}
+}
+
+void tree_data_free_cache() {
+	for( int i = 0; i < TREE_CACHE_SIZE; i++) {
+		caches[i] = tree_cache_map_type();
 	}
 }
 

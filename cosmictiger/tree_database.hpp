@@ -439,6 +439,9 @@ inline void tree_ptr::set_local_root(bool b) const {
 	tree_data_set_local_root(dindex, b);
 }
 
+void tree_data_free_cache();
+
+
 CUDA_EXPORT
 inline bool tree_ptr::local_root() const {
 #ifndef __CUDACC__

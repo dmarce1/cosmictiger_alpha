@@ -545,7 +545,6 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		case PC_PP_EWALD:
 			break;
 		}
-		parts_covered += parts.second - parts.first;
 	}
 	if (!params.tptr.is_leaf()) {
 		auto procs = self.get_proc_range();
@@ -599,12 +598,14 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.depth--;
 		}
 		int depth = params.depth;
-		return hpx::when_all(futs.begin(), futs.end()).then([depth](hpx::future<std::vector<hpx::future<void>>> futfut) {
+		return hpx::when_all(futs.begin(), futs.end()).then([depth,self,pserv](hpx::future<std::vector<hpx::future<void>>> futfut) {
 			auto futs = futfut.get();
 			futs[LEFT].get();
 			futs[RIGHT].get();
-			if( depth == 0 ) {
+			if( self.local_root() ) {
 				tree_database_unset_readonly();
+				tree_data_free_cache();
+				pserv.free_cache();
 			}
 		});
 	} else {
@@ -679,10 +680,16 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					kick_return_update_pot_cpu(phi[k], F[0][k], F[1][k], F[2][k]);
 				}
 			}
+			parts_covered += parts.second - parts.first;
 			kick_return_update_rung_cpu(particles->rung(index));
 
 		}
 		//	rc.rung = max_rung;
+		if( self.local_root() ) {
+			tree_database_unset_readonly();
+			tree_data_free_cache();
+			pserv.free_cache();
+		}
 		return hpx::make_ready_future();
 	}
 }

@@ -123,7 +123,7 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    Boost::boost siloh5 chealpix cuda cudart tcmalloc
+    Boost::boost siloh5 chealpix cuda cudart 
   SOURCES
     ${cosmictiger_source_files}
   HEADERS

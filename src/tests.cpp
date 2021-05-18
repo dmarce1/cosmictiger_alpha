@@ -23,30 +23,16 @@ static void psort_test() {
 	timer tm;
 	pserv.generate_random();
 	tree_data_initialize(TREE_KICK);
-	bool gathered_all;
-	do {
-		printf("Gathering\n");
-		tm.start();
-		gathered_all = pserv.domain_decomp_gather();
-		tm.stop();
-		printf("took %e s\n", tm.read());
-		tm.reset();
-		tm.start();
-		printf("Sending\n");
-		pserv.domain_decomp_send();
-		tm.stop();
-		printf("took %e s\n", tm.read());
-		tm.reset();
-		tm.start();
-		printf("Finishing\n");
-		pserv.domain_decomp_finish();
-		tm.stop();
-		tm.reset();
-	} while (!gathered_all);
-
-	pserv.check_domain_bounds();
-
+	printf("Starting\n");
 	tm.start();
+	pserv.apply_domain_decomp();
+	tm.stop();
+	printf("took %e s\n", tm.read());
+	tm.reset();
+	tm.start();
+
+//	pserv.check_domain_bounds();
+
 	sort_params params;
 	params.min_rung = 0;
 	params.theta = global().opts.theta;
@@ -102,7 +88,7 @@ void kick_test() {
 	pserv.generate_random();
 	timer ttime;
 	std::vector<double> timings;
-	tree_data_initialize_kick();
+	tree_data_initialize(TREE_KICK);
 	for (int i = 0; i < NKICKS + 1; i++) {
 		printf("Kick %i\n", i);
 		ttime.start();
@@ -114,6 +100,7 @@ void kick_test() {
 		params.theta = global().opts.theta;
 		params.min_rung = 0;
 		tree_ptr root_ptr;
+		pserv.apply_domain_decomp();
 		root_ptr = root.sort(params).check;
 		tm_sort.stop();
 		tm_kick.start();

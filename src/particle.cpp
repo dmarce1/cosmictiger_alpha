@@ -83,14 +83,13 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 						x[dim] = pos(dim,j);
 					}
 					const int proc = bounds.find_proc(x);
-					if( proc == hpx_rank() ) {
-						ERROR();
-					}
-					auto& entry = sends[proc];
 					particle p = get_particle(j);
 					std::lock_guard<spinlock_type> lock(mutex);
+					auto& entry = sends[proc];
 					free_indices.push_back(j);
-					entry.parts.push_back(p);
+					auto& pts = entry.parts;
+		//			printf( "%li\n", pts.size());
+					pts.push_back(p);
 					if( free_indices.size() >= max_send_parts ) {
 						finished = false;
 						break;
@@ -111,7 +110,6 @@ void particle_set::free_particles(std::vector<part_int>& free_indices) {
 	std::sort(free_indices.begin(), free_indices.end(), [](part_int a, part_int b) {
 		return a > b;
 	});
-	printf( "Freeing %li\n", free_indices.size());
 	for (auto i : free_indices) {
 		const particle p = get_particle(size() - 1);
 		set_particle(p, i);

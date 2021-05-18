@@ -7,7 +7,7 @@ particle_send_type particle_server::part_sends;
 domain_bounds particle_server::dbounds;
 spinlock_type particle_server::mutex;
 std::array<mutex_type, PARTICLE_CACHE_SIZE> particle_server::mutexes;
-particle_cache_type particle_server::caches;
+std::array<particle_cache_type, PARTICLE_CACHE_SIZE> particle_server::caches;
 
 HPX_PLAIN_ACTION(particle_server::init, particle_server_init_action);
 HPX_PLAIN_ACTION(particle_server::domain_decomp_gather, particle_server_domain_decomp_gather_action);
@@ -20,6 +20,12 @@ HPX_PLAIN_ACTION(particle_server::fetch_cache_line, particle_server_fetch_cache_
 
 part_int index_to_cache_line(part_int i) {
 	return i - i % PARTICLE_CACHE_LINE_SIZE;
+}
+
+void particle_server::free_cache() {
+	for (int i = 0; i < PARTICLE_CACHE_SIZE; i++) {
+		caches[i] = particle_cache_type();
+	}
 }
 
 void particle_server::read_positions(std::array<std::vector<fixed32>, NDIM>& X, int rank, part_iters rng) {
@@ -45,9 +51,11 @@ void particle_server::read_positions(std::array<std::vector<fixed32>, NDIM>& X, 
 			auto& mutex = mutexes[loindex];
 			std::unique_lock<mutex_type> lock(mutexes[loindex]);
 			auto& cache = caches[loindex];
+			auto& entry = cache[piter];
 			do {
 				for (int dim = 0; dim < NDIM; dim++) {
-					X[dim].push_back(cache[piter]->X[i - piter.index][dim]);
+					const auto value = entry->X[i - piter.index][dim];
+					X[dim].push_back(value);
 				}
 				i++;
 			} while (i % PARTICLE_CACHE_LINE_SIZE != 0 && i != rng.second);
@@ -157,6 +165,15 @@ void particle_server::domain_decomp_send() {
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
+void particle_server::apply_domain_decomp() {
+	bool complete;
+	do {
+		complete = domain_decomp_gather();
+		domain_decomp_send();
+		domain_decomp_finish();
+	} while (!complete);
+}
+
 void particle_server::domain_decomp_finish() {
 	std::vector<hpx::future<void>> futs;
 	if (hpx_rank() == 0) {
@@ -198,6 +215,7 @@ bool particle_server::domain_decomp_gather() {
 		}
 	}
 	bool gathered_all = parts->gather_sends(part_sends, free_indices, dbounds);
+	hpx::wait_all(futs.begin(),futs.end());
 	for (auto& b : futs) {
 		if (!b.get()) {
 			gathered_all = false;

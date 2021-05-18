@@ -43,7 +43,7 @@ struct global_part_iter_hash_hi {
 	}
 };
 
-using particle_cache_type = std::array<std::unordered_map<global_part_iter, std::shared_ptr<pos_cache_entry>, global_part_iter_hash_hi>,PARTICLE_CACHE_SIZE>;
+using particle_cache_type = std::unordered_map<global_part_iter, std::shared_ptr<pos_cache_entry>, global_part_iter_hash_hi>;
 
 class particle_server {
 	static particle_set* parts;
@@ -52,7 +52,7 @@ class particle_server {
 	static domain_bounds dbounds;
 	static spinlock_type mutex;
 	static std::array<mutex_type, PARTICLE_CACHE_SIZE> mutexes;
-	static particle_cache_type caches;
+	static std::array<particle_cache_type,PARTICLE_CACHE_SIZE> caches;
 
 	static void load_cache_line(global_part_iter);
 public:
@@ -67,6 +67,8 @@ public:
 	static particle_set& get_particle_set();
 	static void read_positions(std::array<std::vector<fixed32>, NDIM>& x, int rank, part_iters);
 	static void domain_decomp_transmit(std::vector<particle>);
+	static void apply_domain_decomp();
+	static void free_cache();
 };
 
 #endif /* PARTICLE_SERVER_HPP_ */
