@@ -74,7 +74,9 @@ tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 			prms->set_value();
 		});
 		lock.lock();
+		i = cache.find(line_ptr);
 	}
+	lock.unlock();
 	i->second.ready_fut.get();
 	return i->second.data[ptr.dindex - line_ptr.dindex];
 }

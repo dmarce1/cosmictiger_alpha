@@ -61,7 +61,7 @@ fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread
 	thread = false;
 #endif
 
-	if (decomp && params.procs.first != hpx_rank()) {
+	if (params.procs.first != hpx_rank()) {
 		fut = hpx::async<tree_sort_action>(hpx_localities()[params.procs.first], params);
 	} else {
 
