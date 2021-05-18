@@ -84,7 +84,7 @@ tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 		lock.lock();
 		i = cache.find(line_ptr);
 	}
-	auto& entry = i->second;
+	auto entry = i->second;
 	lock.unlock();
 	entry->ready_fut.get();
 	return entry->data[ptr.dindex - line_ptr.dindex];

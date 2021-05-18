@@ -95,7 +95,7 @@ void particle_server::load_cache_line(global_part_iter piter) {
 		lock.lock();
 		i = cache.find(line_ptr);
 	}
-	auto& entry = i->second;
+	auto entry = i->second;
 	lock.unlock();
 	entry->ready_fut.get();
 }

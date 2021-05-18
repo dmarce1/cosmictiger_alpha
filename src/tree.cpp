@@ -120,6 +120,7 @@ sort_return tree::sort(sort_params params) {
 	self.dindex = params.alloc->allocate();
 	self.rank = hpx_rank();
 	if (params.local_root) {
+		printf( "Sorting local root on %i\n", hpx_rank());
 		params.parts.first = 0;
 		params.parts.second = particles->size();
 		self.set_local_root(true);

@@ -89,6 +89,7 @@ void kick_test() {
 	timer ttime;
 	std::vector<double> timings;
 	tree_data_initialize(TREE_KICK);
+
 	for (int i = 0; i < NKICKS + 1; i++) {
 		printf("Kick %i\n", i);
 		ttime.start();

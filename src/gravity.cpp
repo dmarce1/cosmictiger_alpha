@@ -2,6 +2,27 @@
 #include <cosmictiger/kick_return.hpp>
 #include <cosmictiger/particle_server.hpp>
 
+#include <stack>
+
+std::stack<std::shared_ptr<std::array<std::vector<fixed32>, NDIM>>>sources_stack;
+spinlock_type mutex;
+
+std::shared_ptr<std::array<std::vector<fixed32>, NDIM>> get_sources_vector() {
+	std::lock_guard<spinlock_type> lock(mutex);
+	if (sources_stack.empty()) {
+		return std::make_shared<std::array<std::vector<fixed32>, NDIM>>();
+	} else {
+		auto rc = sources_stack.top();
+		sources_stack.pop();
+		return rc;
+	}
+}
+
+void cleanup_sources_vector(std::shared_ptr<std::array<std::vector<fixed32>, NDIM>> ptr) {
+	std::lock_guard<spinlock_type> lock(mutex);
+	sources_stack.push(ptr);
+}
+
 void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
@@ -76,11 +97,12 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	int flops = 0;
 	int interacts = 0;
 	int n;
-	static thread_local std::array<std::vector<fixed32>, NDIM> sources;
-	auto &partis = params.part_interactions;
+	auto sptr = get_sources_vector();
+	std::array<std::vector<fixed32>, NDIM>& sources = *sptr;
 	for (int dim = 0; dim < NDIM; dim++) {
 		sources[dim].resize(0);
 	}
+	auto &partis = params.part_interactions;
 	for (int k = 0; k < partis.size(); k++) {
 		const auto& other_parts = partis[k].get_parts();
 		pserv.read_positions(sources, partis[k].rank, other_parts);
@@ -132,6 +154,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 			L[i] += Lacc[i][k];
 		}
 	}
+	cleanup_sources_vector(sptr);
 	if (params.full_eval) {
 		kick_return_update_interactions_cpu(KR_CP, interacts, flops);
 	}
@@ -152,13 +175,17 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	int n;
 	const auto parts = params.tptr.get_parts();
 	int nparts = parts.second - parts.first;
-	static thread_local std::array<std::vector<fixed32>, NDIM> sources;
-	auto &partis = params.part_interactions;
+	auto sptr = get_sources_vector();
+	std::array<std::vector<fixed32>, NDIM>& sources = *sptr;
 	for (int dim = 0; dim < NDIM; dim++) {
 		sources[dim].resize(0);
 	}
+	auto &partis = params.part_interactions;
 	for (int k = 0; k < partis.size(); k++) {
 		const auto& other_parts = partis[k].get_parts();
+		if( !partis[k].local() ) {
+			ERROR();
+		}
 		pserv.read_positions(sources, partis[k].rank, other_parts);
 	}
 	simd_float mask;
@@ -230,6 +257,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 			Phi[i] += phi.sum();
 		}
 	}
+	cleanup_sources_vector(sptr);
 	if (params.full_eval) {
 		kick_return_update_interactions_cpu(KR_PP, interacts, flops);
 	}

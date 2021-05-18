@@ -31,6 +31,11 @@ struct tree_ptr {
 		arc & rank;
 	}
 
+	inline bool local() {
+		auto prange = get_proc_range();
+		return prange.second - prange.first == 1;
+	}
+
 	CUDA_EXPORT
 	inline bool operator==(const tree_ptr &other) const {
 		return dindex == other.dindex && rank == other.rank;
@@ -322,7 +327,7 @@ inline bool tree_ptr::is_leaf() const {
 		return tree_data_get_isleaf(dindex);
 #ifndef __CUDACC__
 	} else {
-		return tree_data_read_cache_children(*this)[0].dindex != -1;
+		return tree_data_read_cache_children(*this)[0].dindex == -1;
 	}
 #endif
 }
