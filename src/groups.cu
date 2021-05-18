@@ -246,8 +246,13 @@ __device__ size_t cuda_find_groups(tree_ptr self) {
 				}
 			}
 			__syncwarp();
-		} while (__reduce_add_sync(FULL_MASK, found_link) != 0);
-		rc = __reduce_add_sync(FULL_MASK, rc) != 0;
+			for (int P = warpSize / 2; P >= 1; P /= 2) {
+				found_link += __shfl_xor_sync(FULL_MASK, found_link, P);
+			}
+		} while (found_link != 0);
+		for (int P = warpSize / 2; P >= 1; P /= 2) {
+			rc += __shfl_xor_sync(FULL_MASK, rc, P);
+		}
 		if (tid == 0) {
 			self.set_active_nodes(rc ? 1 : 0);
 		}
