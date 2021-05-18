@@ -176,8 +176,9 @@ sort_return tree::sort(sort_params params) {
 			children[ci] = this_rc.check;
 			rc.active_nodes += this_rc.active_nodes;
 			if (!params.group_sort) {
-				Mc[ci] = this_rc.check.get_multi();
-				Xc[ci] = this_rc.check.get_pos();
+				Mc[ci] = this_rc.multi;
+				Xc[ci] = this_rc.pos;
+				Rc[ci] = this_rc.radius;
 				rc.active_parts += this_rc.active_parts;
 				rc.stats.nparts += this_rc.stats.nparts;
 				rc.stats.nleaves += this_rc.stats.nleaves;
@@ -213,8 +214,8 @@ sort_return tree::sort(sort_params params) {
 				pos[dim] = com[dim];
 			}
 			M = (ML >> xl) + (MR >> xr);
-			rleft = std::sqrt(rleft) + children[LEFT].get_radius();
-			rright = std::sqrt(rright) + children[RIGHT].get_radius();
+			rleft = std::sqrt(rleft) + Rc[LEFT];
+			rright = std::sqrt(rright) + Rc[RIGHT];
 			float radius = std::max(rleft, rright);
 			float rmax = 0.0;
 			const auto corners = params.box.get_corners();
@@ -314,6 +315,9 @@ sort_return tree::sort(sort_params params) {
 		self.set_range(box);
 	}
 	rc.check = self;
+	rc.multi = self.get_multi();
+	rc.pos = self.get_pos();
+	rc.radius = self.get_radius();
 	return rc;
 }
 
