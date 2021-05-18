@@ -19,17 +19,22 @@ HPX_PLAIN_ACTION(tree::kick_remote, tree_kick_remote_action);
 static unified_allocator kick_params_alloc;
 //pranges tree::covered_ranges;
 static std::atomic<part_int> parts_covered;
+static std::atomic<part_int> parts_covered_cpu;
+static range my_domain;
 
-void tree::add_parts_covered(part_iters num) {
+void tree::add_parts_covered(part_iters num, bool cpu) {
 	static particle_server pserv;
 	static const auto& parts = pserv.get_particle_set();
 	parts_covered += num.second - num.first;
+	if (cpu) {
+		parts_covered_cpu += num.second - num.first;
+	}
 	if (parts_covered == parts.size()) {
+		printf("CPU covered %e\n", 100.0 * (int) parts_covered_cpu / parts.size());
 		gpu_daemon();
 	}
 //	printf( "%i of %i on %i\n", (part_int) parts_covered, parts.size(), hpx_rank());
 }
-
 
 timer tmp_tm;
 
@@ -131,10 +136,11 @@ sort_return tree::sort(sort_params params) {
 	self.dindex = params.alloc->allocate();
 	self.rank = hpx_rank();
 	if (params.local_root) {
-		printf( "Sorting local root on %i\n", hpx_rank());
+		printf("Sorting local root on %i\n", hpx_rank());
 		params.parts.first = 0;
 		params.parts.second = particles->size();
 		self.set_local_root(true);
+		my_domain = pserv.get_domain_bounds().find_range(params.procs);
 	} else {
 		self.set_local_root(false);
 	}
@@ -151,8 +157,25 @@ sort_return tree::sort(sort_params params) {
 
 	sort_return rc;
 	array<tree_ptr, NCHILD> children;
-	const int max_part = params.group_sort ? GROUP_BUCKET_SIZE : global().opts.bucket_size;
 	const bool domain_decomp = (params.procs.second - params.procs.first) > 1;
+	bool boundary_zone = false;
+	for (int dim = 0; dim < NDIM; dim++) {
+		const auto span = box.end[dim] - box.begin[dim];
+		if (my_domain.end[dim] - my_domain.begin[dim] < 1.0) {
+			if (std::abs(box.begin[dim] - my_domain.begin[dim]) <= span / params.theta) {
+				boundary_zone = true;
+				break;
+			}
+			if (std::abs(box.end[dim] - my_domain.end[dim]) <= span / params.theta) {
+				boundary_zone = true;
+				break;
+			}
+		}
+	}
+	int max_part = (params.group_sort ? GROUP_BUCKET_SIZE : global().opts.bucket_size);
+	if (boundary_zone) {
+		max_part = std::max(2, max_part / 4);
+	}
 //	printf("%li %li %i %i\n", params.procs.first, params.procs.second, params.parts.first, params.parts.second);
 	if (domain_decomp || parts.second - parts.first > max_part
 			|| (params.depth < params.min_depth && parts.second - parts.first > 0)) {
@@ -441,6 +464,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	if (self.local_root()) {
 		kick_timer.start();
 		parts_covered = 0;
+		parts_covered_cpu = 0;
 		tmp_tm.start();
 		size_t dummy, total_mem;
 		CUDA_CHECK(cudaMemGetInfo(&dummy, &total_mem));
@@ -605,16 +629,18 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.depth--;
 		}
 		int depth = params.depth;
-		return hpx::when_all(futs.begin(), futs.end()).then([depth,self,pserv](hpx::future<std::vector<hpx::future<void>>> futfut) {
-			auto futs = futfut.get();
-			futs[LEFT].get();
-			futs[RIGHT].get();
-			if( self.local_root() ) {
-				tree_database_unset_readonly();
-				tree_data_free_cache();
-				pserv.free_cache();
-			}
-		});
+		return hpx::when_all(futs.begin(), futs.end()).then(
+				[depth,self,pserv](hpx::future<std::vector<hpx::future<void>>> futfut) {
+					auto futs = futfut.get();
+					futs[LEFT].get();
+					futs[RIGHT].get();
+					if( self.local_root() ) {
+						printf( "Freeing cache\n");
+						tree_database_unset_readonly();
+						tree_data_free_cache();
+						pserv.free_cache();
+					}
+				});
 	} else {
 		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
@@ -689,9 +715,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			}
 			kick_return_update_rung_cpu(particles->rung(index));
 		}
-		add_parts_covered(parts);
+		add_parts_covered(parts, true);
 		//	rc.rung = max_rung;
-		if( self.local_root() ) {
+		if (self.local_root()) {
 			tree_database_unset_readonly();
 			tree_data_free_cache();
 			pserv.free_cache();

@@ -12,7 +12,7 @@
 #include <cosmictiger/defs.hpp>
 
 #define PARTICLE_CACHE_SIZE 1024
-#define PARTICLE_CACHE_LINE_SIZE (1024)
+#define PARTICLE_CACHE_LINE_SIZE (8*1024)
 
 using pos_data_t = std::vector<std::array<fixed32,NDIM>>;
 

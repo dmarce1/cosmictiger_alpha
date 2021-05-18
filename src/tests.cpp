@@ -88,9 +88,9 @@ void kick_test() {
 	pserv.generate_random();
 	timer ttime;
 	std::vector<double> timings;
-	tree_data_initialize(TREE_KICK);
 
 	for (int i = 0; i < NKICKS + 1; i++) {
+		tree_data_initialize(TREE_KICK);
 		printf("Kick %i\n", i);
 		ttime.start();
 		tree root;
@@ -133,9 +133,6 @@ void kick_test() {
 		tm_kick.stop();
 		tree::cleanup();
 		tm_cleanup.start();
-		managed_allocator<sort_params>::cleanup();
-		managed_allocator<multipole>::cleanup();
-		managed_allocator<tree>::cleanup();
 		params_ptr->kick_params_type::~kick_params_type();
 		CUDA_FREE(params_ptr);
 		tm_cleanup.stop();
