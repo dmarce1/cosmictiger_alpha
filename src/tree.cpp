@@ -13,7 +13,8 @@
 
 #include <cmath>
 
-#define CPU_LOAD (0)
+HPX_PLAIN_ACTION(tree::sort, tree_sort_action);
+HPX_PLAIN_ACTION(tree::kick_remote, tree_kick_remote_action);
 
 static unified_allocator kick_params_alloc;
 //pranges tree::covered_ranges;
@@ -22,6 +23,26 @@ static std::atomic<part_int> parts_covered;
 timer tmp_tm;
 
 static std::atomic<int> kick_block_count;
+
+static bool all_checks_local(const stack_vector<tree_ptr>& checks) {
+	bool local = true;
+	for (int i = 0; i < checks.size(); i++) {
+		if (checks[i].rank != hpx_rank()) {
+			local = false;
+			break;
+		}
+	}
+	if (local) {
+		for (int i = 0; i < checks.size(); i++) {
+			auto proc_range = checks[i].get_proc_range();
+			if (proc_range.second - proc_range.first > 1) {
+				local = false;
+				break;
+			}
+		}
+	}
+	return local;
+}
 
 CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	int lev = 12;
@@ -46,8 +67,6 @@ CUDA_EXPORT inline int ewald_min_level(double theta, double h) {
 	return lev;
 }
 
-HPX_PLAIN_ACTION(tree::sort,tree_sort_action);
-
 fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread) {
 	fast_future<sort_return> fut;
 	particle_server pserv;
@@ -60,7 +79,6 @@ fast_future<sort_return> tree::create_child(sort_params &params, bool try_thread
 #ifdef TEST_STACK
 	thread = false;
 #endif
-
 	if (params.procs.first != hpx_rank()) {
 		fut = hpx::async<tree_sort_action>(hpx_localities()[params.procs.first], params);
 	} else {
@@ -98,13 +116,16 @@ sort_return tree::sort(sort_params params) {
 
 //		printf("min ewald = %i\n", params.min_depth);
 	}
-	if (params.local_root) {
-		params.parts.first = 0;
-		params.parts.second = particles->size();
-	}
 	tree_ptr self;
 	self.dindex = params.alloc->allocate();
 	self.rank = hpx_rank();
+	if (params.local_root) {
+		params.parts.first = 0;
+		params.parts.second = particles->size();
+		self.set_local_root(true);
+	} else {
+		self.set_local_root(false);
+	}
 	parts = params.parts;
 	self.set_parts(parts);
 	self.set_proc_range(params.procs.first, params.procs.second);
@@ -332,45 +353,52 @@ void tree::cleanup() {
 	}
 }
 
+hpx::future<void> tree::kick_remote(kick_params_type params) {
+	return kick(&params);
+}
+
 hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	particle_server pserv;
 	auto* particles = &pserv.get_particle_set();
 	static const bool use_cuda = global().opts.cuda;
 	kick_params_type &params = *params_ptr;
 	const auto parts = get_parts();
-	const auto part_begin = parts.first;
-	const auto part_end = parts.second;
 	const auto num_active = get_active_nodes();
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-	if (use_cuda && num_active <= params.block_cutoff && num_active) {
+	const bool all_local = all_checks_local(params.dchecks) && all_checks_local(params.echecks);
+	if (all_local && use_cuda && num_active <= params.block_cutoff && num_active) {
 		return tree::send_kick_to_gpu(params_ptr);
 	} else {
-		static std::atomic<int> used_threads(0);
-		if (thread) {
-			const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
-			if (used_threads++ > max_threads) {
-				used_threads--;
-				thread = false;
-			}
-		}
-		if (thread) {
-			kick_params_type *new_params;
-			new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
-			new (new_params) kick_params_type();
-			*new_params = *params_ptr;
-			tree_ptr me = *this;
-			auto func = [me,new_params]() {
-				auto rc = tree::kick(new_params);
-				used_threads--;
-				new_params->kick_params_type::~kick_params_type();
-				kick_params_alloc.deallocate(new_params);
-				return rc;
-			};
-			auto fut = hpx::async(std::move(func));
-			return std::move(fut);
+		if (params.tptr.rank != hpx_rank()) {
+			return hpx::async<tree_kick_remote_action>(hpx_localities()[params.tptr.rank], params);
 		} else {
-			auto fut = hpx::make_ready_future(tree::kick(params_ptr));
-			return fut;
+			static std::atomic<int> used_threads(0);
+			if (thread) {
+				const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
+				if (used_threads++ > max_threads) {
+					used_threads--;
+					thread = false;
+				}
+			}
+			if (thread) {
+				kick_params_type *new_params;
+				new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
+				new (new_params) kick_params_type();
+				*new_params = *params_ptr;
+				tree_ptr me = *this;
+				auto func = [me,new_params]() {
+					auto rc = tree::kick(new_params);
+					used_threads--;
+					new_params->kick_params_type::~kick_params_type();
+					kick_params_alloc.deallocate(new_params);
+					return rc;
+				};
+				auto fut = hpx::async(std::move(func));
+				return std::move(fut);
+			} else {
+				auto fut = hpx::make_ready_future(tree::kick(params_ptr));
+				return fut;
+			}
 		}
 	}
 }
@@ -397,7 +425,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto& F = params.F;
 	auto& phi = params.Phi;
 	const auto parts = self.get_parts();
-	if (params.depth == 0) {
+	if (self.local_root()) {
 		kick_timer.start();
 		parts_covered = 0;
 		tmp_tm.start();

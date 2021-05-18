@@ -53,6 +53,15 @@ class vector {
 	}
 public:
 #ifndef __CUDA_ARCH__
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		auto this_sz = sz;
+		arc & this_sz;
+		resize(this_sz);
+		for( int i = 0; i < sz; i++) {
+			arc & (*this)[i];
+		}
+	}
 	std::function<void()> to_device(cudaStream_t stream) {
 		//   assert(cap);
 		dontfree = true;

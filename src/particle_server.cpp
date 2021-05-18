@@ -23,33 +23,41 @@ part_int index_to_cache_line(part_int i) {
 }
 
 void particle_server::read_positions(std::array<std::vector<fixed32>, NDIM>& X, int rank, part_iters rng) {
-	if (rng.second - rng.first == 0) {
-		return;
-	}
-	global_part_iter piter;
-	piter.rank = rank;
-	piter.index = rng.first;
-	load_cache_line(piter);
-	part_int i = rng.first;
-	do {
-		global_part_iter_hash_lo hashlo;
-		piter.index = index_to_cache_line(piter.index);
-		const auto loindex = hashlo(piter);
-		auto& mutex = mutexes[loindex];
-		std::unique_lock<mutex_type> lock(mutexes[loindex]);
-		auto& cache = caches[loindex];
-		do {
+	if (rank == hpx_rank()) {
+		for (part_int i = rng.first; i < rng.second; i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
-				X[dim].push_back(cache[piter]->X[i - piter.index][dim]);
+				X[dim].push_back(parts->pos(dim, i));
 			}
-			i++;
-		} while (i % PARTICLE_CACHE_LINE_SIZE != 0 && i != rng.second);
-		lock.unlock();
-		if (i != rng.second) {
-			piter.index = i;
-			load_cache_line(piter);
 		}
-	} while (i != rng.second);
+	} else {
+		if (rng.second - rng.first == 0) {
+			return;
+		}
+		global_part_iter piter;
+		piter.rank = rank;
+		piter.index = rng.first;
+		load_cache_line(piter);
+		part_int i = rng.first;
+		do {
+			global_part_iter_hash_lo hashlo;
+			piter.index = index_to_cache_line(piter.index);
+			const auto loindex = hashlo(piter);
+			auto& mutex = mutexes[loindex];
+			std::unique_lock<mutex_type> lock(mutexes[loindex]);
+			auto& cache = caches[loindex];
+			do {
+				for (int dim = 0; dim < NDIM; dim++) {
+					X[dim].push_back(cache[piter]->X[i - piter.index][dim]);
+				}
+				i++;
+			} while (i % PARTICLE_CACHE_LINE_SIZE != 0 && i != rng.second);
+			lock.unlock();
+			if (i != rng.second) {
+				piter.index = i;
+				load_cache_line(piter);
+			}
+		} while (i != rng.second);
+	}
 }
 
 void particle_server::load_cache_line(global_part_iter piter) {

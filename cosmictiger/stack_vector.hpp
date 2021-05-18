@@ -15,6 +15,11 @@ class stack_vector {
       return bounds.back();
    }
 public:
+   template<class A>
+   void serialize(A&& arc,unsigned) {
+   	arc & data;
+   	arc & bounds;
+   }
    CUDA_EXPORT inline void swap(stack_vector<T>& other) {
    	data.swap(other.data);
    	bounds.swap(other.bounds);

@@ -104,6 +104,11 @@ part_iters tree_data_read_cache_parts(tree_ptr ptr) {
 	return dat.parts;
 }
 
+bool tree_data_read_cache_local_root(tree_ptr ptr) {
+	auto& dat = tree_data_load_cache(ptr);
+	return dat.local_root;
+}
+
 size_t tree_data_read_cache_active_nodes(tree_ptr ptr) {
 	auto& dat = tree_data_load_cache(ptr);
 	return dat.active_nodes;
@@ -151,6 +156,7 @@ std::vector<tree_node_t> tree_data_fetch_cache_line(int index) {
 		}
 		entry.parts = cpu_tree_data_.parts[i];
 		entry.proc_range = cpu_tree_data_.proc_range[i];
+		entry.local_root = cpu_tree_data_.local_root[i];
 		line.push_back(entry);
 	}
 	return line;

@@ -214,8 +214,27 @@ struct kick_params_type {
 	bool first;
 	bool groups;
 	int rung;
-	bool cpu_block;
 	float t0;
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & dchecks;
+		arc & echecks;
+		arc & L;
+		arc & Lpos;
+		arc & tptr;
+		arc & depth;
+		arc & theta;
+		arc & M;
+		arc & G;
+		arc & eta;
+		arc & scale;
+		arc & hsoft;
+		arc & full_eval;
+		arc & first;
+		arc & groups;
+		arc & rung;
+		arc & t0;
+	}
 	kick_params_type& operator=(kick_params_type& other) {
 		first = other.first;
 		dchecks = other.dchecks.copy_top();
@@ -245,8 +264,7 @@ struct kick_params_type {
 		eta = 0.2 / std::sqrt(2);
 		scale = 1.0;
 		t0 = 1.0;
-		cpu_block = false;
-		first = true;
+			first = true;
 		full_eval = false;
 		rung = 0;
 		hsoft = global().opts.hsoft;
@@ -304,6 +322,7 @@ public:
 	static void cpu_pc_direct(kick_params_type *params);
 	static void cpu_cc_ewald(kick_params_type *params);
 	static sort_return sort(sort_params = sort_params());
+	static hpx::future<void> kick_remote(kick_params_type);
 	static hpx::future<void> kick(kick_params_type*);
 	static std::atomic<bool> daemon_running;
 	static std::atomic<bool> shutdown_daemon;

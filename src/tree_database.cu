@@ -42,6 +42,7 @@ void tree_data_initialize_kick() {
 	CUDA_MALLOC(cpu_tree_data_.parts, cpu_tree_data_.ntrees);
 	CUDA_MALLOC(cpu_tree_data_.multi, cpu_tree_data_.ntrees);
 	CUDA_MALLOC(cpu_tree_data_.active_nodes, cpu_tree_data_.ntrees);
+	CUDA_MALLOC(cpu_tree_data_.local_root, cpu_tree_data_.ntrees);
 	CUDA_MALLOC(cpu_tree_data_.active_parts, cpu_tree_data_.ntrees);
 	tree_data_clear();
 
@@ -70,6 +71,7 @@ void tree_data_initialize_groups() {
 	CUDA_MALLOC(cpu_tree_data_.parts, cpu_tree_data_.ntrees);
 	CUDA_MALLOC(cpu_tree_data_.ranges, cpu_tree_data_.ntrees);
 	CUDA_MALLOC(cpu_tree_data_.active_parts, cpu_tree_data_.ntrees);
+	CUDA_MALLOC(cpu_tree_data_.local_root, cpu_tree_data_.ntrees);
 	CUDA_MALLOC(cpu_tree_data_.active_nodes, cpu_tree_data_.ntrees);
 
 	tree_data_clear();
@@ -85,6 +87,7 @@ void tree_data_free_all_cu() {
 	free_if_needed(&cpu_tree_data_.ranges);
 	free_if_needed(&cpu_tree_data_.active_nodes);
 	free_if_needed(&cpu_tree_data_.active_parts);
+	free_if_needed(&cpu_tree_data_.local_root);
 }
 
 size_t tree_data_bytes_used() {

@@ -21,8 +21,6 @@ using tree_use_type = int8_t;
 #define TREE_KICK 0
 #define TREE_GROUPS 1
 
-
-
 struct tree_ptr {
 	int dindex;
 	int rank;
@@ -101,6 +99,11 @@ struct tree_ptr {
 
 	void set_proc_range(int, int) const;
 
+	CUDA_EXPORT
+	bool local_root() const;
+
+	void set_local_root(bool) const;
+
 #ifndef __CUDACC__
 	hpx::future<size_t> find_groups(group_param_type*, bool);
 	hpx::future<void> kick(kick_params_type*, bool);
@@ -117,6 +120,7 @@ struct tree_node_t {
 	array<tree_ptr,NCHILD> children;
 	range ranges;
 	size_t active_parts;
+	int8_t local_root;
 	tree_use_type use;
 	template<class A>
 	void serialize(A&& arc, unsigned) {
@@ -134,10 +138,13 @@ struct tree_node_t {
 			arc & ranges;
 		}
 		arc & active_parts;
+		arc & local_root;
 	}
 
 };
 
+bool tree_data_read_local_root();
+bool tree_data_read_cache_local_root(tree_ptr ptr);
 multipole tree_data_read_cache_multi(tree_ptr ptr);
 array<fixed32, NDIM> tree_data_read_cache_pos(tree_ptr ptr);
 float tree_data_read_cache_radius(tree_ptr ptr);
@@ -220,6 +227,10 @@ void tree_data_set_range(int i, const range& r);
 CUDA_EXPORT pair<int, int> tree_data_get_proc_range(int i);
 
 void tree_data_set_proc_range(int, int, int);
+
+CUDA_EXPORT bool tree_data_local_root(int i);
+
+void tree_data_set_local_root(int, bool);
 
 void tree_data_clear();
 
@@ -424,6 +435,23 @@ inline pair<int, int> tree_ptr::get_proc_range() const {
 #endif
 }
 
+inline void tree_ptr::set_local_root(bool b) const {
+	tree_data_set_local_root(dindex, b);
+}
+
+CUDA_EXPORT
+inline bool tree_ptr::local_root() const {
+#ifndef __CUDACC__
+	if (rank == hpx_rank()) {
+#endif
+		return tree_data_local_root(dindex);
+#ifndef __CUDACC__
+	} else {
+		return tree_data_read_cache_local_root(*this);
+	}
+#endif
+}
+
 inline void tree_ptr::set_proc_range(int b, int e) const {
 	tree_data_set_proc_range(dindex, b, e);
 }
@@ -452,13 +480,14 @@ struct tree_database_t {
 	pair<int, int>* proc_range;
 	range* ranges;
 	size_t* active_parts;
+	int8_t* local_root;
 	int ntrees;
 	int nchunks;
 	int chunk_size;
 };
 
 #ifdef TREE_DATABASE_CU
-__constant__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
+__constant__ tree_database_t gpu_tree_data_ = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,1,1,1};
 tree_database_t cpu_tree_data_;
 #else
 extern __constant__ tree_database_t gpu_tree_data_;
@@ -731,6 +760,28 @@ void tree_data_set_proc_range(int i, int b, int e) {
 	assert(i < tree_data_.ntrees);
 	tree_data_.proc_range[i].first = b;
 	tree_data_.proc_range[i].second = e;
+}
+CUDA_EXPORT inline bool tree_data_local_root(int i) {
+#ifdef __CUDACC__
+	auto& tree_data_ = gpu_tree_data_;
+#else
+	auto& tree_data_ = cpu_tree_data_;
+#endif
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	return tree_data_.local_root[i];
+}
+
+inline
+void tree_data_set_local_root(int i, bool b) {
+#ifdef __CUDACC__
+	auto& tree_data_ = gpu_tree_data_;
+#else
+	auto& tree_data_ = cpu_tree_data_;
+#endif
+	assert(i >= 0);
+	assert(i < tree_data_.ntrees);
+	tree_data_.local_root[i]= b;
 }
 
 void tree_database_set_readonly();
