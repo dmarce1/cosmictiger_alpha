@@ -13,7 +13,6 @@
 #include <cosmictiger/stack_vector.hpp>
 #include <cosmictiger/tree_database.hpp>
 
-
 #include <functional>
 
 #include <queue>
@@ -36,28 +35,64 @@ struct tree_stats {
 	size_t nparts;
 	size_t nleaves;
 	size_t nnodes;
+
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & max_depth;
+		arc & min_depth;
+		arc & e_depth;
+		arc & nparts;
+		arc & nleaves;
+		arc & nnodes;
+	}
 };
 
 #ifndef __CUDACC__
 
 struct sort_params {
-#ifdef TEST_STACK
-	uint8_t* stack_ptr;
-#endif
 	range box;
 	int8_t depth;
 	int8_t min_depth;
+	pair<int, int> procs;
 	double theta;
 	part_iters parts;
 	int min_rung;
 	bool group_sort;
+	bool local_root;
 	std::shared_ptr<tree_allocator> alloc;
+
+	HPX_SERIALIZATION_SPLIT_MEMBER()
+	;
+
 	template<class A>
-	void serialization(A &&arc, unsigned) {
-		/********* ADD******/
+	void save(A &&arc, unsigned) const {
+		arc & box;
+		arc & depth;
+		arc & min_depth;
+		arc & procs;
+		arc & theta;
+		arc & parts;
+		arc & min_rung;
+		arc & group_sort;
+		arc & local_root;
+	}
+
+	template<class A>
+	void load(A &&arc, unsigned) {
+		arc & box;
+		arc & depth;
+		arc & min_depth;
+		arc & procs;
+		arc & theta;
+		arc & parts;
+		arc & min_rung;
+		arc & group_sort;
+		arc & local_root;
+		alloc = std::make_shared<tree_allocator>();
 	}
 
 	sort_params() {
+		local_root = false;
 		depth = -1;
 		group_sort = false;
 	}
@@ -72,9 +107,10 @@ struct sort_params {
 			box.begin[dim] = 0.f;
 			box.end[dim] = 1.f;
 		}
-		parts.first = 0;
-		parts.second = global().opts.nparts;
 		depth = 0;
+		procs.first = 0;
+		procs.second = hpx_size();
+		local_root = (procs.second == 1);
 	}
 
 	std::array<sort_params, NCHILD> get_children() const {
@@ -86,6 +122,8 @@ struct sort_params {
 			child[i].min_rung = min_rung;
 			child[i].alloc = alloc;
 			child[i].group_sort = group_sort;
+			child[i].procs = procs;
+			child[i].local_root = false;
 		}
 		return child;
 	}
@@ -101,9 +139,13 @@ struct sort_return {
 	tree_ptr check;
 	size_t active_parts;
 	size_t active_nodes;
+
 	template<class A>
-	void serialization(A &&arc, unsigned) {
-		assert(false);
+	void serialize(A &&arc, unsigned) {
+		arc & stats;
+		arc & check;
+		arc & active_parts;
+		arc & active_nodes;
 	}
 };
 
@@ -238,12 +280,10 @@ struct tree {
 #ifndef __CUDACC__
 private:
 #endif //*** multi and pos MUST be adjacent and ordered multi then pos !!!!!!! *****/
-	static domain_bounds domain_boundaries;
 public:
 	static std::atomic<int> cuda_node_count;
 	static std::atomic<int> cpu_node_count;
 	static void show_timings();
-	static void set_domain_bounds(domain_bounds);
 #ifndef __CUDACC__
 //		static pranges covered_ranges;
 	inline static fast_future<sort_return> create_child(sort_params&, bool try_thread);

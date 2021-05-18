@@ -13,6 +13,27 @@ HPX_PLAIN_ACTION(particle_server::domain_decomp_send, particle_server_domain_dec
 HPX_PLAIN_ACTION(particle_server::domain_decomp_finish, particle_server_domain_decomp_finish_action);
 HPX_PLAIN_ACTION(particle_server::domain_decomp_transmit, particle_server_domain_decomp_transmit_action);
 HPX_PLAIN_ACTION(particle_server::generate_random, particle_server_generate_random_action);
+HPX_PLAIN_ACTION(particle_server::check_domain_bounds, particle_server_check_domain_bounds_action);
+
+void particle_server::check_domain_bounds() {
+	std::vector<hpx::future<void>> futs;
+	if (hpx_rank() == 0) {
+		for (int i = 1; i < hpx_size(); i++) {
+			futs.push_back(hpx::async<particle_server_check_domain_bounds_action>(hpx_localities()[i]));
+		}
+	}
+	auto myrange = dbounds.find_proc_range(hpx_rank());
+	for( part_int i = 0; i < parts->size(); i++) {
+		for( int dim = 0; dim < NDIM; dim++) {
+			const auto x = parts->pos(dim,i).to_double();
+			if( x < myrange.begin[dim] || x > myrange.end[dim]) {
+				ERROR();
+			}
+		}
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+}
+
 
 void particle_server::generate_random() {
 	std::vector<hpx::future<void>> futs;
@@ -90,6 +111,10 @@ void particle_server::domain_decomp_gather() {
 
 particle_set& particle_server::get_particle_set() {
 	return *parts;
+}
+
+const domain_bounds& particle_server::get_domain_bounds() {
+	return dbounds;
 }
 
 

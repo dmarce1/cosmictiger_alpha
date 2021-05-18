@@ -24,6 +24,8 @@ public:
 	static void domain_decomp_send();
 	static void domain_decomp_finish();
 	static void generate_random();
+	static void check_domain_bounds();
+	static const domain_bounds& get_domain_bounds();
 	static particle_set& get_particle_set();
 	static void domain_decomp_transmit(std::vector<particle>);
 };

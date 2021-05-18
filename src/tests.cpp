@@ -22,6 +22,7 @@ static void psort_test() {
 	pserv.init();
 	timer tm;
 	pserv.generate_random();
+	tree_data_initialize(TREE_KICK);
 	printf("Gathering\n");
 	tm.start();
 	pserv.domain_decomp_gather();
@@ -38,6 +39,20 @@ static void psort_test() {
 	printf("Finishing\n");
 	pserv.domain_decomp_finish();
 	tm.stop();
+	tm.reset();
+
+	pserv.check_domain_bounds();
+
+	tm.start();
+	sort_params params;
+	params.min_rung = 0;
+	params.theta = global().opts.theta;
+	params.group_sort = false;
+	tree::sort(params);
+	tm.stop();
+	printf("Done sorting in %e\n", tm.read());
+
+
 	printf( "took %e s\n", tm.read());
 }
 
@@ -54,6 +69,7 @@ static void tree_test() {
 		tree root;
 		sort_params params;
 		params.min_rung = 0;
+		params.group_sort = false;
 		params.theta = global().opts.theta;
 		tree_data_initialize_kick();
 		root.sort(params);
@@ -68,6 +84,7 @@ static void tree_test() {
 		tm.start();
 		tree root;
 		sort_params params;
+		params.group_sort = false;
 		params.min_rung = 0;
 		params.theta = global().opts.theta;
 		root.sort(params);
