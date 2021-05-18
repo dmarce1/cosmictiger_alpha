@@ -321,6 +321,7 @@ sort_return tree::sort(sort_params params) {
 			rc.active_nodes = 1;
 		}
 		for (int ci = 0; ci < NCHILD; ci++) {
+			children[ci].rank = -1;
 			children[ci].dindex = -1;
 		}
 		self.set_leaf(true);

@@ -58,8 +58,12 @@ void tree_data_free_cache() {
 
 tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 	if (ptr.rank >= hpx_size()) {
+		printf( "Rank out of range %i\n", ptr.rank);
 		ERROR()
 		;
+	} else {
+		if( hpx_rank() == 0 )
+		printf( "loading cache on rank %i\n", hpx_rank());
 	}
 	if (ptr.dindex > cpu_tree_data_.ntrees) {
 		ERROR()
@@ -71,8 +75,8 @@ tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 	line_ptr.rank = ptr.rank;
 	const int loindex = hashlo(line_ptr);
 	auto& mutex = mutexes[loindex];
-	std::unique_lock<mutex_type> lock(mutex);
 	auto& cache = caches[loindex];
+	std::unique_lock<mutex_type> lock(mutex);
 	auto i = cache.find(line_ptr);
 	if (i == cache.end()) {
 		auto& entry = cache[line_ptr];
@@ -173,6 +177,7 @@ std::vector<tree_node_t> tree_data_fetch_cache_line(int index) {
 		entry.parts = cpu_tree_data_.parts[i];
 		entry.proc_range = cpu_tree_data_.proc_range[i];
 		entry.local_root = cpu_tree_data_.local_root[i];
+		entry.children = cpu_tree_data_.data[i].children;
 		line.push_back(entry);
 	}
 	return line;

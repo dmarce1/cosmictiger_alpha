@@ -45,7 +45,10 @@ void tree_data_initialize_kick() {
 	CUDA_MALLOC(cpu_tree_data_.local_root, cpu_tree_data_.ntrees);
 	CUDA_MALLOC(cpu_tree_data_.active_parts, cpu_tree_data_.ntrees);
 	tree_data_clear();
-
+/*	for( int i = 0; i < cpu_tree_data_.ntrees; i++) {
+		cpu_tree_data_.data[i].children[0].rank = 111111;
+		cpu_tree_data_.data[i].children[1].rank = 111111;
+	}*/
 	CUDA_CHECK(cudaMemcpyToSymbol(gpu_tree_data_, &cpu_tree_data_, sizeof(cpu_tree_data_)));
 
 }
