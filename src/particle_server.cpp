@@ -87,9 +87,10 @@ void particle_server::load_cache_line(global_part_iter piter) {
 			particle_server_fetch_cache_line_action act;
 			auto line = act(hpx_localities()[line_ptr.rank], line_ptr.index);
 			auto& mutex = mutexes[loindex];
-			std::lock_guard<mutex_type> lock(mutex);
 			auto& cache = caches[loindex];
+			std::unique_lock<mutex_type> lock(mutex);
 			cache[line_ptr]->X = std::move(line);
+			lock.unlock();
 			prms->set_value();
 		});
 		lock.lock();

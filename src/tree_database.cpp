@@ -51,12 +51,20 @@ void tree_data_clear_cache() {
 }
 
 void tree_data_free_cache() {
-	for( int i = 0; i < TREE_CACHE_SIZE; i++) {
+	for (int i = 0; i < TREE_CACHE_SIZE; i++) {
 		caches[i] = tree_cache_map_type();
 	}
 }
 
 tree_node_t& tree_data_load_cache(tree_ptr ptr) {
+	if (ptr.rank >= hpx_size()) {
+		ERROR()
+		;
+	}
+	if (ptr.dindex > cpu_tree_data_.ntrees) {
+		ERROR()
+		;
+	}
 	static const tree_hash_lo hashlo;
 	tree_ptr line_ptr;
 	line_ptr.dindex = cache_line_index(ptr.dindex);
@@ -76,9 +84,10 @@ tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 			tree_data_fetch_cache_line_action act;
 			auto line = act(hpx_localities()[line_ptr.rank], line_ptr.dindex);
 			auto& mutex = mutexes[loindex];
-			std::lock_guard<mutex_type> lock(mutex);
 			auto& cache = caches[loindex];
+			std::unique_lock<mutex_type> lock(mutex);
 			cache[line_ptr]->data = std::move(line);
+			lock.unlock();
 			prms->set_value();
 		});
 		lock.lock();

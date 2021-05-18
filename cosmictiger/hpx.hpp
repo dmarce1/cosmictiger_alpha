@@ -16,7 +16,7 @@
 #include <hpx/hpx_init.hpp>
 #include <hpx/include/serialization.hpp>
 
-using mutex_type = hpx::lcos::local::mutex;
+using mutex_type = hpx::lcos::local::spinlock;
 using spinlock_type = hpx::lcos::local::spinlock;
 
 const std::vector<hpx::id_type>& hpx_localities();
