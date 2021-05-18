@@ -16,20 +16,20 @@ struct tree_cache_entry {
 
 struct tree_hash_lo {
 	size_t operator()(tree_ptr ptr) const {
-		const int i = ptr.dindex * hpx_size() + hpx_rank();
-		return (i / TREE_CACHE_LINE_SIZE) % TREE_CACHE_SIZE;
+		const int i = ptr.dindex / TREE_CACHE_LINE_SIZE * hpx_size() + hpx_rank();
+		return (i) % TREE_CACHE_SIZE;
 	}
 };
 
 struct tree_hash_hi {
 	size_t operator()(tree_ptr ptr) const {
-		const int i = ptr.dindex * hpx_size() + hpx_rank();
-		return (i / TREE_CACHE_LINE_SIZE) / TREE_CACHE_SIZE;
+		const int i = ptr.dindex / TREE_CACHE_LINE_SIZE * hpx_size() + hpx_rank();
+		return (i) / TREE_CACHE_SIZE;
 	}
 };
 
 static std::array<mutex_type, TREE_CACHE_SIZE> mutexes;
-static std::array<std::unordered_map<tree_ptr, tree_cache_entry, tree_hash_hi>, TREE_CACHE_SIZE> caches;
+static std::array<std::unordered_map<tree_ptr, std::shared_ptr<tree_cache_entry>, tree_hash_hi>, TREE_CACHE_SIZE> caches;
 
 std::vector<tree_node_t> tree_data_fetch_cache_line(int index);
 void tree_data_clear_cache();
@@ -44,7 +44,7 @@ HPX_PLAIN_ACTION(tree_data_clear_cache);
 
 void tree_data_clear_cache() {
 	std::vector<hpx::future<void>> futs;
-	if( hpx_rank() == 0 ) {
+	if (hpx_rank() == 0) {
 
 	}
 }
@@ -62,7 +62,8 @@ tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 	if (i == cache.end()) {
 		auto& entry = cache[line_ptr];
 		auto prms = std::make_shared<hpx::lcos::local::promise<void>>();
-		entry.ready_fut = prms->get_future();
+		entry = std::make_shared<tree_cache_entry>();
+		entry->ready_fut = prms->get_future();
 		lock.unlock();
 		hpx::apply([prms,i,loindex,line_ptr]() {
 			tree_data_fetch_cache_line_action act;
@@ -70,15 +71,16 @@ tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 			auto& mutex = mutexes[loindex];
 			std::lock_guard<mutex_type> lock(mutex);
 			auto& cache = caches[loindex];
-			cache[line_ptr].data = std::move(line);
+			cache[line_ptr]->data = std::move(line);
 			prms->set_value();
 		});
 		lock.lock();
 		i = cache.find(line_ptr);
 	}
+	auto& entry = i->second;
 	lock.unlock();
-	i->second.ready_fut.get();
-	return i->second.data[ptr.dindex - line_ptr.dindex];
+	entry->ready_fut.get();
+	return entry->data[ptr.dindex - line_ptr.dindex];
 }
 
 multipole tree_data_read_cache_multi(tree_ptr ptr) {
@@ -112,7 +114,7 @@ pair<int, int> tree_data_read_cache_proc_range(tree_ptr ptr) {
 	return dat.proc_range;
 }
 
-array<tree_ptr,NCHILD> tree_data_read_cache_children(tree_ptr ptr) {
+array<tree_ptr, NCHILD> tree_data_read_cache_children(tree_ptr ptr) {
 	auto& dat = tree_data_load_cache(ptr);
 	return dat.children;
 }

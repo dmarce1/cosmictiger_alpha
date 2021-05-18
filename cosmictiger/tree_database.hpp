@@ -35,7 +35,7 @@ struct tree_ptr {
 
 	CUDA_EXPORT
 	inline bool operator==(const tree_ptr &other) const {
-		return dindex == other.dindex;
+		return dindex == other.dindex && rank == other.rank;
 	}
 
 	CUDA_EXPORT
