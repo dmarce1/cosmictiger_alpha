@@ -25,6 +25,16 @@ struct tree_ptr {
 	int dindex;
 	int rank;
 
+	bool operator<(const tree_ptr& other) const {
+		if( rank < other.rank) {
+			return true;
+		} else if( rank > other.rank) {
+			return false;
+		} else {
+			return dindex < other.dindex;
+		}
+	}
+
 	template<class A>
 	void serialize(A&& arc, unsigned) {
 		arc & dindex;
@@ -165,6 +175,8 @@ void tree_data_initialize_kick();
 void tree_data_initialize_groups();
 void tree_data_free_all_cu();
 void tree_database_set_groups();
+tree_ptr tree_data_global_to_local(tree_ptr);
+void tree_data_global_to_local(stack_vector<tree_ptr>&);
 
 void tree_data_initialize(tree_use_type);
 void tree_data_free_all();
@@ -793,6 +805,6 @@ void tree_data_set_local_root(int i, bool b) {
 }
 
 void tree_database_set_readonly();
-
+void tree_data_map_global_to_local();
 void tree_database_unset_readonly();
 

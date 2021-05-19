@@ -9,7 +9,10 @@
 #define PARTICLE_SERVER_HPP_
 
 #include <cosmictiger/particle.hpp>
+
 #include <cosmictiger/defs.hpp>
+
+class tree_ptr;
 
 #define PARTICLE_CACHE_SIZE 1024
 #define PARTICLE_CACHE_LINE_SIZE (8*1024)
@@ -51,12 +54,8 @@ class particle_server {
 	static particle_send_type part_sends;
 	static domain_bounds dbounds;
 	static spinlock_type mutex;
-	static std::array<mutex_type, PARTICLE_CACHE_SIZE> mutexes;
-	static std::array<particle_cache_type,PARTICLE_CACHE_SIZE> caches;
 
-	static void load_cache_line(global_part_iter);
 public:
-	static pos_data_t fetch_cache_line(part_int);
 	static void init();
 	static bool domain_decomp_gather();
 	static void domain_decomp_send();
@@ -65,10 +64,10 @@ public:
 	static void check_domain_bounds();
 	static const domain_bounds& get_domain_bounds();
 	static particle_set& get_particle_set();
-	static void read_positions(std::array<std::vector<fixed32>, NDIM>& x, int rank, part_iters);
 	static void domain_decomp_transmit(std::vector<particle>);
 	static void apply_domain_decomp();
-	static void free_cache();
+	static std::array<std::vector<fixed32>,NDIM> gather_pos(std::vector<part_iters>);
+	static void global_to_local(std::set<tree_ptr>);
 };
 
 #endif /* PARTICLE_SERVER_HPP_ */

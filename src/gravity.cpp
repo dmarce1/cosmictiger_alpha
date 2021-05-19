@@ -90,6 +90,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 
 void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	particle_server pserv;
+	auto& particles = pserv.get_particle_set();
 	kick_params_type &params = *params_ptr;
 	auto &L = params.L[params.depth];
 	const auto parts = params.tptr.get_parts();
@@ -105,7 +106,11 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	auto &partis = params.part_interactions;
 	for (int k = 0; k < partis.size(); k++) {
 		const auto& other_parts = partis[k].get_parts();
-		pserv.read_positions(sources, partis[k].rank, other_parts);
+		for (part_int l = other_parts.first; l < other_parts.second; l++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				sources[dim].push_back(particles.pos(dim, l));
+			}
+		}
 	}
 	array<simd_int, NDIM> X;
 	array<simd_int, NDIM> Y;
@@ -183,10 +188,14 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	auto &partis = params.part_interactions;
 	for (int k = 0; k < partis.size(); k++) {
 		const auto& other_parts = partis[k].get_parts();
-		if( !partis[k].local() ) {
-			ERROR();
+		for (int k = 0; k < partis.size(); k++) {
+			const auto& other_parts = partis[k].get_parts();
+			for (part_int l = other_parts.first; l < other_parts.second; l++) {
+				for (int dim = 0; dim < NDIM; dim++) {
+					sources[dim].push_back(particles->pos(dim, l));
+				}
+			}
 		}
-		pserv.read_positions(sources, partis[k].rank, other_parts);
 	}
 	simd_float mask;
 	array<simd_int, NDIM> X;

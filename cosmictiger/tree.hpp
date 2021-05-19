@@ -215,8 +215,10 @@ struct kick_params_type {
 	bool groups;
 	int rung;
 	float t0;
+	bool dry_run;
 	template<class A>
 	void serialize(A&& arc, unsigned) {
+		arc & dry_run;
 		arc & dchecks;
 		arc & echecks;
 		arc & L;
@@ -236,6 +238,7 @@ struct kick_params_type {
 		arc & t0;
 	}
 	kick_params_type& operator=(kick_params_type& other) {
+		dry_run = other.dry_run;
 		first = other.first;
 		dchecks = other.dchecks.copy_top();
 		echecks = other.echecks.copy_top();
@@ -311,12 +314,11 @@ public:
 //		static pranges covered_ranges;
 	inline static fast_future<sort_return> create_child(sort_params&, bool try_thread);
 	static fast_future<sort_return> cleanup_child();
-	static hpx::lcos::local::mutex mtx;
-	static hpx::lcos::local::mutex gpu_mtx;
+	static mutex_type mtx;
 	static hpx::future<void> send_kick_to_gpu(kick_params_type *params);
 	static void gpu_daemon();
 	static void cleanup();
-	static void add_parts_covered(part_iters,bool=false);
+	static void add_parts_covered(part_iters);
 	static void cpu_cc_direct(kick_params_type *params);
 	static void cpu_cp_direct(kick_params_type *params);
 	static void cpu_pp_direct(kick_params_type *params);

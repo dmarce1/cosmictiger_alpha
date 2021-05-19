@@ -40,22 +40,30 @@ static std::array<mutex_type, TREE_CACHE_SIZE> mutexes;
 static std::array<tree_cache_map_type, TREE_CACHE_SIZE> caches;
 static std::unordered_map<tree_ptr, int, tree_hash> tree_map;
 
+tree_ptr tree_data_global_to_local(tree_ptr global) {
+	tree_ptr local;
+	local.rank = hpx_rank();
+	local.dindex = tree_map[global];
+	return local;
+}
+
 void tree_data_map_global_to_local() {
 	const int nthreads = hardware_concurrency();
 	static spinlock_type mutex;
+	std::vector<hpx::future<void>> futs;
+	tree_map = decltype(tree_map)();
 	for (int proc = 0; proc < nthreads; proc++) {
 		const auto func = [nthreads,proc]() {
 			tree_allocator tree_alloc;
 			const int start = proc * TREE_CACHE_SIZE / nthreads;
 			const int stop = (proc + 1) * TREE_CACHE_SIZE / nthreads;
 			for (int i = start; i < stop; i++) {
-				const auto& cache = caches[i];
+				auto& cache = caches[i];
 				for (auto k = cache.begin(); k != cache.end(); k++) {
 					const auto& line = k->second;
 					for (int l = 0; l < line->data.size(); l++) {
 						int index = tree_alloc.allocate();
 						const auto& entry = line->data[l];
-						tree_map[k->first] = index;
 						cpu_tree_data_.active_nodes[index] = entry.active_nodes;
 						cpu_tree_data_.active_parts[index] = entry.active_parts;
 						if (cpu_tree_data_.multi) {
@@ -71,15 +79,37 @@ void tree_data_map_global_to_local() {
 						cpu_tree_data_.proc_range[index] = entry.proc_range;
 						cpu_tree_data_.local_root[index] = entry.local_root;
 						cpu_tree_data_.data[index].children = entry.children;
+						std::lock_guard<spinlock_type> lock(mutex);
+						tree_map[k->first] = index;
+					}
+				}
+				cache = tree_cache_map_type();
+			}};
+		futs.push_back(hpx::async(func));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+	futs.resize(0);
+	for (int proc = 0; proc < nthreads; proc++) {
+		const auto func = [nthreads,proc]() {
+			tree_allocator tree_alloc;
+			const int start = proc * cpu_tree_data_.ntrees / nthreads;
+			const int stop = (proc + 1) * cpu_tree_data_.ntrees / nthreads;
+			for (int i = start; i < stop; i++) {
+				auto& children = cpu_tree_data_.data[i].children;
+				for( int ci = 0; ci < NCHILD; ci++) {
+					const auto iter = tree_map.find(children[ci]);
+					if( iter != tree_map.end()) {
+						children[ci].dindex = iter->second;
+						children[ci].rank = hpx_rank();
 					}
 				}
 			}};
-		func();
+		futs.push_back(hpx::async(func));
 	}
+	hpx::wait_all(futs.begin(), futs.end());
 }
 
 std::vector<tree_node_t> tree_data_fetch_cache_line(int index);
-void tree_data_clear_cache();
 
 static int cache_line_index(int index) {
 	return index - index % TREE_CACHE_LINE_SIZE;
@@ -87,12 +117,10 @@ static int cache_line_index(int index) {
 }
 
 HPX_PLAIN_ACTION(tree_data_fetch_cache_line);
-HPX_PLAIN_ACTION(tree_data_clear_cache);
 
-void tree_data_clear_cache() {
-	std::vector<hpx::future<void>> futs;
-	if (hpx_rank() == 0) {
-
+void tree_data_global_to_local(stack_vector<tree_ptr>& stack) {
+	for( int i = 0; i < stack.size(); i++) {
+		stack[i] = tree_data_global_to_local(stack[i]);
 	}
 }
 

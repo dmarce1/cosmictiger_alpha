@@ -51,10 +51,10 @@ particle particle_set::get_particle(part_int i) {
 bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>& free_indices, domain_bounds bounds) {
 	const auto my_range = bounds.find_proc_range(hpx_rank());
 	static std::atomic<int> finished_cnt;
-	static part_int max_send_parts = std::min(part_int(size()*0.1), part_int(PARTICLE_SET_MAX_SEND));
+	static part_int max_send_parts = std::min(part_int(size() * 0.1), part_int(PARTICLE_SET_MAX_SEND));
 	finished_cnt = 0;
-	for( int dim = 0; dim < NDIM; dim++) {
-	//	printf( "%i %e %e\n", hpx_rank(), my_range.begin[dim], my_range.end[dim]);
+	for (int dim = 0; dim < NDIM; dim++) {
+		//	printf( "%i %e %e\n", hpx_rank(), my_range.begin[dim], my_range.end[dim]);
 	}
 	for (int i = 0; i < hpx_size(); i++) {
 		sends[i].parts = std::vector<particle>();
@@ -88,18 +88,18 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 					auto& entry = sends[proc];
 					free_indices.push_back(j);
 					auto& pts = entry.parts;
-		//			printf( "%li\n", pts.size());
-					pts.push_back(p);
-					if( free_indices.size() >= max_send_parts ) {
-						finished = false;
-						break;
-					}
+					//			printf( "%li\n", pts.size());
+				pts.push_back(p);
+				if( free_indices.size() >= max_send_parts ) {
+					finished = false;
+					break;
 				}
 			}
-			if( finished ) {
-				finished_cnt++;
-			}
-		};
+		}
+		if( finished ) {
+			finished_cnt++;
+		}
+	}	;
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
@@ -137,7 +137,9 @@ void particle_set::set_particle(const particle& p, part_int i) {
 
 particle_set::particle_set() {
 	size_ = 0;
+	pos_size_ = 0;
 	cap_ = 0;
+	pos_cap_ = 0;
 #ifdef TEST_FORCE
 	for (int dim = 0; dim < NDIM; dim++) {
 		gptr_[dim] = nullptr;
@@ -172,9 +174,7 @@ void particle_set::resize(part_int sz) {
 		while (cap_ < sz) {
 			cap_ = PART_BUFFER * cap_;
 		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			realloc(xptr_[dim], size_, cap_);
-		}
+		resize_pos(std::max(sz, pos_size_));
 		realloc(uptr_, size_, cap_);
 		realloc(rptr_, size_, cap_);
 #ifdef TEST_FORCE
@@ -188,6 +188,18 @@ void particle_set::resize(part_int sz) {
 		}
 	}
 	size_ = sz;
+}
+void particle_set::resize_pos(part_int sz) {
+	if (pos_cap_ < sz) {
+		pos_cap_ = 1024;
+		while (pos_cap_ < sz) {
+			pos_cap_ = PART_BUFFER * pos_cap_;
+		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			realloc(xptr_[dim], pos_size_, pos_cap_);
+		}
+	}
+	pos_size_ = sz;
 }
 
 particle_set::particle_set(part_int size) {

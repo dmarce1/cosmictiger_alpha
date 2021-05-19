@@ -19,19 +19,21 @@ HPX_PLAIN_ACTION(tree::kick_remote, tree_kick_remote_action);
 static unified_allocator kick_params_alloc;
 //pranges tree::covered_ranges;
 static std::atomic<part_int> parts_covered;
-static std::atomic<part_int> parts_covered_cpu;
 static range my_domain;
+static bool dry_run;
+static std::set<tree_ptr> remote_parts;
 
-void tree::add_parts_covered(part_iters num, bool cpu) {
+void tree::add_parts_covered(part_iters num) {
 	static particle_server pserv;
 	static const auto& parts = pserv.get_particle_set();
 	parts_covered += num.second - num.first;
-	if (cpu) {
-		parts_covered_cpu += num.second - num.first;
-	}
 	if (parts_covered == parts.size()) {
-		printf("CPU covered %e\n", 100.0 * (int) parts_covered_cpu / parts.size());
-		gpu_daemon();
+		if (dry_run) {
+			pserv.global_to_local(std::move(remote_parts));
+		} else {
+			gpu_daemon();
+		}
+
 	}
 //	printf( "%i of %i on %i\n", (part_int) parts_covered, parts.size(), hpx_rank());
 }
@@ -378,8 +380,7 @@ sort_return tree::sort(sort_params params) {
 	return rc;
 }
 
-hpx::lcos::local::mutex tree::mtx;
-hpx::lcos::local::mutex tree::gpu_mtx;
+mutex_type tree::mtx;
 
 void tree::cleanup() {
 	tree_data_clear();
@@ -390,6 +391,7 @@ void tree::cleanup() {
 }
 
 hpx::future<void> tree::kick_remote(kick_params_type params) {
+	dry_run = params.dry_run;
 	return kick(&params);
 }
 
@@ -401,8 +403,15 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	const auto parts = get_parts();
 	const auto num_active = get_active_nodes();
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-	const bool all_local = all_checks_local(params.dchecks) && all_checks_local(params.echecks);
-	if (all_local && use_cuda && num_active <= params.block_cutoff && num_active) {
+
+	if (params.dry_run) {
+		const bool all_local = all_checks_local(params.dchecks) && all_checks_local(params.echecks);
+		if (all_local) {
+			return hpx::make_ready_future();
+		}
+	}
+
+	if (!params.dry_run && use_cuda && num_active <= params.block_cutoff && num_active) {
 		return tree::send_kick_to_gpu(params_ptr);
 	} else {
 		if (params.tptr.rank != hpx_rank()) {
@@ -462,9 +471,13 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto& phi = params.Phi;
 	const auto parts = self.get_parts();
 	if (self.local_root()) {
+		dry_run = params.dry_run;
+		if( !dry_run) {
+			tree_data_global_to_local(params.dchecks);
+			tree_data_global_to_local(params.echecks);
+		}
 		kick_timer.start();
 		parts_covered = 0;
-		parts_covered_cpu = 0;
 		tmp_tm.start();
 		size_t dummy, total_mem;
 		CUDA_CHECK(cudaMemGetInfo(&dummy, &total_mem));
@@ -501,13 +514,14 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	const auto &Lpos = params.Lpos[params.depth];
 	array<float, NDIM> dx;
 	const auto pos = self.get_pos();
-	for (int dim = 0; dim < NDIM; dim++) {
-		const auto x1 = pos[dim];
-		const auto x2 = Lpos[dim];
-		dx[dim] = distance(x1, x2);
+	if (!params.dry_run) {
+		for (int dim = 0; dim < NDIM; dim++) {
+			const auto x1 = pos[dim];
+			const auto x2 = Lpos[dim];
+			dx[dim] = distance(x1, x2);
+		}
+		shift_expansion(L, dx, params.full_eval);
 	}
-	shift_expansion(L, dx, params.full_eval);
-
 	const auto theta2 = sqr(params.theta);
 	array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
 	auto &multis = params.multi_interactions;
@@ -567,20 +581,27 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			}
 		} while (direct && checks.size());
 		clock_t tm;
-		switch (type) {
-		case CC_CP_DIRECT:
-			cpu_cc_direct(params_ptr);
-			cpu_cp_direct(params_ptr);
-			break;
-		case CC_CP_EWALD:
-			cpu_cc_ewald(params_ptr);
-			break;
-		case PC_PP_DIRECT:
-			cpu_pc_direct(params_ptr);
-			cpu_pp_direct(params_ptr);
-			break;
-		case PC_PP_EWALD:
-			break;
+		if (params.dry_run) {
+			std::lock_guard<mutex_type> lock(mtx);
+			for( int i = 0; i < parti.size(); i++) {
+				remote_parts.insert(parti[i]);
+			}
+		} else {
+			switch (type) {
+			case CC_CP_DIRECT:
+				cpu_cc_direct(params_ptr);
+				cpu_cp_direct(params_ptr);
+				break;
+			case CC_CP_EWALD:
+				cpu_cc_ewald(params_ptr);
+				break;
+			case PC_PP_DIRECT:
+				cpu_pc_direct(params_ptr);
+				cpu_pp_direct(params_ptr);
+				break;
+			case PC_PP_EWALD:
+				break;
+			}
 		}
 	}
 	if (!params.tptr.is_leaf()) {
@@ -630,18 +651,17 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		}
 		int depth = params.depth;
 		return hpx::when_all(futs.begin(), futs.end()).then(
-				[depth,self,pserv](hpx::future<std::vector<hpx::future<void>>> futfut) {
+				[depth,self,pserv,particles](hpx::future<std::vector<hpx::future<void>>> futfut) {
 					auto futs = futfut.get();
 					futs[LEFT].get();
 					futs[RIGHT].get();
 					if( self.local_root() ) {
 						printf( "Freeing cache\n");
 						tree_database_unset_readonly();
-						tree_data_free_cache();
-						pserv.free_cache();
+						particles->resize_pos(particles->size());
 					}
 				});
-	} else {
+	} else if (!params.dry_run){
 		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
 		for (int k = 0; k < parts.second - parts.first; k++) {
@@ -715,13 +735,14 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			}
 			kick_return_update_rung_cpu(particles->rung(index));
 		}
-		add_parts_covered(parts, true);
+		add_parts_covered(parts);
 		//	rc.rung = max_rung;
 		if (self.local_root()) {
 			tree_database_unset_readonly();
 			tree_data_free_cache();
-			pserv.free_cache();
 		}
+		return hpx::make_ready_future();
+	} else {
 		return hpx::make_ready_future();
 	}
 }

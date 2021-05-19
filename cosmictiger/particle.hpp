@@ -79,7 +79,8 @@ struct particle_set {
 	CUDA_EXPORT
 	particle_set();
 	particle_set(part_int);
-	void resize(part_int);CUDA_EXPORT
+	void resize(part_int);
+	void resize_pos(part_int);CUDA_EXPORT
 	~particle_set();CUDA_EXPORT
 	fixed32 pos_ldg(int, part_int index) const;CUDA_EXPORT
 	fixed32 pos(int, part_int index) const;CUDA_EXPORT
@@ -100,6 +101,9 @@ struct particle_set {
 	part_int size() const {
 		return size_;
 	}
+	part_int pos_size() const {
+		return pos_size_;
+	}
 	void finish_groups();
 	void init_groups();CUDA_EXPORT
 	float force(int dim, part_int index) const;CUDA_EXPORT
@@ -119,7 +123,9 @@ protected:
 	array<float*, NDIM> gptr_;
 	float* eptr_;
 	part_int size_;
+	part_int pos_size_;
 	part_int cap_;
+	part_int pos_cap_;
 	bool virtual_;
 
 public:
@@ -127,6 +133,7 @@ public:
 	particle_set get_virtual_particle_set() const {
 		particle_set v;
 		v.cap_ = cap_;
+		v.pos_cap_ = cap_;
 		v.rptr_ = rptr_;
 		v.idptr_ = idptr_;
 		v.lidptr1_ = lidptr1_;
@@ -141,6 +148,7 @@ public:
 		v.eptr_ = eptr_;
 #endif
 		v.size_ = size_;
+		v.pos_size_ = size_;
 		v.virtual_ = true;
 		return v;
 	}
@@ -150,7 +158,7 @@ public:
 CUDA_EXPORT
 inline fixed32 particle_set::pos_ldg(int dim, part_int index) const {
 
-	assert(index < size_);
+	assert(index < pos_size_);
 	union fixed_union {
 		fixed32 f;
 		int i;
@@ -163,7 +171,7 @@ inline fixed32 particle_set::pos_ldg(int dim, part_int index) const {
 CUDA_EXPORT
 inline fixed32 particle_set::pos(int dim, part_int index) const {
 
-	assert(index < size_);
+	assert(index < pos_size_);
 	return xptr_[dim][index];
 }
 
@@ -187,7 +195,7 @@ inline rung_t particle_set::rung(part_int index) const {
 CUDA_EXPORT
 inline fixed32& particle_set::pos(int dim, part_int index) {
 
-	assert(index < size_);
+	assert(index < pos_size_);
 	return xptr_[dim][index];
 }
 

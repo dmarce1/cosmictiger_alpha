@@ -113,6 +113,7 @@ void kick_test() {
 		params_ptr->tptr = root_ptr;
 		params_ptr->dchecks.push(root_ptr);
 		params_ptr->echecks.push(root_ptr);
+		params_ptr->dry_run = true;
 
 		// printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
 		array<fixed32, NDIM> Lpos;
