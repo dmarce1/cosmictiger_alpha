@@ -46,7 +46,7 @@ particle particle_set::get_particle(part_int i) {
 	return p;
 }
 
-#define PARTICLE_SET_MAX_SEND (8*1024*1024)
+#define PARTICLE_SET_MAX_SEND (4*1024*1024-1024)
 
 bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>& free_indices, domain_bounds bounds) {
 	const auto my_range = bounds.find_proc_range(hpx_rank());
@@ -174,7 +174,7 @@ void particle_set::resize(part_int sz) {
 		while (cap_ < sz) {
 			cap_ = PART_BUFFER * cap_;
 		}
-		resize_pos(std::max(sz, pos_size_));
+		resize_pos(sz);
 		realloc(uptr_, size_, cap_);
 		realloc(rptr_, size_, cap_);
 #ifdef TEST_FORCE
@@ -187,7 +187,7 @@ void particle_set::resize(part_int sz) {
 			realloc(idptr_, size_, cap_);
 		}
 	}
-	size_ = sz;
+	pos_size_ = size_ = sz;
 }
 void particle_set::resize_pos(part_int sz) {
 	if (pos_cap_ < sz) {

@@ -9,9 +9,11 @@
 #include <cosmictiger/options.hpp>
 #include <cosmictiger/hpx.hpp>
 #include <fstream>
+#include <iostream>
 #include <boost/program_options.hpp>
 #include <cosmictiger/constants.hpp>
 #include <cosmictiger/math.hpp>
+
 
 bool process_options(int argc, char *argv[], options &opts) {
 	namespace po = boost::program_options;

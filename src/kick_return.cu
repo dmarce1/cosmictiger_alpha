@@ -43,10 +43,16 @@ __device__ void kick_return_update_rung_gpu(int rung) {
 }
 
 __device__ void kick_return_update_pot_gpu(float phi, float fx, float fy, float fz) {
-	atomicAdd(&gpu_return.phis, phi);
-	atomicAdd(&gpu_return.forces[0], fx);
-	atomicAdd(&gpu_return.forces[1], fy);
-	atomicAdd(&gpu_return.forces[2], fz);
-
-
+	for (int P = warpSize / 2; P >= 1; P /= 2) {
+		phi += __shfl_xor_sync(FULL_MASK, phi, P);
+		fx += __shfl_xor_sync(FULL_MASK, fx, P);
+		fy += __shfl_xor_sync(FULL_MASK, fy, P);
+		fz += __shfl_xor_sync(FULL_MASK, fz, P);
+	}
+	if (threadIdx.x == 0) {
+		atomicAdd(&gpu_return.phis, phi);
+		atomicAdd(&gpu_return.forces[0], fx);
+		atomicAdd(&gpu_return.forces[1], fy);
+		atomicAdd(&gpu_return.forces[2], fz);
+	}
 }

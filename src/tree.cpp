@@ -124,7 +124,6 @@ sort_return tree::sort(sort_params params) {
 	size_t active_parts = 0;
 	size_t active_nodes = 0;
 	part_iters parts;
-
 	if (params.iamroot()) {
 		gpu_searches = 0;
 		int dummy;
@@ -160,24 +159,7 @@ sort_return tree::sort(sort_params params) {
 	sort_return rc;
 	array<tree_ptr, NCHILD> children;
 	const bool domain_decomp = (params.procs.second - params.procs.first) > 1;
-	bool boundary_zone = false;
-	for (int dim = 0; dim < NDIM; dim++) {
-		const auto span = box.end[dim] - box.begin[dim];
-		if (my_domain.end[dim] - my_domain.begin[dim] < 1.0) {
-			if (std::abs(box.begin[dim] - my_domain.begin[dim]) <= span / params.theta) {
-				boundary_zone = true;
-				break;
-			}
-			if (std::abs(box.end[dim] - my_domain.end[dim]) <= span / params.theta) {
-				boundary_zone = true;
-				break;
-			}
-		}
-	}
 	int max_part = (params.group_sort ? GROUP_BUCKET_SIZE : global().opts.bucket_size);
-	if (boundary_zone) {
-		max_part = std::max(2, max_part / 4);
-	}
 //	printf("%li %li %i %i\n", params.procs.first, params.procs.second, params.parts.first, params.parts.second);
 	if (domain_decomp || parts.second - parts.first > max_part
 			|| (params.depth < params.min_depth && parts.second - parts.first > 0)) {
@@ -419,7 +401,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 		} else {
 			static std::atomic<int> used_threads(0);
 			if (thread) {
-				const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
+				const int max_threads = OVERSUBSCRIPTION * hpx::thread::hardware_concurrency();
 				if (used_threads++ > max_threads) {
 					used_threads--;
 					thread = false;
@@ -472,7 +454,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	const auto parts = self.get_parts();
 	if (self.local_root()) {
 		dry_run = params.dry_run;
-		if( !dry_run) {
+		if (!dry_run) {
 			tree_data_global_to_local(params.dchecks);
 			tree_data_global_to_local(params.echecks);
 		}
@@ -522,7 +504,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		}
 		shift_expansion(L, dx, params.full_eval);
 	}
-	const auto theta2 = sqr(params.theta);
+	const auto theta2 = sqr(params.theta * 0.999f);
 	array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
 	auto &multis = params.multi_interactions;
 	auto &parti = params.part_interactions;
@@ -583,7 +565,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		clock_t tm;
 		if (params.dry_run) {
 			std::lock_guard<mutex_type> lock(mtx);
-			for( int i = 0; i < parti.size(); i++) {
+			for (int i = 0; i < parti.size(); i++) {
 				remote_parts.insert(parti[i]);
 			}
 		} else {
@@ -650,18 +632,14 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.depth--;
 		}
 		int depth = params.depth;
-		return hpx::when_all(futs.begin(), futs.end()).then(
-				[depth,self,pserv,particles](hpx::future<std::vector<hpx::future<void>>> futfut) {
-					auto futs = futfut.get();
-					futs[LEFT].get();
-					futs[RIGHT].get();
-					if( self.local_root() ) {
-						printf( "Freeing cache\n");
-						tree_database_unset_readonly();
-						particles->resize_pos(particles->size());
-					}
-				});
-	} else if (!params.dry_run){
+		hpx::wait_all(futs.begin(), futs.end());
+		if (self.local_root()) {
+			printf("Freeing cache\n");
+			tree_database_unset_readonly();
+			particles->resize_pos(particles->size());
+		}
+		return hpx::make_ready_future();
+	} else if (!params.dry_run) {
 		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
 		for (int k = 0; k < parts.second - parts.first; k++) {

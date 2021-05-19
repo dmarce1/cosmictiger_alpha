@@ -22,7 +22,7 @@ find_package(Boost REQUIRED)
 find_package(Silo REQUIRED)
 enable_language(CUDA)
 
-set(CMAKE_CXX_FLAGS "-DNDEBUG -ffast-math -march=native -Wno-deprecated-declarations")
+set(CMAKE_CXX_FLAGS "-std=c++14  -ffast-math -march=native -Wno-deprecated-declarations")
 
 set(cosmictiger_source_files
     src/chemistry.cpp
@@ -81,14 +81,12 @@ set(cosmictiger_header_files
 	cosmictiger/ewald_indices.hpp
 	cosmictiger/interp.hpp
 	cosmictiger/kick_return.hpp
-	cosmictiger/zero_verse.hpp
 	cosmictiger/fourier.hpp
 	cosmictiger/green_direct.hpp
 	cosmictiger/green_ewald.hpp
 	cosmictiger/groups.hpp
 	cosmictiger/gravity.hpp
 	cosmictiger/math.hpp
-	cosmictiger/managed_vector.hpp
 	cosmictiger/multipole.hpp
 	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
@@ -135,32 +133,40 @@ add_hpx_executable(
  	src/hpx2mw.cpp
  )
  
-#add_library(hpx_lite 
-#	hpx_lite/src/hpx.cpp
-#	hpx_lite/src/id_type.cpp
-#	hpx_lite/src/thread.cpp
-#	hpx_lite/src/future.cpp
-#	hpx_lite/src/mutex.cpp
-#	hpx_lite/src/serialize.cpp
-#)
 
-
-#add_executable( cosmictiger_lite
-#    ${cosmictiger_source_files} ${cosmictiger_header_files}
-#)
 
  
 set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
-target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
+target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         --use_fast_math --maxrregcount 128 --gpu-architecture=compute_35;
                         >)
+
 
 #SET_SOURCE_FILES_PROPERTIES( src/math.cu PROPERTIES COMPILE_FLAGS -G )
 #SET_SOURCE_FILES_PROPERTIES( src/gravity.cu PROPERTIES COMPILE_FLAGS -G )
 #SET_SOURCE_FILES_PROPERTIES( src/gravity.cu PROPERTIES COMPILE_FLAGS -G )
 #SET_SOURCE_FILES_PROPERTIES( src/map.cu PROPERTIES COMPILE_FLAGS "--maxrregcount 40" )
 #SET_SOURCE_FILES_PROPERTIES( src/tree.cu PROPERTIES COMPILE_FLAGS -G )
+
+add_executable( cosmictiger_lite
+    ${cosmictiger_source_files} ${cosmictiger_header_files}
+)
+add_library(hpx_lite 
+	hpx_lite/src/hpx.cpp
+	hpx_lite/src/id_type.cpp
+	hpx_lite/src/thread.cpp
+	hpx_lite/src/future.cpp
+	hpx_lite/src/mutex.cpp
+	hpx_lite/src/serialize.cpp
+)
+set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
+target_link_libraries(cosmictiger_lite PUBLIC siloh5 chealpix cuda cudart boost_program_options hpx_lite mpi hwloc)
+target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
+target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                        -std=c++14 --use_fast_math --maxrregcount 128 --gpu-architecture=compute_35;
+                        >)
  

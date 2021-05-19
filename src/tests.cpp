@@ -99,6 +99,7 @@ void kick_test() {
 		sort_params params;
 		params.group_sort = false;
 		params.theta = global().opts.theta;
+		printf( "Theta = %e\n", params.theta);
 		params.min_rung = 0;
 		tree_ptr root_ptr;
 		pserv.apply_domain_decomp();
@@ -138,7 +139,7 @@ void kick_test() {
 		CUDA_FREE(params_ptr);
 		tm_cleanup.stop();
 		const auto total = 2.0 * tm_sort.read() + tm_kick.read() + tm_cleanup.read();
-		kick_return_show();
+	//	kick_return_show();
 		printf("Sort         = %e s\n", tm_sort.read());
 		printf("Kick         = %e s\n", tm_kick.read());
 		printf("Cleanup      = %e s\n", tm_cleanup.read());

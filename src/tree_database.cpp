@@ -155,7 +155,7 @@ tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 		entry = std::make_shared<tree_cache_entry>();
 		entry->ready_fut = prms->get_future();
 		lock.unlock();
-		hpx::apply([prms,i,loindex,line_ptr]() {
+		hpx::async([prms,i,loindex,line_ptr]() {
 			tree_data_fetch_cache_line_action act;
 			auto line = act(hpx_localities()[line_ptr.rank], line_ptr.dindex);
 			auto& mutex = mutexes[loindex];

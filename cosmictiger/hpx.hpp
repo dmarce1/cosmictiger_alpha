@@ -9,12 +9,15 @@
 #define COSMICTIGER_HPX_HPP_
 
 #ifndef __CUDACC__
-#include <cosmictiger/hpx.hpp>
+#ifdef USE_HPX
 #include <hpx/hpx.hpp>
 #include <hpx/async.hpp>
 #include <hpx/hpx_finalize.hpp>
 #include <hpx/hpx_init.hpp>
 #include <hpx/include/serialization.hpp>
+#else
+#include <hpx_lite/hpx/hpx_lite.hpp>
+#endif
 
 using mutex_type = hpx::lcos::local::spinlock;
 using spinlock_type = hpx::lcos::local::spinlock;
