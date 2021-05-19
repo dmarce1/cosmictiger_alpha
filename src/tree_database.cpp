@@ -120,7 +120,9 @@ HPX_PLAIN_ACTION(tree_data_fetch_cache_line);
 
 void tree_data_global_to_local(stack_vector<tree_ptr>& stack) {
 	for( int i = 0; i < stack.size(); i++) {
-		stack[i] = tree_data_global_to_local(stack[i]);
+		if( stack[i].rank != hpx_rank()) {
+			stack[i] = tree_data_global_to_local(stack[i]);
+		}
 	}
 }
 

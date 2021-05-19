@@ -99,7 +99,7 @@ void kick_test() {
 		sort_params params;
 		params.group_sort = false;
 		params.theta = global().opts.theta;
-		printf( "Theta = %e\n", params.theta);
+		printf("Theta = %e\n", params.theta);
 		params.min_rung = 0;
 		tree_ptr root_ptr;
 		pserv.apply_domain_decomp();
@@ -114,24 +114,38 @@ void kick_test() {
 		params_ptr->tptr = root_ptr;
 		params_ptr->dchecks.push(root_ptr);
 		params_ptr->echecks.push(root_ptr);
-		params_ptr->dry_run = true;
-
-		// printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
 		array<fixed32, NDIM> Lpos;
 		expansion<float> L;
-		for (int i = 0; i < LP; i++) {
-			L[i] = 0.f;
+		if (hpx_size() > 1) {
+			params_ptr->dry_run = true;
+
+			// printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
+			for (int i = 0; i < LP; i++) {
+				L[i] = 0.f;
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				Lpos[dim] = 0.5;
+			}
+			kick_return_init(0);
+			params_ptr->t0 = 1;
+			params_ptr->full_eval = false;
+			params_ptr->rung = 0;
+			root.kick(params_ptr).get();
+			params_ptr->kick_params_type::~kick_params_type();
+			CUDA_FREE(params_ptr);
+			CUDA_MALLOC(params_ptr, 1);
+			new (params_ptr) kick_params_type();
 		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			Lpos[dim] = 0.5;
-		}
-		kick_return_init(0);
+		params_ptr->tptr = root_ptr;
+		params_ptr->dchecks.push(root_ptr);
+		params_ptr->echecks.push(root_ptr);
+		params_ptr->dry_run = false;
+		params_ptr->tptr = root_ptr;
 		params_ptr->L[0] = L;
 		params_ptr->Lpos[0] = Lpos;
-		params_ptr->t0 = 1;
-		params_ptr->full_eval = false;
-		params_ptr->rung = 0;
+		printf("Kick 2\n");
 		root.kick(params_ptr).get();
+
 		tm_kick.stop();
 		tree::cleanup();
 		tm_cleanup.start();
@@ -139,7 +153,7 @@ void kick_test() {
 		CUDA_FREE(params_ptr);
 		tm_cleanup.stop();
 		const auto total = 2.0 * tm_sort.read() + tm_kick.read() + tm_cleanup.read();
-	//	kick_return_show();
+		//	kick_return_show();
 		printf("Sort         = %e s\n", tm_sort.read());
 		printf("Kick         = %e s\n", tm_kick.read());
 		printf("Cleanup      = %e s\n", tm_cleanup.read());
@@ -196,8 +210,8 @@ void group_test() {
 	printf("Done Sorting\n");
 	tm_sort.stop();
 	tm_kick.start();
-	//  root_ptr.rank = hpx_rank();
-	// printf( "%li", size_t(WORKSPACE_SIZE));
+//  root_ptr.rank = hpx_rank();
+// printf( "%li", size_t(WORKSPACE_SIZE));
 	group_param_type *params_ptr;
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) group_param_type();
@@ -330,8 +344,8 @@ void force_test() {
 
 	tree_data_initialize_kick();
 	root_ptr = root.sort(params).check;
-	//  root_ptr.rank = hpx_rank();
-	// printf( "%li", size_t(WORKSPACE_SIZE));
+//  root_ptr.rank = hpx_rank();
+// printf( "%li", size_t(WORKSPACE_SIZE));
 	kick_params_type *params_ptr;
 	CUDA_MALLOC(params_ptr, 1);
 	new (params_ptr) kick_params_type();
@@ -339,7 +353,7 @@ void force_test() {
 	params_ptr->dchecks.push(root_ptr);
 	params_ptr->echecks.push(root_ptr);
 
-	// printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
+// printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
 	array<fixed32, NDIM> Lpos;
 	expansion<float> L;
 	for (int i = 0; i < LP; i++) {
@@ -365,7 +379,7 @@ void force_test() {
 	cuda_compare_with_direct(&pserv.get_particle_set());
 	tm.stop();
 	printf("Comparison took %e s\n", tm.read());
-	// printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
+// printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
 	CUDA_FREE(params_ptr);
 }
 #endif

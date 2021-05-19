@@ -35,7 +35,7 @@ void tree::add_parts_covered(part_iters num) {
 		}
 
 	}
-//	printf( "%i of %i on %i\n", (part_int) parts_covered, parts.size(), hpx_rank());
+	//printf( "%i of %i on %i\n", (part_int) parts_covered, parts.size(), hpx_rank());
 }
 
 timer tmp_tm;
@@ -373,7 +373,6 @@ void tree::cleanup() {
 }
 
 hpx::future<void> tree::kick_remote(kick_params_type params) {
-	dry_run = params.dry_run;
 	return kick(&params);
 }
 
@@ -632,13 +631,16 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.depth--;
 		}
 		int depth = params.depth;
-		hpx::wait_all(futs.begin(), futs.end());
-		if (self.local_root()) {
-			printf("Freeing cache\n");
-			tree_database_unset_readonly();
-			particles->resize_pos(particles->size());
-		}
-		return hpx::make_ready_future();
+		return hpx::when_all(futs.begin(), futs.end()).then([depth,self,particles](hpx::future<std::vector<hpx::future<void>>> futfut) {
+			auto futs = futfut.get();
+			futs[LEFT].get();
+			futs[RIGHT].get();
+			if (self.local_root()) {
+				printf("Freeing cache\n");
+				tree_database_unset_readonly();
+				particles->resize_pos(particles->size());
+			}
+		});
 	} else if (!params.dry_run) {
 		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
