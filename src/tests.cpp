@@ -107,38 +107,42 @@ void kick_test() {
 		tm_kick.start();
 		//  root_ptr.rank = hpx_rank();
 		// printf( "%li", size_t(WORKSPACE_SIZE));
-		kick_params_type *params_ptr;
-		CUDA_MALLOC(params_ptr, 1);
-		new (params_ptr) kick_params_type();
-		params_ptr->tptr = root_ptr;
-		params_ptr->dchecks.push(root_ptr);
-		params_ptr->echecks.push(root_ptr);
-		params_ptr->dry_run = true;
 
-		// printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
-		array<fixed32, NDIM> Lpos;
-		expansion<float> L;
-		for (int i = 0; i < LP; i++) {
-			L[i] = 0.f;
-		}
-		for (int dim = 0; dim < NDIM; dim++) {
-			Lpos[dim] = 0.5;
-		}
 		kick_return_init(0);
-		params_ptr->L[0] = L;
-		params_ptr->Lpos[0] = Lpos;
-		params_ptr->t0 = 1;
-		params_ptr->full_eval = false;
-		params_ptr->rung = 0;
-		root.kick(params_ptr).get();
+		for (int pass = 0; pass < 2; pass++) {
+			if (hpx_size() == 1 && pass == 0) {
+				continue;
+			}
+			kick_params_type *params_ptr;
+			CUDA_MALLOC(params_ptr, 1);
+			new (params_ptr) kick_params_type();
+			params_ptr->dry_run = (pass == 0);
+			params_ptr->tptr = root_ptr;
+			params_ptr->dchecks.push(root_ptr);
+			params_ptr->echecks.push(root_ptr);
+			array<fixed32, NDIM> Lpos;
+			expansion<float> L;
+			for (int i = 0; i < LP; i++) {
+				L[i] = 0.f;
+			}
+			for (int dim = 0; dim < NDIM; dim++) {
+				Lpos[dim] = 0.5;
+			}
+			params_ptr->L[0] = L;
+			params_ptr->Lpos[0] = Lpos;
+			params_ptr->t0 = 1;
+			params_ptr->full_eval = false;
+			params_ptr->rung = 0;
+			root.kick(params_ptr).get();
+			tree::cleanup();
+			tm_cleanup.start();
+			params_ptr->kick_params_type::~kick_params_type();
+			CUDA_FREE(params_ptr);
+			tm_cleanup.stop();
+		}
 		tm_kick.stop();
-		tree::cleanup();
-		tm_cleanup.start();
-		params_ptr->kick_params_type::~kick_params_type();
-		CUDA_FREE(params_ptr);
-		tm_cleanup.stop();
 		const auto total = 2.0 * tm_sort.read() + tm_kick.read() + tm_cleanup.read();
-		kick_return_show();
+//		kick_return_show();
 		printf("Sort         = %e s\n", tm_sort.read());
 		printf("Kick         = %e s\n", tm_kick.read());
 		printf("Cleanup      = %e s\n", tm_cleanup.read());

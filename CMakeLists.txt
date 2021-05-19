@@ -22,7 +22,7 @@ find_package(Boost REQUIRED)
 find_package(Silo REQUIRED)
 enable_language(CUDA)
 
-set(CMAKE_CXX_FLAGS "-DNDEBUG -ffast-math -march=native -Wno-deprecated-declarations")
+set(CMAKE_CXX_FLAGS "-ffast-math -march=native -Wno-deprecated-declarations")
 
 set(cosmictiger_source_files
     src/chemistry.cpp

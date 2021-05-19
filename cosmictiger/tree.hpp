@@ -124,6 +124,7 @@ struct sort_params {
 			child[i].group_sort = group_sort;
 			child[i].procs = procs;
 			child[i].local_root = false;
+			child[i].theta = theta;
 		}
 		return child;
 	}

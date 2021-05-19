@@ -174,7 +174,7 @@ void particle_set::resize(part_int sz) {
 		while (cap_ < sz) {
 			cap_ = PART_BUFFER * cap_;
 		}
-		resize_pos(std::max(sz, pos_size_));
+		resize_pos(sz);
 		realloc(uptr_, size_, cap_);
 		realloc(rptr_, size_, cap_);
 #ifdef TEST_FORCE
@@ -188,6 +188,7 @@ void particle_set::resize(part_int sz) {
 		}
 	}
 	size_ = sz;
+	pos_size_ = size_;
 }
 void particle_set::resize_pos(part_int sz) {
 	if (pos_cap_ < sz) {

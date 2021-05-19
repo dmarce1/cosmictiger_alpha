@@ -151,18 +151,8 @@ public:
 		__m128 vsum;
 		__m128& a = *(((__m128*) v) + 0);
 		__m128& b = *(((__m128*) v) + 1);
-		__m128& c = *((__m128*) &vsum[0]);
-		__m128& d = *((__m128*) &vsum[2]);
 		vsum = _mm_add_ps(a, b);
-		vsum = _mm_add_ps(c, d);
-		return vsum[0] + vsum[1];
-#elif defined(USE_AVX)
-		__m128 vsum;
-		__m128& c = *((__m128*) &vsum[0]);
-		__m128& d = *((__m128*) &vsum[2]);
-		vsum = _mm_add_ps(v[0],v[1]);
-		vsum = _mm_add_ps(c, d);
-		return vsum[0] + vsum[1];
+		return vsum[0] + vsum[1] + vsum[2] + vsum[3];
 #else
 		float sum = (*this)[0];
 		for (int i = 1; i < size(); i++) {

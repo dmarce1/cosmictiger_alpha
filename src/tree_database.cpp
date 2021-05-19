@@ -43,7 +43,11 @@ static std::unordered_map<tree_ptr, int, tree_hash> tree_map;
 tree_ptr tree_data_global_to_local(tree_ptr global) {
 	tree_ptr local;
 	local.rank = hpx_rank();
-	local.dindex = tree_map[global];
+	if (global.rank != local.rank) {
+		local.dindex = tree_map[global];
+	} else {
+		local.dindex = global.dindex;
+	}
 	return local;
 }
 
@@ -119,7 +123,7 @@ static int cache_line_index(int index) {
 HPX_PLAIN_ACTION(tree_data_fetch_cache_line);
 
 void tree_data_global_to_local(stack_vector<tree_ptr>& stack) {
-	for( int i = 0; i < stack.size(); i++) {
+	for (int i = 0; i < stack.size(); i++) {
 		stack[i] = tree_data_global_to_local(stack[i]);
 	}
 }
