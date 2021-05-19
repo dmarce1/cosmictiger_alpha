@@ -28,9 +28,55 @@ struct tree_hash_hi {
 	}
 };
 
+struct tree_hash {
+	size_t operator()(tree_ptr ptr) const {
+		const int i = ptr.dindex / TREE_CACHE_LINE_SIZE * hpx_size() + hpx_rank();
+		return i;
+	}
+};
+
 using tree_cache_map_type =std::unordered_map<tree_ptr, std::shared_ptr<tree_cache_entry>, tree_hash_hi>;
 static std::array<mutex_type, TREE_CACHE_SIZE> mutexes;
 static std::array<tree_cache_map_type, TREE_CACHE_SIZE> caches;
+static std::unordered_map<tree_ptr, int, tree_hash> tree_map;
+
+void tree_data_map_global_to_local() {
+	const int nthreads = hardware_concurrency();
+	static spinlock_type mutex;
+	for (int proc = 0; proc < nthreads; proc++) {
+		const auto func = [nthreads,proc]() {
+			tree_allocator tree_alloc;
+			const int start = proc * TREE_CACHE_SIZE / nthreads;
+			const int stop = (proc + 1) * TREE_CACHE_SIZE / nthreads;
+			for (int i = start; i < stop; i++) {
+				const auto& cache = caches[i];
+				for (auto k = cache.begin(); k != cache.end(); k++) {
+					const auto& line = k->second;
+					for (int l = 0; l < line->data.size(); l++) {
+						int index = tree_alloc.allocate();
+						const auto& entry = line->data[l];
+						tree_map[k->first] = index;
+						cpu_tree_data_.active_nodes[index] = entry.active_nodes;
+						cpu_tree_data_.active_parts[index] = entry.active_parts;
+						if (cpu_tree_data_.multi) {
+							cpu_tree_data_.multi[index].multi = entry.multi;
+							cpu_tree_data_.multi[index].pos = entry.pos;
+						}
+						cpu_tree_data_.multi[index].pos = entry.pos;
+						cpu_tree_data_.data[index].radius = entry.radius;
+						if (cpu_tree_data_.ranges) {
+							cpu_tree_data_.ranges[index] = entry.ranges;
+						}
+						cpu_tree_data_.parts[index] = entry.parts;
+						cpu_tree_data_.proc_range[index] = entry.proc_range;
+						cpu_tree_data_.local_root[index] = entry.local_root;
+						cpu_tree_data_.data[index].children = entry.children;
+					}
+				}
+			}};
+		func();
+	}
+}
 
 std::vector<tree_node_t> tree_data_fetch_cache_line(int index);
 void tree_data_clear_cache();
@@ -58,7 +104,7 @@ void tree_data_free_cache() {
 
 tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 	if (ptr.rank >= hpx_size()) {
-		printf( "Rank out of range %i\n", ptr.rank);
+		printf("Rank out of range %i\n", ptr.rank);
 		ERROR()
 		;
 	}
