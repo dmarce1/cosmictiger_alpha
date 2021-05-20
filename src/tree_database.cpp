@@ -30,7 +30,7 @@ struct tree_hash_hi {
 
 struct tree_hash {
 	size_t operator()(tree_ptr ptr) const {
-		const int i = ptr.dindex / TREE_CACHE_LINE_SIZE * hpx_size() + hpx_rank();
+		const int i = ptr.dindex  * hpx_size() + hpx_rank();
 		return i;
 	}
 };
