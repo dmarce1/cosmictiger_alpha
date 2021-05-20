@@ -51,7 +51,7 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 	for (auto i = requests.begin(); i != requests.end(); i++) {
 		std::vector<part_iters> iters;
 		iters.reserve(i->second.size());
-		offsets[i->first] = size;
+		offsets[i->first] = size + parts->size();
 		for (int j = 0; j < i->second.size(); j++) {
 			const auto rng = i->second[j].get_parts();
 			iters.push_back(rng);
@@ -101,8 +101,11 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 												printf( "%i\n", j+offset, parts->pos_size());
 												ERROR();
 											}
+											if( j + offset < parts->size() ) {
+												ERROR();
+											}
 											for( int dim = 0; dim < NDIM; dim++) {
-												parts->pos(dim, j + offset) = data[dim][j+joffsets[proc]];
+												parts->pos(dim, j + offset) = data[dim][j + joffsets[proc]];
 											}
 											j++;
 										}
