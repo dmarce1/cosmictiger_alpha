@@ -54,6 +54,7 @@ class particle_server {
 	static particle_send_type part_sends;
 	static domain_bounds dbounds;
 	static spinlock_type mutex;
+	static shared_mutex_type shared_mutex;
 
 public:
 	static void init();

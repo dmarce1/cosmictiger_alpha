@@ -18,6 +18,7 @@
 
 using mutex_type = hpx::lcos::local::spinlock;
 using spinlock_type = hpx::lcos::local::spinlock;
+using shared_mutex_type = hpx::lcos::local::shared_mutex;
 
 const std::vector<hpx::id_type>& hpx_localities();
 const std::pair<hpx::id_type,hpx::id_type>& hpx_child_localities();

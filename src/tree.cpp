@@ -35,7 +35,6 @@ void tree::add_parts_covered(part_iters num) {
 		}
 
 	}
-//	printf( "%i of %i on %i\n", (part_int) parts_covered, parts.size(), hpx_rank());
 }
 
 timer tmp_tm;
@@ -407,6 +406,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	if (params.dry_run) {
 		const bool all_local = all_checks_local(params.dchecks) && all_checks_local(params.echecks);
 		if (all_local) {
+			tree::add_parts_covered(parts);
 			return hpx::make_ready_future();
 		}
 	}
@@ -472,7 +472,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	const auto parts = self.get_parts();
 	if (self.local_root()) {
 		dry_run = params.dry_run;
-		if( !dry_run) {
+		if (!dry_run) {
 			tree_data_global_to_local(params.dchecks);
 			tree_data_global_to_local(params.echecks);
 		}
@@ -522,7 +522,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		}
 		shift_expansion(L, dx, params.full_eval);
 	}
-	const auto theta2 = sqr(params.theta);
+	const auto theta2 = sqr(params.theta * 0.999f);
 	array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
 	auto &multis = params.multi_interactions;
 	auto &parti = params.part_interactions;
@@ -583,8 +583,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		clock_t tm;
 		if (params.dry_run) {
 			std::lock_guard<mutex_type> lock(mtx);
-			for( int i = 0; i < parti.size(); i++) {
-				remote_parts.insert(parti[i]);
+			for (int i = 0; i < parti.size(); i++) {
+				if (parti[i].rank != hpx_rank()) {
+					remote_parts.insert(parti[i]);
+				}
 			}
 		} else {
 			switch (type) {
@@ -660,8 +662,11 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 						tree_database_unset_readonly();
 						particles->resize_pos(particles->size());
 					}
+					if( depth == 0 ) {
+						printf( "Kick complete\n");
+					}
 				});
-	} else if (!params.dry_run){
+	} else if (!params.dry_run) {
 		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
 		for (int k = 0; k < parts.second - parts.first; k++) {
@@ -737,12 +742,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		}
 		add_parts_covered(parts);
 		//	rc.rung = max_rung;
-		if (self.local_root()) {
-			tree_database_unset_readonly();
-			tree_data_free_cache();
-		}
 		return hpx::make_ready_future();
 	} else {
+		add_parts_covered(parts);
 		return hpx::make_ready_future();
 	}
 }

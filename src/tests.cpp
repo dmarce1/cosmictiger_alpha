@@ -134,9 +134,13 @@ void kick_test() {
 			params_ptr->full_eval = false;
 			params_ptr->rung = 0;
 			root.kick(params_ptr).get();
+			printf( "Kick done\n");
 			params_ptr->kick_params_type::~kick_params_type();
 			CUDA_FREE(params_ptr);
 			tm_kick[pass].stop();
+			tree::cleanup();
+			printf( "Returning\n");
+			return;
 		}
 		tm_cleanup.start();
 		tree::cleanup();

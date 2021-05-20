@@ -8,6 +8,7 @@ std::vector<part_int> particle_server::free_indices;
 particle_send_type particle_server::part_sends;
 domain_bounds particle_server::dbounds;
 spinlock_type particle_server::mutex;
+shared_mutex_type particle_server::shared_mutex;
 
 HPX_PLAIN_ACTION(particle_server::init, particle_server_init_action);
 HPX_PLAIN_ACTION(particle_server::domain_decomp_gather, particle_server_domain_decomp_gather_action);
@@ -27,6 +28,7 @@ std::array<std::vector<fixed32>, NDIM> particle_server::gather_pos(std::vector<p
 	for (int dim = 0; dim < NDIM; dim++) {
 		data[dim].reserve(size);
 	}
+	std::shared_lock<shared_mutex_type> lock(shared_mutex);
 	for (auto iter : iters) {
 		for (part_int i = iter.first; i < iter.second; i++) {
 			for (int dim = 0; dim < NDIM; dim++) {
@@ -58,12 +60,15 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 		}
 		futs1.push_back(hpx::async<particle_server_gather_pos_action>(hpx_localities()[i->first], std::move(iters)));
 	}
+
+	printf( "importing %i particles or %e of local in %i sets with %i requests\n", size, size / (double) parts->pos_size(), remotes.size(), requests.size());
 	tree_data_map_global_to_local();
-	int j = 0;
+	std::unique_lock<shared_mutex_type> lock(shared_mutex);
 	parts->resize_pos(parts->pos_size() + size);
-	static std::atomic<part_int> index(parts->size());
+	lock.unlock();
+	int j = 0;
 	for (auto i = requests.begin(); i != requests.end(); i++) {
-		futs2.push_back(futs1[j].then([i,&offsets](hpx::future<std::array<std::vector<fixed32>, NDIM>>&& fut) {
+		futs2.push_back(futs1[j++].then([i,&offsets](hpx::future<std::array<std::vector<fixed32>, NDIM>>&& fut) {
 			std::vector<hpx::future<void>> futs;
 			const auto data = fut.get();
 			const int nthreads = hardware_concurrency();
@@ -85,7 +90,7 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 									part_int start = proc * i->second.size() / nthreads;
 									part_int stop = (proc+1) * i->second.size() / nthreads;
 									part_int offset = joffsets[proc];
-									for( int k = 0; k < i->second.size(); k++) {
+									for( int k = start; k < stop; k++) {
 										tree_ptr local_tree = tree_data_global_to_local(i->second[k]);
 										const auto rng = local_tree.get_parts();
 										part_iters local_iter;
@@ -98,13 +103,15 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 										}
 										local_iter.second = j + offset;
 										local_tree.set_parts(local_iter);
-									}}));
+									}
+				}));
 			}
 			hpx::wait_all(futs.begin(),futs.end());
 
 		}));
 	}
 	hpx::wait_all(futs2.begin(), futs2.end());
+	printf( "Done filling locals\n");
 }
 
 void particle_server::check_domain_bounds() {
