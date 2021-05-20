@@ -43,6 +43,9 @@ static std::unordered_map<tree_ptr, int, tree_hash> tree_map;
 tree_ptr tree_data_global_to_local(tree_ptr global) {
 	tree_ptr local;
 	local.rank = hpx_rank();
+	if( tree_map.find(global) == tree_map.end()) {
+		ERROR();
+	}
 	if (global.rank != local.rank) {
 		local.dindex = tree_map[global];
 	} else {
@@ -84,7 +87,10 @@ void tree_data_map_global_to_local() {
 						cpu_tree_data_.local_root[index] = entry.local_root;
 						cpu_tree_data_.data[index].children = entry.children;
 						std::lock_guard<spinlock_type> lock(mutex);
-						tree_map[k->first] = index;
+						tree_ptr global_ptr;
+						global_ptr.dindex = k->first.dindex + l;
+						global_ptr.rank = k->first.rank;
+						tree_map[global_ptr] = index;
 					}
 				}
 				cache = tree_cache_map_type();
