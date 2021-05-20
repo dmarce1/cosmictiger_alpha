@@ -72,6 +72,7 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 		sort_entry entry;
 		entry.tree = tree;
 		entry.pbegin = tree.get_parts().first;
+		remotes_sorted.push_back(entry);
 	}
 	std::sort(remotes_sorted.begin(), remotes_sorted.end(), [](const sort_entry& a, const sort_entry& b) {
 		return a.pbegin < b.pbegin;
