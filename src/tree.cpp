@@ -21,7 +21,7 @@ static unified_allocator kick_params_alloc;
 static std::atomic<part_int> parts_covered;
 static range my_domain;
 static bool dry_run;
-static std::set<tree_ptr> remote_parts;
+static std::unordered_set<tree_ptr,tree_hash> remote_parts;
 
 void tree::add_parts_covered(part_iters num) {
 	static particle_server pserv;

@@ -9,7 +9,7 @@
 #define PARTICLE_SERVER_HPP_
 
 #include <cosmictiger/particle.hpp>
-
+#include <unordered_set>
 #include <cosmictiger/defs.hpp>
 
 class tree_ptr;
@@ -24,29 +24,8 @@ struct pos_cache_entry {
 	hpx::shared_future<void> ready_fut;
 };
 
-struct global_part_iter {
-	int rank;
-	part_int index;
-	bool operator==(const global_part_iter& other) const {
-		return rank == other.rank && index == other.index;
-	}
-};
 
-struct global_part_iter_hash_lo {
-	size_t operator()(const global_part_iter& i) const {
-		const auto j = i.index / PARTICLE_CACHE_LINE_SIZE * hpx_size() + i.rank;
-		return (j) % PARTICLE_CACHE_SIZE;
-	}
-};
-
-struct global_part_iter_hash_hi {
-	size_t operator()(const global_part_iter& i) const {
-		const auto j = i.index / PARTICLE_CACHE_LINE_SIZE * hpx_size() + i.rank;
-		return (j) / PARTICLE_CACHE_SIZE;
-	}
-};
-
-using particle_cache_type = std::unordered_map<global_part_iter, std::shared_ptr<pos_cache_entry>, global_part_iter_hash_hi>;
+struct tree_hash;
 
 class particle_server {
 	static particle_set* parts;
@@ -68,7 +47,7 @@ public:
 	static void domain_decomp_transmit(std::vector<particle>);
 	static void apply_domain_decomp();
 	static std::vector<fixed32> gather_pos(std::vector<part_iters>);
-	static void global_to_local(std::set<tree_ptr>);
+	static void global_to_local(std::unordered_set<tree_ptr,tree_hash>);
 };
 
 #endif /* PARTICLE_SERVER_HPP_ */

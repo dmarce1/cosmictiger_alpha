@@ -28,12 +28,6 @@ struct tree_hash_hi {
 	}
 };
 
-struct tree_hash {
-	size_t operator()(tree_ptr ptr) const {
-		const int i = ptr.dindex  * hpx_size() + hpx_rank();
-		return i;
-	}
-};
 
 using tree_cache_map_type =std::unordered_map<tree_ptr, std::shared_ptr<tree_cache_entry>, tree_hash_hi>;
 static std::array<mutex_type, TREE_CACHE_SIZE> mutexes;

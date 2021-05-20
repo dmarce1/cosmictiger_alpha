@@ -1,6 +1,7 @@
 #include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/tree.hpp>
+#include <cosmictiger/tree_database.hpp>
 #include <cosmictiger/hpx.hpp>
 
 particle_set* particle_server::parts = nullptr;
@@ -57,11 +58,26 @@ std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) 
 	return std::move(data);
 }
 
-void particle_server::global_to_local(std::set<tree_ptr> remotes) {
+void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> remotes_unsorted) {
 	std::unordered_map<int, std::vector<tree_ptr>> requests;
 	std::unordered_map<int, part_int> offsets;
-	for (auto ptr : remotes) {
-		requests[ptr.rank].push_back(ptr);
+
+	struct sort_entry {
+		tree_ptr tree;
+		part_int pbegin;
+	};
+	std::vector<sort_entry> remotes_sorted;
+	remotes_sorted.reserve(remotes_unsorted.size());
+	for (auto tree : remotes_unsorted) {
+		sort_entry entry;
+		entry.tree = tree;
+		entry.pbegin = tree.get_parts().first;
+	}
+	std::sort(remotes_sorted.begin(), remotes_sorted.end(), [](const sort_entry& a, const sort_entry& b) {
+		return a.pbegin < b.pbegin;
+	});
+	for (auto entry : remotes_sorted) {
+		requests[entry.tree.rank].push_back(entry.tree);
 	}
 	std::vector<hpx::future<std::vector<fixed32>>>futs1;
 	std::vector<hpx::future<void>> futs2;
@@ -80,7 +96,7 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 	}
 
 	printf("importing %i particles or %e of local in %i sets with %i requests\n", size,
-			size / (double) parts->pos_size(), remotes.size(), requests.size());
+			size / (double) parts->pos_size(), remotes_sorted.size(), requests.size());
 	tree_data_map_global_to_local();
 	std::unique_lock<shared_mutex_type> lock(shared_mutex);
 	parts->resize_pos(parts->pos_size() + size);

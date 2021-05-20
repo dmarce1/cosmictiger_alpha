@@ -125,6 +125,14 @@ struct tree_ptr {
 #endif
 };
 
+struct tree_hash {
+	size_t operator()(const tree_ptr& ptr) const {
+		const int i = ptr.dindex  * hpx_size() + hpx_rank();
+		return i;
+	}
+};
+
+
 struct tree_node_t {
 	multipole multi;
 	array<fixed32, NDIM> pos;
