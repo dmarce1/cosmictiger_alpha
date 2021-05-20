@@ -159,24 +159,7 @@ sort_return tree::sort(sort_params params) {
 	sort_return rc;
 	array<tree_ptr, NCHILD> children;
 	const bool domain_decomp = (params.procs.second - params.procs.first) > 1;
-	bool boundary_zone = false;
-	for (int dim = 0; dim < NDIM; dim++) {
-		const auto span = box.end[dim] - box.begin[dim];
-		if (my_domain.end[dim] - my_domain.begin[dim] < 1.0) {
-			if (std::abs(box.begin[dim] - my_domain.begin[dim]) <= span / params.theta) {
-				boundary_zone = true;
-				break;
-			}
-			if (std::abs(box.end[dim] - my_domain.end[dim]) <= span / params.theta) {
-				boundary_zone = true;
-				break;
-			}
-		}
-	}
 	int max_part = (params.group_sort ? GROUP_BUCKET_SIZE : global().opts.bucket_size);
-	if (boundary_zone) {
-		max_part = std::max(2, max_part / 4);
-	}
 //	printf("%li %li %i %i\n", params.procs.first, params.procs.second, params.parts.first, params.parts.second);
 	if (domain_decomp || parts.second - parts.first > max_part
 			|| (params.depth < params.min_depth && parts.second - parts.first > 0)) {
