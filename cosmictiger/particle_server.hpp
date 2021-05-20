@@ -67,7 +67,7 @@ public:
 	static particle_set& get_particle_set();
 	static void domain_decomp_transmit(std::vector<particle>);
 	static void apply_domain_decomp();
-	static std::array<std::vector<fixed32>,NDIM> gather_pos(std::vector<part_iters>);
+	static std::vector<fixed32> gather_pos(std::vector<part_iters>);
 	static void global_to_local(std::set<tree_ptr>);
 };
 

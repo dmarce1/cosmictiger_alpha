@@ -19,8 +19,8 @@ HPX_PLAIN_ACTION(particle_server::generate_random, particle_server_generate_rand
 HPX_PLAIN_ACTION(particle_server::check_domain_bounds, particle_server_check_domain_bounds_action);
 HPX_PLAIN_ACTION(particle_server::gather_pos, particle_server_gather_pos_action);
 
-std::array<std::vector<fixed32>, NDIM> particle_server::gather_pos(std::vector<part_iters> iters) {
-	std::array<std::vector<fixed32>, NDIM> data;
+std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) {
+	std::vector<fixed32> data;
 	part_int size = 0;
 	const int nthreads = hardware_concurrency();
 	std::vector<part_int> offsets(nthreads + 1);
@@ -35,9 +35,7 @@ std::array<std::vector<fixed32>, NDIM> particle_server::gather_pos(std::vector<p
 			size += this_size;
 		}
 	}
-	for (int dim = 0; dim < NDIM; dim++) {
-		data[dim].resize(size);
-	}
+	data.resize(NDIM * size);
 	std::vector<hpx::future<void>> futs;
 	for (int proc = 0; proc < nthreads - 1; proc++) {
 		futs.push_back(hpx::async([&offsets,&data,proc,&iters,nthreads]() {
@@ -48,7 +46,7 @@ std::array<std::vector<fixed32>, NDIM> particle_server::gather_pos(std::vector<p
 			for( int i = start; i < stop; i++) {
 				for (part_int k = iters[i].first; k < iters[i].second; k++) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						data[dim][j] = parts->pos(dim, k);
+						data[dim+NDIM*j] = parts->pos(dim, k);
 					}
 					j++;
 				}
@@ -65,7 +63,7 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 	for (auto ptr : remotes) {
 		requests[ptr.rank].push_back(ptr);
 	}
-	std::vector<hpx::future<std::array<std::vector<fixed32>, NDIM>>>futs1;
+	std::vector<hpx::future<std::vector<fixed32>>>futs1;
 	std::vector<hpx::future<void>> futs2;
 	part_int size = 0;
 	for (auto i = requests.begin(); i != requests.end(); i++) {
@@ -89,7 +87,7 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 	lock.unlock();
 	int j = 0;
 	for (auto i = requests.begin(); i != requests.end(); i++) {
-		futs2.push_back(futs1[j++].then([i,&offsets](hpx::future<std::array<std::vector<fixed32>, NDIM>>&& fut) {
+		futs2.push_back(futs1[j++].then([i,&offsets](hpx::future<std::vector<fixed32>>&& fut) {
 			std::vector<hpx::future<void>> futs;
 			const auto data = fut.get();
 			const int nthreads = hardware_concurrency();
@@ -120,7 +118,7 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 											assert( !(j + offset > parts->pos_size() || j + offset < 0) );
 											assert( j + offset >= parts->size() );
 											for( int dim = 0; dim < NDIM; dim++) {
-												parts->pos(dim, j + offset) = data[dim][j + joffsets[proc]];
+												parts->pos(dim, j + offset) = data[dim + NDIM * (j + joffsets[proc])];
 											}
 											j++;
 										}
@@ -148,7 +146,7 @@ void particle_server::check_domain_bounds() {
 	for (part_int i = 0; i < parts->size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto x = parts->pos(dim, i).to_double();
-			assert (x >= myrange.begin[dim] && x <= myrange.end[dim]);
+			assert(x >= myrange.begin[dim] && x <= myrange.end[dim]);
 		}
 	}
 	hpx::wait_all(futs.begin(), futs.end());
@@ -261,7 +259,7 @@ void particle_server::init() {
 	const size_t start = ((size_t) hpx_rank()) * (size_t) global().opts.nparts / (size_t) hpx_size();
 	const size_t stop = ((size_t) hpx_rank() + 1) * (size_t) global().opts.nparts / (size_t) hpx_size();
 	const size_t size = stop - start;
-	assert (size <= std::numeric_limits<part_int>::max());
+	assert(size <= std::numeric_limits<part_int>::max());
 	CUDA_MALLOC(parts, 1);
 	new (parts) particle_set(size);
 	dbounds.create_uniform_bounds();
