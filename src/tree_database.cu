@@ -31,7 +31,6 @@ void tree_data_initialize_kick() {
 	}
 	cpu_tree_data_.nchunks = cpu_tree_data_.ntrees / cpu_tree_data_.chunk_size;
 
-//	CUDA_CHECK(cudaMemAdvise(&cpu_tree_data_, sizeof(cpu_tree_data_), cudaMemAdviseSetReadMostly, 0));
 
 	printf("Allocating %i trees in %i chunks of %i each for kick\n", cpu_tree_data_.ntrees, cpu_tree_data_.nchunks,
 			cpu_tree_data_.chunk_size);
@@ -63,7 +62,6 @@ void tree_data_initialize_groups() {
 	}
 	cpu_tree_data_.nchunks = cpu_tree_data_.ntrees / cpu_tree_data_.chunk_size;
 
-//	CUDA_CHECK(cudaMemAdvise(&cpu_tree_data_, sizeof(cpu_tree_data_), cudaMemAdviseSetReadMostly, 0));
 
 	printf("Allocating %i trees in %i chunks of %i each for group search\n", cpu_tree_data_.ntrees,
 			cpu_tree_data_.nchunks, cpu_tree_data_.chunk_size);
@@ -124,19 +122,7 @@ void tree_database_set_groups() {
 	}
 }
 
-void tree_database_set_readonly() {
-#ifdef USE_READMOSTLY
-	CUDA_CHECK(cudaMemAdvise(cpu_tree_data_.data, cpu_tree_data_.ntrees, cudaMemAdviseSetReadMostly, 0));
-	CUDA_CHECK(cudaMemAdvise(cpu_tree_data_.active_nodes, cpu_tree_data_.ntrees, cudaMemAdviseSetReadMostly, 0));
-#endif
-}
 
-void tree_database_unset_readonly() {
-#ifdef USE_READMOSTLY
-	CUDA_CHECK(cudaMemAdvise(cpu_tree_data_.data, cpu_tree_data_.ntrees, cudaMemAdviseUnsetReadMostly, 0));
-	CUDA_CHECK(cudaMemAdvise(cpu_tree_data_.active_nodes, cpu_tree_data_.ntrees, cudaMemAdviseUnsetReadMostly, 0));
-#endif
-}
 
 void tree_data_clear() {
 	next_chunk = 0;

@@ -124,6 +124,7 @@ inline CUDA_EXPORT void nan_test(T a, const char* file, int line ) {
 #define NAN_TEST(a)
 #endif
 
+int cuda_device();
 
 
 #ifdef __CUDA_ARCH__

@@ -23,6 +23,10 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 
 HPX_PLAIN_ACTION (cuda_init);
 
+int cuda_device() {
+	return hpx_rank() % global().cuda.num_devices;
+}
+
 cuda_properties cuda_init() {
 	hpx::future<cuda_properties> futl, futr;
 	auto children = hpx_child_localities();
@@ -32,13 +36,13 @@ cuda_properties cuda_init() {
 	if (children.second != hpx::invalid_id) {
 		futr = hpx::async<cuda_init_action>(children.second);
 	}
-
 	cuda_properties props;
 	CUDA_CHECK(cudaGetDeviceCount(&props.num_devices));
 	props.devices.resize(props.num_devices);
 	for (int i = 0; i < props.num_devices; i++) {
 		CUDA_CHECK(cudaGetDeviceProperties(&props.devices[i], i));
 	}
+	CUDA_CHECK(cudaSetDevice(hpx_rank() % props.num_devices));
 	printf("--------------------------------------------------------------------------------\n");
 	printf("Detected %i CUDA devices.\n", props.num_devices);
 	for (int i = 0; i < props.num_devices; i++) {

@@ -38,12 +38,12 @@ void healpix2_map(const vector<float>& x, const vector<float>& y, const vector<f
 	//printf( "Healpix occupancy = %i numregs = %i\n", num_blocks, attribs.numRegs);
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
 
-	CUDA_CHECK(cudaMemPrefetchAsync(x.data(), sizeof(float) * x.size(), 0, stream));
-	CUDA_CHECK(cudaMemPrefetchAsync(y.data(), sizeof(float) * y.size(), 0, stream));
-	CUDA_CHECK(cudaMemPrefetchAsync(z.data(), sizeof(float) * z.size(), 0, stream));
-	CUDA_CHECK(cudaMemPrefetchAsync(vx.data(), sizeof(float) * vx.size(), 0, stream));
-	CUDA_CHECK(cudaMemPrefetchAsync(vy.data(), sizeof(float) * vy.size(), 0, stream));
-	CUDA_CHECK(cudaMemPrefetchAsync(vz.data(), sizeof(float) * vz.size(), 0, stream));
+	CUDA_CHECK(cudaMemPrefetchAsync(x.data(), sizeof(float) * x.size(), cuda_device(), stream));
+	CUDA_CHECK(cudaMemPrefetchAsync(y.data(), sizeof(float) * y.size(), cuda_device(), stream));
+	CUDA_CHECK(cudaMemPrefetchAsync(z.data(), sizeof(float) * z.size(), cuda_device(), stream));
+	CUDA_CHECK(cudaMemPrefetchAsync(vx.data(), sizeof(float) * vx.size(), cuda_device(), stream));
+	CUDA_CHECK(cudaMemPrefetchAsync(vy.data(), sizeof(float) * vy.size(), cuda_device(), stream));
+	CUDA_CHECK(cudaMemPrefetchAsync(vz.data(), sizeof(float) * vz.size(), cuda_device(), stream));
 	healpix_kernel<<<num_blocks,num_threads,0,stream>>>(x.data(),y.data(),z.data(),vx.data(),vy.data(),vz.data(), taui, tau0, dtau,*map,x.size(),Nside);
 	while (cudaStreamSynchronize(stream) != cudaSuccess) {
 		hpx_yield();
