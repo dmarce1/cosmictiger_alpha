@@ -94,7 +94,7 @@ void kick_test() {
 		printf("Kick %i\n", i);
 		ttime.start();
 		tree root;
-		timer tm_sort, tm_kick, tm_cleanup;
+		timer tm_sort, tm_kick[2], tm_cleanup;
 		tm_sort.start();
 		sort_params params;
 		params.group_sort = false;
@@ -104,12 +104,12 @@ void kick_test() {
 		pserv.apply_domain_decomp();
 		root_ptr = root.sort(params).check;
 		tm_sort.stop();
-		tm_kick.start();
 		//  root_ptr.rank = hpx_rank();
 		// printf( "%li", size_t(WORKSPACE_SIZE));
 
 		kick_return_init(0);
 		for (int pass = 0; pass < 2; pass++) {
+			tm_kick[pass].start();
 			if (hpx_size() == 1 && pass == 0) {
 				continue;
 			}
@@ -134,17 +134,18 @@ void kick_test() {
 			params_ptr->full_eval = false;
 			params_ptr->rung = 0;
 			root.kick(params_ptr).get();
-			tree::cleanup();
-			tm_cleanup.start();
 			params_ptr->kick_params_type::~kick_params_type();
 			CUDA_FREE(params_ptr);
-			tm_cleanup.stop();
+			tm_kick[pass].stop();
 		}
-		tm_kick.stop();
-		const auto total = 2.0 * tm_sort.read() + tm_kick.read() + tm_cleanup.read();
+		tm_cleanup.start();
+		tree::cleanup();
+		tm_cleanup.stop();
+		const auto total = tm_sort.read() + tm_kick[0].read() + tm_kick[1].read() + tm_cleanup.read();
 //		kick_return_show();
 		printf("Sort         = %e s\n", tm_sort.read());
-		printf("Kick         = %e s\n", tm_kick.read());
+		printf("Bounds       = %e s\n", tm_kick[0].read());
+		printf("Kick         = %e s\n", tm_kick[1].read());
 		printf("Cleanup      = %e s\n", tm_cleanup.read());
 		printf("Total Score  = %e s\n", total);
 		//  printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
@@ -152,7 +153,7 @@ void kick_test() {
 		//	tree::show_timings();
 		ttime.stop();
 		if (i > 0) {
-			timings.push_back(tm_kick.read() + 2 * tm_sort.read());
+			timings.push_back(tm_kick[0].read() + tm_kick[1].read() + tm_sort.read());
 		}
 		ttime.reset();
 	}

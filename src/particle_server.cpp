@@ -64,27 +64,47 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 	static std::atomic<part_int> index(parts->size());
 	for (auto i = requests.begin(); i != requests.end(); i++) {
 		futs2.push_back(futs1[j].then([i,&offsets](hpx::future<std::array<std::vector<fixed32>, NDIM>>&& fut) {
+			std::vector<hpx::future<void>> futs;
 			const auto data = fut.get();
-			part_int j = 0;
-			part_int offset = offsets[i->first];
-			for( int k = 0; k < i->second.size(); k++) {
-				tree_ptr local_tree = tree_data_global_to_local(i->second[k]);
-				const auto rng = local_tree.get_parts();
-				part_iters local_iter;
-				local_iter.first = j + offset;
-				for( part_int l = rng.first; l < rng.second; l++) {
-					for( int dim = 0; dim < NDIM; dim++) {
-						parts->pos(dim, j + offset) = data[dim][j];
-					}
-					j++;
+			const int nthreads = hardware_concurrency();
+			std::vector<part_int> joffsets(nthreads);
+			joffsets[0] = offsets[i->first];
+			for( int proc = 0; proc < nthreads - 1; proc++) {
+				joffsets[proc + 1] = joffsets[proc];
+				part_int start = proc * i->second.size() / nthreads;
+				part_int stop = (proc+1) * i->second.size() / nthreads;
+				for( int k = start; k < stop; k++) {
+					tree_ptr local_tree = tree_data_global_to_local(i->second[k]);
+					const auto rng = local_tree.get_parts();
+					joffsets[proc + 1] += rng.second - rng.first;
 				}
-				local_iter.second = j + offset;
-				local_tree.set_parts(local_iter);
 			}
+			for( int proc = 0; proc < nthreads; proc++) {
+				futs.push_back(hpx::async([&joffsets,&data,proc,nthreads,i]() {
+									part_int j = 0;
+									part_int start = proc * i->second.size() / nthreads;
+									part_int stop = (proc+1) * i->second.size() / nthreads;
+									part_int offset = joffsets[proc];
+									for( int k = 0; k < i->second.size(); k++) {
+										tree_ptr local_tree = tree_data_global_to_local(i->second[k]);
+										const auto rng = local_tree.get_parts();
+										part_iters local_iter;
+										local_iter.first = j + offset;
+										for( part_int l = rng.first; l < rng.second; l++) {
+											for( int dim = 0; dim < NDIM; dim++) {
+												parts->pos(dim, j + offset) = data[dim][j];
+											}
+											j++;
+										}
+										local_iter.second = j + offset;
+										local_tree.set_parts(local_iter);
+									}}));
+			}
+			hpx::wait_all(futs.begin(),futs.end());
 
 		}));
 	}
-	hpx::wait_all(futs2.begin(),futs2.end());
+	hpx::wait_all(futs2.begin(), futs2.end());
 }
 
 void particle_server::check_domain_bounds() {
