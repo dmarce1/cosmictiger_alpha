@@ -61,7 +61,8 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 		futs1.push_back(hpx::async<particle_server_gather_pos_action>(hpx_localities()[i->first], std::move(iters)));
 	}
 
-	printf( "importing %i particles or %e of local in %i sets with %i requests\n", size, size / (double) parts->pos_size(), remotes.size(), requests.size());
+	printf("importing %i particles or %e of local in %i sets with %i requests\n", size,
+			size / (double) parts->pos_size(), remotes.size(), requests.size());
 	tree_data_map_global_to_local();
 	std::unique_lock<shared_mutex_type> lock(shared_mutex);
 	parts->resize_pos(parts->pos_size() + size);
@@ -73,7 +74,7 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 			const auto data = fut.get();
 			const int nthreads = hardware_concurrency();
 			std::vector<part_int> joffsets(nthreads);
-			joffsets[0] = offsets[i->first];
+			joffsets[0] = 0;
 			for( int proc = 0; proc < nthreads - 1; proc++) {
 				joffsets[proc + 1] = joffsets[proc];
 				part_int start = proc * i->second.size() / nthreads;
@@ -85,33 +86,37 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 				}
 			}
 			for( int proc = 0; proc < nthreads; proc++) {
-				futs.push_back(hpx::async([&joffsets,&data,proc,nthreads,i]() {
+				futs.push_back(hpx::async([&offsets,&joffsets,&data,proc,nthreads,i]() {
 									part_int j = 0;
 									part_int start = proc * i->second.size() / nthreads;
 									part_int stop = (proc+1) * i->second.size() / nthreads;
-									part_int offset = joffsets[proc];
+									part_int offset = joffsets[proc] + offsets[i->first];
 									for( int k = start; k < stop; k++) {
 										tree_ptr local_tree = tree_data_global_to_local(i->second[k]);
 										const auto rng = local_tree.get_parts();
 										part_iters local_iter;
 										local_iter.first = j + offset;
 										for( part_int l = rng.first; l < rng.second; l++) {
+											if( j + offset > parts->pos_size() || j + offset < 0 ) {
+												printf( "%i\n", j+offset, parts->pos_size());
+												ERROR();
+											}
 											for( int dim = 0; dim < NDIM; dim++) {
-												parts->pos(dim, j + offset) = data[dim][j];
+												parts->pos(dim, j + offset) = data[dim][j+joffsets[proc]];
 											}
 											j++;
 										}
 										local_iter.second = j + offset;
 										local_tree.set_parts(local_iter);
 									}
-				}));
+								}));
 			}
 			hpx::wait_all(futs.begin(),futs.end());
 
 		}));
 	}
 	hpx::wait_all(futs2.begin(), futs2.end());
-	printf( "Done filling locals\n");
+	printf("Done filling locals\n");
 }
 
 void particle_server::check_domain_bounds() {
