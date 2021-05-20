@@ -137,7 +137,7 @@ sort_return tree::sort(sort_params params) {
 	self.dindex = params.alloc->allocate();
 	self.rank = hpx_rank();
 	if (params.local_root) {
-		printf("Sorting local root on %i\n", hpx_rank());
+		printf("Sorting local root on %i with %i particles\n", hpx_rank(), particles->size());
 		params.parts.first = 0;
 		params.parts.second = particles->size();
 		self.set_local_root(true);
@@ -494,7 +494,6 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		if (active_nodes < min_gpu_nodes) {
 			params.block_cutoff = 0;
 		}
-		tree_database_set_readonly();
 	}
 	if (self.is_leaf()) {
 		for (int i = 0; i < parts.second - parts.first; i++) {
@@ -659,8 +658,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					futs[RIGHT].get();
 					if( self.local_root() ) {
 						printf( "Freeing cache\n");
-						tree_database_unset_readonly();
+						tree_data_free_cache();
 						particles->resize_pos(particles->size());
+						printf( "%i\n", particles->size());
 					}
 					if( depth == 0 ) {
 						printf( "Kick complete\n");

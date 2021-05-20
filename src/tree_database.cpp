@@ -43,11 +43,13 @@ static std::unordered_map<tree_ptr, int, tree_hash> tree_map;
 tree_ptr tree_data_global_to_local(tree_ptr global) {
 	tree_ptr local;
 	local.rank = hpx_rank();
-	if( tree_map.find(global) == tree_map.end()) {
-		ERROR();
-	}
 	if (global.rank != local.rank) {
-		local.dindex = tree_map[global];
+		auto iter = tree_map.find(global);
+		if (iter == tree_map.end()) {
+			ERROR()
+			;
+		}
+		local.dindex = iter->second;
 	} else {
 		local.dindex = global.dindex;
 	}
@@ -106,11 +108,14 @@ void tree_data_map_global_to_local() {
 			const int stop = (proc + 1) * cpu_tree_data_.ntrees / nthreads;
 			for (int i = start; i < stop; i++) {
 				auto& children = cpu_tree_data_.data[i].children;
-				for( int ci = 0; ci < NCHILD; ci++) {
-					const auto iter = tree_map.find(children[ci]);
-					if( iter != tree_map.end()) {
-						children[ci].dindex = iter->second;
-						children[ci].rank = hpx_rank();
+				const auto& proc_range = cpu_tree_data_.proc_range[i];
+				if( proc_range.second - proc_range.first == 1 ) {
+					for( int ci = 0; ci < NCHILD; ci++) {
+						const auto iter = tree_map.find(children[ci]);
+						if( iter != tree_map.end()) {
+							children[ci].dindex = iter->second;
+							children[ci].rank = hpx_rank();
+						}
 					}
 				}
 			}};

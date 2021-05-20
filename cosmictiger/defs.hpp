@@ -39,7 +39,7 @@
 #define CONFORMAL_TIME
 #define N_TEST_PARTS (100)
 
-#define NKICKS 1
+#define NKICKS 10
 
 #define KICK_PP_MAX (8*32)
 #define MAX_BUCKET_SIZE 160

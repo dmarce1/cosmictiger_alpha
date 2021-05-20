@@ -192,7 +192,7 @@ void particle_set::resize(part_int sz) {
 }
 void particle_set::resize_pos(part_int sz) {
 	if (pos_cap_ < sz) {
-		printf( "Resizing pos\n");
+		printf( "Resizing pos to %i\n", sz);
 		pos_cap_ = 1024;
 		while (pos_cap_ < sz) {
 			pos_cap_ = PART_BUFFER * pos_cap_;

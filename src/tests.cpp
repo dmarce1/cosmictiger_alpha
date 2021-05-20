@@ -109,6 +109,7 @@ void kick_test() {
 
 		kick_return_init(0);
 		for (int pass = 0; pass < 2; pass++) {
+			printf( "pass %i\n", pass);
 			tm_kick[pass].start();
 			if (hpx_size() == 1 && pass == 0) {
 				continue;
@@ -134,13 +135,11 @@ void kick_test() {
 			params_ptr->full_eval = false;
 			params_ptr->rung = 0;
 			root.kick(params_ptr).get();
-			printf( "Kick done\n");
 			params_ptr->kick_params_type::~kick_params_type();
 			CUDA_FREE(params_ptr);
 			tm_kick[pass].stop();
-			tree::cleanup();
-			printf( "Returning\n");
-			return;
+//			printf( "Returning\n");
+//			return;
 		}
 		tm_cleanup.start();
 		tree::cleanup();
