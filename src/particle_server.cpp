@@ -22,20 +22,40 @@ HPX_PLAIN_ACTION(particle_server::gather_pos, particle_server_gather_pos_action)
 std::array<std::vector<fixed32>, NDIM> particle_server::gather_pos(std::vector<part_iters> iters) {
 	std::array<std::vector<fixed32>, NDIM> data;
 	part_int size = 0;
-	for (auto iter : iters) {
-		size += iter.second - iter.first;
-	}
-	for (int dim = 0; dim < NDIM; dim++) {
-		data[dim].reserve(size);
-	}
-	std::shared_lock<shared_mutex_type> lock(shared_mutex);
-	for (auto iter : iters) {
-		for (part_int i = iter.first; i < iter.second; i++) {
-			for (int dim = 0; dim < NDIM; dim++) {
-				data[dim].push_back(parts->pos(dim, i));
-			}
+	const int nthreads = hardware_concurrency();
+	std::vector<part_int> offsets(nthreads + 1);
+	offsets[0] = 0;
+	for (int proc = 0; proc < nthreads; proc++) {
+		offsets[proc + 1] = offsets[proc];
+		const int start = proc * iters.size() / nthreads;
+		const int stop = (proc + 1) * iters.size() / nthreads;
+		for (int i = start; i < stop; i++) {
+			const part_int this_size = iters[i].second - iters[i].first;
+			offsets[proc + 1] += this_size;
+			size += this_size;
 		}
 	}
+	for (int dim = 0; dim < NDIM; dim++) {
+		data[dim].resize(size);
+	}
+	std::vector<hpx::future<void>> futs;
+	for (int proc = 0; proc < nthreads - 1; proc++) {
+		futs.push_back(hpx::async([&offsets,&data,proc,&iters,nthreads]() {
+			const int start = proc * iters.size() / nthreads;
+			const int stop = (proc+1) * iters.size() / nthreads;
+			std::shared_lock<shared_mutex_type> lock(shared_mutex);
+			part_int j = offsets[proc];
+			for( int i = start; i < stop; i++) {
+				for (part_int k = iters[i].first; k < iters[i].second; k++) {
+					for (int dim = 0; dim < NDIM; dim++) {
+						data[dim][j] = parts->pos(dim, k);
+					}
+					j++;
+				}
+			}
+		}));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
 	return std::move(data);
 }
 
@@ -97,13 +117,8 @@ void particle_server::global_to_local(std::set<tree_ptr> remotes) {
 										part_iters local_iter;
 										local_iter.first = j + offset;
 										for( part_int l = rng.first; l < rng.second; l++) {
-											if( j + offset > parts->pos_size() || j + offset < 0 ) {
-												printf( "%i\n", j+offset, parts->pos_size());
-												ERROR();
-											}
-											if( j + offset < parts->size() ) {
-												ERROR();
-											}
+											assert( !(j + offset > parts->pos_size() || j + offset < 0) );
+											assert( j + offset >= parts->size() );
 											for( int dim = 0; dim < NDIM; dim++) {
 												parts->pos(dim, j + offset) = data[dim][j + joffsets[proc]];
 											}
@@ -133,10 +148,7 @@ void particle_server::check_domain_bounds() {
 	for (part_int i = 0; i < parts->size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto x = parts->pos(dim, i).to_double();
-			if (x < myrange.begin[dim] || x > myrange.end[dim]) {
-				ERROR()
-				;
-			}
+			assert (x >= myrange.begin[dim] && x <= myrange.end[dim]);
 		}
 	}
 	hpx::wait_all(futs.begin(), futs.end());
@@ -249,10 +261,7 @@ void particle_server::init() {
 	const size_t start = ((size_t) hpx_rank()) * (size_t) global().opts.nparts / (size_t) hpx_size();
 	const size_t stop = ((size_t) hpx_rank() + 1) * (size_t) global().opts.nparts / (size_t) hpx_size();
 	const size_t size = stop - start;
-	if (size > std::numeric_limits<part_int>::max()) {
-		ERROR()
-		;
-	}
+	assert (size <= std::numeric_limits<part_int>::max());
 	CUDA_MALLOC(parts, 1);
 	new (parts) particle_set(size);
 	dbounds.create_uniform_bounds();
