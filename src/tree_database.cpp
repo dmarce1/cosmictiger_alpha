@@ -74,7 +74,7 @@ void tree_data_map_global_to_local() {
 							cpu_tree_data_.multi[index].multi = entry.multi;
 							cpu_tree_data_.multi[index].pos = entry.pos;
 						}
-						cpu_tree_data_.multi[index].pos = entry.pos;
+						cpu_tree_data_.data[index].pos = entry.pos;
 						cpu_tree_data_.data[index].radius = entry.radius;
 						if (cpu_tree_data_.ranges) {
 							cpu_tree_data_.ranges[index] = entry.ranges;
