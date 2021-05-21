@@ -17,24 +17,18 @@ class tree_ptr;
 #define PARTICLE_CACHE_SIZE 1024
 #define PARTICLE_CACHE_LINE_SIZE (8*1024)
 
-using pos_data_t = std::vector<std::array<fixed32,NDIM>>;
-
-struct pos_cache_entry {
-	pos_data_t X;
-	hpx::shared_future<void> ready_fut;
-};
-
-
 struct tree_hash;
+
 
 class particle_server {
 	static particle_set* parts;
 	static std::vector<part_int> free_indices;
-	static particle_send_type part_sends;
 	static domain_bounds dbounds;
+#ifndef __CUDACC__
+	static particle_send_type part_sends;
 	static spinlock_type mutex;
 	static shared_mutex_type shared_mutex;
-
+#endif
 public:
 	static void init();
 	static bool domain_decomp_gather();

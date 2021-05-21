@@ -5,6 +5,8 @@
  *      Author: dmarce1
  */
 
+#include <cosmictiger/domain.hpp>
+
 #include <cosmictiger/rand.hpp>
 #include <cosmictiger/hpx.hpp>
 

@@ -15,6 +15,7 @@
 #include <cosmictiger/drift.hpp>
 #include <cosmictiger/groups.hpp>
 #include <cosmictiger/time.hpp>
+#include <cosmictiger/direct.hpp>
 #include <cmath>
 
 static void psort_test() {
@@ -109,7 +110,7 @@ void kick_test() {
 
 		kick_return_init(0);
 		for (int pass = 0; pass < 2; pass++) {
-			printf( "pass %i\n", pass);
+			printf("pass %i\n", pass);
 			tm_kick[pass].start();
 			if (hpx_size() == 1 && pass == 0) {
 				continue;
@@ -335,45 +336,52 @@ void force_test() {
 	params.min_rung = 0;
 	tree_ptr root_ptr;
 
-	tree_data_initialize_kick();
+	tree_data_initialize(TREE_KICK);
+	pserv.apply_domain_decomp();
 	root_ptr = root.sort(params).check;
 	//  root_ptr.rank = hpx_rank();
 	// printf( "%li", size_t(WORKSPACE_SIZE));
-	kick_params_type *params_ptr;
-	CUDA_MALLOC(params_ptr, 1);
-	new (params_ptr) kick_params_type();
-	params_ptr->tptr = root_ptr;
-	params_ptr->dchecks.push(root_ptr);
-	params_ptr->echecks.push(root_ptr);
-
-	// printf( "---------> %li %li\n", root_ptr.ptr, dchecks[0].ptr);
-	array<fixed32, NDIM> Lpos;
-	expansion<float> L;
-	for (int i = 0; i < LP; i++) {
-		L[i] = 0.f;
-	}
-	for (int dim = 0; dim < NDIM; dim++) {
-		Lpos[dim] = 0.5;
-	}
-	params_ptr->L[0] = L;
-	params_ptr->Lpos[0] = Lpos;
-	params_ptr->t0 = true;
-	params_ptr->full_eval = true;
 	kick_return_init(0);
-	params_ptr->theta = 0.4;
-	root.kick(params_ptr).get();
+	for (int pass = 0; pass < 2; pass++) {
+		printf("pass %i\n", pass);
+		if (hpx_size() == 1 && pass == 0) {
+			continue;
+		}
+		kick_params_type *params_ptr;
+		CUDA_MALLOC(params_ptr, 1);
+		new (params_ptr) kick_params_type();
+		params_ptr->dry_run = (pass == 0);
+		params_ptr->tptr = root_ptr;
+		params_ptr->dchecks.push(root_ptr);
+		params_ptr->echecks.push(root_ptr);
+		array<fixed32, NDIM> Lpos;
+		expansion<float> L;
+		for (int i = 0; i < LP; i++) {
+			L[i] = 0.f;
+		}
+		for (int dim = 0; dim < NDIM; dim++) {
+			Lpos[dim] = 0.5;
+		}
+		params_ptr->L[0] = L;
+		params_ptr->Lpos[0] = Lpos;
+		params_ptr->t0 = 1;
+		params_ptr->full_eval = pass == 1;
+		params_ptr->rung = 0;
+		root.kick(params_ptr).get();
+		params_ptr->kick_params_type::~kick_params_type();
+		CUDA_FREE(params_ptr);
+	}
 	kick_return_show();
 	tree::cleanup();
 	managed_allocator<tree>::cleanup();
-	params_ptr->kick_params_type::~kick_params_type();
 	timer tm;
 	tm.start();
 	printf("Doing comparison\n");
-	cuda_compare_with_direct(&pserv.get_particle_set());
+	direct_force_test();
+///	cuda_compare_with_direct(&pserv.get_particle_set());
 	tm.stop();
 	printf("Comparison took %e s\n", tm.read());
 	// printf("GFLOP   = %e s\n", rc.flops / 1024. / 1024. / 1024.);
-	CUDA_FREE(params_ptr);
 }
 #endif
 

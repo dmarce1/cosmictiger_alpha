@@ -28,6 +28,7 @@ set(cosmictiger_source_files
     src/chemistry.cpp
     src/cosmos.cpp
     src/cuda.cpp
+    src/direct.cpp
     src/domain.cpp
     src/drift.cpp
     src/driver.cpp
@@ -49,6 +50,7 @@ set(cosmictiger_source_files
     src/tree.cpp
     src/tree_database.cpp
 	src/boltzmann.cu
+	src/direct.cu
     src/ewald_indices.cu
     src/expansion.cu
     src/fourier.cu
@@ -77,6 +79,7 @@ set(cosmictiger_header_files
 	cosmictiger/cosmos.hpp
 	cosmictiger/domain.hpp
 	cosmictiger/defs.hpp
+	cosmictiger/direct.hpp
 	cosmictiger/drift.hpp
 	cosmictiger/ewald_indices.hpp
 	cosmictiger/interp.hpp

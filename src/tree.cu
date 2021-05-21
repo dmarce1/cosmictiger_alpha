@@ -345,68 +345,72 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		const float& logt0 = constant.logt0;
 		const float& halft0 = constant.halft0;
 		const auto& minrung = constant.minrung;
-		for (int k = tid; k < myparts.second - myparts.first; k += KICK_BLOCK_SIZE) {
-			const auto index = k + myparts.first;
-			const auto this_rung = parts.rung(index);
-			if (this_rung >= constant.rung || constant.full_eval) {
-				array<float, NDIM> g;
-				float this_phi;
-				for (int dim = 0; dim < NDIM; dim++) {
-					const auto x2 = mypos[dim];
-					const auto x1 = parts.pos(dim, k + myparts.first);
-					dx[dim] = distance(x1, x2);
-				}
-				shift_expansion(L, g, this_phi, dx, constant.full_eval);
-				for (int dim = 0; dim < NDIM; dim++) {
-					F[dim][k] += g[dim];
-				}
-				phi[k] += this_phi;
-				for (int dim = 0; dim < NDIM; dim++) {
-					F[dim][k] *= GM;
-				}
-				phi[k] *= GM;
-				if (constant.groups) {
-					const int id = parts.group(index);
-					gpu_groups_kick_update(id, phi[k]);
-				}
+		const int nparts = myparts.second - myparts.first;
+		const int part_max = round_up(nparts, KICK_BLOCK_SIZE);
+		for (int k = tid; k < part_max; k += KICK_BLOCK_SIZE) {
+			if (k < nparts) {
+				const auto index = k + myparts.first;
+				const auto this_rung = parts.rung(index);
+				if (this_rung >= constant.rung || constant.full_eval) {
+					array<float, NDIM> g;
+					float this_phi;
+					for (int dim = 0; dim < NDIM; dim++) {
+						const auto x2 = mypos[dim];
+						const auto x1 = parts.pos(dim, k + myparts.first);
+						dx[dim] = distance(x1, x2);
+					}
+					shift_expansion(L, g, this_phi, dx, constant.full_eval);
+					for (int dim = 0; dim < NDIM; dim++) {
+						F[dim][k] += g[dim];
+					}
+					phi[k] += this_phi;
+					for (int dim = 0; dim < NDIM; dim++) {
+						F[dim][k] *= GM;
+					}
+					phi[k] *= GM;
+					if (constant.groups) {
+						const int id = parts.group(index);
+						gpu_groups_kick_update(id, phi[k]);
+					}
 #ifdef TEST_FORCE
-				for (int dim = 0; dim < NDIM; dim++) {
-					parts.force(dim, k + myparts.first) = F[dim][k];
-				}
-				parts.pot(k + myparts.first) = phi[k];
+					for (int dim = 0; dim < NDIM; dim++) {
+						parts.force(dim, k + myparts.first) = F[dim][k];
+					}
+					parts.pot(k + myparts.first) = phi[k];
 #endif
-				if (this_rung >= constant.rung) {
-					float dt = halft0 * rung_dt[this_rung];
-					auto& vx = parts.vel(0,index);
-					auto& vy = parts.vel(1,index);
-					auto& vz = parts.vel(2,index);
+					if (this_rung >= constant.rung) {
+						float dt = halft0 * rung_dt[this_rung];
+						auto& vx = parts.vel(0, index);
+						auto& vy = parts.vel(1, index);
+						auto& vz = parts.vel(2, index);
 #ifndef CONFORMAL_TIME
-					dt *= constant.ainv;
+						dt *= constant.ainv;
 #endif
-					if (!constant.first) {
+						if (!constant.first) {
+							vx = fmaf(dt, F[0][k], vx);
+							vy = fmaf(dt, F[1][k], vy);
+							vz = fmaf(dt, F[2][k], vz);
+						}
+						const float fmag2 = fmaf(F[0][k], F[0][k], fmaf(F[1][k], F[1][k], sqr(F[2][k])));
+						if (fmag2 != 0.f) {
+							dt = fminf(tfactor * rsqrt(sqrtf(fmag2)), params.t0);
+						} else {
+							dt = 1.0e+30;
+						}
+						const int new_rung = fmaxf(fmaxf(ceilf((logt0 - logf(dt)) * invlog2), this_rung - 1), minrung);
+						dt = halft0 * rung_dt[new_rung];
+#ifndef CONFORMAL_TIME
+						dt *= constant.ainv;
+#endif
 						vx = fmaf(dt, F[0][k], vx);
 						vy = fmaf(dt, F[1][k], vy);
 						vz = fmaf(dt, F[2][k], vz);
+						parts.set_rung(new_rung, index);
 					}
-					const float fmag2 = fmaf(F[0][k], F[0][k], fmaf(F[1][k], F[1][k], sqr(F[2][k])));
-					if (fmag2 != 0.f) {
-						dt = fminf(tfactor * rsqrt(sqrtf(fmag2)), params.t0);
-					} else {
-						dt = 1.0e+30;
-					}
-					const int new_rung = fmaxf(fmaxf(ceilf((logt0 - logf(dt)) * invlog2), this_rung - 1), minrung);
-					dt = halft0 * rung_dt[new_rung];
-#ifndef CONFORMAL_TIME
-					dt *= constant.ainv;
-#endif
-					vx = fmaf(dt, F[0][k], vx);
-					vy = fmaf(dt, F[1][k], vy);
-					vz = fmaf(dt, F[2][k], vz);
-					parts.set_rung(new_rung, index);
 				}
-				if (constant.full_eval) {
-					kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
-				}
+			}
+			if (constant.full_eval) {
+				kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
 			}
 			kick_return_update_rung_gpu(parts.rung(k + myparts.first));
 		}
@@ -415,7 +419,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		kick_return_update_interactions_gpu(KR_OP, interacts, flops);
 	}
 }
-
 
 void tree::show_timings() {
 }
