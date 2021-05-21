@@ -95,11 +95,11 @@ void direct_force_test() {
 		gdir = std::sqrt(gdir);
 		gnum = std::sqrt(gnum);
 		phinum = test_parts[i].f.phi;
-		phidir = total[i].phi;// - PHI0 * global().opts.G * global().opts.M;
+		phidir = total[i].phi - PHI0 * global().opts.G * global().opts.M;
 		gnorm += gdir;
 		phinorm += std::abs(phidir);
-		gerr += gdir - gnum;
-		phierr += phidir - phinum;
+		gerr += std::abs(gdir - gnum);
+		phierr += std::abs(phidir - phinum);
 		printf( "%e %e %e %e\n", gdir, gnum, phidir, phinum);
 	}
 	gerr /= gnorm;
