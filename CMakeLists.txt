@@ -22,13 +22,12 @@ find_package(Boost REQUIRED)
 find_package(Silo REQUIRED)
 enable_language(CUDA)
 
-set(CMAKE_CXX_FLAGS "-ffast-math -march=native -Wno-deprecated-declarations")
+set(CMAKE_CXX_FLAGS " -ffast-math -march=native -Wno-deprecated-declarations")
 
 set(cosmictiger_source_files
     src/chemistry.cpp
     src/cosmos.cpp
     src/cuda.cpp
-    src/direct.cpp
     src/domain.cpp
     src/drift.cpp
     src/driver.cpp
@@ -50,7 +49,6 @@ set(cosmictiger_source_files
     src/tree.cpp
     src/tree_database.cpp
 	src/boltzmann.cu
-	src/direct.cu
     src/ewald_indices.cu
     src/expansion.cu
     src/fourier.cu
@@ -79,7 +77,6 @@ set(cosmictiger_header_files
 	cosmictiger/cosmos.hpp
 	cosmictiger/domain.hpp
 	cosmictiger/defs.hpp
-	cosmictiger/direct.hpp
 	cosmictiger/drift.hpp
 	cosmictiger/ewald_indices.hpp
 	cosmictiger/interp.hpp
@@ -158,7 +155,7 @@ target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
+                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_35;
                         >)
 
 #SET_SOURCE_FILES_PROPERTIES( src/math.cu PROPERTIES COMPILE_FLAGS -G )

@@ -692,12 +692,14 @@ CUDA_EXPORT inline part_iters tree_data_get_parts(int i) {
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
+	return tree_data_.parts[i];
 	union parts_union {
 		part_iters parts;
 		int4 ints;
 	};
 	parts_union p;
 	p.ints = LDG((int4* )(&tree_data_.parts[i]));
+
 	return p.parts;
 }
 
