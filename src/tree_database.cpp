@@ -86,6 +86,7 @@ void tree_data_map_global_to_local() {
 						tree_ptr global_ptr;
 						global_ptr.dindex = k->first.dindex + l;
 						global_ptr.rank = k->first.rank;
+						assert(global_ptr.rank !=hpx_rank());
 						tree_map[global_ptr] = index;
 					}
 				}

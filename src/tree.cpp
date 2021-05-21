@@ -21,7 +21,7 @@ static unified_allocator kick_params_alloc;
 static std::atomic<part_int> parts_covered;
 static range my_domain;
 static bool dry_run;
-static std::unordered_set<tree_ptr,tree_hash> remote_parts;
+static std::unordered_set<tree_ptr, tree_hash> remote_parts;
 
 void tree::add_parts_covered(part_iters num) {
 	static particle_server pserv;
@@ -634,15 +634,17 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.depth--;
 		}
 		int depth = params.depth;
+		const bool dry = params.dry_run;
 		return hpx::when_all(futs.begin(), futs.end()).then(
-				[depth,self,pserv,particles](hpx::future<std::vector<hpx::future<void>>> futfut) {
+				[depth,self,pserv,particles,dry](hpx::future<std::vector<hpx::future<void>>> futfut) {
 					auto futs = futfut.get();
 					futs[LEFT].get();
 					futs[RIGHT].get();
 					if( self.local_root() ) {
 						printf( "Freeing cache\n");
 						tree_data_free_cache();
-						particles->resize_pos(particles->size());
+						if( !dry_run ) {
+							particles->resize_pos(particles->size());}
 						printf( "%i\n", particles->size());
 					}
 					if( depth == 0 ) {

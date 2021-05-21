@@ -13,6 +13,8 @@ static std::atomic<int> next_chunk;
 
 int hardware_concurrency();
 
+__managed__ int myrank;
+
 template<class T>
 void free_if_needed(T** ptr) {
 	if (*ptr) {
@@ -21,7 +23,14 @@ void free_if_needed(T** ptr) {
 	}
 }
 
+
+
+CUDA_EXPORT int hpx_rank_cuda() {
+	return myrank;
+}
+
 void tree_data_initialize_kick() {
+	myrank = hpx_rank();
 	cpu_tree_data_.chunk_size = 1;
 	int ntrees = 8 * global().opts.nparts / global().opts.bucket_size / hpx_size();
 	cpu_tree_data_.ntrees = 1;
@@ -57,6 +66,7 @@ void tree_data_initialize_kick() {
 }
 
 void tree_data_initialize_groups() {
+	myrank = hpx_rank();
 	cpu_tree_data_.chunk_size = 1;
 	int ntrees = 8 * global().opts.nparts / global().opts.bucket_size / hpx_size();
 	cpu_tree_data_.ntrees = 1;

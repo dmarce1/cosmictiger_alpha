@@ -23,6 +23,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, size_t *test_parts, 
 
 HPX_PLAIN_ACTION (cuda_init);
 
+
 int cuda_device() {
 	return hpx_rank() % global().cuda.num_devices;
 }

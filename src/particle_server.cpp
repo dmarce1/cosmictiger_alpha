@@ -23,6 +23,7 @@ HPX_PLAIN_ACTION(particle_server::gather_pos, particle_server_gather_pos_action)
 std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) {
 	std::vector<fixed32> data;
 	part_int size = 0;
+//	const int nthreads = 1;
 	const int nthreads = hardware_concurrency();
 	std::vector<part_int> offsets(nthreads + 1);
 	offsets[0] = 0;
@@ -107,6 +108,7 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 		futs2.push_back(futs1[j++].then([i,&offsets](hpx::future<std::vector<fixed32>>&& fut) {
 			std::vector<hpx::future<void>> futs;
 			const auto data = fut.get();
+//			const int nthreads = 1;
 			const int nthreads = hardware_concurrency();
 			std::vector<part_int> joffsets(nthreads);
 			joffsets[0] = 0;
@@ -127,6 +129,7 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 									part_int stop = (proc+1) * i->second.size() / nthreads;
 									part_int offset = joffsets[proc] + offsets[i->first];
 									for( int k = start; k < stop; k++) {
+										assert(i->second[k].rank != hpx_rank());
 										tree_ptr local_tree = tree_data_global_to_local(i->second[k]);
 										const auto rng = local_tree.get_parts();
 										part_iters local_iter;
