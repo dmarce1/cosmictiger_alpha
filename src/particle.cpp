@@ -60,7 +60,8 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 		sends[i].parts = std::vector<particle>();
 	}
 
-	const int num_threads = hardware_concurrency();
+	//	const int num_threads = hardware_concurrency();
+	const int num_threads = 1;
 	static spinlock_type mutex;
 	std::vector<hpx::future<void>> futs;
 	for (int i = 0; i < num_threads; i++) {
@@ -103,6 +104,7 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
+	std::sort(free_indices.begin(),free_indices.end());
 	return (int) finished_cnt == num_threads;
 }
 

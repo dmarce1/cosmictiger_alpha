@@ -23,8 +23,8 @@ HPX_PLAIN_ACTION(particle_server::gather_pos, particle_server_gather_pos_action)
 std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) {
 	std::vector<fixed32> data;
 	part_int size = 0;
-//	const int nthreads = 1;
-	const int nthreads = hardware_concurrency();
+	const int nthreads = 1;
+//	const int nthreads = hardware_concurrency();
 	std::vector<part_int> offsets(nthreads + 1);
 	offsets[0] = 0;
 	for (int proc = 0; proc < nthreads; proc++) {
@@ -39,7 +39,7 @@ std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) 
 	}
 	data.resize(NDIM * size);
 	std::vector<hpx::future<void>> futs;
-	for (int proc = 0; proc < nthreads - 1; proc++) {
+	for (int proc = 0; proc < nthreads; proc++) {
 		futs.push_back(hpx::async([&offsets,&data,proc,&iters,nthreads]() {
 			const int start = proc * iters.size() / nthreads;
 			const int stop = (proc+1) * iters.size() / nthreads;
@@ -53,6 +53,7 @@ std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) 
 					j++;
 				}
 			}
+			assert(j==offsets[proc+1]);
 		}));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
@@ -108,8 +109,8 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 		futs2.push_back(futs1[j++].then([i,&offsets](hpx::future<std::vector<fixed32>>&& fut) {
 			std::vector<hpx::future<void>> futs;
 			const auto data = fut.get();
-//			const int nthreads = 1;
-			const int nthreads = hardware_concurrency();
+			const int nthreads = 1;
+			//const int nthreads = hardware_concurrency();
 			std::vector<part_int> joffsets(nthreads);
 			joffsets[0] = 0;
 			for( int proc = 0; proc < nthreads - 1; proc++) {
@@ -144,6 +145,9 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 										}
 										local_iter.second = j + offset;
 										local_tree.set_parts(local_iter);
+#ifndef NDEBUG
+										local_tree.set_proc_range(hpx_rank(), hpx_rank());
+#endif
 									}
 								}));
 			}
@@ -180,7 +184,7 @@ void particle_server::generate_random() {
 		}
 	}
 
-	parts->generate_random(hpx_rank() + 24);
+	parts->generate_random(123*hpx_rank() + 42);
 
 	hpx::wait_all(futs.begin(), futs.end());
 }

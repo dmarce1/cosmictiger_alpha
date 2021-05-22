@@ -687,12 +687,16 @@ void tree_data_set_children(int i, const array<tree_ptr, NCHILD>& c) {
 CUDA_EXPORT inline part_iters tree_data_get_parts(int i) {
 #ifdef __CUDA_ARCH__
 	auto& tree_data_ = gpu_tree_data_;
+#ifndef NDEBUG
+	if( tree_data_get_isleaf(i)) {
+		assert(tree_data_.proc_range[i].first == hpx_rank_cuda());
+	}
+#endif
 #else
 	auto& tree_data_ = cpu_tree_data_;
 #endif
 	assert(i >= 0);
 	assert(i < tree_data_.ntrees);
-	return tree_data_.parts[i];
 	union parts_union {
 		part_iters parts;
 		int4 ints;

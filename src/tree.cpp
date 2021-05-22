@@ -35,6 +35,7 @@ void tree::add_parts_covered(part_iters num) {
 		}
 
 	}
+	assert(parts_covered <= parts.size());
 }
 
 timer tmp_tm;
@@ -504,7 +505,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		}
 		shift_expansion(L, dx, params.full_eval);
 	}
-	const auto theta2 = sqr(params.theta * 0.999f);
+	const auto theta2 = sqr(params.theta);
 	array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
 	auto &multis = params.multi_interactions;
 	auto &parti = params.part_interactions;
@@ -522,10 +523,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 #ifdef TEST_CHECKLIST_TIME
 			tm.start();
 #endif
-			const auto th = params.theta * std::max(params.hsoft, MIN_DX);
+			const auto th = params.theta * params.hsoft;
 			for (int ci = 0; ci < checks.size(); ci++) {
 				const auto other_radius = checks[ci].get_radius();
-				const auto other_parts = checks[ci].get_parts();
 				const auto other_pos = checks[ci].get_pos();
 				float d2 = 0.f;
 				for (int dim = 0; dim < NDIM; dim++) {
@@ -535,9 +535,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					d2 = std::max(d2, (float) EWALD_MIN_DIST2);
 				}
 				const float myradius = SINK_BIAS * self.get_radius();
-				const auto R1 = sqr(std::max(other_radius + myradius + th, MIN_DX));                 // 2
-				const auto R2 = sqr(std::max(other_radius * params.theta + myradius + th, MIN_DX));
-				const auto R3 = sqr(std::max(other_radius + (myradius * params.theta / SINK_BIAS) + th, MIN_DX));
+				const auto R1 = sqr(other_radius + myradius + th);                 // 2
+				const auto R2 = sqr(other_radius * params.theta + myradius + th);
+				const auto R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + th);
 				const bool far1 = R1 < theta2 * d2;
 				const bool far2 = R2 < theta2 * d2;
 				const bool far3 = R3 < theta2 * d2;
@@ -570,6 +570,11 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					remote_parts.insert(parti[i]);
 				}
 			}
+/*			for (int i = 0; i < multis.size(); i++) {
+				if (multis[i].rank != hpx_rank()) {
+					remote_parts.insert(multis[i]);
+				}
+			}*/
 		} else {
 			switch (type) {
 			case CC_CP_DIRECT:

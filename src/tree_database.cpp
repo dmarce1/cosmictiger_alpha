@@ -82,11 +82,11 @@ void tree_data_map_global_to_local() {
 						cpu_tree_data_.proc_range[index] = entry.proc_range;
 						cpu_tree_data_.local_root[index] = entry.local_root;
 						cpu_tree_data_.data[index].children = entry.children;
-						std::lock_guard<spinlock_type> lock(mutex);
 						tree_ptr global_ptr;
 						global_ptr.dindex = k->first.dindex + l;
 						global_ptr.rank = k->first.rank;
 						assert(global_ptr.rank !=hpx_rank());
+						std::lock_guard<spinlock_type> lock(mutex);
 						tree_map[global_ptr] = index;
 					}
 				}
@@ -104,7 +104,7 @@ void tree_data_map_global_to_local() {
 			for (int i = start; i < stop; i++) {
 				auto& children = cpu_tree_data_.data[i].children;
 				const auto& proc_range = cpu_tree_data_.proc_range[i];
-				if( proc_range.second - proc_range.first == 1 ) {
+				if( proc_range.second - proc_range.first == 1 && children[0].dindex != -1) {
 					for( int ci = 0; ci < NCHILD; ci++) {
 						const auto iter = tree_map.find(children[ci]);
 						if( iter != tree_map.end()) {
