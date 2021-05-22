@@ -31,6 +31,7 @@ void tree::add_parts_covered(part_iters num) {
 		if (dry_run) {
 			pserv.global_to_local(std::move(remote_parts));
 		} else {
+			PRINT( "Sending tree pieces to gpu\n" );
 			gpu_daemon();
 		}
 
@@ -455,6 +456,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto& phi = params.Phi;
 	const auto parts = self.get_parts();
 	if (self.local_root()) {
+		PRINT( "Starting local kick on %i\n", hpx_rank() );
 		dry_run = params.dry_run;
 		if (!dry_run) {
 			tree_data_global_to_local(params.dchecks);

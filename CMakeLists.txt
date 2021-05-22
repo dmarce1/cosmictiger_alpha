@@ -126,7 +126,7 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    boost_program_options silo mpi 
+    Boost::boost silo mpi 
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
