@@ -184,7 +184,7 @@ void particle_server::generate_random() {
 		}
 	}
 
-	parts->generate_random(123*hpx_rank() + 42);
+	parts->generate_random(time(NULL) + 1234*hpx_rank() + 42);
 
 	hpx::wait_all(futs.begin(), futs.end());
 }
