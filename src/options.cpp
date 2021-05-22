@@ -9,6 +9,7 @@
 #include <cosmictiger/options.hpp>
 #include <cosmictiger/hpx.hpp>
 #include <fstream>
+#include <iostream>
 #include <boost/program_options.hpp>
 #include <cosmictiger/constants.hpp>
 #include <cosmictiger/math.hpp>

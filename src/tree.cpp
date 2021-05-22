@@ -404,7 +404,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 		} else {
 			static std::atomic<int> used_threads(0);
 			if (thread) {
-				const int max_threads = OVERSUBSCRIPTION * hpx::threads::hardware_concurrency();
+				const int max_threads = OVERSUBSCRIPTION * hpx::thread::hardware_concurrency();
 				if (used_threads++ > max_threads) {
 					used_threads--;
 					thread = false;

@@ -52,6 +52,7 @@ tree_ptr tree_data_global_to_local(tree_ptr global) {
 
 void tree_data_map_global_to_local() {
 	const int nthreads = hardware_concurrency();
+//	const int nthreads = 1;
 	static spinlock_type mutex;
 	std::vector<hpx::future<void>> futs;
 	tree_map = decltype(tree_map)();
@@ -165,7 +166,7 @@ tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 		entry = std::make_shared<tree_cache_entry>();
 		entry->ready_fut = prms->get_future();
 		lock.unlock();
-		hpx::apply([prms,i,loindex,line_ptr]() {
+		hpx::async([prms,i,loindex,line_ptr]() {
 			tree_data_fetch_cache_line_action act;
 			auto line = act(hpx_localities()[line_ptr.rank], line_ptr.dindex);
 			auto& mutex = mutexes[loindex];
