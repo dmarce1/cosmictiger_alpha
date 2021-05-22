@@ -54,7 +54,7 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 	static part_int max_send_parts = std::min(part_int(size() * 0.1), part_int(PARTICLE_SET_MAX_SEND));
 	finished_cnt = 0;
 	for (int dim = 0; dim < NDIM; dim++) {
-		//	printf( "%i %e %e\n", hpx_rank(), my_range.begin[dim], my_range.end[dim]);
+		//	PRINT( "%i %e %e\n", hpx_rank(), my_range.begin[dim], my_range.end[dim]);
 	}
 	for (int i = 0; i < hpx_size(); i++) {
 		sends[i].parts = std::vector<particle>();
@@ -89,22 +89,21 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 					auto& entry = sends[proc];
 					free_indices.push_back(j);
 					auto& pts = entry.parts;
-					//			printf( "%li\n", pts.size());
-				pts.push_back(p);
-				if( free_indices.size() >= max_send_parts ) {
-					finished = false;
-					break;
+					pts.push_back(p);
+					if( free_indices.size() >= max_send_parts ) {
+						finished = false;
+						break;
+					}
 				}
 			}
-		}
-		if( finished ) {
-			finished_cnt++;
-		}
-	}	;
+			if( finished ) {
+				finished_cnt++;
+			}
+		};
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	std::sort(free_indices.begin(),free_indices.end());
+	std::sort(free_indices.begin(), free_indices.end());
 	return (int) finished_cnt == num_threads;
 }
 
@@ -194,7 +193,7 @@ void particle_set::resize(part_int sz) {
 }
 void particle_set::resize_pos(part_int sz) {
 	if (pos_cap_ < sz) {
-		printf( "Resizing pos to %i\n", sz);
+		PRINT("Resizing pos to %i\n", sz);
 		pos_cap_ = 1024;
 		while (pos_cap_ < sz) {
 			pos_cap_ = PART_BUFFER * pos_cap_;
@@ -236,22 +235,22 @@ void particle_set::load_from_file(FILE* fp) {
 		global_set_options(opts);
 	}
 	for (int dim = 0; dim < NDIM; dim++) {
-		printf("%c positions...", 'x' + dim);
+		PRINT("%c positions...", 'x' + dim);
 		fflush(stdout);
 		FREAD(xptr_[dim], sizeof(fixed32), size(), fp);
 	}
-	printf("velocities...");
+	PRINT("velocities...");
 	fflush(stdout);
 	FREAD(uptr_, sizeof(array<float,NDIM>), size(), fp);
-	printf("rungs...");
+	PRINT("rungs...");
 	fflush(stdout);
 	FREAD(rptr_, sizeof(rung_t), size(), fp);
-	printf("groups...");
+	PRINT("groups...");
 	fflush(stdout);
 	if (opts.groups) {
 		FREAD(idptr_, sizeof(group_t), size(), fp);
 	}
-	printf("\n");
+	PRINT("\n");
 }
 
 void particle_set::save_to_file(FILE* fp) {
@@ -336,18 +335,18 @@ void load_header(io_header_1 *header, std::string filename) {
 	int4byte dummy;
 	FILE *fp = fopen(filename.c_str(), "rb");
 	if (!fp) {
-		printf("Unable to load %s\n", filename.c_str());
+		PRINT("Unable to load %s\n", filename.c_str());
 		abort();
 	}
 	FREAD(&dummy, sizeof(dummy), 1, fp);
 	FREAD(header, sizeof(*header), 1, fp);
 	FREAD(&dummy, sizeof(dummy), 1, fp);
-	printf("Reading %i particles\n", header->npart[1]);
-	printf("Z =             %e\n", header->redshift);
-	printf("particle mass = %e\n", header->mass[1]);
-	printf("Omega_m =       %e\n", header->Omega0);
-	printf("Omega_lambda =  %e\n", header->OmegaLambda);
-	printf("Hubble Param =  %e\n", header->HubbleParam);
+	PRINT("Reading %i particles\n", header->npart[1]);
+	PRINT("Z =             %e\n", header->redshift);
+	PRINT("particle mass = %e\n", header->mass[1]);
+	PRINT("Omega_m =       %e\n", header->Omega0);
+	PRINT("Omega_lambda =  %e\n", header->OmegaLambda);
+	PRINT("Hubble Param =  %e\n", header->HubbleParam);
 	FREAD(&dummy, sizeof(dummy), 1, fp);
 	fclose(fp);
 

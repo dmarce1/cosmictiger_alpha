@@ -35,7 +35,7 @@ void healpix2_map(const vector<float>& x, const vector<float>& y, const vector<f
 	int num_threads = 96;
 	int num_blocks;
 	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, healpix_kernel, num_threads, 0));
-	//printf( "Healpix occupancy = %i numregs = %i\n", num_blocks, attribs.numRegs);
+	//PRINT( "Healpix occupancy = %i numregs = %i\n", num_blocks, attribs.numRegs);
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
 
 	CUDA_CHECK(cudaMemPrefetchAsync(x.data(), sizeof(float) * x.size(), cuda_device(), stream));

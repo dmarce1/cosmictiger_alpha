@@ -134,17 +134,17 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 	vector<float> thomson(N + 1);
 	vector<float> sound_speed2(N + 1);
 
-	printf("\t\tParameters:\n");
-	printf("\t\t\t h                 = %f\n", littleh);
-	printf("\t\t\t omega_m           = %f\n", omega_m);
-	printf("\t\t\t omega_r           = %f\n", omega_r);
-	printf("\t\t\t omega_lambda      = %f\n", 1 - omega_r - omega_m);
-	printf("\t\t\t omega_b           = %f\n", omega_b);
-	printf("\t\t\t omega_c           = %f\n", omega_c);
-	printf("\t\t\t omega_gam         = %f\n", omega_gam);
-	printf("\t\t\t omega_nu          = %f\n", omega_nu);
-	printf("\t\t\t Neff              = %f\n", Neff);
-	printf("\t\t\t temperature today = %f\n\n", 2.73 * Theta);
+	PRINT("\t\tParameters:\n");
+	PRINT("\t\t\t h                 = %f\n", littleh);
+	PRINT("\t\t\t omega_m           = %f\n", omega_m);
+	PRINT("\t\t\t omega_r           = %f\n", omega_r);
+	PRINT("\t\t\t omega_lambda      = %f\n", 1 - omega_r - omega_m);
+	PRINT("\t\t\t omega_b           = %f\n", omega_b);
+	PRINT("\t\t\t omega_c           = %f\n", omega_c);
+	PRINT("\t\t\t omega_gam         = %f\n", omega_gam);
+	PRINT("\t\t\t omega_nu          = %f\n", omega_nu);
+	PRINT("\t\t\t Neff              = %f\n", Neff);
+	PRINT("\t\t\t temperature today = %f\n\n", 2.73 * Theta);
 
 	dloga = (logamax - logamin) / N;
 	const auto cosmic_hubble =
@@ -190,9 +190,9 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 		t += dt;
 	}
 	a = exp(logamin);
-	printf("\n");
+	PRINT("\n");
 //	print_time(t);
-//	printf(
+//	PRINT(
 //			", redshift %.0f: Big Bang nucleosynthesis has ended. The Universe is dominated by radiation at a temperature of %8.2e K."
 //					" \n   Its total matter density is %.1f \% times the density of air at sea level.\n", 1 / a - 1,
 //			Trad, 100 * rho_b * omega_m / omega_b / 1.274e-3);
@@ -210,7 +210,7 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 	for (int i = 1; i <= N; i++) {
 		loga = logamin + i * dloga;
 		a = exp(loga);
-//		printf("%e %e %e %e %e %e\n", a, nH, nHp, nHe, nHep, nHepp);
+//		PRINT("%e %e %e %e %e %e\n", a, nH, nHp, nHe, nHep, nHepp);
 		P2 = P1;
 		P1 = P;
 		rho2 = rho1;
@@ -255,7 +255,7 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 		}
 		sound_speed2[i - 1] = cs2 / (c * c);
 		thomson[i] = sigmaT;
-		//printf("%e %e %e %e\n", a, (nHp + nHep + 2 * nHepp) / (nH + nHp + 2 * (nHe + nHep + nHepp)), thomson[i],
+		//PRINT("%e %e %e %e\n", a, (nHp + nHep + 2 * nHepp) / (nH + nHp + 2 * (nHe + nHep + nHepp)), thomson[i],
 		//sqrt(sound_speed2[i - 1]));
 	}
 	cs2 = (P - P1) / (rho_b - rho1);

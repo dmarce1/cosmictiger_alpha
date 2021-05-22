@@ -34,7 +34,7 @@ struct interp_functor {
 	T operator()(T a) const {
 		T loga = logf(a);
 		if (loga < minloga || loga > maxloga) {
-			printf("Error in interpolation_function out of range %e %e %e\n", a, amin, amax);
+			PRINT("Error in interpolation_function out of range %e %e %e\n", a, amin, amax);
 		}
 		int i1 = int((loga - minloga) / (dloga));
 		if (i1 > N - 3) {

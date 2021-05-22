@@ -12,11 +12,13 @@
 
 #include <functional>
 
-#define CUDA_CHECK( a ) if( a != cudaSuccess ) printf( "CUDA error on line %i of %s : %s\n", __LINE__, __FILE__, cudaGetErrorString(a))
+#include <cosmictiger/defs.hpp>
 
-//#define CUDA_CHECK( a ) printf( "calling %s from %s line %i\n", #a, __FILE__, __LINE__ ); \
-//		                  if( a != cudaSuccess ) printf( "CUDA error on line %i of %s : %s\n", __LINE__, __FILE__, cudaGetErrorString(a)); \
-//		                  printf( "done calling %s from %s line %i\n", #a, __FILE__, __LINE__)
+#define CUDA_CHECK( a ) if( a != cudaSuccess ) PRINT( "CUDA error on line %i of %s : %s\n", __LINE__, __FILE__, cudaGetErrorString(a))
+
+//#define CUDA_CHECK( a ) PRINT( "calling %s from %s line %i\n", #a, __FILE__, __LINE__ ); \
+//		                  if( a != cudaSuccess ) PRINT( "CUDA error on line %i of %s : %s\n", __LINE__, __FILE__, cudaGetErrorString(a)); \
+//		                  PRINT( "done calling %s from %s line %i\n", #a, __FILE__, __LINE__)
 
 #ifdef __CUDACC__
 #define CUDA_EXPORT __device__ __host__
@@ -98,7 +100,7 @@ __device__ inline void cuda_sync() {
 template<class T>
 inline CUDA_EXPORT void nan_test(T a, const char* file, int line ) {
 		if( isnan(a)) {
-			printf( "NaN found %s %i\n", file, line);
+			PRINT( "NaN found %s %i\n", file, line);
 	#ifdef __CUDA_ARCH__
 			asm("trap;");
 	#else
@@ -107,7 +109,7 @@ inline CUDA_EXPORT void nan_test(T a, const char* file, int line ) {
 
 		}
 		if( isinf(a)) {
-			printf( "inf found %s %i\n", file, line);
+			PRINT( "inf found %s %i\n", file, line);
 	#ifdef __CUDA_ARCH__
 			asm("trap;");
 	#else

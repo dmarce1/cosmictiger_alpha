@@ -132,13 +132,13 @@ sort_return tree::sort(sort_params params) {
 		params.min_depth = ewald_min_level(params.theta, global().opts.hsoft);
 		params.alloc = std::make_shared<tree_allocator>();
 
-//		printf("min ewald = %i\n", params.min_depth);
+//		PRINT("min ewald = %i\n", params.min_depth);
 	}
 	tree_ptr self;
 	self.dindex = params.alloc->allocate();
 	self.rank = hpx_rank();
 	if (params.local_root) {
-		printf("Sorting local root on %i with %i particles\n", hpx_rank(), particles->size());
+		PRINT("Sorting local root on %i with %i particles\n", hpx_rank(), particles->size());
 		params.parts.first = 0;
 		params.parts.second = particles->size();
 		self.set_local_root(true);
@@ -150,7 +150,7 @@ sort_return tree::sort(sort_params params) {
 	self.set_parts(parts);
 	self.set_proc_range(params.procs.first, params.procs.second);
 	if (params.depth == TREE_MAX_DEPTH) {
-		printf("Exceeded maximum tree depth\n");
+		PRINT("Exceeded maximum tree depth\n");
 		abort();
 	}
 
@@ -161,7 +161,7 @@ sort_return tree::sort(sort_params params) {
 	array<tree_ptr, NCHILD> children;
 	const bool domain_decomp = (params.procs.second - params.procs.first) > 1;
 	int max_part = (params.group_sort ? GROUP_BUCKET_SIZE : global().opts.bucket_size);
-//	printf("%li %li %i %i\n", params.procs.first, params.procs.second, params.parts.first, params.parts.second);
+//	PRINT("%li %li %i %i\n", params.procs.first, params.procs.second, params.parts.first, params.parts.second);
 	if (domain_decomp || parts.second - parts.first > max_part
 			|| (params.depth < params.min_depth && parts.second - parts.first > 0)) {
 		std::array<fast_future<sort_return>, NCHILD> futs;
@@ -269,10 +269,10 @@ sort_return tree::sort(sort_params params) {
 			}
 			radius = std::min(radius, rmax);
 
-			//    printf("x      = %e\n", pos[0].to_float());
-			//   printf("y      = %e\n", pos[1].to_float());
-			//  printf("z      = %e\n", pos[2].to_float());
-			// printf("radius = %e\n", radius);
+			//    PRINT("x      = %e\n", pos[0].to_float());
+			//   PRINT("y      = %e\n", pos[1].to_float());
+			//  PRINT("z      = %e\n", pos[2].to_float());
+			// PRINT("radius = %e\n", radius);
 			self.set_pos(pos);
 			self.set_radius(radius);
 			self.set_multi(M);
@@ -491,7 +491,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 #ifdef TEST_CHECKLIST_TIME
 	static timer tm;
 #endif
-	//  printf( "%li\n", params.depth);
+	//  PRINT( "%li\n", params.depth);
 	assert(params.depth < TREE_MAX_DEPTH);
 	auto &L = params.L[params.depth];
 	const auto &Lpos = params.Lpos[params.depth];
@@ -646,14 +646,14 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					futs[LEFT].get();
 					futs[RIGHT].get();
 					if( self.local_root() ) {
-						printf( "Freeing cache\n");
+						PRINT( "Freeing cache\n");
 						tree_data_free_cache();
 						if( !dry_run ) {
 							particles->resize_pos(particles->size());}
-						printf( "%i\n", particles->size());
+						PRINT( "%i\n", particles->size());
 					}
 					if( depth == 0 ) {
-						printf( "Kick complete\n");
+						PRINT( "Kick complete\n");
 					}
 				});
 	} else if (!params.dry_run) {
@@ -672,7 +672,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				}
 				shift_expansion(L, g, this_phi, dx, params.full_eval);
 				//		int dummy;
-				//		printf( "%li\n", params.stack_top - (uintptr_t)(&dummy));
+				//		PRINT( "%li\n", params.stack_top - (uintptr_t)(&dummy));
 				for (int dim = 0; dim < NDIM; dim++) {
 					F[dim][k] += g[dim];
 				}
@@ -770,7 +770,7 @@ void tree::gpu_daemon() {
 	do {
 		timer.stop();
 		if (timer.read() > 0.05) {
-//			printf("%c %i in queue: %i active: %i complete                                  \r", waiting_char[counter % 4],
+//			PRINT("%c %i in queue: %i active: %i complete                                  \r", waiting_char[counter % 4],
 //					(int) gpu_queue.size(), blocks_active, blocks_completed);
 			counter++;
 			timer.reset();

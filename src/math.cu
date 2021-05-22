@@ -18,7 +18,7 @@ double find_root(std::function<double(double)> f) {
 		x += 0.5 * dx;
 		iters++;
 		if (iters > 1000000) {
-			printf("Finished early with error = %e\n", err);
+			PRINT("Finished early with error = %e\n", err);
 			break;
 		}
 	} while (err > 1.0e-6);

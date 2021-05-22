@@ -45,7 +45,7 @@ void tree_data_initialize_kick() {
 	cpu_tree_data_.nchunks = cpu_tree_data_.ntrees / cpu_tree_data_.chunk_size;
 
 
-	printf("Allocating %i trees in %i chunks of %i each for kick\n", cpu_tree_data_.ntrees, cpu_tree_data_.nchunks,
+	PRINT("Allocating %i trees in %i chunks of %i each for kick\n", cpu_tree_data_.ntrees, cpu_tree_data_.nchunks,
 			cpu_tree_data_.chunk_size);
 
 	tree_data_free_all_cu();
@@ -81,7 +81,7 @@ void tree_data_initialize_groups() {
 	cpu_tree_data_.nchunks = cpu_tree_data_.ntrees / cpu_tree_data_.chunk_size;
 
 
-	printf("Allocating %i trees in %i chunks of %i each for group search\n", cpu_tree_data_.ntrees,
+	PRINT("Allocating %i trees in %i chunks of %i each for group search\n", cpu_tree_data_.ntrees,
 			cpu_tree_data_.nchunks, cpu_tree_data_.chunk_size);
 
 	tree_data_free_all_cu();
@@ -155,7 +155,7 @@ std::pair<int, int> tree_data_allocate() {
 	std::pair<int, int> rc;
 	const int chunk = next_chunk++;
 	if (chunk >= cpu_tree_data_.nchunks) {
-		printf("Fatal error - tree arena full!\n");
+		PRINT("Fatal error - tree arena full!\n");
 		abort();
 	}
 	rc.first = chunk * cpu_tree_data_.chunk_size;

@@ -35,7 +35,7 @@
 		err = abs(log(ne / ne0));
 		iters++;
 		if (iters > 1000) {
-			printf("Max iters exceed in compute_electron_fraction\n");
+			PRINT("Max iters exceed in compute_electron_fraction\n");
 			return;
 		}
 	} while (err > 1.0e-6);

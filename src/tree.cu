@@ -337,7 +337,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		if (tid == 0) {
 			shmem.depth--;
 		}
-		//   printf( "%li\n", rc.flops);
+		//   PRINT( "%li\n", rc.flops);
 	} else {
 		const float& invlog2 = constant.invlog2;
 		const float& GM = constant.GM;

@@ -197,7 +197,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 		}
 		if (found) {
 			act_map[base + my_index] = i;
-			//		printf( "%i %i\n", base+my_index, i);
+			//		PRINT( "%i %i\n", base+my_index, i);
 		}
 		base += total;
 	}
@@ -233,7 +233,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	if (parti.size() == 0) {
 		return;
 	}
-//   printf( "%i\n", parti.size());
+//   PRINT( "%i\n", parti.size());
 	const auto myparts = shmem.self.get_parts();
 	int i = 0;
 	auto these_parts = parti[0].get_parts();

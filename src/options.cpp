@@ -60,7 +60,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 				po::store(po::parse_config_file(cfg_fs, command_opts), vm);
 				rc = true;
 			} else {
-				printf("Configuration file %s not found!\n", opts.config.c_str());
+				PRINT("Configuration file %s not found!\n", opts.config.c_str());
 				return false;
 			}
 		} else {
@@ -72,7 +72,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 		po::notify(vm);
 		opts.nparts = opts.parts_dim * opts.parts_dim * opts.parts_dim;
 		{
-#define SHOW( opt ) printf( "%s = %e\n",  #opt, (double) opts.opt)
+#define SHOW( opt ) PRINT( "%s = %e\n",  #opt, (double) opts.opt)
 #define SHOW_STRING( opt ) std::cout << std::string( #opt ) << " = " << opts.opt << '\n';
 		}
 	}
@@ -80,7 +80,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	opts.theta = 0.7;
 
 	if (opts.bucket_size > MAX_BUCKET_SIZE) {
-		printf("Bucket size of %i exceeds max of %i\n", opts.bucket_size, MAX_BUCKET_SIZE);
+		PRINT("Bucket size of %i exceeds max of %i\n", opts.bucket_size, MAX_BUCKET_SIZE);
 		abort();
 	}
 	opts.omega_m = opts.omega_b + opts.omega_c;
@@ -113,7 +113,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 		opts.map_size = -1;
 	}
 	opts.map_freq = 0.01;
-	printf("Simulation Options\n");
+	PRINT("Simulation Options\n");
 
 	SHOW_STRING(config);
 	SHOW(map_size);
@@ -131,7 +131,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	SHOW(power);
 	SHOW(theta);
 
-	printf("Units\n");
+	PRINT("Units\n");
 	SHOW(code_to_s);
 	SHOW(code_to_g);
 	SHOW(code_to_cm);
@@ -140,7 +140,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	SHOW(G);
 	SHOW(M);
 
-	printf("Cosmological Options\n");
+	PRINT("Cosmological Options\n");
 	SHOW(hubble);
 	SHOW(z0);
 	SHOW(ns);

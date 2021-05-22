@@ -116,7 +116,7 @@ __global__ void phi_to_grid(particle_set parts, cmplx* phi1, cmplx* phi2, float 
 			maxes[tid] = fmaxf(maxes[tid], fabs(this_disp * N));
 			const float x0 = constrain_range(parts.pos(dim, l).to_float() + this_disp);
 			parts.pos(dim, l) = x0;
-	//		printf( "%e\n", this_disp);
+	//		PRINT( "%e\n", this_disp);
 			parts.vel(dim, l) = prefactor1 * this_disp1 + prefactor2 * this_disp2;
 		}
 	}
@@ -285,16 +285,16 @@ void initial_conditions(particle_set& parts) {
 	params.Neff = global().opts.Neff;
 	params.Theta = global().opts.Theta;
 	params.hubble = global().opts.hubble;
-	printf("Computing zero order universe...");
+	PRINT("Computing zero order universe...");
 	fflush(stdout);
 	create_zero_order_universe(&uni, 1.0e6, params);
 	set_zeroverse(&uni);
-	printf("Done.\n");
+	PRINT("Done.\n");
 	const auto ns = global().opts.ns;
 	func_ptr->uni = zeroverse_ptr;
 	func_ptr->littleh = params.hubble;
 	func_ptr->ns = ns;
-	printf("Computing sigma8 normalization...");
+	PRINT("Computing sigma8 normalization...");
 	fflush(stdout);
 	float kmin = (1e-4 * params.hubble);
 	float kmax = (5 * params.hubble);
@@ -302,15 +302,15 @@ void initial_conditions(particle_set& parts) {
 			(float) std::log(kmin), (float) std::log(kmax), result_ptr, (float) 1.0e-6);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	*result_ptr = sqrt(sqr(global().opts.sigma8) / *result_ptr);
-	printf("Done. Normalization = %e\n", *result_ptr);
+	PRINT("Done. Normalization = %e\n", *result_ptr);
 	float normalization = *result_ptr;
 
 	const auto code_to_mpc = global().opts.code_to_cm / constants::mpc_to_cm;
-	printf("code_to_mpc = %e\n", code_to_mpc);
+	PRINT("code_to_mpc = %e\n", code_to_mpc);
 
 	kmin = std::min(kmin, 2.0f * (float) M_PI / (float) code_to_mpc);
 	kmax = std::max((float) M_PI / (float) code_to_mpc * (float) (global().opts.parts_dim), kmax);
-	printf("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
+	PRINT("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	const float ainit = 1.0f / (global().opts.z0 + 1.0f);
 	einstein_boltzmann_interpolation_function(cdm_k,vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
 			zeroverse_ptr->amin, 1.0, false, ns);
@@ -322,16 +322,16 @@ void initial_conditions(particle_set& parts) {
 	generate_random_normals<<<32,32>>>(rands, N3,1234);
 	CUDA_CHECK(cudaDeviceSynchronize());
 
-	/*	printf("\tComputing over/under density\n");
+	/*	PRINT("\tComputing over/under density\n");
 	 zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, 0, DENSITY);
 	 CUDA_CHECK(cudaDeviceSynchronize());
 	 fft3d(phi, N);
 	 float drho = phi_max(phi, N3);
-	 printf("\t\tMaximum over/under density is %e\n", drho);
+	 PRINT("\t\tMaximum over/under density is %e\n", drho);
 	 if (drho > 1.0) {
-	 printf("The overdensity is high, consider using an ealier starting redshift\n");
+	 PRINT("The overdensity is high, consider using an ealier starting redshift\n");
 	 } else if (drho < 0.1) {
-	 printf("The overdensity is low, consider using a later starting redshift\n");
+	 PRINT("The overdensity is low, consider using a later starting redshift\n");
 	 }
 	 */
 	vector<float> spec(N / 2);
@@ -354,14 +354,14 @@ void initial_conditions(particle_set& parts) {
 	const double H = global().opts.H0 * global().opts.hubble * std::sqrt(omega_m / (a * a * a) + 1.0 - omega_m);
 	double prefac1 = f1 * H * a;
 	double prefac2 = f2 * H * a;
-	printf("D1 = %e\n", D1);
-	printf("D2 = %e\n", D2);
-	printf("H = %e\n", H);
-	printf("f1 = %e\n", f1);
-	printf("f2 = %e\n", f2);
-	printf("H*a*f1 = %e\n", prefac1);
-	printf("H*a*f2 = %e\n", prefac2);
-	printf("\t\tComputing positions\n");
+	PRINT("D1 = %e\n", D1);
+	PRINT("D2 = %e\n", D2);
+	PRINT("H = %e\n", H);
+	PRINT("f1 = %e\n", f1);
+	PRINT("f2 = %e\n", f2);
+	PRINT("H*a*f1 = %e\n", prefac1);
+	PRINT("H*a*f2 = %e\n", prefac2);
+	PRINT("\t\tComputing positions\n");
 
 	cudaFuncAttributes attrib;
 	CUDA_CHECK(cudaFuncGetAttributes(&attrib, power_spectrum_init));
@@ -397,7 +397,7 @@ void initial_conditions(particle_set& parts) {
 	for (int i = 0; i < N * N; i++) {
 		xdisp = std::max(xdisp, max_disp[i]);
 	}
-	printf("\t\tMaximum displacement is %e\n", xdisp);
+	PRINT("\t\tMaximum displacement is %e\n", xdisp);
 
 #ifndef __CUDA_ARCH__
 	cdm_destroy();
@@ -424,6 +424,6 @@ void initial_conditions(particle_set& parts) {
 	CUDA_FREE(phi2);
 	CUDA_FREE(max_disp);
 	free_zeroverse();
-	printf("Done initializing\n");
+	PRINT("Done initializing\n");
 }
 

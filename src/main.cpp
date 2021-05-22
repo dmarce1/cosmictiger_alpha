@@ -17,17 +17,17 @@ void yield() {
 
 int hpx_main(int argc, char *argv[]) {
 	options opts;
-	//  printf( "%li\n", sizeof(std::shared_ptr<int>));
-	//  printf( "%li\n", sizeof(sort_params));
-	printf("Size of cuda_kick_shmem is %li\n", sizeof(cuda_kick_shmem));
+	//  PRINT( "%li\n", sizeof(std::shared_ptr<int>));
+	//  PRINT( "%li\n", sizeof(sort_params));
+	PRINT("Size of cuda_kick_shmem is %li\n", sizeof(cuda_kick_shmem));
 
 	if (process_options(argc, argv, opts)) {
 
 		hpx_init();
 		const auto cuda = cuda_init();
-		printf("Initializing ewald\n");
+		PRINT("Initializing ewald\n");
 		ewald_const::init();
-		printf("Done initializing ewald\n");
+		PRINT("Done initializing ewald\n");
 		global_init(opts, cuda);
 //		tree_data_initialize();
 		if (opts.test != "") {

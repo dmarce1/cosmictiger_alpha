@@ -79,7 +79,7 @@ __device__
 void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, float k, float amin, float amax) {
 	const auto &uni = *uni_ptr;
 	if (amin < uni.amin && amax > uni.amax) {
-		printf("out of range error in einstein_boltzmann\n");
+		PRINT("out of range error in einstein_boltzmann\n");
 	}
 	cos_state& U = *uptr;
 	cos_state U0;
@@ -256,7 +256,7 @@ void einstein_boltzmann_interpolation_function(interp_functor<float>* cdm_k_func
 		float eps = k / (astop * H);
 		cdm_k[i] = sqr(oc * U[i][deltaci] + ob * U[i][deltabi]);
 		vel_k[i] = sqr((ob * (eps * U[i][thetabi] + (float) 0.5 * U[i][hdoti]) + oc * ((float) 0.5 * U[i][hdoti])) / eps);
-		//	printf("%e %e\n", k, vel_k[i]);
+		//	PRINT("%e %e\n", k, vel_k[i]);
 	}
 	build_interpolation_function(cdm_k_func, cdm_k, expf(logkmin), expf(logkmax));
 	build_interpolation_function(vel_k_func, vel_k, expf(logkmin), expf(logkmax));

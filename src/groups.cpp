@@ -30,7 +30,7 @@ void send_groups_to_gpu() {
 		tm.stop();
 		if (tm.read() > 0.05) {
 			counter++;
-//			printf("%c %li in queue: %i active: %i complete                        \r", waiting_char[counter % 4],
+//			PRINT("%c %li in queue: %i active: %i complete                        \r", waiting_char[counter % 4],
 //					gpu_queue.size(), num_active, num_completed);
 			counter++;
 			tm.reset();
@@ -50,7 +50,7 @@ void send_groups_to_gpu() {
 			std::vector<std::function<void()>> deleters;
 			const auto sizes = get_group_list_sizes();
 			for (int i = 0; i < this_kernel->size(); i++) {
-//					printf( "Setting up %i of %i\n", i, this_kernel->size());
+//					PRINT( "Setting up %i of %i\n", i, this_kernel->size());
 				all_params[i] = (*this_kernel)[i].params;
 				all_params[i]->opened_checks.reserve(sizes.opened);
 				all_params[i]->next_checks.reserve(sizes.next);
@@ -165,7 +165,7 @@ hpx::future<size_t> find_groups(group_param_type* params_ptr) {
 		const int block_count = oversubscription * 16
 				* global().cuda.devices[0].multiProcessorCount + 0.5;
 		const auto active_count = self.get_active_parts();
-		printf( "active_count = %li\n", active_count);
+		PRINT( "active_count = %li\n", active_count);
 		params.block_cutoff = std::max(active_count / block_count, (size_t) 1);
 	}
 

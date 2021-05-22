@@ -142,7 +142,7 @@ void tree_data_free_cache() {
 
 tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 	if (ptr.rank >= hpx_size()) {
-		printf("Rank out of range %i\n", ptr.rank);
+		PRINT("Rank out of range %i\n", ptr.rank);
 		ERROR()
 		;
 	}

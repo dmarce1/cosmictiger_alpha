@@ -184,11 +184,11 @@ inline float particle_set::vel(int dim, part_int index) const {
 CUDA_EXPORT
 inline rung_t particle_set::rung(part_int index) const {
 	if( index  >= size_ ) {
-		printf( "%i\n", size_);
+		PRINT( "%i\n", size_);
 	}
 	assert(index < size_);
 	/*if (rptr_[index] != uptr_[index].p.r) {
-	 printf("%i %i\n", rptr_[index], uptr_[index].p.r);
+	 PRINT("%i %i\n", rptr_[index], uptr_[index].p.r);
 	 }
 	 return uptr_[index].p.r;*/
 	return rptr_[index];

@@ -22,7 +22,7 @@ find_package(Boost REQUIRED)
 #find_package(Silo REQUIRED)
 enable_language(CUDA)
 
-set(CMAKE_CXX_FLAGS "-ffast-math -march=native -Wno-deprecated-declarations")
+set(CMAKE_CXX_FLAGS "-ffast-math -march=native -Wno-deprecated-declarations -Wno-format-security")
 
 set(cosmictiger_source_files
     src/chemistry.cpp
@@ -126,7 +126,7 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    boost_program_options silo mpi
+    boost_program_options silo mpi 
   SOURCES
     ${cosmictiger_source_files}
   HEADERS

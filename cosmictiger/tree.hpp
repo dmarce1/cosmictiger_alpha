@@ -276,7 +276,7 @@ struct kick_params_type {
 		M = global().opts.M;
 		G = global().opts.G;
 		const auto s = get_list_sizes();
-		//	printf( "%i %i %i %i %i\n", s.part, s.multi, s.next, s.open, s.tmp);
+		//	PRINT( "%i %i %i %i %i\n", s.part, s.multi, s.next, s.open, s.tmp);
 		part_interactions.reserve(s.part);
 		multi_interactions.reserve(s.multi);
 		next_checks.reserve(s.next);

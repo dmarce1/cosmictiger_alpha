@@ -30,7 +30,7 @@ void ewald_const::init_gpu() {
 			}
 		}
 	}
-	printf("nreal = %i\n", count);
+	PRINT("nreal = %i\n", count);
 	n2max = 8;
 	nmax = std::sqrt(n2max) + 1;
 	count = 0;
@@ -49,7 +49,7 @@ void ewald_const::init_gpu() {
 			}
 		}
 	}
-	printf("nfour = %i\n", count);
+	PRINT("nfour = %i\n", count);
 	count = 0;
 	for (int i = 0; i < NFOUR; i++) {
 		array<float, NDIM> h = four_indices[i];

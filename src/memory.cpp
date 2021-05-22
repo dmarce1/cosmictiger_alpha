@@ -28,7 +28,7 @@ void* cuda_unified_alloc(size_t sz, const char* file, int line) {
 	char* ptr;
 	CUDA_CHECK(cudaMallocManaged(&ptr, sz));
 	if( ptr == nullptr) {
-		printf( "Unable to allocated unified memory\n");
+		PRINT( "Unable to allocated unified memory\n");
 		abort();
 	}
 //	std::lock_guard<mutex_type> lock(mtx);
@@ -36,13 +36,13 @@ void* cuda_unified_alloc(size_t sz, const char* file, int line) {
 	allocated += sz;
 //	linenumbers[ptr] = line;
 //	filenames[ptr] = std::string(file);
-	//printf("%li KB  allocated %e total GB allocated %s %i\n", sz/1024, allocated / 1024.0 / 1024 / 1024, file, line);
+	//PRINT("%li KB  allocated %e total GB allocated %s %i\n", sz/1024, allocated / 1024.0 / 1024 / 1024, file, line);
 	return ptr;
 }
 
 void cuda_unified_show_outstanding() {
 /*	for (auto i = alloc_map.begin(); i != alloc_map.end(); i++) {
-		printf("%li KB %s %i\n", i->second / 1024, filenames[i->first].c_str(), linenumbers[i->first]);
+		PRINT("%li KB %s %i\n", i->second / 1024, filenames[i->first].c_str(), linenumbers[i->first]);
 	}*/
 }
 
@@ -63,16 +63,16 @@ void* cuda_allocator::allocate(size_t sz) {
 		index++;
 	}
 	int chunk_size = std::max(std::min(32, 2 * 1024 * 1024 / (int) total_sz), 1);
-	// printf( "%li\n", sz);
+	// PRINT( "%li\n", sz);
 	std::lock_guard<mutex_type> lock(mtx);
 	freelist.resize(std::max((int) freelist.size(), index + 1));
 	void *ptr;
-//   printf( "%li %i\n", freelist[index].size(), index);
+//   PRINT( "%li %i\n", freelist[index].size(), index);
 	if (freelist[index].empty()) {
 
-		//   	printf( "Allocating %li bytes on device\n", chunk_size * total_sz);
+		//   	PRINT( "Allocating %li bytes on device\n", chunk_size * total_sz);
 		CUDA_CHECK(cudaMalloc(&ptr, chunk_size * total_sz));
-//      printf( "Done Allocating %li bytes on device\n", chunk_size * total_sz);
+//      PRINT( "Done Allocating %li bytes on device\n", chunk_size * total_sz);
 		for (int i = 0; i < chunk_size; i++) {
 			freelist[index].push((char*) ptr + i * total_sz);
 		}
@@ -97,7 +97,7 @@ std::stack<void*> unified_allocator::allocs;
 
 void unified_allocator::reset() {
 	if (allocated != 0) {
-		printf("Attempt to reset unified allocator without freeing all memory, %li left allocated.\n", allocated);
+		PRINT("Attempt to reset unified allocator without freeing all memory, %li left allocated.\n", allocated);
 		abort();
 	}
 	freelist = decltype(freelist)();
@@ -146,7 +146,7 @@ void unified_allocator::deallocate(void *ptr) {
 #ifndef NDEBUG
 	auto iter = delete_indexes.find(ptr);
 	if (iter == delete_indexes.end()) {
-		printf("attempted to free invalid unified pointer\n");
+		PRINT("attempted to free invalid unified pointer\n");
 		abort();
 	}
 #endif

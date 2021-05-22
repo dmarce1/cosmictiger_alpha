@@ -25,13 +25,13 @@
 
 #define MEM_CHECK_POINTER(ptr,file,line)                          \
    if( !ptr ) {                                                   \
-      printf( "Out of memory. File: %s Line %i\n", file, line);   \
+      PRINT( "Out of memory. File: %s Line %i\n", file, line);   \
       ABORT();                                                    \
    }
 
 #define MEM_CHECK_ERROR(ec,file,line)                                                        \
    if( ec != cudaSuccess ) {                                                                 \
-      printf( "CUDA error \"%s\" File: %s Line: %i\n",  cudaGetErrorString(ec), file, line); \
+      PRINT( "CUDA error \"%s\" File: %s Line: %i\n",  cudaGetErrorString(ec), file, line); \
       ABORT();                                                                               \
    }
 
@@ -44,7 +44,7 @@ void cuda_unified_show_outstanding();
 #ifdef __CUDA_ARCH__
 #define CUDA_FREE(ptr)                                                                                       \
       if( ptr == nullptr ) {                                                                                 \
-         printf( "Attempt to free null pointer. File: %s Line %i\n", __FILE__, __LINE__);                    \
+         PRINT( "Attempt to free null pointer. File: %s Line %i\n", __FILE__, __LINE__);                    \
          ABORT();                                                                                            \
       } else {                                                                                               \
          free(ptr);                                                                      \
@@ -52,7 +52,7 @@ void cuda_unified_show_outstanding();
 #else
 #define CUDA_FREE(ptr)                                                                                       \
       if( ptr == nullptr ) {                                                                                 \
-         printf( "Attempt to free null pointer. File: %s Line %i\n", __FILE__, __LINE__);                    \
+         PRINT( "Attempt to free null pointer. File: %s Line %i\n", __FILE__, __LINE__);                    \
          ABORT();                                                                                            \
       } else {                                                                                               \
     	  cuda_unified_free(ptr);  \
@@ -70,7 +70,7 @@ CUDA_EXPORT inline void cuda_malloc(T **ptr, int nele, const char *file, int lin
 	*ptr = (T*) malloc(nele * sizeof(T));
 	MEM_CHECK_POINTER(*ptr, file, line);
 #else
-// printf( "Callc\n");
+// PRINT( "Callc\n");
 	*ptr = (T*) cuda_unified_alloc(nele * sizeof(T), file, line);
 	MEM_CHECK_POINTER(*ptr, file, line);
 #endif
@@ -130,12 +130,12 @@ public:
 		allocs = decltype(allocs)();
 	}
 	managed_allocator() {
-		//   printf( "manaed %li\n", sizeof(T));
+		//   PRINT( "manaed %li\n", sizeof(T));
 		current_index = page_size;
 	}
 	T* allocate() {
-		//    printf( "----\n");
-		//    printf( "!!!!\n");
+		//    PRINT( "----\n");
+		//    PRINT( "!!!!\n");
 		assert(current_index <= page_size);
 		if (current_index == page_size) {
 			unified_allocator ua;

@@ -100,12 +100,12 @@ void direct_force_test() {
 		phinorm += std::abs(phidir);
 		gerr += std::abs(gdir - gnum);
 		phierr += std::abs(phidir - phinum);
-	//	printf( "%e %e %e %e\n", gdir, gnum, phidir, phinum);
+	//	PRINT( "%e %e %e %e\n", gdir, gnum, phidir, phinum);
 	}
 	gerr /= gnorm;
 	phierr /= phinorm;
-	printf("gerr = %e\n", gerr);
-	printf("phierr = %e\n", phierr);
+	PRINT("gerr = %e\n", gerr);
+	PRINT("phierr = %e\n", phierr);
 }
 
 #endif

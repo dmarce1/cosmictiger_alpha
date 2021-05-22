@@ -115,7 +115,7 @@ void compute_particle_power_spectrum(particle_set& parts, int filenum) {
 	std::string filename = std::string("power.") + std::to_string(filenum) + std::string(".txt");
 	FILE* fp = fopen(filename.c_str(), "wt");
 	if (fp == NULL) {
-		printf("Unable to open %s for writing\n", filename.c_str());
+		PRINT("Unable to open %s for writing\n", filename.c_str());
 		abort();
 	}
 	const auto code_to_mpc = global().opts.code_to_cm / constants::mpc_to_cm;

@@ -28,9 +28,9 @@ void maps_from_file(FILE*fp) {
 	int nmaps;
 	if (!feof(fp)) {
 		FREAD(&nmaps, sizeof(int), 1, fp);
-		printf("Loading %i maps in progress\n", nmaps);
+		PRINT("Loading %i maps in progress\n", nmaps);
 		for (int i = 0; i < nmaps; i++) {
-			printf("%i ", i);
+			PRINT("%i ", i);
 			fflush(stdout);
 			float* ptr;
 			CUDA_MALLOC(ptr, npts);
@@ -39,7 +39,7 @@ void maps_from_file(FILE*fp) {
 			maps[index] = std::make_shared<float*>(ptr);
 			FREAD(*(maps[index]), sizeof(float), npts, fp);
 		}
-		printf("\n");
+		PRINT("\n");
 	}
 }
 
@@ -48,7 +48,7 @@ map_workspace get_map_workspace() {
 }
 
 void prepare_map(int i) {
-	printf("preparing map %i\n", i);
+	PRINT("preparing map %i\n", i);
 	auto& map = maps[i];
 	const auto npts = 12 * sqr(global().opts.map_size);
 	float* ptr;
@@ -90,15 +90,15 @@ void load_and_save_maps(double tau, double tau_max) {
 	const auto freq = global().opts.map_freq * tau_max;
 	int imin = tau / freq + 1;
 	int imax = (tau + 1.2) / freq + 1;
-//	printf( "imin %i max %i\n", imin, imax);
+//	PRINT( "imin %i max %i\n", imin, imax);
 	for (auto i = maps.begin(); i != maps.end(); i++) {
 		if (i->first < imin) {
 			timer tm;
 			tm.start();
-			printf("                                               \rSaving map %i\n", i->first);
+			PRINT("                                               \rSaving map %i\n", i->first);
 			save_map(i->first);
 			tm.stop();
-			printf("Done. Took %e s\n", tm.read());
+			PRINT("Done. Took %e s\n", tm.read());
 		}
 	}
 	auto i = maps.begin();

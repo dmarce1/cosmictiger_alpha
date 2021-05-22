@@ -104,11 +104,11 @@ int drift(particle_set& parts, double dt, double a0, double a1, double*ekin, dou
 
 void save_to_file(particle_set& parts, int step, time_type itime, double time, double a, double cosmicK) {
 	std::string filename = std::string("checkpoint.") + std::to_string(step) + std::string(".dat");
-	printf("Saving %s...", filename.c_str());
+	PRINT("Saving %s...", filename.c_str());
 	fflush(stdout);
 	FILE* fp = fopen(filename.c_str(), "wb");
 	if (!fp) {
-		printf("Unable to open %s\n", filename.c_str());
+		PRINT("Unable to open %s\n", filename.c_str());
 		abort();
 	}
 	fwrite(&step, sizeof(int), 1, fp);
@@ -119,15 +119,15 @@ void save_to_file(particle_set& parts, int step, time_type itime, double time, d
 	parts.save_to_file(fp);
 	maps_to_file(fp);
 	fclose(fp);
-	printf(" done\n");
+	PRINT(" done\n");
 }
 
 void load_from_file(particle_set& parts, int& step, time_type& itime, double& time, double& a, double& cosmicK) {
 	std::string filename = global().opts.checkpt_file;
-	printf("Loading %s...", filename.c_str());
+	PRINT("Loading %s...", filename.c_str());
 	FILE* fp = fopen(filename.c_str(), "rb");
 	if (!fp) {
-		printf("Unable to open %s\n", filename.c_str());
+		PRINT("Unable to open %s\n", filename.c_str());
 		abort();
 	}
 	FREAD(&step, sizeof(int), 1, fp);
@@ -138,7 +138,7 @@ void load_from_file(particle_set& parts, int& step, time_type& itime, double& ti
 	parts.load_from_file(fp);
 	maps_from_file(fp);
 	fclose(fp);
-	printf(" done\n");
+	PRINT(" done\n");
 
 }
 
@@ -148,7 +148,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 	double sort_tm;
 	size_t num_active;
 	tree_stats stats;
-	printf("Finding Groups\n");
+	PRINT("Finding Groups\n");
 
 	tree_ptr root_ptr = build_tree(0, 1.0, num_active, stats, sort_tm, true);
 
@@ -167,7 +167,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 	parts.init_groups();
 	tree_database_set_groups();
 	size_t active = find_groups(params_ptr).get();
-	printf( "%li nodes active\n", active);
+	PRINT( "%li nodes active\n", active);
 	while (active) {
 		tree_database_set_groups();
 		params_ptr->self = root_ptr;
@@ -176,7 +176,7 @@ std::pair<int, hpx::future<void>> find_groups(particle_set& parts, double& time)
 		params_ptr->first_round = false;
 		iters++;
 		active = find_groups(params_ptr).get();
-		printf( "%li nodes active\n", active);
+		PRINT( "%li nodes active\n", active);
 	}
 	params_ptr->~group_param_type();
 	tree_data_free_all();
@@ -257,7 +257,7 @@ void drive_cosmos() {
 	double partfac = 1.0 / global().opts.nparts;
 	if (!have_checkpoint) {
 		drift(parts, 0.0, a, a, &kin, &momx, &momy, &momz, 0.0, NTIMESTEP * T0, drift_tm);
-		printf("Starting ekin = %e\n", a * kin * partfac);
+		PRINT("Starting ekin = %e\n", a * kin * partfac);
 	}
 	timer checkpt_tm;
 	checkpt_tm.start();
@@ -277,7 +277,7 @@ void drive_cosmos() {
 			checkpt_tm.start();
 		}
 		if (iter % 10 == 0) {
-			printf(
+			PRINT(
 					"%9s %4s %9s %4s %4s %4s %9s %9s %9s %9s %4s %4s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n",
 					"GB", "iter", "mapped", "maxd", "mind", "ed", "avgd", "ppl", "actv", "arena", "min", "max", "time", "dt",
 					"theta", "a", "z", "pot", "kin", "cosmicK", "esum", "sort", "kick", "drift", "tot", "srate");
@@ -315,18 +315,18 @@ void drive_cosmos() {
 			if (power) {
 				tree_data_free_all();
 				timer tm;
-				printf("Computing matter power spectrum\n");
+				PRINT("Computing matter power spectrum\n");
 				tm.start();
 				compute_particle_power_spectrum(parts, time + 0.5);
 				tm.stop();
-				printf("Took %e seconds\n", tm.read());
+				PRINT("Took %e seconds\n", tm.read());
 				if (!groups) {
 					tree_data_initialize_kick();
 				}
 			}
 			if (groups) {
 				auto rc = find_groups(parts, group_tm);
-				printf("Finding groups took %e s and %i iterations\n", group_tm, rc.first);
+				PRINT("Finding groups took %e s and %i iterations\n", group_tm, rc.first);
 				group_fut = std::move(rc.second);
 			}
 		}
@@ -371,7 +371,7 @@ void drive_cosmos() {
 		int mapped_cnt = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time - dt, NTIMESTEP * T0, drift_tm);
 		cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;
-		//	printf( "%e %e %e %e\n", a, pot, kin, cosmicK);
+		//	PRINT( "%e %e %e %e\n", a, pot, kin, cosmicK);
 		if (iter == 0) {
 			esum0 = sum;
 		}
@@ -393,14 +393,14 @@ void drive_cosmos() {
 		double tfac = 1.0 / 365.25 / 60.0 / 60.0 / 24.0 / global().opts.hubble * global().opts.code_to_s;
 		double years = real_time * tfac;
 		double dtyears = dt * tfac * a;
-		printf(
+		PRINT(
 				"%9.2e %4i %9i %4i %4i %4i %9.3f %9.2e %9.2f%% %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 				cuda_unified_total() / 1024.0 / 1024 / 1024, iter, mapped_cnt, stats.max_depth, stats.min_depth,
 				stats.e_depth, avg_depth, parts_per_leaf, act_pct, tree_use * 100.0, min_r, max_rung, time, dt, theta, a0,
 				z, a * pot * partfac, a * kin * partfac, cosmicK * partfac, sum, sort_tm, kick_tm, drift_tm, total_time,
 				science_rate);
 //		} else {
-//			printf("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+//			PRINT("%4i %9.2f%% %4i %4i %9.2e %9.2e %9.2e %9.2e %9.2e %9s %9.2e %9.2e %9s %9.2e %9.2e %9.2e %9.2e %9.2e\n",
 //					iter, act_pct, min_r, max_rung, time, dt, theta, a0, z, "n/a", a * kin * partfac, cosmicK * partfac,
 //					"n/a", sort_tm, kick_tm, drift_tm, total_time, science_rate);
 //		}
@@ -411,8 +411,8 @@ void drive_cosmos() {
 		iter++;
 	} while (z > 0.0);
 	double total_time = drift_total + sort_total + kick_total;
-	printf("Sort  time = %e (%.2f) %%\n", sort_total, sort_total / total_time * 100.0);
-	printf("Kick  time = %e (%.2f) %%\n", kick_total, kick_total / total_time * 100.0);
-	printf("Drift time = %e (%.2f) %%\n", drift_total, drift_total / total_time * 100.0);
-	printf("Total time = %e\n", total_time);
+	PRINT("Sort  time = %e (%.2f) %%\n", sort_total, sort_total / total_time * 100.0);
+	PRINT("Kick  time = %e (%.2f) %%\n", kick_total, kick_total / total_time * 100.0);
+	PRINT("Drift time = %e (%.2f) %%\n", drift_total, drift_total / total_time * 100.0);
+	PRINT("Total time = %e\n", total_time);
 }

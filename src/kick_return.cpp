@@ -77,22 +77,22 @@ void kick_return_show() {
 	}
 	const auto elapsed = tm.read();
 	tm.reset();
-	printf("\nKick took %e seconds\n\n", elapsed);
+	PRINT("\nKick took %e seconds\n\n", elapsed);
 	float phi_sum = 0.f;
 	const auto fac = 1.0 / global().opts.nparts;
-	printf("Potential Energy / Total Forces    = %e %e %e %e\n", rc.phis* fac, rc.forces[0] * fac, rc.forces[1] * fac,
+	PRINT("Potential Energy / Total Forces    = %e %e %e %e\n", rc.phis* fac, rc.forces[0] * fac, rc.forces[1] * fac,
 			rc.forces[2] * fac);
-	printf("Rungs ");
+	PRINT("Rungs ");
 	for (int i = min_rung; i <= max_rung; i++) {
-		printf("%8i ", i);
+		PRINT("%8i ", i);
 	}
-	printf("\n      ");
+	PRINT("\n      ");
 	for (int i = min_rung; i <= max_rung; i++) {
-		printf("%8i ", rc.rung_cnt[i]);
+		PRINT("%8i ", rc.rung_cnt[i]);
 	}
-	printf("\n");
+	PRINT("\n");
 
-	printf("Interactions / part : GFLOP\n");
+	PRINT("Interactions / part : GFLOP\n");
 	array<double, KR_COUNT> count_pct, flop_pct, flop_per;
 	double flop_tot = 0, count_tot = 0;
 	for (int i = 0; i < KR_COUNT; i++) {
@@ -107,13 +107,13 @@ void kick_return_show() {
 	}
 	const char* names[] = { "PP", "PC", "CP", "CC", "OP", "EW" };
 	const auto fac1 = 1.0 / 1024.0 / 1024.0 / 1024.0;
-	printf("Evals per particles | FLOP | FLOP per eval\n");
+	PRINT("Evals per particles | FLOP | FLOP per eval\n");
 	for (int i = 0; i < 6; i++) {
-		printf("%4s   : %8.3e (%5.2f%%)  %8.3e (%5.2f%%) %.2f\n", names[i], rc.count[i], count_pct[i], rc.flop[i] * fac1,
+		PRINT("%4s   : %8.3e (%5.2f%%)  %8.3e (%5.2f%%) %.2f\n", names[i], rc.count[i], count_pct[i], rc.flop[i] * fac1,
 				flop_pct[i], flop_per[i]);
 	}
-	printf("\nTotal GFLOP  = %8.3e\n", flop_tot * fac1);
-	printf("Total GFLOPS = %8.3e\n\n", flop_tot * fac1 / elapsed);
+	PRINT("\nTotal GFLOP  = %8.3e\n", flop_tot * fac1);
+	PRINT("Total GFLOPS = %8.3e\n\n", flop_tot * fac1 / elapsed);
 
 }
 

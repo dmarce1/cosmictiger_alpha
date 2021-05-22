@@ -78,7 +78,7 @@ public:
 					alloc.deallocate(dptr);
 				}
 			};
-			//   printf( "3\n");
+			//   PRINT( "3\n");
 			//     ptr = new_ptr;
 			return func;
 		} else {
@@ -205,7 +205,7 @@ public:
 			}
 			new_cap = (i) / sizeof(T);
 #ifdef __CUDA_ARCH__
-			//       printf( "INcreasing capacity from %i to %i\n", cap, new_cap);
+			//       PRINT( "INcreasing capacity from %i to %i\n", cap, new_cap);
 #endif
 			if (tid == 0) {
 #ifndef __CUDA_ARCH__
@@ -298,7 +298,7 @@ public:
 	}
 	CUDA_EXPORT
 	inline ~vector() {
-		//    printf( "destroying\n");
+		//    PRINT( "destroying\n");
 		THREAD;
 		destruct(0, sz);
 		if (tid == 0 && ptr && !dontfree) {

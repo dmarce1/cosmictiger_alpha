@@ -11,6 +11,19 @@
 #include <cstdio>
 #include <cstdlib>
 
+template<class ...Args>
+#ifdef __CUDA_ARCH__
+__device__
+#endif
+inline void print(const char* fmt, Args ...args) {
+	printf(fmt, args...);
+#ifndef __CUDA_ARCH__
+	fflush(stdout);
+#endif
+}
+
+#define PRINT(...) print(__VA_ARGS__)
+
 #define NDIM 3
 #define FULL_MASK 0xFFFFFFFF
 
@@ -89,14 +102,14 @@
 #ifdef TEST_BOUNDS
 #define BOUNDS_CHECK1(a,b,c)                                                              \
 		if( a < b || a >= c ) {                                                             \
-			printf( "Bounds check failed on line %i in file %s:\n", __LINE__, __FILE__);     \
-			printf( "%li is not between %li and %li\n", (size_t) a, (size_t) b, (size_t) c); \
+			PRINT( "Bounds check failed on line %i in file %s:\n", __LINE__, __FILE__);     \
+			PRINT( "%li is not between %li and %li\n", (size_t) a, (size_t) b, (size_t) c); \
 			assert(false);                                                                         \
 		}
 #define BOUNDS_CHECK2(a,b)                                                            \
 		if( a >= b ) {                                                                  \
-			printf( "Bounds check failed on line %i in file %s:\n", __LINE__, __FILE__); \
-			printf( "%li should be less than %li\n",(size_t)  a, (size_t) b);            \
+			PRINT( "Bounds check failed on line %i in file %s:\n", __LINE__, __FILE__); \
+			PRINT( "%li should be less than %li\n",(size_t)  a, (size_t) b);            \
 			assert(false);                                                                     \
 		}
 #else
@@ -136,14 +149,14 @@ struct pair {
 static void __safe_fread(void* src, size_t size, size_t count, FILE* fp, int line, const char* file) {
 	auto read = fread(src, size, count, fp);
 	if (read != count) {
-		printf("Attempt to read %li elements of size %li in %s on line %i failed - only %li elements read.\n", count,
-				size, file, line, read);
+		PRINT("Attempt to read %li elements of size %li in %s on line %i failed - only %li elements read.\n", count, size,
+				file, line, read);
 		abort();
 	}
 }
 
 #define ERROR() \
-	printf( "ERROR in %s line %i from rank %i\n", __FILE__, __LINE__, hpx_rank()); \
+	PRINT( "ERROR in %s line %i from rank %i\n", __FILE__, __LINE__, hpx_rank()); \
 	abort()
 
 #endif /* COSMICTIGER_DEFS_HPP_ */

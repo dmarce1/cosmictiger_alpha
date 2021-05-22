@@ -69,7 +69,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	hpx::wait_all(futs.begin(), futs.end());
 	futs.resize(0);
 	tm.stop();
-//	printf("Groups phase 1 took %e s\n", tm.read());
+//	PRINT("Groups phase 1 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	ngroups = 0;
@@ -88,7 +88,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	tm.stop();
-//	printf("Groups phase 2 took %e s\n", tm.read());
+//	PRINT("Groups phase 2 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	futs.resize(0);
@@ -121,7 +121,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 			entries.push_back(std::move(info));
 			ngroups++;
 			if (ngroups == table_size * 2) {
-				printf("Rehashing to table_size %i\n", 2 * table_size);
+				PRINT("Rehashing to table_size %i\n", 2 * table_size);
 				vector<bucket_t> old_table;
 				old_table.swap(table);
 				table_size *= 2;
@@ -138,7 +138,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	counts = decltype(counts)();
 	tm.stop();
-//	printf("Groups phase 3 took %e s\n", tm.read());
+//	PRINT("Groups phase 3 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	futs.resize(0);
@@ -185,7 +185,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	tm.stop();
-//	printf("Groups phase 4 took %e s\n", tm.read());
+//	PRINT("Groups phase 4 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	for (int i = 0; i < table.size(); i++) {
@@ -201,7 +201,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		}
 	}
 	tm.stop();
-//	printf("Groups phase 5 took %e s\n", tm.read());
+//	PRINT("Groups phase 5 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	futs.resize(0);
@@ -270,7 +270,7 @@ hpx::future<void> group_data_create(particle_set& parts) {
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	tm.stop();
-//	printf("Groups phase 6 took %e s\n", tm.read());
+//	PRINT("Groups phase 6 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 
@@ -314,14 +314,14 @@ hpx::future<void> group_data_create(particle_set& parts) {
 		hpx::wait_all(futs.begin(), futs.end());
 	});
 	tm.stop();
-	//printf("Groups phase 7 took %e s\n", tm.read());
+	//PRINT("Groups phase 7 took %e s\n", tm.read());
 	tm.reset();
 	tm.start();
 	return fut;
 }
 
 void group_data_save(double scale, int filenum) {
-	printf("Saving group data for timestep %i.\n", filenum);
+	PRINT("Saving group data for timestep %i.\n", filenum);
 	static auto& table = group_table();
 	auto& table_size = group_table_size();
 	int max_size = 0;
@@ -346,7 +346,7 @@ void group_data_save(double scale, int filenum) {
 	std::string filename = std::string("groups.") + std::to_string(filenum) + std::string(".dat");
 	FILE* fp = fopen(filename.c_str(), "wb");
 	if (fp == NULL) {
-		printf("Unable to open %s for writing!\n", filename.c_str());
+		PRINT("Unable to open %s for writing!\n", filename.c_str());
 		abort();
 	}
 	part_int numparts = 0;
@@ -448,25 +448,25 @@ void group_data_save(double scale, int filenum) {
 		float med_vdisp = vdisps[numgroups / 2];
 		quad_med = quads[numgroups / 2];
 		int med_size = sizes[numgroups / 2];
-		printf("Group Statistics for %i groups\n", numgroups);
-		printf("\t%.3f%% of particles are in a group\n", 100.0 * numparts / global().opts.nparts);
-		printf("\tmaximum size  : %i particles\n", max_size);
-		printf("\taverage size  : %f particles\n", avg_size);
-		printf("\tmedian  size  : %i particles\n", med_size);
-		printf("\tmaximum reff   : %e\n", max_reff);
-		printf("\taverage reff   : %e\n", avg_reff);
-		printf("\tmedian  reff   : %e\n", med_reff);
-		printf("\tmaximum qzz   : %e\n", quad_max);
-		printf("\taverage qzz   : %e\n", quad_avg);
-		printf("\tmedian  qzz   : %e\n", quad_med);
-		printf("\tmaximum velocity dispersion : %e\n", max_vdisp);
-		printf("\taverage velocity dispersion : %e\n", avg_vdisp);
-		printf("\tmedian  velocity dispersion : %e\n", med_vdisp);
-		printf("\taverage kinetic energy   : %e\n", avg_ekin);
-		printf("\taverage potential energy : %e\n", avg_epot);
-		printf("\tmaximum number of parents : %i\n", max_npar);
-		printf("\taverage number of parents : %f\n", avg_npar);
-		printf("\tmedian  number of parents : %i\n", med_npar);
+		PRINT("Group Statistics for %i groups\n", numgroups);
+		PRINT("\t%.3f%% of particles are in a group\n", 100.0 * numparts / global().opts.nparts);
+		PRINT("\tmaximum size  : %i particles\n", max_size);
+		PRINT("\taverage size  : %f particles\n", avg_size);
+		PRINT("\tmedian  size  : %i particles\n", med_size);
+		PRINT("\tmaximum reff   : %e\n", max_reff);
+		PRINT("\taverage reff   : %e\n", avg_reff);
+		PRINT("\tmedian  reff   : %e\n", med_reff);
+		PRINT("\tmaximum qzz   : %e\n", quad_max);
+		PRINT("\taverage qzz   : %e\n", quad_avg);
+		PRINT("\tmedian  qzz   : %e\n", quad_med);
+		PRINT("\tmaximum velocity dispersion : %e\n", max_vdisp);
+		PRINT("\taverage velocity dispersion : %e\n", avg_vdisp);
+		PRINT("\tmedian  velocity dispersion : %e\n", med_vdisp);
+		PRINT("\taverage kinetic energy   : %e\n", avg_ekin);
+		PRINT("\taverage potential energy : %e\n", avg_epot);
+		PRINT("\tmaximum number of parents : %i\n", max_npar);
+		PRINT("\taverage number of parents : %f\n", avg_npar);
+		PRINT("\tmedian  number of parents : %i\n", med_npar);
 	}
 }
 

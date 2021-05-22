@@ -48,7 +48,7 @@ __host__ void expansion_init_cpu() {
 		}
 	}
 	// for( int i = 0; i < 35; i++) {
-	// 	printf( "%e\n", 1.0/Lfactor_cpu[i]);
+	// 	PRINT( "%e\n", 1.0/Lfactor_cpu[i]);
 	//}
 	//abort();
 }

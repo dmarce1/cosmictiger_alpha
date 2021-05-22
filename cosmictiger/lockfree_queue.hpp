@@ -29,7 +29,7 @@ public:
       data[(tail++) % N] = std::move(d);
       count++;
       if( count >= N) {
-         printf( "lock free queue overrun!\n");
+         PRINT( "lock free queue overrun!\n");
          abort();
       }
    }
@@ -37,7 +37,7 @@ public:
       data[(tail++) % N] = d;
       count++;
       if( count >= N) {
-         printf( "lock free queue overrun!\n");
+         PRINT( "lock free queue overrun!\n");
          abort();
       }
    }
