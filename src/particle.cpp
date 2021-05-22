@@ -60,8 +60,8 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 		sends[i].parts = std::vector<particle>();
 	}
 
-	//	const int num_threads = hardware_concurrency();
-	const int num_threads = 1;
+	const int num_threads = hardware_concurrency();
+	//const int num_threads = 1;
 	static spinlock_type mutex;
 	std::vector<hpx::future<void>> futs;
 	for (int i = 0; i < num_threads; i++) {
