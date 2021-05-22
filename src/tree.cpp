@@ -470,7 +470,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				+ tree_data_bytes_used();
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
 		int num_blocks;
-		CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
+		CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (const void*) cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
 		const int block_count = oversubscription * num_blocks * global().cuda.devices[0].multiProcessorCount + 0.5;
 		size_t active_nodes = self.get_active_nodes();
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
@@ -762,7 +762,7 @@ void tree::gpu_daemon() {
 	timer.start();
 	first_call = false;
 	int num_blocks;
-	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
+	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (const void*) cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
 	int max_oc = num_blocks * global().cuda.devices[0].multiProcessorCount;
 	max_blocks_active = 2 * max_oc;
 	bool first_pass = true;

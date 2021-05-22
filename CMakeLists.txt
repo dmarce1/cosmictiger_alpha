@@ -19,7 +19,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 find_package(HPX REQUIRED NO_CMAKE_PACKAGE_REGISTRY)
 find_package(Boost REQUIRED)
-find_package(Silo REQUIRED)
+#find_package(Silo REQUIRED)
 enable_language(CUDA)
 
 set(CMAKE_CXX_FLAGS "-ffast-math -march=native -Wno-deprecated-declarations")
@@ -126,7 +126,7 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    Boost::boost siloh5 chealpix cuda cudart 
+    boost_program_options silo mpi
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
@@ -166,4 +166,23 @@ target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
 #SET_SOURCE_FILES_PROPERTIES( src/gravity.cu PROPERTIES COMPILE_FLAGS -G )
 #SET_SOURCE_FILES_PROPERTIES( src/map.cu PROPERTIES COMPILE_FLAGS "--maxrregcount 40" )
 #SET_SOURCE_FILES_PROPERTIES( src/tree.cu PROPERTIES COMPILE_FLAGS -G )
+
+#add_executable( cosmictiger_lite
+#    ${cosmictiger_source_files} ${cosmictiger_header_files}
+#)
+#add_library(hpx_lite 
+#	hpx_lite/src/hpx.cpp
+#	hpx_lite/src/id_type.cpp
+#	hpx_lite/src/thread.cpp
+#	hpx_lite/src/future.cpp
+#	hpx_lite/src/mutex.cpp
+#	hpx_lite/src/serialize.cpp
+#)
+#set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+#target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
+#target_link_libraries(cosmictiger_lite PUBLIC siloh5 chealpix cuda cudart boost_program_options hpx_lite mpi hwloc)
+#target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
+#target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+#                        -std=c++14 --use_fast_math --maxrregcount 128 --gpu-architecture=compute_35;
+#                        >)
  
