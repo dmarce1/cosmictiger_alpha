@@ -19,7 +19,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 find_package(HPX REQUIRED NO_CMAKE_PACKAGE_REGISTRY)
 find_package(Boost REQUIRED)
-find_package(Silo REQUIRED)
+#find_package(Silo REQUIRED)
 enable_language(CUDA)
 
 set(CMAKE_CXX_FLAGS "-std=c++14  -ffast-math -march=native -Wno-deprecated-declarations")
@@ -121,7 +121,7 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    Boost::boost siloh5 chealpix cuda cudart 
+    boost_program_options silo mpi
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
@@ -141,7 +141,7 @@ target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86;
+                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
                         >)
 
 
