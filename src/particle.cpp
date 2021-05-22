@@ -57,8 +57,8 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 		//	PRINT( "%i %e %e\n", hpx_rank(), my_range.begin[dim], my_range.end[dim]);
 	}
 
-	const int num_threads = hardware_concurrency();
-	//const int num_threads = 1;
+	//const int num_threads = hardware_concurrency();
+	const int num_threads = 1;
 	static spinlock_type mutex;
 	std::vector<hpx::future<void>> futs;
 	for (int i = 0; i < num_threads; i++) {

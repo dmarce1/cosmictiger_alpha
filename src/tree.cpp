@@ -31,7 +31,7 @@ void tree::add_parts_covered(part_iters num) {
 		if (dry_run) {
 			pserv.global_to_local(std::move(remote_parts));
 		} else {
-			PRINT( "Sending tree pieces to gpu\n" );
+			PRINT("Sending tree pieces to gpu\n");
 			gpu_daemon();
 		}
 
@@ -58,6 +58,18 @@ static bool all_checks_local(const stack_vector<tree_ptr>& checks) {
 				local = false;
 				break;
 			}
+		}
+	}
+	return local;
+}
+
+static bool all_checks_local_or_decomp(const stack_vector<tree_ptr>& checks) {
+	bool local = true;
+	for (int i = 0; i < checks.size(); i++) {
+		auto proc_range = checks[i].get_proc_range();
+		if (checks[i].rank != hpx_rank() && proc_range.second - proc_range.first == 1) {
+			local = false;
+			break;
 		}
 	}
 	return local;
@@ -395,6 +407,17 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 			return hpx::make_ready_future();
 		}
 	}
+#ifndef NDEBUG
+	else {
+		const auto proc_range = get_proc_range();
+		const bool is_local_root = local_root();
+		if (proc_range.second - proc_range.first == 1 && !is_local_root) {
+			const bool all_local = all_checks_local_or_decomp(params.dchecks)
+					&& all_checks_local_or_decomp(params.echecks);
+			assert(all_local);
+		}
+	}
+#endif
 
 	if (!params.dry_run && use_cuda && num_active <= params.block_cutoff && num_active) {
 		return tree::send_kick_to_gpu(params_ptr);
@@ -456,10 +479,9 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	auto& phi = params.Phi;
 	const auto parts = self.get_parts();
 	if (self.local_root()) {
-		PRINT( "Starting local kick on %i\n", hpx_rank() );
+		PRINT("Starting local kick on %i\n", hpx_rank());
 		dry_run = params.dry_run;
 		if (!params.dry_run) {
-			tree_data_map_global_to_local2();
 			tree_data_global_to_local(params.dchecks);
 			tree_data_global_to_local(params.echecks);
 		}
@@ -473,7 +495,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				+ tree_data_bytes_used();
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
 		int num_blocks;
-		CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (const void*) cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
+		CUDA_CHECK(
+				cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (const void*) cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
 		const int block_count = oversubscription * num_blocks * global().cuda.devices[0].multiProcessorCount + 0.5;
 		size_t active_nodes = self.get_active_nodes();
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
@@ -574,11 +597,11 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					remote_parts.insert(parti[i]);
 				}
 			}
-/*			for (int i = 0; i < multis.size(); i++) {
-				if (multis[i].rank != hpx_rank()) {
-					remote_parts.insert(multis[i]);
-				}
-			}*/
+			/*			for (int i = 0; i < multis.size(); i++) {
+			 if (multis[i].rank != hpx_rank()) {
+			 remote_parts.insert(multis[i]);
+			 }
+			 }*/
 		} else {
 			switch (type) {
 			case CC_CP_DIRECT:
@@ -651,9 +674,10 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 					futs[RIGHT].get();
 					if( self.local_root() ) {
 						PRINT( "Freeing cache\n");
-						tree_data_free_cache();
 						if( !dry_run ) {
-							particles->resize_pos(particles->size());}
+							tree_data_free_cache();
+							particles->resize_pos(particles->size());
+						}
 						PRINT( "%i\n", particles->size());
 					}
 					if( depth == 0 ) {
@@ -766,7 +790,8 @@ void tree::gpu_daemon() {
 	timer.start();
 	first_call = false;
 	int num_blocks;
-	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (const void*) cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
+	CUDA_CHECK(
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (const void*) cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
 	int max_oc = num_blocks * global().cuda.devices[0].multiProcessorCount;
 	max_blocks_active = 2 * max_oc;
 	bool first_pass = true;

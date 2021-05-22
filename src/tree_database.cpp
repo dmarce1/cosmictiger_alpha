@@ -47,12 +47,22 @@ tree_ptr tree_data_global_to_local(tree_ptr global) {
 	} else {
 		local.dindex = global.dindex;
 	}
+	auto children = local.get_children();
+	if( children[0].dindex != -1 ) {
+		for( int ci = 0; ci < NCHILD; ci++) {
+			auto iter = tree_map.find(children[ci]);
+			if( iter != tree_map.end()) {
+				children[ci] = tree_data_global_to_local(children[ci]);
+			}
+		}
+		local.set_children(children);
+	}
 	return local;
 }
 
 void tree_data_map_global_to_local1() {
-	const int nthreads = hardware_concurrency();
-//	const int nthreads = 1;
+//	const int nthreads = hardware_concurrency();
+	const int nthreads = 1;
 	static spinlock_type mutex;
 	std::vector<hpx::future<void>> futs;
 	tree_map = decltype(tree_map)();
@@ -91,7 +101,6 @@ void tree_data_map_global_to_local1() {
 						tree_map[global_ptr] = index;
 					}
 				}
-				cache = tree_cache_map_type();
 			}};
 		futs.push_back(hpx::async(func));
 	}
@@ -99,12 +108,13 @@ void tree_data_map_global_to_local1() {
 }
 
 void tree_data_map_global_to_local2() {
-	const int nthreads = hardware_concurrency();
-//	const int nthreads = 1;
+//	const int nthreads = hardware_concurrency();
+
+
+	const int nthreads = 1;
 	std::vector<hpx::future<void>> futs;
 	for (int proc = 0; proc < nthreads; proc++) {
 		const auto func = [nthreads,proc]() {
-			tree_allocator tree_alloc;
 			const int start = proc * cpu_tree_data_.ntrees / nthreads;
 			const int stop = (proc + 1) * cpu_tree_data_.ntrees / nthreads;
 			for (int i = start; i < stop; i++) {
