@@ -507,7 +507,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		}
 		shift_expansion(L, dx, params.full_eval);
 	}
-	const auto theta2 = sqr(params.theta);
+	const auto theta2 = sqr(params.theta * (params.dry_run ? 0.99 : 1.0));
+
 	array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
 	auto &multis = params.multi_interactions;
 	auto &parti = params.part_interactions;
@@ -544,7 +545,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 				const bool far2 = R2 < theta2 * d2;
 				const bool far3 = R3 < theta2 * d2;
 				const bool isleaf = checks[ci].is_leaf();
-				if (far1 || (direct && far3)) {
+				if (far1 || (direct && far3 && !params.dry_run)) {
 					multis.push_back(checks[ci]);
 				} else if ((far2 || direct) && isleaf) {
 					parti.push_back(checks[ci]);

@@ -226,13 +226,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				if (j < parti.size()) {
 					const auto other_pos = parti[j].get_pos();
 					const auto other_radius = parti[j].get_radius();
-					const auto parti_parts = parti[j].get_parts();
-					const auto other_nparts = parti_parts.second - parti_parts.first;
+//					const auto parti_parts = parti[j].get_parts();
+//					const auto other_nparts = parti_parts.second - parti_parts.first;
 					bool res = false;
 					const int sz = myparts.second - myparts.first;
-					if (other_nparts < MIN_PC_PARTS) {
-						res = true;
-					} else {
+//					if (other_nparts < MIN_PC_PARTS) {
+//						res = true;
+//					} else {
 						for (int k = 0; k < sz; k++) {
 							const auto this_rung = parts.rung(k + myparts.first);
 							if (this_rung >= constant.rung || constant.full_eval) {
@@ -247,7 +247,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 								}
 							}
 						}
-					}
+//					}
 					list_index = res ? PI : MI;
 					my_index[list_index] = 1;
 				}
