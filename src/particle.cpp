@@ -56,9 +56,6 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 	for (int dim = 0; dim < NDIM; dim++) {
 		//	PRINT( "%i %e %e\n", hpx_rank(), my_range.begin[dim], my_range.end[dim]);
 	}
-	for (int i = 0; i < hpx_size(); i++) {
-		sends[i].parts = std::vector<particle>();
-	}
 
 	const int num_threads = hardware_concurrency();
 	//const int num_threads = 1;
@@ -69,6 +66,7 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 			const part_int start = size_t(i) * size_t(size_) / size_t(num_threads);
 			const part_int stop = size_t(i+1) * size_t(size_) / size_t(num_threads);
 			bool finished = true;
+			part_int count = 0;
 			for( part_int j = start; j < stop; j++) {
 				bool foreign = false;
 				for( int dim = 0; dim < NDIM; dim++) {
@@ -90,7 +88,8 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 					free_indices.push_back(j);
 					auto& pts = entry.parts;
 					pts.push_back(p);
-					if( free_indices.size() >= max_send_parts ) {
+					count++;
+					if( count >= max_send_parts / num_threads) {
 						finished = false;
 						break;
 					}
@@ -103,6 +102,19 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
+	for (auto i = sends.begin(); i != sends.end(); i++) {
+		std::sort(i->second.parts.begin(), i->second.parts.end(), [](const particle& a, const particle& b) {
+			for( int dim = 0; dim < NDIM; dim++) {
+				if( a.x[dim].to_double() < b.x[dim].to_double()) {
+					return true;
+				} else if( a.x[dim].to_double() > b.x[dim].to_double()) {
+					return false;
+				}
+			}
+			return false;
+		});
+	}
+
 	std::sort(free_indices.begin(), free_indices.end());
 	return (int) finished_cnt == num_threads;
 }
