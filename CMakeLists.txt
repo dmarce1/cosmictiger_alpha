@@ -178,8 +178,9 @@ add_library(hpx_lite
 )
 set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
-target_link_libraries(cosmictiger_lite PUBLIC siloh5 chealpix cuda cudart boost_program_options hpx_lite mpi hwloc)
+target_link_libraries(cosmictiger_lite PUBLIC  cuda cudart boost_program_options hpx_lite hwloc mpi)
 target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
+target_compile_options(cosmictiger_lite PUBLIC -D_GLIBCXX_USE_CXX11_ABI=0)
 target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         -std=c++14 --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
                         >)
