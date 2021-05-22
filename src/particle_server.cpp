@@ -43,7 +43,7 @@ std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) 
 		futs.push_back(hpx::async([&offsets,&data,proc,&iters,nthreads]() {
 			const int start = proc * iters.size() / nthreads;
 			const int stop = (proc+1) * iters.size() / nthreads;
-			std::shared_lock<shared_mutex_type> lock(shared_mutex);
+			shared_mutex.lock_shared();
 			part_int j = offsets[proc];
 			for( int i = start; i < stop; i++) {
 				for (part_int k = iters[i].first; k < iters[i].second; k++) {
@@ -53,6 +53,7 @@ std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) 
 					j++;
 				}
 			}
+			shared_mutex.unlock_shared();
 			assert(j==offsets[proc+1]);
 		}));
 	}
