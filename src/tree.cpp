@@ -458,7 +458,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 	if (self.local_root()) {
 		PRINT( "Starting local kick on %i\n", hpx_rank() );
 		dry_run = params.dry_run;
-		if (!dry_run) {
+		if (!params.dry_run) {
+			tree_data_map_global_to_local2();
 			tree_data_global_to_local(params.dchecks);
 			tree_data_global_to_local(params.echecks);
 		}

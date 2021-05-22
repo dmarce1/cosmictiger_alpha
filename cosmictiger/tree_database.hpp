@@ -834,5 +834,7 @@ void tree_data_set_local_root(int i, bool b) {
 	tree_data_.local_root[i]= b;
 }
 
-void tree_data_map_global_to_local();
+void tree_data_map_global_to_local1();
+
+void tree_data_map_global_to_local2();
 

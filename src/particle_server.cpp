@@ -101,7 +101,7 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 
 	PRINT("importing %i particles or %e of local in %i sets with %i requests\n", size,
 			size / (double) parts->pos_size(), remotes_sorted.size(), requests.size());
-	tree_data_map_global_to_local();
+	tree_data_map_global_to_local1();
 	std::unique_lock<shared_mutex_type> lock(shared_mutex);
 	parts->resize_pos(parts->pos_size() + size);
 	lock.unlock();

@@ -50,7 +50,7 @@ tree_ptr tree_data_global_to_local(tree_ptr global) {
 	return local;
 }
 
-void tree_data_map_global_to_local() {
+void tree_data_map_global_to_local1() {
 	const int nthreads = hardware_concurrency();
 //	const int nthreads = 1;
 	static spinlock_type mutex;
@@ -96,7 +96,12 @@ void tree_data_map_global_to_local() {
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	futs.resize(0);
+}
+
+void tree_data_map_global_to_local2() {
+	const int nthreads = hardware_concurrency();
+//	const int nthreads = 1;
+	std::vector<hpx::future<void>> futs;
 	for (int proc = 0; proc < nthreads; proc++) {
 		const auto func = [nthreads,proc]() {
 			tree_allocator tree_alloc;
