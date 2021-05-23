@@ -11,7 +11,16 @@ static timer tm;
 void kick_return_init_gpu(int min_rung);
 kick_return kick_return_get_gpu();
 
+HPX_PLAIN_ACTION(kick_return_init);
+HPX_PLAIN_ACTION(kick_return_get);
+
 void kick_return_init(int min_rung) {
+	std::vector<hpx::future<void>> futs;
+	if (hpx_rank() == 0) {
+		for (int i = 1; i < hpx_size(); i++) {
+			futs.push_back(hpx::async<kick_return_init_action>(hpx_localities()[i], min_rung));
+		}
+	}
 	cpu_return.min_rung = min_rung;
 	for (int i = 0; i < MAX_RUNG; i++) {
 		cpu_return.rung_cnt[i] = 0;
@@ -26,9 +35,16 @@ void kick_return_init(int min_rung) {
 	}
 	kick_return_init_gpu(min_rung);
 	tm.start();
+	hpx::wait_all(futs.begin(), futs.end());
 }
 
 kick_return kick_return_get() {
+	std::vector<hpx::future<kick_return>> futs;
+	if (hpx_rank() == 0) {
+		for (int i = 1; i < hpx_size(); i++) {
+			futs.push_back(hpx::async<kick_return_get_action>(hpx_localities()[i]));
+		}
+	}
 	kick_return rc = kick_return_get_gpu();
 	rc.phis += cpu_return.phis;
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -40,6 +56,22 @@ kick_return kick_return_get() {
 	for (int i = 0; i < KR_COUNT; i++) {
 		rc.count[i] += cpu_return.count[i];
 		rc.flop[i] += cpu_return.flop[i];
+	}
+	if (hpx_rank() == 0) {
+		for (auto& f : futs) {
+			const auto tmp = f.get();
+			rc.phis += tmp.phis;
+			for (int dim = 0; dim < NDIM; dim++) {
+				rc.forces[dim] += tmp.forces[dim];
+			}
+			for (int i = 0; i < MAX_RUNG; i++) {
+				rc.rung_cnt[i] += tmp.rung_cnt[i];
+			}
+			for (int i = 0; i < KR_COUNT; i++) {
+				rc.count[i] += tmp.count[i];
+				rc.flop[i] += tmp.flop[i];
+			}
+		}
 	}
 	return rc;
 }
@@ -80,7 +112,7 @@ void kick_return_show() {
 	PRINT("\nKick took %e seconds\n\n", elapsed);
 	float phi_sum = 0.f;
 	const auto fac = 1.0 / global().opts.nparts;
-	PRINT("Potential Energy / Total Forces    = %e %e %e %e\n", rc.phis* fac, rc.forces[0] * fac, rc.forces[1] * fac,
+	PRINT("Potential Energy / Total Forces    = %e %e %e %e\n", rc.phis * fac, rc.forces[0] * fac, rc.forces[1] * fac,
 			rc.forces[2] * fac);
 	PRINT("Rungs ");
 	for (int i = min_rung; i <= max_rung; i++) {

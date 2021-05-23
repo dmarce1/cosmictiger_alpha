@@ -30,6 +30,17 @@ struct kick_return {
 	array<double,KR_COUNT> flop;
 	array<double,KR_COUNT> count;
 	int min_rung;
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & phis;
+		arc & kin;
+		arc & mom;
+		arc & forces;
+		arc & rung_cnt;
+		arc & flop;
+		arc & count;
+		arc & min_rung;
+	}
 };
 
 
