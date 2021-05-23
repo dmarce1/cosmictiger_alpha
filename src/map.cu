@@ -30,6 +30,7 @@ void healpix_kernel(const float * __restrict__ x, const float * __restrict__ y, 
 void healpix2_map(const vector<float>& x, const vector<float>& y, const vector<float>& z, const vector<float>& vx,
 		const vector<float>& vy, const vector<float>& vz, float taui, float tau0, float dtau, map_type map, int Nside) {
 	auto stream = get_stream();
+	cuda_set_device();
 	//cudaFuncAttributes attribs;
 //	CUDA_CHECK(cudaFuncGetAttributes(&attribs, healpix_kernel));
 	int num_threads = 96;

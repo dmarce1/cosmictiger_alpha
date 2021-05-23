@@ -27,7 +27,7 @@ void particle_set::sort_indices(part_int* begin, part_int* end) {
 }
 
 void particle_set::generate_random(int seed) {
-
+	cuda_set_device();
 	if (size_) {
 		cudaFuncAttributes attribs;
 		CUDA_CHECK(cudaFuncGetAttributes(&attribs, generate_random_vectors));

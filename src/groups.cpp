@@ -151,6 +151,7 @@ hpx::future<size_t> tree_ptr::find_groups(group_param_type* params_ptr, bool thr
 }
 
 hpx::future<size_t> find_groups(group_param_type* params_ptr) {
+	cuda_set_device();
 	group_param_type& params = *params_ptr;
 	auto& parts = params.parts;
 	tree_ptr self = params.self;

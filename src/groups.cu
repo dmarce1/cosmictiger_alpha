@@ -12,6 +12,7 @@ __managed__ group_list_sizes sizes = { 0, 0 };
 
 std::function<std::vector<size_t>()> call_cuda_find_groups(group_param_type** params, int params_size,
 		cudaStream_t stream) {
+	cuda_set_device();
 	size_t* rc;
 	unified_allocator alloc;
 	rc = (size_t*) alloc.allocate(sizeof(size_t) * params_size);
