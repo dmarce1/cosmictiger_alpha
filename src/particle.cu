@@ -19,10 +19,12 @@ CUDA_EXPORT bool operator<(const particle& a, const particle& b) {
 }
 
 void particle_set::sort_parts(particle* begin, particle* end) {
+	cuda_set_device();
 	thrust::sort(thrust::device, begin, end);
 }
 
 void particle_set::sort_indices(part_int* begin, part_int* end) {
+	cuda_set_device();
 	thrust::sort(thrust::device, begin, end);
 }
 
