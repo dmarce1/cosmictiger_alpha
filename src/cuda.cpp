@@ -28,6 +28,11 @@ int cuda_device() {
 	return hpx_rank() % global().cuda.num_devices;
 }
 
+void cuda_set_device() {
+	const int device_num = hpx_rank() % global().cuda.num_devices;
+	CUDA_CHECK(cudaSetDevice(device_num));
+}
+
 cuda_properties cuda_init() {
 	hpx::future<cuda_properties> futl, futr;
 	auto children = hpx_child_localities();
@@ -43,9 +48,7 @@ cuda_properties cuda_init() {
 	for (int i = 0; i < props.num_devices; i++) {
 		CUDA_CHECK(cudaGetDeviceProperties(&props.devices[i], i));
 	}
-	const int device_num = hpx_rank() % props.num_devices;
-	printf( "Setting device %i on rank %i\n", device_num, hpx_rank());
-	CUDA_CHECK(cudaSetDevice(device_num));
+	cuda_set_device();
 	PRINT("--------------------------------------------------------------------------------\n");
 	PRINT("Detected %i CUDA devices.\n", props.num_devices);
 	for (int i = 0; i < props.num_devices; i++) {

@@ -61,6 +61,7 @@ void tree_data_initialize_kick() {
 		cpu_tree_data_.data[i].children[0].rank = 111111;
 		cpu_tree_data_.data[i].children[1].rank = 111111;
 	}*/
+	cuda_set_device();
 	CUDA_CHECK(cudaMemcpyToSymbol(gpu_tree_data_, &cpu_tree_data_, sizeof(cpu_tree_data_)));
 
 }
@@ -94,6 +95,7 @@ void tree_data_initialize_groups() {
 	CUDA_MALLOC(cpu_tree_data_.active_nodes, cpu_tree_data_.ntrees);
 
 	tree_data_clear();
+	cuda_set_device();
 	CUDA_CHECK(cudaMemcpyToSymbol(gpu_tree_data_, &cpu_tree_data_, sizeof(cpu_tree_data_)));
 
 }

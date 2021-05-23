@@ -461,6 +461,7 @@ timer kick_timer;
 #define MIN_WORK 0
 
 hpx::future<void> tree::kick(kick_params_type * params_ptr) {
+	cuda_set_device();
 	particle_server pserv;
 	auto* particles = &pserv.get_particle_set();
 	kick_params_type &params = *params_ptr;
@@ -769,6 +770,7 @@ std::atomic<bool> tree::shutdown_daemon(false);
 void cuda_execute_kick_kernel(kick_params_type **params, int grid_size);
 
 void tree::gpu_daemon() {
+	cuda_set_device();
 	particle_server pserv;
 	auto* particles = &pserv.get_particle_set();
 	static bool first_call = true;

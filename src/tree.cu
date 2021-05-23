@@ -52,6 +52,7 @@ void cuda_set_kick_constants(kick_constants consts) {
 	consts.h2 = sqr(consts.h);
 	consts.hinv = 1.f / consts.h;
 	consts.th = consts.h * consts.theta;
+	cuda_set_device();
 	CUDA_CHECK(cudaMemcpyToSymbol(constant, &consts, sizeof(kick_constants)));
 }
 
@@ -477,6 +478,7 @@ void reset_list_sizes() {
 thread_local static std::stack<cudaStream_t> streams;
 
 cudaStream_t get_stream() {
+	cuda_set_device();
 	if (streams.empty()) {
 		cudaStream_t stream;
 		CUDA_CHECK(cudaStreamCreate(&stream));
@@ -496,6 +498,7 @@ bool check_kick_success(int index) {
 }
 
 int cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStream_t stream) {
+	cuda_set_device();
 	const size_t shmemsize = sizeof(cuda_kick_shmem);
 	int index = success_index++ % NKERNEL_SUCCESS;
 	kernel_success[index] = false;
