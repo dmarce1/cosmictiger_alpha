@@ -29,7 +29,9 @@ int cuda_device() {
 }
 
 void cuda_set_device() {
-	const int device_num = hpx_rank() % global().cuda.num_devices;
+	int count;
+	CUDA_CHECK(cudaGetDeviceCount(&count));
+	const int device_num = hpx_rank() % count;
 	CUDA_CHECK(cudaSetDevice(device_num));
 }
 
