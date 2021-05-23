@@ -22,10 +22,11 @@ struct tree_hash;
 
 class particle_server {
 	static particle_set* parts;
-	static std::vector<part_int> free_indices;
+	static vector<part_int> free_indices;
 	static domain_bounds dbounds;
 #ifndef __CUDACC__
 	static particle_send_type part_sends;
+	static vector<particle> part_recvs;
 	static spinlock_type mutex;
 	static shared_mutex_type shared_mutex;
 #endif
@@ -38,7 +39,7 @@ public:
 	static void check_domain_bounds();
 	static const domain_bounds& get_domain_bounds();
 	static particle_set& get_particle_set();
-	static void domain_decomp_transmit(std::vector<particle>);
+	static void domain_decomp_transmit(vector<particle>);
 	static void apply_domain_decomp();
 	static std::vector<fixed32> gather_pos(std::vector<part_iters>);
 	static void global_to_local(std::unordered_set<tree_ptr,tree_hash>);

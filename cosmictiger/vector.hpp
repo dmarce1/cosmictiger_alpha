@@ -62,6 +62,12 @@ public:
 			arc & (*this)[i];
 		}
 	}
+	T* begin() {
+		return ptr;
+	}
+	T* end() {
+		return ptr + sz;
+	}
 	std::function<void()> to_device(cudaStream_t stream) {
 		//   assert(cap);
 		dontfree = true;

@@ -5,8 +5,9 @@
 #include <cosmictiger/hpx.hpp>
 
 particle_set* particle_server::parts = nullptr;
-std::vector<part_int> particle_server::free_indices;
+vector<part_int> particle_server::free_indices;
 particle_send_type particle_server::part_sends;
+vector<particle> particle_server::part_recvs;
 domain_bounds particle_server::dbounds;
 spinlock_type particle_server::mutex;
 shared_mutex_type particle_server::shared_mutex;
@@ -23,8 +24,8 @@ HPX_PLAIN_ACTION(particle_server::gather_pos, particle_server_gather_pos_action)
 std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) {
 	std::vector<fixed32> data;
 	part_int size = 0;
-	const int nthreads = 1;
-//	const int nthreads = hardware_concurrency();
+	//const int nthreads = 1;
+	const int nthreads = hardware_concurrency();
 	std::vector<part_int> offsets(nthreads + 1);
 	offsets[0] = 0;
 	for (int proc = 0; proc < nthreads; proc++) {
@@ -110,8 +111,8 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 		futs2.push_back(futs1[j++].then([i,&offsets](hpx::future<std::vector<fixed32>>&& fut) {
 			std::vector<hpx::future<void>> futs;
 			const auto data = fut.get();
-			const int nthreads = 1;
-//			const int nthreads = hardware_concurrency();
+			//const int nthreads = 1;
+			const int nthreads = hardware_concurrency();
 			std::vector<part_int> joffsets(nthreads);
 			joffsets[0] = 0;
 			for( int proc = 0; proc < nthreads - 1; proc++) {
@@ -223,28 +224,47 @@ void particle_server::domain_decomp_finish() {
 			futs.push_back(hpx::async<particle_server_domain_decomp_finish_action>(hpx_localities()[i]));
 		}
 	}
+	parts->sort_parts(part_recvs.begin(),part_recvs.end());
+	if( free_indices.size() < part_recvs.size()) {
+		part_int start = free_indices.size();
+		part_int stop = part_recvs.size();
+		free_indices.resize(part_recvs.size());
+		part_int j = parts->size();
+		for( int i = start; i < stop; i++) {
+			free_indices[i] = j++;
+		}
+		parts->resize(j);
+	}
+	int nthreads = hardware_concurrency();
+	for( int proc = 0; proc < nthreads; proc++) {
+		futs.push_back(hpx::async([proc,nthreads](){
+			const part_int start = proc * part_recvs.size() / nthreads;
+			const part_int stop = (proc+1) * part_recvs.size() / nthreads;
+			for( part_int i = start; i < stop; i++) {
+				parts->set_particle(part_recvs[i], free_indices[i]);
+			}
+		}));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+	part_recvs = decltype(part_recvs)();
 	parts->free_particles(free_indices);
 	free_indices = decltype(free_indices)();
 	part_sends = decltype(part_sends)();
-	hpx::wait_all(futs.begin(), futs.end());
 }
 
-void particle_server::domain_decomp_transmit(std::vector<particle> new_parts) {
+void particle_server::domain_decomp_transmit(vector<particle> new_parts) {
+	part_int start;
+	part_int stop;
+	std::unique_lock<shared_mutex_type> lock(shared_mutex);
+	start = part_recvs.size();
+	part_recvs.resize(start + new_parts.size());
+	stop = part_recvs.size();
+	lock.unlock();
+	part_int i = 0;
 	while (new_parts.size()) {
 		particle p = new_parts.back();
 		new_parts.pop_back();
-		part_int index;
-		{
-			std::lock_guard<spinlock_type> lock(mutex);
-			if (free_indices.size()) {
-				index = free_indices.back();
-				free_indices.pop_back();
-			} else {
-				index = parts->size();
-				parts->resize(parts->size() + 1);
-			}
-		}
-		parts->set_particle(p, index);
+		part_recvs[i] = p;
 	}
 
 }

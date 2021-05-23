@@ -7,6 +7,7 @@
 
 #include <silo.h>
 
+
 #include <unordered_map>
 #include <algorithm>
 
@@ -48,7 +49,7 @@ particle particle_set::get_particle(part_int i) {
 
 #define PARTICLE_SET_MAX_SEND (8*1024*1024)
 
-bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>& free_indices, domain_bounds bounds) {
+bool particle_set::gather_sends(particle_send_type& sends, vector<part_int>& free_indices, domain_bounds bounds) {
 	const auto my_range = bounds.find_proc_range(hpx_rank());
 	static std::atomic<int> finished_cnt;
 	static part_int max_send_parts = std::min(part_int(size() * 0.1), part_int(PARTICLE_SET_MAX_SEND));
@@ -57,8 +58,8 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 		//	PRINT( "%i %e %e\n", hpx_rank(), my_range.begin[dim], my_range.end[dim]);
 	}
 
-	//const int num_threads = hardware_concurrency();
-	const int num_threads = 1;
+	const int num_threads = hardware_concurrency();
+	//const int num_threads = 1;
 	static spinlock_type mutex;
 	std::vector<hpx::future<void>> futs;
 	for (int i = 0; i < num_threads; i++) {
@@ -102,24 +103,11 @@ bool particle_set::gather_sends(particle_send_type& sends, std::vector<part_int>
 		futs.push_back(hpx::async(func));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	for (auto i = sends.begin(); i != sends.end(); i++) {
-		std::sort(i->second.parts.begin(), i->second.parts.end(), [](const particle& a, const particle& b) {
-			for( int dim = 0; dim < NDIM; dim++) {
-				if( a.x[dim].to_double() < b.x[dim].to_double()) {
-					return true;
-				} else if( a.x[dim].to_double() > b.x[dim].to_double()) {
-					return false;
-				}
-			}
-			return false;
-		});
-	}
-
-	std::sort(free_indices.begin(), free_indices.end());
+	sort_indices(free_indices.begin(),free_indices.end());
 	return (int) finished_cnt == num_threads;
 }
 
-void particle_set::free_particles(std::vector<part_int>& free_indices) {
+void particle_set::free_particles(vector<part_int>& free_indices) {
 	std::sort(free_indices.begin(), free_indices.end(), [](part_int a, part_int b) {
 		return a > b;
 	});

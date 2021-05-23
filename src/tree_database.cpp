@@ -77,8 +77,8 @@ tree_ptr tree_data_global_to_local_recursive(tree_ptr global) {
 }
 
 void tree_data_map_global_to_local1() {
-//	const int nthreads = hardware_concurrency();
-	const int nthreads = 1;
+	const int nthreads = hardware_concurrency();
+//	const int nthreads = 1;
 	static spinlock_type mutex;
 	std::vector<hpx::future<void>> futs;
 	tree_map = decltype(tree_map)();
@@ -124,10 +124,10 @@ void tree_data_map_global_to_local1() {
 }
 
 void tree_data_map_global_to_local2() {
-//	const int nthreads = hardware_concurrency();
+	const int nthreads = hardware_concurrency();
 
 
-	const int nthreads = 1;
+//	const int nthreads = 1;
 	std::vector<hpx::future<void>> futs;
 	for (int proc = 0; proc < nthreads; proc++) {
 		const auto func = [nthreads,proc]() {

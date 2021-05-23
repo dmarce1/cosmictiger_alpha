@@ -14,6 +14,7 @@
 #include <cosmictiger/fixed.hpp>
 #include <cosmictiger/range.hpp>
 #include <cosmictiger/array.hpp>
+#include <cosmictiger/vector.hpp>
 #ifdef _CUDA_ARCH_
 #include <cosmictiger/hpx.hpp>
 #endif
@@ -65,19 +66,23 @@ struct particle {
 
 #ifndef __CUDACC__
 struct particle_send_entry {
-	std::vector<particle> parts;
+	vector<particle> parts;
 	mutex_type mutex;
 };
 
 using particle_send_type = std::unordered_map<int,particle_send_entry>;
 #endif
 
+CUDA_EXPORT bool operator<(const particle& a, const particle& b);
+
 struct particle_set {
 	particle get_particle(part_int i);
 	void set_particle(const particle&, part_int i);
-	void free_particles(std::vector<part_int>&);
+	void free_particles(vector<part_int>&);
 	CUDA_EXPORT
 	particle_set();
+	static void sort_parts(particle* begin, particle* end);
+	static void sort_indices(part_int* begin, part_int* end);
 	particle_set(part_int);
 	void resize(part_int);
 	void resize_pos(part_int);CUDA_EXPORT
@@ -111,7 +116,7 @@ struct particle_set {
 	float pot(part_int index) const;CUDA_EXPORT
 	float& pot(part_int index);
 #ifndef __CUDACC__
-	bool gather_sends(particle_send_type&, std::vector<part_int>&, domain_bounds);
+	bool gather_sends(particle_send_type&, vector<part_int>&, domain_bounds);
 protected:
 #endif
 	array<fixed32*, NDIM> xptr_;
