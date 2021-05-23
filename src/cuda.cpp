@@ -43,7 +43,9 @@ cuda_properties cuda_init() {
 	for (int i = 0; i < props.num_devices; i++) {
 		CUDA_CHECK(cudaGetDeviceProperties(&props.devices[i], i));
 	}
-//	CUDA_CHECK(cudaSetDevice(hpx_rank() % props.num_devices));
+	const int device_num = hpx_rank() % props.num_devices;
+	printf( "Setting device %i on rank %i\n", device_num, hpx_rank());
+	CUDA_CHECK(cudaSetDevice(device_num));
 	PRINT("--------------------------------------------------------------------------------\n");
 	PRINT("Detected %i CUDA devices.\n", props.num_devices);
 	for (int i = 0; i < props.num_devices; i++) {
