@@ -397,9 +397,10 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	static const bool use_cuda = global().opts.cuda;
 	kick_params_type &params = *params_ptr;
 	const auto parts = get_parts();
+	const auto proc_range = get_proc_range();
 	const auto num_active = get_active_nodes();
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-
+	const part_int min_parts2thread = particles->size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
 	if (params.dry_run) {
 		const bool all_local = all_checks_local(params.dchecks) && all_checks_local(params.echecks);
 		if (all_local) {
@@ -409,7 +410,6 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	}
 #ifndef NDEBUG
 	else {
-		const auto proc_range = get_proc_range();
 		const bool is_local_root = local_root();
 		if (proc_range.second - proc_range.first == 1 && !is_local_root) {
 			const bool all_local = all_checks_local_or_decomp(params.dchecks)
@@ -426,13 +426,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 			return hpx::async<tree_kick_remote_action>(hpx_localities()[params.tptr.rank], params);
 		} else {
 			static std::atomic<int> used_threads(0);
-			if (thread) {
-				const int max_threads = OVERSUBSCRIPTION * hpx::thread::hardware_concurrency();
-				if (used_threads++ > max_threads) {
-					used_threads--;
-					thread = false;
-				}
-			}
+			thread = thread && ((proc_range.second - proc_range.first > 1) || (parts.second - parts.first > min_parts2thread));
 			if (thread) {
 				kick_params_type *new_params;
 				new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
