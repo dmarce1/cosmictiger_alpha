@@ -28,7 +28,6 @@ struct tree_hash_hi {
 	}
 };
 
-
 using tree_cache_map_type =std::unordered_map<tree_ptr, std::shared_ptr<tree_cache_entry>, tree_hash_hi>;
 static std::array<mutex_type, TREE_CACHE_SIZE> mutexes;
 static std::array<tree_cache_map_type, TREE_CACHE_SIZE> caches;
@@ -64,10 +63,10 @@ tree_ptr tree_data_global_to_local_recursive(tree_ptr global) {
 		local.dindex = global.dindex;
 	}
 	auto children = local.get_children();
-	if( children[0].dindex != -1 ) {
-		for( int ci = 0; ci < NCHILD; ci++) {
+	if (children[0].dindex != -1) {
+		for (int ci = 0; ci < NCHILD; ci++) {
 			auto iter = tree_map.find(children[ci]);
-			if( iter != tree_map.end()) {
+			if (iter != tree_map.end()) {
 				children[ci] = tree_data_global_to_local_recursive(children[ci]);
 			}
 		}
@@ -126,7 +125,6 @@ void tree_data_map_global_to_local1() {
 void tree_data_map_global_to_local2() {
 	const int nthreads = hardware_concurrency();
 
-
 //	const int nthreads = 1;
 	std::vector<hpx::future<void>> futs;
 	for (int proc = 0; proc < nthreads; proc++) {
@@ -173,15 +171,8 @@ void tree_data_free_cache() {
 }
 
 tree_node_t& tree_data_load_cache(tree_ptr ptr) {
-	if (ptr.rank >= hpx_size()) {
-		PRINT("Rank out of range %i\n", ptr.rank);
-		ERROR()
-		;
-	}
-	if (ptr.dindex > cpu_tree_data_.ntrees) {
-		ERROR()
-		;
-	}
+	assert(ptr.rank < hpx_size());
+	assert(ptr.dindex < cpu_tree_data_.ntrees);
 	static const tree_hash_lo hashlo;
 	tree_ptr line_ptr;
 	line_ptr.dindex = cache_line_index(ptr.dindex);
@@ -197,16 +188,12 @@ tree_node_t& tree_data_load_cache(tree_ptr ptr) {
 		entry = std::make_shared<tree_cache_entry>();
 		entry->ready_fut = prms->get_future();
 		lock.unlock();
-		hpx::async([prms,i,loindex,line_ptr]() {
-			tree_data_fetch_cache_line_action act;
-			auto line = act(hpx_localities()[line_ptr.rank], line_ptr.dindex);
-			auto& mutex = mutexes[loindex];
-			auto& cache = caches[loindex];
-			std::unique_lock<mutex_type> lock(mutex);
-			cache[line_ptr]->data = std::move(line);
-			lock.unlock();
-			prms->set_value();
-		});
+		tree_data_fetch_cache_line_action act;
+		auto line = act(hpx_localities()[line_ptr.rank], line_ptr.dindex);
+		lock.lock();
+		cache[line_ptr]->data = std::move(line);
+		lock.unlock();
+		prms->set_value();
 		lock.lock();
 		i = cache.find(line_ptr);
 	}
