@@ -28,7 +28,7 @@ namespace hpx {
 
 namespace detail {
 
-constexpr std::size_t stack_size = 64 * 1024;
+constexpr std::size_t stack_size = 1024 * 1024;
 constexpr std::size_t max_queue = 256;
 
 class worker;

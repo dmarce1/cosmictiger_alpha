@@ -47,12 +47,28 @@ tree_ptr tree_data_global_to_local(tree_ptr global) {
 	} else {
 		local.dindex = global.dindex;
 	}
+	return local;
+}
+
+tree_ptr tree_data_global_to_local_recursive(tree_ptr global) {
+	tree_ptr local;
+	local.rank = hpx_rank();
+	if (global.rank != local.rank) {
+		auto iter = tree_map.find(global);
+		if (iter == tree_map.end()) {
+			ERROR()
+			;
+		}
+		local.dindex = iter->second;
+	} else {
+		local.dindex = global.dindex;
+	}
 	auto children = local.get_children();
 	if( children[0].dindex != -1 ) {
 		for( int ci = 0; ci < NCHILD; ci++) {
 			auto iter = tree_map.find(children[ci]);
 			if( iter != tree_map.end()) {
-				children[ci] = tree_data_global_to_local(children[ci]);
+				children[ci] = tree_data_global_to_local_recursive(children[ci]);
 			}
 		}
 		local.set_children(children);
@@ -146,7 +162,7 @@ HPX_PLAIN_ACTION(tree_data_fetch_cache_line);
 
 void tree_data_global_to_local(stack_vector<tree_ptr>& stack) {
 	for (int i = 0; i < stack.size(); i++) {
-		stack[i] = tree_data_global_to_local(stack[i]);
+		stack[i] = tree_data_global_to_local_recursive(stack[i]);
 	}
 }
 

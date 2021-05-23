@@ -184,6 +184,7 @@ void tree_data_initialize_groups();
 void tree_data_free_all_cu();
 void tree_database_set_groups();
 tree_ptr tree_data_global_to_local(tree_ptr);
+tree_ptr tree_data_global_to_local_recursive(tree_ptr);
 void tree_data_global_to_local(stack_vector<tree_ptr>&);
 
 void tree_data_initialize(tree_use_type);
