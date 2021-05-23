@@ -6,6 +6,7 @@
 #include <cosmictiger/groups.hpp>
 #include <cosmictiger/interactions.hpp>
 #include <functional>
+#include <atomic>
 #include <cosmictiger/gravity.hpp>
 #include <cosmictiger/kick_return.hpp>
 #include <cosmictiger/tree_database.hpp>
@@ -19,6 +20,12 @@
 #define N_INTERACTION_TYPES 4
 
 CUDA_DEVICE particle_set *parts;
+
+#define NKERNEL_SUCCESS 32
+
+std::atomic<int> success_index(0);
+
+__managed__ bool kernel_success[NKERNEL_SUCCESS];
 
 __managed__ list_sizes_t list_sizes { 0, 0, 0, 0 };
 
@@ -425,7 +432,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 void tree::show_timings() {
 }
 
-CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
+CUDA_KERNEL cuda_kick_kernel(kick_params_type *params, int sindex) {
 	const int &bid = blockIdx.x;
 	__shared__
 	extern int shmem_ptr[];
@@ -454,6 +461,7 @@ CUDA_KERNEL cuda_kick_kernel(kick_params_type *params) {
 		shmem.opened_checks.~vector<tree_ptr>();
 		shmem.dchecks.~stack_vector<tree_ptr>();
 		params[bid].echecks.~stack_vector<tree_ptr>();
+		kernel_success[sindex] = true;
 	}
 
 }
@@ -483,11 +491,17 @@ void cleanup_stream(cudaStream_t s) {
 	streams.push(s);
 }
 
-void cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStream_t stream) {
-	const size_t shmemsize = sizeof(cuda_kick_shmem);
-	/***************************************************************************************************************************************************/
-	/**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(params);/**/
-	/***************************************************************************************************************************************************/
+bool check_kick_success(int index) {
+	return kernel_success[index];
+}
 
+int cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStream_t stream) {
+	const size_t shmemsize = sizeof(cuda_kick_shmem);
+	int index = success_index++ % NKERNEL_SUCCESS;
+	kernel_success[index] = false;
+		/***************************************************************************************************************************************************/
+	/**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(params,index);/**/
+	/***************************************************************************************************************************************************/
+	return index;
 }
 

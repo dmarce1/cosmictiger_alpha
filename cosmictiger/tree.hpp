@@ -336,7 +336,11 @@ public:
 	friend class tree_ptr;
 };
 
-void cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);
+
+
+bool check_kick_success(int);
+
+int cuda_execute_kick_kernel(kick_params_type *params_ptr, int grid_size, cudaStream_t stream);
 
 struct kick_constants {
 	char particles[sizeof(particle_set)];
@@ -365,4 +369,4 @@ struct kick_constants {
 };
 
 void cuda_set_kick_constants(kick_constants consts);
-CUDA_KERNEL cuda_kick_kernel(kick_params_type *params);
+CUDA_KERNEL cuda_kick_kernel(kick_params_type *params, int);

@@ -865,7 +865,7 @@ void tree::gpu_daemon() {
 				memcpy(consts.particles, particles, sizeof(particle_set));
 				cuda_set_kick_constants(consts);
 			}
-			cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
+			const int sindex = cuda_execute_kick_kernel(gpu_params, kicks.size(), stream);
 			completions.push_back(std::function<bool()>([=]() {
 				if( !((*completed))) {
 					if( cudaStreamQuery(stream) == cudaSuccess) {
@@ -880,6 +880,10 @@ void tree::gpu_daemon() {
 							(*gpu_promises)[i]->set_value();
 						}
 						*completed = true;
+						if( !check_kick_success(sindex) ) {
+							printf( "Kick kernel failed to launch!\n");
+							abort();
+						}
 					}
 				}
 				return *completed;
