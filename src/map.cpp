@@ -103,7 +103,6 @@ std::vector<float> map_reduce(int map_num) {
 		map[i] = (*maps[map_num])[i];
 	}
 	CUDA_FREE(*maps[map_num]);
-	maps.erase(map_num);
 	for (auto& f : futs) {
 		auto tmp = f.get();
 		for (int i = 0; i < npts; i++) {
@@ -113,12 +112,38 @@ std::vector<float> map_reduce(int map_num) {
 	return map;
 }
 
+void free_maps(double tau, double tau_max);
+HPX_PLAIN_ACTION(free_maps);
+
+void free_maps(double tau, double tau_max) {
+	const auto children = hpx_child_localities();
+	std::vector<hpx::future<void>>futs;
+	if (children.first != hpx::invalid_id) {
+		futs.push_back(hpx::async<free_maps_action>(children.first, tau, tau_max));
+	}
+	if (children.second != hpx::invalid_id) {
+		futs.push_back(hpx::async<free_maps_action>(children.second, tau, tau_max));
+	}
+	const auto freq = global().opts.map_freq * tau_max;
+	int imin = tau / freq + 1;
+	auto i = maps.begin();
+	while (i != maps.end()) {
+		if (i->first < imin) {
+			i = maps.erase(i);
+		} else {
+			i++;
+		}
+	}
+	hpx::wait_all(futs.begin(),futs.end());
+}
+
 void load_and_save_maps(double tau, double tau_max) {
 	static int prepared_index = 0;
 	static int saved_index = 0;
 	const auto freq = global().opts.map_freq * tau_max;
 	int imin = tau / freq + 1;
 	int imax = (tau + 1.2) / freq + 1;
+//	PRINT( "imin %i max %i\n", imin, imax);
 	for (auto i = maps.begin(); i != maps.end(); i++) {
 		if (i->first < imin) {
 			timer tm;
@@ -129,6 +154,7 @@ void load_and_save_maps(double tau, double tau_max) {
 			PRINT("Done. Took %e s\n", tm.read());
 		}
 	}
+	free_maps(tau, tau_max);
 }
 
 simd_float images[NDIM] = { simd_float(0, -1, 0, -1, 0, -1, 0, -1), simd_float(0, 0, -1, -1, 0, 0, -1, -1), simd_float(
