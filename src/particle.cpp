@@ -10,7 +10,6 @@
 #include <unordered_map>
 #include <algorithm>
 
-
 void particle_set::init_groups() {
 	CUDA_MALLOC(lidptr1_, size());
 	CUDA_MALLOC(lidptr2_, size());
@@ -234,6 +233,9 @@ void particle_set::load_from_file(FILE* fp) {
 	if (hpx_rank() == 0) {
 		global_set_options(opts);
 	}
+	part_int count;
+	fread(&count, sizeof(part_int), 1, fp);
+	resize(count);
 	for (int dim = 0; dim < NDIM; dim++) {
 		PRINT("%c positions...", 'x' + dim);
 		fflush(stdout);
@@ -263,6 +265,8 @@ void particle_set::save_to_file(FILE* fp) {
 	fwrite(&global().opts.H0, sizeof(global().opts.H0), 1, fp);
 	fwrite(&global().opts.G, sizeof(global().opts.G), 1, fp);
 	fwrite(&global().opts.M, sizeof(global().opts.M), 1, fp);
+	part_int count = size_;
+	fwrite(&count, sizeof(part_int), 1, fp);
 	for (int dim = 0; dim < NDIM; dim++) {
 		fwrite(xptr_[dim], sizeof(fixed32), size(), fp);
 	}
@@ -302,7 +306,6 @@ void particle_set::generate_grid() {
 		}
 	}
 }
-
 
 part_int particle_set::sort_range(part_int begin, part_int end, double xm, int xdim) {
 

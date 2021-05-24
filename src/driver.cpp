@@ -111,8 +111,26 @@ int drift(particle_set& parts, double dt, double a0, double a1, double*ekin, dou
 
 #define EVAL_FREQ 25
 
-void save_to_file(particle_set& parts, int step, time_type itime, double time, double a, double cosmicK) {
+void save_to_file(int step, time_type itime, double time, double a, double cosmicK);
+void load_from_file_remote();
+
+HPX_PLAIN_ACTION (save_to_file);
+HPX_PLAIN_ACTION (load_from_file_remote);
+
+void save_to_file(int step, time_type itime, double time, double a, double cosmicK) {
+	particle_server pserv;
+	auto& parts = pserv.get_particle_set();
+	std::vector<hpx::future<void>> futs;
+	if (hpx_rank() == 0) {
+		for (int i = 1; i < hpx_size(); i++) {
+			futs.push_back(hpx::async<save_to_file_action>(hpx_localities()[i], step, itime, time, a, cosmicK));
+		}
+	}
+
 	std::string filename = std::string("checkpoint.") + std::to_string(step) + std::string(".dat");
+	if (hpx_size() > 1) {
+		filename += std::string(".") + std::to_string(hpx_rank());
+	}
 	PRINT("Saving %s...", filename.c_str());
 	fflush(stdout);
 	FILE* fp = fopen(filename.c_str(), "wb");
@@ -129,11 +147,28 @@ void save_to_file(particle_set& parts, int step, time_type itime, double time, d
 	maps_to_file(fp);
 	fclose(fp);
 	PRINT(" done\n");
+
+	hpx::wait_all(futs.begin(), futs.end());
 }
 
-void load_from_file(particle_set& parts, int& step, time_type& itime, double& time, double& a, double& cosmicK) {
+void load_from_file_remote() {
+	particle_server pserv;
+	auto& parts = pserv.get_particle_set();
+	std::vector<hpx::future<void>> futs;
+	if (hpx_rank() == 0) {
+		for (int i = 1; i < hpx_size(); i++) {
+			futs.push_back(hpx::async<load_from_file_remote_action>(hpx_localities()[i]));
+		}
+	}
 	std::string filename = global().opts.checkpt_file;
-	PRINT("Loading %s...", filename.c_str());
+	int step;
+	time_type itime;
+	double time;
+	double a;
+	double cosmicK;
+	if (hpx_size() > 1) {
+		filename += std::string(".") + std::to_string(hpx_rank());
+	}
 	FILE* fp = fopen(filename.c_str(), "rb");
 	if (!fp) {
 		PRINT("Unable to open %s\n", filename.c_str());
@@ -147,6 +182,32 @@ void load_from_file(particle_set& parts, int& step, time_type& itime, double& ti
 	parts.load_from_file(fp);
 	maps_from_file(fp);
 	fclose(fp);
+	hpx::wait_all(futs.begin(), futs.end());
+
+}
+
+void load_from_file(int& step, time_type& itime, double& time, double& a, double& cosmicK) {
+	particle_server pserv;
+	auto& parts = pserv.get_particle_set();
+	std::string filename = global().opts.checkpt_file;
+	PRINT("Loading %s...", filename.c_str());
+	if (hpx_size() > 1) {
+		filename += std::string(".") + std::to_string(hpx_rank());
+	}
+	FILE* fp = fopen(filename.c_str(), "rb");
+	if (!fp) {
+		PRINT("Unable to open %s\n", filename.c_str());
+		abort();
+	}
+	FREAD(&step, sizeof(int), 1, fp);
+	FREAD(&itime, sizeof(time_type), 1, fp);
+	FREAD(&time, sizeof(double), 1, fp);
+	FREAD(&a, sizeof(double), 1, fp);
+	FREAD(&cosmicK, sizeof(double), 1, fp);
+	parts.load_from_file(fp);
+	maps_from_file(fp);
+	fclose(fp);
+	load_from_file_remote();
 	PRINT(" done\n");
 
 }
@@ -233,7 +294,7 @@ void drive_cosmos() {
 		a = 1.0 / (z + 1.0);
 		time = 0.0;
 	} else {
-		load_from_file(parts, iter, itime, time, a, cosmicK);
+		load_from_file(iter, itime, time, a, cosmicK);
 		z = 1.0 / a - 1.0;
 	}
 	parts_total = 0.0;
@@ -258,7 +319,7 @@ void drive_cosmos() {
 		if (checkpt_tm.read() > global().opts.checkpt_freq) {
 			checkpt_tm.reset();
 			checkpt_tm.start();
-			save_to_file(parts, iter, itime, time, a, cosmicK);
+			save_to_file(iter, itime, time, a, cosmicK);
 		} else {
 			checkpt_tm.start();
 		}
@@ -299,7 +360,8 @@ void drive_cosmos() {
 		if (full_eval && (power || groups)) {
 			alloc.reset();
 			if (power) {
-				ERROR();
+				ERROR()
+				;
 				tree_data_free_all();
 				timer tm;
 				PRINT("Computing matter power spectrum\n");
@@ -312,7 +374,8 @@ void drive_cosmos() {
 				}
 			}
 			if (groups) {
-				ERROR();
+				ERROR()
+				;
 				auto rc = find_groups(parts, group_tm);
 				PRINT("Finding groups took %e s and %i iterations\n", group_tm, rc.first);
 				group_fut = std::move(rc.second);
@@ -329,7 +392,8 @@ void drive_cosmos() {
 		}
 		const auto silo_int = global().opts.silo_interval;
 		if (silo_int > 0) {
-			ERROR();
+			ERROR()
+			;
 			if (full_eval) {
 				std::string filename = "points." + std::to_string(silo_outs) + ".silo";
 				silo_outs++;
