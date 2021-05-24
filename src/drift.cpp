@@ -1,9 +1,12 @@
 #include <cosmictiger/defs.hpp>
 #include <cosmictiger/hpx.hpp>
-#include <cosmictiger/particle.hpp>
+#include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/map.hpp>
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/cosmos.hpp>
+#include <cosmictiger/drift.hpp>
+
+HPX_PLAIN_ACTION(drift);
 
 int drift_particles(particle_set parts, double dt, double a0, double* ekin, double* momx, double* momy, double* momz,
 		double tau, double tau_max) {
@@ -92,4 +95,28 @@ int drift_particles(particle_set parts, double dt, double a0, double* ekin, doub
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	return int(rc);
+}
+
+drift_return drift(double dt, double a, double tau, double tau_max) {
+	std::vector<hpx::future<drift_return>> futs;
+	if (hpx_rank() == 0) {
+		for (int i = 1; i < hpx_size(); i++) {
+			futs.push_back(hpx::async<drift_action>(hpx_localities()[i], dt, a, tau, tau_max));
+		}
+	}
+	particle_server pserv;
+	const auto parts = pserv.get_particle_set();
+	drift_return rc;
+	rc.map_cnt = drift_particles(parts, dt, a, &rc.ekin, &rc.momx, &rc.momy, &rc.momz, tau, tau_max);
+	if (hpx_rank() == 0) {
+		for (auto& f : futs) {
+			const auto tmp = f.get();
+			rc.ekin += tmp.ekin;
+			rc.momx += tmp.momx;
+			rc.momy += tmp.momy;
+			rc.momz += tmp.momz;
+			rc.map_cnt += tmp.map_cnt;
+		}
+	}
+	return rc;
 }
