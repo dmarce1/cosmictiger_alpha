@@ -14,7 +14,7 @@ struct group_param_type;
 
 size_t tree_data_bytes_used();
 
-#define TREE_CACHE_LINE_SIZE 128
+#define TREE_CACHE_LINE_SIZE 256
 
 using tree_use_type = int8_t;
 

@@ -135,7 +135,7 @@ void kick_test() {
 			params_ptr->t0 = 1;
 			params_ptr->full_eval = false;
 			params_ptr->rung = 0;
-			root.kick(params_ptr).get();
+			root.kick(params_ptr);
 			params_ptr->kick_params_type::~kick_params_type();
 			CUDA_FREE(params_ptr);
 			tm_kick[pass].stop();
@@ -367,7 +367,7 @@ void force_test() {
 		params_ptr->t0 = 1;
 		params_ptr->full_eval = pass == 1;
 		params_ptr->rung = 0;
-		root.kick(params_ptr).get();
+		root.kick(params_ptr);
 		params_ptr->kick_params_type::~kick_params_type();
 		CUDA_FREE(params_ptr);
 	}

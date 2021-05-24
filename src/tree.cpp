@@ -24,11 +24,13 @@ static bool dry_run;
 static std::unordered_set<tree_ptr, tree_hash> remote_parts;
 
 void tree::add_parts_covered(part_iters num) {
+	const part_int count = (parts_covered += num.second - num.first);
+	//PRINT( "%i %i\n", hpx_rank(), count);
 	static particle_server pserv;
 	static const auto& parts = pserv.get_particle_set();
-	parts_covered += num.second - num.first;
-	if (parts_covered == parts.size()) {
+	if (count == parts.size()) {
 		if (dry_run) {
+			PRINT("Doing global to local\n");
 			pserv.global_to_local(std::move(remote_parts));
 		} else {
 			PRINT("Sending tree pieces to gpu\n");
@@ -386,9 +388,9 @@ void tree::cleanup() {
 	}
 }
 
-hpx::future<void> tree::kick_remote(kick_params_type params) {
+void tree::kick_remote(kick_params_type params) {
 	dry_run = params.dry_run;
-	return kick(&params);
+	kick(&params);
 }
 
 hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
@@ -419,35 +421,35 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	}
 #endif
 
-	if (!params.dry_run && use_cuda && num_active <= params.block_cutoff && num_active) {
+	if (!params.dry_run && use_cuda && num_active <= params.block_cutoff && num_active && params.tptr.rank == hpx_rank()) {
+	//	printf( "Sending kick\n");
 		return tree::send_kick_to_gpu(params_ptr);
 	} else {
 		if (params.tptr.rank != hpx_rank()) {
 			return hpx::async<tree_kick_remote_action>(hpx_localities()[params.tptr.rank], params);
 		} else {
-			static std::atomic<int> used_threads(0);
-			thread = thread && ((proc_range.second - proc_range.first > 1) || (parts.second - parts.first > min_parts2thread));
+		//	thread = thread
+	//				&& ((proc_range.second - proc_range.first > 1) || (parts.second - parts.first > min_parts2thread));
 			if (thread) {
+				static std::atomic<int> counter(0);
+//				printf( "Threading %i\n", (int) ++counter);
 				kick_params_type *new_params;
 				new_params = (kick_params_type*) kick_params_alloc.allocate(sizeof(kick_params_type));
 				new (new_params) kick_params_type();
 				*new_params = *params_ptr;
-				tree_ptr me = *this;
-				auto func = [me,new_params]() {
-					auto rc = tree::kick(new_params);
-					used_threads--;
+				auto func = [new_params]() {
+					tree::kick(new_params);
 					new_params->kick_params_type::~kick_params_type();
 					kick_params_alloc.deallocate(new_params);
-					return rc;
 				};
 				auto fut = hpx::async(std::move(func));
 				return std::move(fut);
 			} else {
-				auto fut = hpx::make_ready_future(tree::kick(params_ptr));
-				return fut;
+				tree::kick(params_ptr);
 			}
 		}
 	}
+	return hpx::make_ready_future();
 }
 
 #define CC_CP_DIRECT 0
@@ -460,16 +462,13 @@ timer kick_timer;
 
 #define MIN_WORK 0
 
-hpx::future<void> tree::kick(kick_params_type * params_ptr) {
+void tree::kick(kick_params_type * params_ptr) {
 	cuda_set_device();
 	particle_server pserv;
 	auto* particles = &pserv.get_particle_set();
 	kick_params_type &params = *params_ptr;
 	tree_ptr self = params.tptr;
 	const size_t active_parts = self.get_active_parts();
-	if (!active_parts && !params.full_eval) {
-		return hpx::make_ready_future();
-	}
 	auto& F = params.F;
 	auto& phi = params.Phi;
 	const auto parts = self.get_parts();
@@ -616,8 +615,6 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		}
 	}
 	if (!params.tptr.is_leaf()) {
-		auto procs = self.get_proc_range();
-		const bool try_thread = (procs.second - procs.first) > 1 || (parts.second - parts.first > TREE_MIN_PARTS2THREAD);
 		array<hpx::future<void>, NCHILD> futs;
 		futs[LEFT] = hpx::make_ready_future();
 		futs[RIGHT] = hpx::make_ready_future();
@@ -630,7 +627,7 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			params.L[params.depth] = L;
 			params.Lpos[params.depth] = pos;
 			params.tptr = children[LEFT];
-			futs[LEFT] = children[LEFT].kick(params_ptr, try_thread);
+			futs[LEFT] = children[LEFT].kick(params_ptr, true);
 			params.dchecks.pop_top();
 			params.echecks.pop_top();
 			params.L[params.depth] = L;
@@ -662,23 +659,19 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 		}
 		int depth = params.depth;
 		const bool dry = params.dry_run;
-		return hpx::when_all(futs.begin(), futs.end()).then(
-				[depth,self,pserv,particles,dry](hpx::future<std::vector<hpx::future<void>>> futfut) {
-					auto futs = futfut.get();
-					futs[LEFT].get();
-					futs[RIGHT].get();
-					if( self.local_root() ) {
-						PRINT( "Freeing cache\n");
-						if( !dry_run ) {
-							tree_data_free_cache();
-							particles->resize_pos(particles->size());
-						}
-						PRINT( "%i\n", particles->size());
-					}
-					if( depth == 0 ) {
-						PRINT( "Kick complete\n");
-					}
-				});
+		futs[LEFT].get();
+		futs[RIGHT].get();
+		if (self.local_root()) {
+			PRINT("Freeing cache\n");
+			if (!dry_run) {
+				tree_data_free_cache();
+				particles->resize_pos(particles->size());
+			}
+			PRINT("%i\n", particles->size());
+		}
+		if (depth == 0) {
+			PRINT("Kick complete\n");
+		}
 	} else if (!params.dry_run) {
 		int max_rung = 0;
 		const auto invlog2 = 1.0f / logf(2);
@@ -754,11 +747,8 @@ hpx::future<void> tree::kick(kick_params_type * params_ptr) {
 			kick_return_update_rung_cpu(particles->rung(index));
 		}
 		add_parts_covered(parts);
-		//	rc.rung = max_rung;
-		return hpx::make_ready_future();
 	} else {
 		add_parts_covered(parts);
-		return hpx::make_ready_future();
 	}
 }
 

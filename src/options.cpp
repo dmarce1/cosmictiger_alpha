@@ -39,6 +39,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("Theta", po::value<double>(&(opts.Theta))->default_value(1.00), "") //
 	("Y", po::value<double>(&(opts.Y))->default_value(0.24), "") //
 	("sigma8", po::value<double>(&(opts.sigma8))->default_value(0.83), "") //
+	("theta", po::value<double>(&(opts.theta))->default_value(0.7), "") //
 	("hubble", po::value<double>(&(opts.hubble))->default_value(0.7), "") //
 	("silo_interval", po::value<double>(&(opts.silo_interval))->default_value(-1.), "interval between SILO outs") //
 	("maps", po::value<bool>(&(opts.maps))->default_value(false), "generate healpix maps") //
@@ -78,7 +79,6 @@ bool process_options(int argc, char *argv[], options &opts) {
 		}
 	}
 	opts.hsoft = 1.0 / pow(opts.nparts, 1.0 / 3.0) / 25.0;
-	opts.theta = 0.4;
 
 	if (opts.bucket_size > MAX_BUCKET_SIZE) {
 		PRINT("Bucket size of %i exceeds max of %i\n", opts.bucket_size, MAX_BUCKET_SIZE);

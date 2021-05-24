@@ -326,8 +326,8 @@ public:
 	static void cpu_pc_direct(kick_params_type *params);
 	static void cpu_cc_ewald(kick_params_type *params);
 	static sort_return sort(sort_params = sort_params());
-	static hpx::future<void> kick_remote(kick_params_type);
-	static hpx::future<void> kick(kick_params_type*);
+	static void kick_remote(kick_params_type);
+	static void kick(kick_params_type*);
 	static std::atomic<bool> daemon_running;
 	static std::atomic<bool> shutdown_daemon;
 	static lockfree_queue<gpu_kick, GPU_QUEUE_SIZE> gpu_queue;

@@ -81,7 +81,7 @@ int kick(tree_ptr root_ptr, double theta, double a, int min_rung, bool full_eval
 		params_ptr->first = first_call;
 		params_ptr->t0 = T0;
 		params_ptr->scale = a;
-		tree::kick(params_ptr).get();
+		tree::kick(params_ptr);
 		first_call = false;
 		time.stop();
 		tm = time.read();
