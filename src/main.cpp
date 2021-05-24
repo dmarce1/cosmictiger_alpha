@@ -11,6 +11,8 @@
 #include <cosmictiger/tree_database.hpp>
 #include <cosmictiger/zero_order.hpp>
 
+#include <gperftools/malloc_extension.h>
+
 void yield() {
 	hpx::this_thread::yield();
 }
@@ -41,6 +43,8 @@ int hpx_main(int argc, char *argv[]) {
 }
 
 #ifdef USE_HPX
+
+#include <oneapi/tbb/scalable_allocator.h>
 
 int main(int argc, char *argv[]) {
 	std::vector<std::string> cfg = { "hpx.commandline.allow_unknown=1" };

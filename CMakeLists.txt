@@ -124,7 +124,7 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    Boost::boost silo mpi 
+    Boost::boost silo mpi tbbmalloc
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
@@ -179,7 +179,7 @@ add_library(hpx_lite
 )
 set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
-target_link_libraries(cosmictiger_lite PUBLIC  cuda cudart boost_program_options hpx_lite hwloc mpi)
+target_link_libraries(cosmictiger_lite PUBLIC  cuda cudart boost_program_options hpx_lite hwloc mpi tcmalloc)
 target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 #target_compile_options(cosmictiger_lite PUBLIC -D_GLIBCXX_USE_CXX11_ABI=0)
 target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:

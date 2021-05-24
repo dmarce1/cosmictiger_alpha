@@ -3,6 +3,7 @@
 #include <cosmictiger/tree.hpp>
 #include <cosmictiger/tree_database.hpp>
 #include <cosmictiger/hpx.hpp>
+#include <malloc.h>
 
 particle_set* particle_server::parts = nullptr;
 vector<part_int> particle_server::free_indices;
@@ -382,6 +383,7 @@ void particle_server::domain_decomp_finish() {
 	parts->free_particles(free_indices);
 	free_indices = decltype(free_indices)();
 	part_sends = decltype(part_sends)();
+//	malloc_stats();
 }
 
 void particle_server::domain_decomp_transmit(vector<particle> new_parts) {

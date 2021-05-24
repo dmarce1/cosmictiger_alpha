@@ -103,6 +103,7 @@ void kick_test() {
 		params.min_rung = 0;
 		tree_ptr root_ptr;
 		pserv.apply_domain_decomp();
+
 		root_ptr = root.sort(params).check;
 		tm_sort.stop();
 		//  root_ptr.rank = hpx_rank();

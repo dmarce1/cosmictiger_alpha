@@ -46,9 +46,10 @@ particle particle_set::get_particle(part_int i) {
 	return p;
 }
 
-#define PARTICLE_SET_MAX_SEND (8*1024*1024)
+#define PARTICLE_SET_MAX_SEND (16*1024*1024)
 
 bool particle_set::gather_sends(particle_send_type& sends, vector<part_int>& free_indices, domain_bounds bounds) {
+	//printf( "gathering\n");
 	const auto my_range = bounds.find_proc_range(hpx_rank());
 	static std::atomic<int> finished_cnt;
 	static part_int max_send_parts = std::min(part_int(size() * 0.1), part_int(PARTICLE_SET_MAX_SEND));
@@ -87,6 +88,7 @@ bool particle_set::gather_sends(particle_send_type& sends, vector<part_int>& fre
 					auto& entry = sends[proc];
 					free_indices.push_back(j);
 					auto& pts = entry.parts;
+					pts.reserve(PARTICLE_SET_MAX_SEND);
 					pts.push_back(p);
 					count++;
 					if( count >= max_send_parts / num_threads) {

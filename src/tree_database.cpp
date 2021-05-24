@@ -12,7 +12,7 @@ HPX_PLAIN_ACTION(tree_data_clear);
 
 struct tree_cache_entry {
 	hpx::shared_future<void> ready_fut;
-	std::vector<tree_node_t> data;
+	vector<tree_node_t> data;
 };
 
 struct tree_hash_lo {
@@ -165,7 +165,7 @@ void tree_data_map_global_to_local2() {
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-std::vector<tree_node_t> tree_data_fetch_cache_line(int index);
+vector<tree_node_t> tree_data_fetch_cache_line(int index);
 
 static int cache_line_index(int index) {
 	return index - index % TREE_CACHE_LINE_SIZE;
@@ -270,8 +270,8 @@ size_t tree_data_read_cache_active_parts(tree_ptr ptr) {
 	return dat.active_parts;
 }
 
-std::vector<tree_node_t> tree_data_fetch_cache_line(int index) {
-	std::vector<tree_node_t> line;
+vector<tree_node_t> tree_data_fetch_cache_line(int index) {
+	vector<tree_node_t> line;
 	index = cache_line_index(index);
 	const int start = index;
 	const int stop = index + TREE_CACHE_LINE_SIZE;
@@ -310,6 +310,9 @@ void tree_data_initialize(tree_use_type type) {
 		tree_data_initialize_kick();
 	} else {
 		tree_data_initialize_groups();
+	}
+	for( int i = 0; i < TREE_CACHE_SIZE; i++) {
+//		caches[i].max_load_factor(16.0);
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 }

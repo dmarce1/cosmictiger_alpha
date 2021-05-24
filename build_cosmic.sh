@@ -16,6 +16,8 @@ rm -r CMakeFiles
 
 
 cmake -DCMAKE_CXX_COMPILER=mpic++ \
+      -DTBBMALLOC_LIBRARY="$HOME/local/oneapi-tbb-2021.2.0/lib/intel64/gcc4.8/libtbbmalloc.so"           \
+      -DTBBMALLOC_PROXY_LIBRARY="$HOME/local/oneapi-tbb-2021.2.0/lib/intel64/gcc4.8/libtbbmalloc_proxy.so"           \
       -DCMAKE_BUILD_TYPE=$1                                                                                                                            \
       ..
 
