@@ -418,6 +418,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 			}
 			if (constant.full_eval) {
+				if( k >= nparts) {
+					phi[k] = F[0][k] = F[1][k] = F[2][k] = 0.0f;
+				}
 				kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
 			}
 			if( k < nparts) {

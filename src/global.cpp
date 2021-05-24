@@ -39,7 +39,7 @@ void global_set_options(options opts) {
    if (mychildren.first != hpx::invalid_id) {
       left = hpx::async < global_set_options_action > (mychildren.first, opts);
    }
-   if (mychildren.first != hpx::invalid_id) {
+   if (mychildren.second != hpx::invalid_id) {
       right = hpx::async < global_set_options_action > (mychildren.second, opts);
    }
    glob.opts = opts;

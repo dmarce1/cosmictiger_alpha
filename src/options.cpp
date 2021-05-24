@@ -78,7 +78,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 		}
 	}
 	opts.hsoft = 1.0 / pow(opts.nparts, 1.0 / 3.0) / 25.0;
-	opts.theta = 0.7;
+	opts.theta = 0.4;
 
 	if (opts.bucket_size > MAX_BUCKET_SIZE) {
 		PRINT("Bucket size of %i exceeds max of %i\n", opts.bucket_size, MAX_BUCKET_SIZE);

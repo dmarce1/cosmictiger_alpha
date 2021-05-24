@@ -20,6 +20,137 @@ HPX_PLAIN_ACTION(particle_server::domain_decomp_transmit, particle_server_domain
 HPX_PLAIN_ACTION(particle_server::generate_random, particle_server_generate_random_action);
 HPX_PLAIN_ACTION(particle_server::check_domain_bounds, particle_server_check_domain_bounds_action);
 HPX_PLAIN_ACTION(particle_server::gather_pos, particle_server_gather_pos_action);
+HPX_PLAIN_ACTION(particle_server::load_NGenIC, particle_server_load_NGenIC_action);
+
+
+
+/**** header from N-GenIC*****/
+
+typedef int int4byte;
+typedef unsigned int uint4byte;
+struct io_header_1 { /* From NGenIC */
+	uint4byte npart[6]; /*!< npart[1] gives the number of particles in the present file, other particle types are ignored */
+	double mass[6]; /*!< mass[1] gives the particle mass */
+	double time; /*!< time (=cosmological scale factor) of snapshot */
+	double redshift; /*!< redshift of snapshot */
+	int4byte flag_sfr; /*!< flags whether star formation is used (not available in L-Gadget2) */
+	int4byte flag_feedback; /*!< flags whether feedback from star formation is included */
+	uint4byte npartTotal[6]; /*!< npart[1] gives the total number of particles in the run. If this number exceeds 2^32, the npartTotal[2] stores
+	 the result of a division of the particle number by 2^32, while npartTotal[1] holds the remainder. */
+	int4byte flag_cooling; /*!< flags whether radiative cooling is included */
+	int4byte num_files; /*!< determines the number of files that are used for a snapshot */
+	double BoxSize; /*!< Simulation box size (in code units) */
+	double Omega0; /*!< matter density */
+	double OmegaLambda; /*!< vacuum energy density */
+	double HubbleParam; /*!< little 'h' */
+	int4byte flag_stellarage; /*!< flags whether the age of newly formed stars is recorded and saved */
+	int4byte flag_metals; /*!< flags whether metal enrichment is included */
+	int4byte hashtabsize; /*!< gives the size of the hashtable belonging to this snapshot file */
+	char fill[84]; /*!< fills to 256 Bytes */
+};
+
+
+void particle_server::load_NGenIC() {
+	int4byte dummy;
+	std::string filename;
+	if( hpx_size() == 1 ) {
+		filename = "ics";
+	} else {
+		filename = "ics." + std::to_string(hpx_rank());
+	}
+	FILE *fp = fopen(filename.c_str(), "rb");
+	if (!fp) {
+		printf("Unable to load %s\n", filename.c_str());
+		abort();
+	}
+	io_header_1 header;
+	FREAD(&dummy, sizeof(dummy), 1, fp);
+	FREAD(&header, sizeof(header), 1, fp);
+	FREAD(&dummy, sizeof(dummy), 1, fp);
+	size_t total_parts = size_t(header.npartTotal[1]) + (size_t(1) << size_t(32)) * size_t(header.npartTotal[2]);
+	if (hpx_rank() == 0) {
+		printf("Reading %li particles\n", total_parts);
+		printf("Z =             %e\n", header.redshift);
+		printf("Omega_m =       %e\n", header.Omega0);
+		printf("Omega_lambda =  %e\n", header.OmegaLambda);
+		printf("Hubble Param =  %e\n", header.HubbleParam);
+	}
+	options opts = global().opts;
+	opts.nparts = total_parts;
+	opts.parts_dim = std::round(std::pow(total_parts, -1.0 / 3.0));
+	opts.z0 = header.redshift;
+	opts.omega_m = header.Omega0;
+	opts.hubble = header.HubbleParam;
+	const auto Gcgs = 6.67259e-8;
+	const auto ccgs = 2.99792458e+10;
+	const auto Hcgs = 3.2407789e-18;
+	opts.code_to_g = 1.99e33;
+	opts.code_to_cm = (header.mass[1] * opts.nparts * 8.0 * M_PI * Gcgs * opts.code_to_g);
+	opts.code_to_cm /= 3.0 * opts.omega_m * Hcgs * Hcgs;
+	opts.code_to_cm = std::pow(opts.code_to_cm, 1.0 / 3.0);
+
+	opts.code_to_cm /= header.HubbleParam;
+	opts.code_to_g /= header.HubbleParam;
+	opts.code_to_s = opts.code_to_cm / opts.code_to_cms;
+
+	opts.H0 = Hcgs * opts.code_to_s;
+	opts.G = Gcgs / pow(opts.code_to_cm, 3) * opts.code_to_g * pow(opts.code_to_s, 2);
+	double m_tot = opts.omega_m * 3.0 * sqr(opts.H0 * opts.hubble) / (8 * M_PI * opts.G);
+	opts.M = m_tot / opts.nparts;
+
+	printf("G in code units = %e\n", opts.G);
+	printf("M in code units = %e\n", opts.M);
+
+	if (hpx_rank() == 0) {
+		global_set_options(opts);
+	}
+	std::vector<hpx::future<void>> futs;
+	if (hpx_rank() == 0) {
+		for (int i = 1; i < hpx_size(); i++) {
+			futs.push_back(hpx::async<particle_server_load_NGenIC_action>(hpx_localities()[i]));
+		}
+	}
+	parts->resize(header.npart[1]);
+	FREAD(&dummy, sizeof(dummy), 1, fp);
+	for (int i = 0; i < header.npart[1]; i++) {
+		float x, y, z;
+		FREAD(&x, sizeof(float), 1, fp);
+		FREAD(&y, sizeof(float), 1, fp);
+		FREAD(&z, sizeof(float), 1, fp);
+		double sep = 0.5 * std::pow(header.npart[1], -1.0 / 3.0);
+		x += sep;
+		y += sep;
+		z += sep;
+		while (x > 1.0) {
+			x -= 1.0;
+		}
+		while (y > 1.0) {
+			y -= 1.0;
+		}
+		while (z > 1.0) {
+			z -= 1.0;
+		}
+		parts->pos(0, i) = x;
+		parts->pos(1, i) = y;
+		parts->pos(2, i) = z;
+	}
+	FREAD(&dummy, sizeof(dummy), 1, fp);
+	FREAD(&dummy, sizeof(dummy), 1, fp);
+	const auto c0 = 1.0 / (1.0 + header.redshift);
+	for (int i = 0; i < header.npart[1]; i++) {
+		float vx, vy, vz;
+		FREAD(&vx, sizeof(float), 1, fp);
+		FREAD(&vy, sizeof(float), 1, fp);
+		FREAD(&vz, sizeof(float), 1, fp);
+		parts->vel(0, i) = vx * std::pow(c0, 1.5);
+		parts->vel(1, i) = vy * std::pow(c0, 1.5);
+		parts->vel(2, i) = vz * std::pow(c0, 1.5);
+		parts->set_rung(0, i);
+	}
+	FREAD(&dummy, sizeof(dummy), 1, fp);
+	fclose(fp);
+	hpx::wait_all(futs.begin(), futs.end());
+}
 
 std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) {
 	std::vector<fixed32> data;
@@ -61,6 +192,7 @@ std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) 
 	hpx::wait_all(futs.begin(), futs.end());
 	return std::move(data);
 }
+
 
 void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> remotes_unsorted) {
 	std::unordered_map<int, std::vector<tree_ptr>> requests;

@@ -6,7 +6,7 @@
 #include <cosmictiger/cosmos.hpp>
 #include <cosmictiger/drift.hpp>
 
-HPX_PLAIN_ACTION(drift);
+HPX_PLAIN_ACTION (drift);
 
 int drift_particles(particle_set parts, double dt, double a0, double* ekin, double* momx, double* momy, double* momz,
 		double tau, double tau_max) {
@@ -107,6 +107,7 @@ drift_return drift(double dt, double a, double tau, double tau_max) {
 	particle_server pserv;
 	const auto parts = pserv.get_particle_set();
 	drift_return rc;
+	rc.ekin = rc.momx = rc.momy = rc.momz = 0.0;
 	rc.map_cnt = drift_particles(parts, dt, a, &rc.ekin, &rc.momx, &rc.momy, &rc.momz, tau, tau_max);
 	if (hpx_rank() == 0) {
 		for (auto& f : futs) {

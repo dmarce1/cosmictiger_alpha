@@ -6,6 +6,7 @@
 
 HPX_PLAIN_ACTION(tree_data_initialize);
 HPX_PLAIN_ACTION(tree_data_free_all);
+HPX_PLAIN_ACTION(tree_data_clear);
 
 #define TREE_CACHE_SIZE 1024
 
@@ -32,6 +33,21 @@ using tree_cache_map_type =std::unordered_map<tree_ptr, std::shared_ptr<tree_cac
 static std::array<mutex_type, TREE_CACHE_SIZE> mutexes;
 static std::array<tree_cache_map_type, TREE_CACHE_SIZE> caches;
 static std::unordered_map<tree_ptr, int, tree_hash> tree_map;
+
+
+void tree_data_clear() {
+	std::vector<hpx::future<void>> futs;
+	if( hpx_rank() == 0 ) {
+		for( int i = 1; i < hpx_size(); i++) {
+			futs.push_back(hpx::async<tree_data_clear_action>(hpx_localities()[i]));
+		}
+	}
+
+	tree_data_clear_cu();
+
+	hpx::wait_all(futs.begin(),futs.end());
+
+}
 
 tree_ptr tree_data_global_to_local(tree_ptr global) {
 	tree_ptr local;

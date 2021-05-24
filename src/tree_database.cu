@@ -144,7 +144,7 @@ void tree_database_set_groups() {
 
 
 
-void tree_data_clear() {
+void tree_data_clear_cu() {
 	next_chunk = 0;
 	if (cpu_tree_data_.data) {
 		for (int i = 0; i < cpu_tree_data_.ntrees; i++) {

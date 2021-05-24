@@ -15,7 +15,7 @@ rm CMakeCache.txt
 rm -r CMakeFiles
 
 
-cmake \
+cmake -DCMAKE_CXX_COMPILER=mpic++ \
       -DCMAKE_BUILD_TYPE=$1                                                                                                                            \
       ..
 

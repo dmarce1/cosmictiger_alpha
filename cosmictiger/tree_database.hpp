@@ -260,6 +260,8 @@ void tree_data_set_local_root(int, bool);
 
 void tree_data_clear();
 
+void tree_data_clear_cu();
+
 std::pair<int, int> tree_data_allocate();
 double tree_data_use();
 
