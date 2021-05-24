@@ -8,6 +8,8 @@ HPX_PLAIN_ACTION(tree_data_initialize);
 HPX_PLAIN_ACTION(tree_data_free_all);
 HPX_PLAIN_ACTION(tree_data_clear);
 
+static int tree_cache_line_size = 128;
+
 #define TREE_CACHE_SIZE 1024
 
 struct tree_cache_entry {
@@ -17,14 +19,14 @@ struct tree_cache_entry {
 
 struct tree_hash_lo {
 	size_t operator()(tree_ptr ptr) const {
-		const int i = ptr.dindex / TREE_CACHE_LINE_SIZE * hpx_size() + hpx_rank();
+		const int i = ptr.dindex / tree_cache_line_size * hpx_size() + hpx_rank();
 		return (i) % TREE_CACHE_SIZE;
 	}
 };
 
 struct tree_hash_hi {
 	size_t operator()(tree_ptr ptr) const {
-		const int i = ptr.dindex / TREE_CACHE_LINE_SIZE * hpx_size() + hpx_rank();
+		const int i = ptr.dindex / tree_cache_line_size * hpx_size() + hpx_rank();
 		return (i) / TREE_CACHE_SIZE;
 	}
 };
@@ -35,17 +37,21 @@ static std::array<tree_cache_map_type, TREE_CACHE_SIZE> caches;
 static std::unordered_map<tree_ptr, int, tree_hash> tree_map;
 
 
+void tree_data_set_cache_line_size() {
+	tree_cache_line_size = 50.0 * std::pow(1.0 / global().opts.theta, 3);
+}
+
 void tree_data_clear() {
 	std::vector<hpx::future<void>> futs;
-	if( hpx_rank() == 0 ) {
-		for( int i = 1; i < hpx_size(); i++) {
+	if (hpx_rank() == 0) {
+		for (int i = 1; i < hpx_size(); i++) {
 			futs.push_back(hpx::async<tree_data_clear_action>(hpx_localities()[i]));
 		}
 	}
 
 	tree_data_clear_cu();
 
-	hpx::wait_all(futs.begin(),futs.end());
+	hpx::wait_all(futs.begin(), futs.end());
 
 }
 
@@ -168,7 +174,7 @@ void tree_data_map_global_to_local2() {
 vector<tree_node_t> tree_data_fetch_cache_line(int index);
 
 static int cache_line_index(int index) {
-	return index - index % TREE_CACHE_LINE_SIZE;
+	return index - index % tree_cache_line_size;
 
 }
 
@@ -274,7 +280,7 @@ vector<tree_node_t> tree_data_fetch_cache_line(int index) {
 	vector<tree_node_t> line;
 	index = cache_line_index(index);
 	const int start = index;
-	const int stop = index + TREE_CACHE_LINE_SIZE;
+	const int stop = index + tree_cache_line_size;
 	for (int i = start; i < stop; i++) {
 		tree_node_t entry;
 		entry.active_nodes = cpu_tree_data_.active_nodes[i];
@@ -306,12 +312,13 @@ void tree_data_initialize(tree_use_type type) {
 			futs.push_back(hpx::async<tree_data_initialize_action>(hpx_localities()[i], type));
 		}
 	}
+	tree_data_set_cache_line_size();
 	if (type == TREE_KICK) {
 		tree_data_initialize_kick();
 	} else {
 		tree_data_initialize_groups();
 	}
-	for( int i = 0; i < TREE_CACHE_SIZE; i++) {
+	for (int i = 0; i < TREE_CACHE_SIZE; i++) {
 //		caches[i].max_load_factor(16.0);
 	}
 	hpx::wait_all(futs.begin(), futs.end());

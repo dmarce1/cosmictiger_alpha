@@ -14,7 +14,6 @@ struct group_param_type;
 
 size_t tree_data_bytes_used();
 
-#define TREE_CACHE_LINE_SIZE 128
 
 using tree_use_type = int8_t;
 
@@ -259,7 +258,7 @@ CUDA_EXPORT bool tree_data_local_root(int i);
 void tree_data_set_local_root(int, bool);
 
 void tree_data_clear();
-
+void tree_data_set_cache_line_size();
 void tree_data_clear_cu();
 
 std::pair<int, int> tree_data_allocate();
