@@ -350,7 +350,6 @@ void drive_cosmos() {
 		real_time += a * dt * 0.5;
 		z = 1.0 / a - 1.0;
 		if (global().opts.map_size > 0) {
-			ERROR();
 			load_and_save_maps(time * T0, NTIMESTEP * T0);
 		}
 		int mapped_cnt = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time - dt, NTIMESTEP * T0, drift_tm);

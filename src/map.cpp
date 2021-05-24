@@ -8,7 +8,6 @@
 #include <atomic>
 #include <unordered_map>
 
-
 static mutex_type mtx;
 static std::unordered_map<int, map_type> maps;
 //static std::stack<map_workspace> workspaces;
@@ -68,20 +67,50 @@ void cleanup_map_workspace(map_workspace ws, double tau, double dtau, double tau
 			}
 			const auto freq = global().opts.map_freq * tau_max;
 			const auto taui = i->first * freq;
-			healpix2_map(i->second.x, i->second.y, i->second.z, i->second.vx, i->second.vy, i->second.vz,taui, tau, dtau, maps[i->first], Nside);
+			healpix2_map(i->second.x, i->second.y, i->second.z, i->second.vx, i->second.vy, i->second.vz, taui, tau, dtau,
+					maps[i->first], Nside);
 		}
 	}
 //	std::lock_guard<mutex_type> lock(mtx);
 //	workspaces.push(ws);
 }
 
+std::vector<float> map_reduce(int map_num);
+HPX_PLAIN_ACTION (map_reduce);
+
 void save_map(int i) {
 	const auto npts = 12 * sqr(global().opts.map_size);
 	std::string filename = std::string("map.") + std::to_string(i) + ".hpx";
 	FILE* fp = fopen(filename.c_str(), "wb");
-	fwrite(*maps[i], sizeof(float), npts, fp);
+	auto map = map_reduce(i);
+	fwrite(map.data(), sizeof(float), npts, fp);
 	fclose(fp);
-	CUDA_FREE(*maps[i]);
+}
+
+std::vector<float> map_reduce(int map_num) {
+	std::vector<float> map;
+	const auto children = hpx_child_localities();
+	std::vector<hpx::future<std::vector<float>>>futs;
+	if (children.first != hpx::invalid_id) {
+		futs.push_back(hpx::async<map_reduce_action>(children.first, map_num));
+	}
+	if (children.second != hpx::invalid_id) {
+		futs.push_back(hpx::async<map_reduce_action>(children.second, map_num));
+	}
+	const auto npts = 12 * sqr(global().opts.map_size);
+	map.resize(npts);
+	for (int i = 0; i < npts; i++) {
+		map[i] = (*maps[map_num])[i];
+	}
+	CUDA_FREE(*maps[map_num]);
+	maps.erase(map_num);
+	for (auto& f : futs) {
+		auto tmp = f.get();
+		for (int i = 0; i < npts; i++) {
+			map[i] += tmp[i];
+		}
+	}
+	return map;
 }
 
 void load_and_save_maps(double tau, double tau_max) {
@@ -90,7 +119,6 @@ void load_and_save_maps(double tau, double tau_max) {
 	const auto freq = global().opts.map_freq * tau_max;
 	int imin = tau / freq + 1;
 	int imax = (tau + 1.2) / freq + 1;
-//	PRINT( "imin %i max %i\n", imin, imax);
 	for (auto i = maps.begin(); i != maps.end(); i++) {
 		if (i->first < imin) {
 			timer tm;
@@ -101,22 +129,13 @@ void load_and_save_maps(double tau, double tau_max) {
 			PRINT("Done. Took %e s\n", tm.read());
 		}
 	}
-	auto i = maps.begin();
-	while (i != maps.end()) {
-		if (i->first < imin) {
-			i = maps.erase(i);
-		} else {
-			i++;
-		}
-	}
-
 }
 
 simd_float images[NDIM] = { simd_float(0, -1, 0, -1, 0, -1, 0, -1), simd_float(0, 0, -1, -1, 0, 0, -1, -1), simd_float(
 		0, 0, 0, 0, -1, -1, -1, -1) };
 
-int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1,double tau, double dtau, double dtau_inv, double tau_max,
-		map_workspace& ws) {
+int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1, double tau, double dtau, double dtau_inv,
+		double tau_max, map_workspace& ws) {
 	static const auto map_freq = global().opts.map_freq * tau_max;
 	static const auto map_freq_inv = 1.0 / map_freq;
 	static const simd_float simd_c0 = simd_float(map_freq_inv);
@@ -153,9 +172,9 @@ int map_add_part(const array<double, NDIM>& Y0, const array<double, NDIM>& Y1,do
 					this_ws.x.push_back(x0[0][ci]);
 					this_ws.y.push_back(x0[1][ci]);
 					this_ws.z.push_back(x0[2][ci]);
-					this_ws.vx.push_back((x1[0][ci] - x0[0][ci])*dtau_inv);
-					this_ws.vy.push_back((x1[1][ci] - x0[1][ci])*dtau_inv);
-					this_ws.vz.push_back((x1[2][ci] - x0[2][ci])*dtau_inv);
+					this_ws.vx.push_back((x1[0][ci] - x0[0][ci]) * dtau_inv);
+					this_ws.vy.push_back((x1[1][ci] - x0[1][ci]) * dtau_inv);
+					this_ws.vz.push_back((x1[2][ci] - x0[2][ci]) * dtau_inv);
 				}
 			}
 		}
