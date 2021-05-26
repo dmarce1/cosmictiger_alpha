@@ -24,9 +24,10 @@ static void psort_test() {
 	timer tm;
 	pserv.generate_random();
 	tree_data_initialize(TREE_KICK);
+	const auto& parts = pserv.get_particle_set();
 	PRINT("Starting\n");
 	tm.start();
-	pserv.apply_domain_decomp();
+	parts.find_middle(0,parts.size(),0);
 	tm.stop();
 	PRINT("took %e s\n", tm.read());
 	tm.reset();

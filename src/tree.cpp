@@ -194,6 +194,7 @@ sort_return tree::sort(sort_params params) {
 			}
 			auto part_handle = particles->get_virtual_particle_set();
 			double xmid = (box.begin[xdim] + box.end[xdim]) / 2.0;
+//			double xmid = particles->find_middle(parts.first, parts.second, xdim).to_double();
 			part_int pmid;
 			pmid = particles->sort_range(parts.first, parts.second, xmid, xdim);
 			child_params[LEFT].box.end[xdim] = child_params[RIGHT].box.begin[xdim] = xmid;
@@ -421,15 +422,16 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	}
 #endif
 
-	if (!params.dry_run && use_cuda && num_active <= params.block_cutoff && num_active && params.tptr.rank == hpx_rank()) {
-	//	printf( "Sending kick\n");
+	if (!params.dry_run && use_cuda && num_active <= params.block_cutoff && num_active
+			&& params.tptr.rank == hpx_rank()) {
+		//	printf( "Sending kick\n");
 		return tree::send_kick_to_gpu(params_ptr);
 	} else {
 		if (params.tptr.rank != hpx_rank()) {
 			return hpx::async<tree_kick_remote_action>(hpx_localities()[params.tptr.rank], params);
 		} else {
-		//	thread = thread
-	//				&& ((proc_range.second - proc_range.first > 1) || (parts.second - parts.first > min_parts2thread));
+			//	thread = thread
+			//				&& ((proc_range.second - proc_range.first > 1) || (parts.second - parts.first > min_parts2thread));
 			if (thread) {
 				static std::atomic<int> counter(0);
 //				printf( "Threading %i\n", (int) ++counter);

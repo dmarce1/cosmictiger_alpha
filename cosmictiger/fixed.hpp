@@ -33,10 +33,12 @@ class fixed {
 	T i;
 	static constexpr float c0 = float(size_t(1) << size_t(32));
 	static constexpr float cinv = 1.f / c0;
+	static constexpr double dblecinv = 1.f / c0;
 	static constexpr T width = (sizeof(float) * CHAR_BIT);
 public:
 	friend class simd_fixed32;
 
+	CUDA_EXPORT
 	inline T raw() const {
 		return i;
 	}
@@ -44,7 +46,11 @@ public:
 	CUDA_EXPORT
 	inline static fixed<T> max() {
 		fixed<T> num;
+#ifdef __CUDA_ARCH__
+		num.i = 0xFFFFFFFFUL;
+#else
 		num.i = std::numeric_limits<T>::max();
+#endif
 		return num;
 	}
 	CUDA_EXPORT
@@ -121,7 +127,7 @@ public:
 
 	CUDA_EXPORT
 	inline double to_double() const {
-		return i * cinv;
+		return i * dblecinv;
 
 	}
 
@@ -233,6 +239,7 @@ public:
 };
 
 template<class T>
+CUDA_EXPORT
 inline fixed<T> max(const fixed<T>& a, const fixed<T>& b) {
 	if( a > b ) {
 		return a;
@@ -242,48 +249,13 @@ inline fixed<T> max(const fixed<T>& a, const fixed<T>& b) {
 }
 
 template<class T>
+CUDA_EXPORT
 inline fixed<T> min(const fixed<T>& a, const fixed<T>& b) {
 	if( a < b ) {
 		return a;
 	} else {
 		return b;
 	}
-}
-
-//Morton encoding adopted from https://www.forceflow.be/2013/10/07/morton-encodingdecoding-through-bit-interleaving-implementations/
-CUDA_EXPORT
-CUDA_EXPORT
-inline uint64_t split3(uint64_t a) {
-	uint64_t x = a & 0x1fffff;
-	x = (x | x << 32) & 0x1f00000000ffff;
-	x = (x | x << 16) & 0x1f0000ff0000ff;
-	x = (x | x << 8) & 0x100f00f00f00f00f;
-	x = (x | x << 4) & 0x10c30c30c30c30c3;
-	x = (x | x << 2) & 0x1249249249249249;
-	return x;
-}
-
-CUDA_EXPORT
-inline uint64_t morton_magicbits(uint64_t x, uint64_t y, uint64_t z) {
-	uint64_t answer = 0;
-	answer |= split3(x) | split3(y) << 1 | split3(z) << 2;
-	return answer;
-}
-
-template<class T>
-CUDA_EXPORT
-inline morton_t morton_key(T x, T y, T z) {
-	constexpr int depth = sizeof(morton_t) * CHAR_BIT;
-	constexpr int shift1 = sizeof(float) * CHAR_BIT - (depth + NDIM) / NDIM;
-	constexpr int shift2 = NDIM - (depth % NDIM);
-	morton_t key = morton_magicbits(z.get_integer() >> shift1, y.get_integer() >> shift1, x.get_integer() >> shift1);
-	key >>= shift2;
-	return key;
-}
-
-template<class T>
-inline morton_t morton_key(std::array<T, NDIM> I, int64_t depth) {
-	return morton_key(I[0], I[1], I[2], depth);
 }
 
 template<class T>

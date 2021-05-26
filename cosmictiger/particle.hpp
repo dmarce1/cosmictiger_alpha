@@ -76,10 +76,12 @@ using particle_send_type = std::unordered_map<int,particle_send_entry>;
 CUDA_EXPORT bool operator<(const particle& a, const particle& b);
 
 struct particle_set {
+	std::pair<fixed32, fixed32> find_range(part_int b, part_int e, int xdim) const;
+	fixed32 find_middle(part_int b, part_int e, int xdim) const;
 	particle get_particle(part_int i);
 	void set_particle(const particle&, part_int i);
 	void free_particles(vector<part_int>&);
-	CUDA_EXPORT
+	part_int count_parts_below(part_int, part_int, int, fixed32) const;CUDA_EXPORT
 	particle_set();
 	static void sort_parts(particle* begin, particle* end);
 	static void sort_indices(part_int* begin, part_int* end);
@@ -188,8 +190,8 @@ inline float particle_set::vel(int dim, part_int index) const {
 
 CUDA_EXPORT
 inline rung_t particle_set::rung(part_int index) const {
-	if( index  >= size_ ) {
-		PRINT( "%i\n", size_);
+	if (index >= size_) {
+		PRINT("%i\n", size_);
 	}
 	assert(index < size_);
 	/*if (rptr_[index] != uptr_[index].p.r) {
