@@ -342,7 +342,7 @@ void drive_cosmos() {
 			bucket_size = 160;
 			theta = 0.7;
 		}
-//		opts.bucket_size = bucket_size;
+		opts.bucket_size = bucket_size;
 		global_set_options(opts);
 		if (theta != last_theta) {
 			reset_list_sizes();

@@ -188,12 +188,9 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	auto &partis = params.part_interactions;
 	for (int k = 0; k < partis.size(); k++) {
 		const auto& other_parts = partis[k].get_parts();
-		for (int k = 0; k < partis.size(); k++) {
-			const auto& other_parts = partis[k].get_parts();
-			for (part_int l = other_parts.first; l < other_parts.second; l++) {
-				for (int dim = 0; dim < NDIM; dim++) {
-					sources[dim].push_back(particles->pos(dim, l));
-				}
+		for (part_int l = other_parts.first; l < other_parts.second; l++) {
+			for (int dim = 0; dim < NDIM; dim++) {
+				sources[dim].push_back(particles->pos(dim, l));
 			}
 		}
 	}

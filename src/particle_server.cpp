@@ -119,9 +119,9 @@ void particle_server::load_NGenIC() {
 		FREAD(&y, sizeof(float), 1, fp);
 		FREAD(&z, sizeof(float), 1, fp);
 		double sep = 0.5 * std::pow(header.npart[1], -1.0 / 3.0);
-		x += sep;
-		y += sep;
-		z += sep;
+		//x += sep;
+		//y += sep;
+		//z += sep;
 		while (x > 1.0) {
 			x -= 1.0;
 		}
@@ -233,8 +233,8 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 		futs1.push_back(hpx::async<particle_server_gather_pos_action>(hpx_localities()[i->first], std::move(iters)));
 	}
 
-	PRINT("importing %i particles or %e of local in %i sets with %i requests\n", size,
-			size / (double) parts->pos_size(), remotes_sorted.size(), requests.size());
+//	PRINT("importing %i particles or %e of local in %i sets with %i requests\n", size,
+//			size / (double) parts->pos_size(), remotes_sorted.size(), requests.size());
 	tree_data_map_global_to_local1();
 	std::unique_lock<shared_mutex_type> lock(shared_mutex);
 	parts->resize_pos(parts->pos_size() + size);
@@ -291,7 +291,7 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 		}));
 	}
 	hpx::wait_all(futs2.begin(), futs2.end());
-	PRINT("Done filling locals\n");
+//	PRINT("Done filling locals\n");
 }
 
 void particle_server::check_domain_bounds() {

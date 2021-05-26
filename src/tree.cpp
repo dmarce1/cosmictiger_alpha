@@ -30,10 +30,10 @@ void tree::add_parts_covered(part_iters num) {
 	static const auto& parts = pserv.get_particle_set();
 	if (count == parts.size()) {
 		if (dry_run) {
-			PRINT("Doing global to local\n");
+//			PRINT("Doing global to local\n");
 			pserv.global_to_local(std::move(remote_parts));
 		} else {
-			PRINT("Sending tree pieces to gpu\n");
+//			PRINT("Sending tree pieces to gpu\n");
 			gpu_daemon();
 		}
 
@@ -153,7 +153,7 @@ sort_return tree::sort(sort_params params) {
 	self.dindex = params.alloc->allocate();
 	self.rank = hpx_rank();
 	if (params.local_root) {
-		PRINT("Sorting local root on %i with %i particles\n", hpx_rank(), particles->size());
+//		PRINT("Sorting local root on %i with %i particles\n", hpx_rank(), particles->size());
 		params.parts.first = 0;
 		params.parts.second = particles->size();
 		self.set_local_root(true);
@@ -475,7 +475,7 @@ void tree::kick(kick_params_type * params_ptr) {
 	auto& phi = params.Phi;
 	const auto parts = self.get_parts();
 	if (self.local_root()) {
-		PRINT("Starting local kick on %i\n", hpx_rank());
+//		PRINT("Starting local kick on %i\n", hpx_rank());
 		dry_run = params.dry_run;
 		if (!params.dry_run) {
 			tree_data_global_to_local(params.dchecks);
@@ -664,15 +664,15 @@ void tree::kick(kick_params_type * params_ptr) {
 		futs[LEFT].get();
 		futs[RIGHT].get();
 		if (self.local_root()) {
-			PRINT("Freeing cache\n");
+//			PRINT("Freeing cache\n");
 			if (!dry_run) {
 				tree_data_free_cache();
 				particles->resize_pos(particles->size());
 			}
-			PRINT("%i\n", particles->size());
+//			PRINT("%i\n", particles->size());
 		}
 		if (depth == 0) {
-			PRINT("Kick complete\n");
+//			PRINT("Kick complete\n");
 		}
 	} else if (!params.dry_run) {
 		int max_rung = 0;
@@ -869,7 +869,7 @@ void tree::gpu_daemon() {
 						}
 						*completed = true;
 						if( !check_kick_success(sindex) ) {
-							printf( "Kick kernel failed to launch!\n");
+							PRINT( "Kick kernel failed to launch!\n");
 							abort();
 						}
 					}
