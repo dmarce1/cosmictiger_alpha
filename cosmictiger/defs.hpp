@@ -95,7 +95,7 @@ inline void print(const char* fmt, Args ...args) {
 
 #define ALLOCATION_PAGE_SIZE (1024*1024LL)
 #define MIN_CUDA_SORT 65536LL
-#define OVERSUBSCRIPTION 1
+#define OVERSUBSCRIPTION 8
 
 #include <gperftools/malloc_extension.h>
 
