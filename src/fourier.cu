@@ -4,10 +4,107 @@
 #define FFTSIZE_COMPUTE 32
 #define FFTSIZE_TRANSPOSE 32
 
-__global__
-void fft(cmplx* Y, const cmplx* expi, int N) {
+__device__
+void fft1d(cmplx* y, const cmplx* expi, int N) {
 	const int& tid = threadIdx.x;
 	const int block_size = blockDim.x;
+	int level = 0;
+	for (int i = N; i > 1; i >>= 1) {
+		level++;
+	}
+	for (int i = tid; i < N; i += block_size) {
+		int j = 0;
+		int l = i;
+		for (int k = 0; k < level; k++) {
+			j = (j << 1) | (l & 1);
+			l >>= 1;
+		}
+		if (j > i) {
+			auto tmp = y[i];
+			y[i] = y[j];
+			y[j] = tmp;
+		}
+	}
+	__syncthreads();
+	for (int P = 2; P <= N; P *= 2) {
+		const int s = N / P;
+		if (N > P * P) {
+			for (int i = P * tid; i < N; i += P * block_size) {
+				int k = 0;
+				for (int j = i; j < i + P / 2; j++) {
+					const auto t = y[j + P / 2] * expi[k];
+					y[j + P / 2] = y[j] - t;
+					y[j] += t;
+					k += s;
+				}
+			}
+			__syncthreads();
+		} else {
+			for (int i = 0; i < N; i += P) {
+				int k = s * tid;
+				for (int j = i + tid; j < i + P / 2; j += block_size) {
+					const auto t = y[j + P / 2] * expi[k];
+					y[j + P / 2] = y[j] - t;
+					y[j] += t;
+					k += s * block_size;
+				}
+				__syncthreads();
+			}
+		}
+	}
+
+}
+
+__global__
+void fft2d_kernel(cmplx* Y, const cmplx* expi, int N) {
+	const int& bid = blockIdx.x;
+	const int& grid_size = gridDim.x;
+	for (int xi = bid; xi < N; xi += grid_size) {
+		int offset = N * xi;
+		cmplx* y = Y + offset;
+		fft1d(y,expi,N);
+	}
+
+}
+
+__global__
+void transpose_2d(cmplx* Y, int N) {
+	const int& tid = threadIdx.x;
+	const int block_size = blockDim.x;
+	const int& bid = blockIdx.x;
+	const int& grid_size = gridDim.x;
+	for (int xi = bid; xi < N; xi += grid_size) {
+		for (int yi = tid; yi < N; yi += block_size) {
+			if (xi < yi) {
+				const int i1 = (N * xi + yi);
+				const int i2 = (N * yi + xi);
+				const cmplx tmp = Y[i1];
+				Y[i1] = Y[i2];
+				Y[i2] = tmp;
+			}
+		}
+	}
+}
+
+__global__
+void normalize_invert_2d(cmplx* Y, int N) {
+	const int& tid = threadIdx.x;
+	const int block_size = blockDim.x;
+	const int& bid = blockIdx.x;
+	const int& grid_size = gridDim.x;
+	const float N3inv = 1.0f / (N * sqr(N));
+	for (int xi = bid; xi < N; xi += grid_size) {
+		for (int yi = tid; yi < N; yi += block_size) {
+			const int i1 = (N * xi + yi);
+			Y[i1].real() *= N3inv;
+			Y[i1].imag() *= N3inv;
+		}
+	}
+
+}
+
+__global__
+void fft3d_kernel(cmplx* Y, const cmplx* expi, int N) {
 	const int& bid = blockIdx.x;
 	const int& grid_size = gridDim.x;
 	int level = 0;
@@ -19,53 +116,13 @@ void fft(cmplx* Y, const cmplx* expi, int N) {
 		int yi = xy % N;
 		int offset = N * (N * xi + yi);
 		cmplx* y = Y + offset;
-
-		for (int i = tid; i < N; i += block_size) {
-			int j = 0;
-			int l = i;
-			for (int k = 0; k < level; k++) {
-				j = (j << 1) | (l & 1);
-				l >>= 1;
-			}
-			if (j > i) {
-				auto tmp = y[i];
-				y[i] = y[j];
-				y[j] = tmp;
-			}
-		}
-		__syncthreads();
-		for (int P = 2; P <= N; P *= 2) {
-			const int s = N / P;
-			if (N > P * P) {
-				for (int i = P * tid; i < N; i += P * block_size) {
-					int k = 0;
-					for (int j = i; j < i + P / 2; j++) {
-						const auto t = y[j + P / 2] * expi[k];
-						y[j + P / 2] = y[j] - t;
-						y[j] += t;
-						k += s;
-					}
-				}
-				__syncthreads();
-			} else {
-				for (int i = 0; i < N; i += P) {
-					int k = s * tid;
-					for (int j = i + tid; j < i + P / 2; j += block_size) {
-						const auto t = y[j + P / 2] * expi[k];
-						y[j + P / 2] = y[j] - t;
-						y[j] += t;
-						k += s * block_size;
-					}
-					__syncthreads();
-				}
-			}
-		}
+		fft1d(y,expi,N);
 	}
 
 }
 
 __global__
-void transpose_xy(cmplx* Y, int N) {
+void transpose_xy_3d(cmplx* Y, int N) {
 	const int& tid = threadIdx.x;
 	const int block_size = blockDim.x;
 	const int& bid = blockIdx.x;
@@ -88,7 +145,7 @@ void transpose_xy(cmplx* Y, int N) {
 }
 
 __global__
-void normalize_invert(cmplx* Y, int N) {
+void normalize_invert_3d(cmplx* Y, int N) {
 	const int& tid = threadIdx.x;
 	const int block_size = blockDim.x;
 	const int& bid = blockIdx.x;
@@ -107,7 +164,7 @@ void normalize_invert(cmplx* Y, int N) {
 }
 
 __global__
-void transpose_xz(cmplx* Y, int N) {
+void transpose_xz_3d(cmplx* Y, int N) {
 	const int& tid = threadIdx.x;
 	const int block_size = blockDim.x;
 	const int& bid = blockIdx.x;
@@ -126,7 +183,7 @@ void transpose_xz(cmplx* Y, int N) {
 }
 
 __global__
-void transpose_yz(cmplx* Y, int N) {
+void transpose_yz_3d(cmplx* Y, int N) {
 	const int& tid = threadIdx.x;
 	const int block_size = blockDim.x;
 	const int& bid = blockIdx.x;
@@ -154,13 +211,13 @@ void fft3d(cmplx* Y, int N) {
 		float omega = 2.0f * (float) M_PI * (float) i / (float) N;
 		expi[i] = expc(-cmplx(0, 1) * omega);
 	}
-	fft<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
-	transpose_yz<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
-	fft<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
-	transpose_xz<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
-	fft<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
-	transpose_yz<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
-	transpose_xy<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
+	fft3d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
+	transpose_yz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
+	fft3d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
+	transpose_xz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
+	fft3d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
+	transpose_yz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
+	transpose_xy_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	CUDA_FREE(expi);
 }
@@ -168,6 +225,47 @@ void fft3d(cmplx* Y, int N) {
 void fft3d_inv(cmplx* Y, int N) {
 	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
 	int nblocks = min(N * N * N / 32, maxgrid);
-	normalize_invert<<<nblocks,32>>>(Y,N);
+	normalize_invert_3d<<<nblocks,32>>>(Y,N);
 	fft3d(Y, N);
+}
+
+void fft2d(cmplx* Y, int N) {
+	cmplx* expi;
+	CUDA_MALLOC(expi, N / 2);
+	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
+	int nblocksc = min(N * N / FFTSIZE_COMPUTE, maxgrid);
+	int nblockst = min(N * N / FFTSIZE_TRANSPOSE, maxgrid);
+	for (int i = 0; i < N / 2; i++) {
+		float omega = 2.0f * (float) M_PI * (float) i / (float) N;
+		expi[i] = expc(-cmplx(0, 1) * omega);
+	}
+	fft2d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
+	transpose_2d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
+	fft2d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
+	transpose_2d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	CUDA_FREE(expi);
+}
+
+
+void fft1d(cmplx* Y, int N) {
+	cmplx* expi;
+	CUDA_MALLOC(expi, N / 2);
+	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
+	int nblocksc = min(N * N / FFTSIZE_COMPUTE, maxgrid);
+	int nblockst = min(N * N / FFTSIZE_TRANSPOSE, maxgrid);
+	for (int i = 0; i < N / 2; i++) {
+		float omega = 2.0f * (float) M_PI * (float) i / (float) N;
+		expi[i] = expc(-cmplx(0, 1) * omega);
+	}
+	fft2d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	CUDA_FREE(expi);
+}
+
+void fft32_inv(cmplx* Y, int N) {
+	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
+	int nblocks = min(N * N / 32, maxgrid);
+	normalize_invert_2d<<<nblocks,32>>>(Y,N);
+	fft2d(Y, N);
 }

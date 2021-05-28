@@ -181,7 +181,17 @@ public:
 		a.y = -y;
 		return a;
 	}
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & x;
+		arc & y;
+	}
 };
+
+inline void swap(cmplx& a, cmplx& b) {
+	std::swap(a.real(), b.real());
+	std::swap(a.imag(), b.imag());
+}
 
 CUDA_EXPORT inline cmplx operator*(float a, cmplx b) {
 	return b * a;
