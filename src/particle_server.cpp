@@ -23,8 +23,6 @@ HPX_PLAIN_ACTION(particle_server::check_domain_bounds, particle_server_check_dom
 HPX_PLAIN_ACTION(particle_server::gather_pos, particle_server_gather_pos_action);
 HPX_PLAIN_ACTION(particle_server::load_NGenIC, particle_server_load_NGenIC_action);
 
-
-
 /**** header from N-GenIC*****/
 
 typedef int int4byte;
@@ -50,11 +48,10 @@ struct io_header_1 { /* From NGenIC */
 	char fill[84]; /*!< fills to 256 Bytes */
 };
 
-
 void particle_server::load_NGenIC() {
 	int4byte dummy;
 	std::string filename;
-	if( hpx_size() == 1 ) {
+	if (hpx_size() == 1) {
 		filename = "ics";
 	} else {
 		filename = "ics." + std::to_string(hpx_rank());
@@ -194,7 +191,6 @@ std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) 
 	return std::move(data);
 }
 
-
 void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> remotes_unsorted) {
 	std::unordered_map<int, std::vector<tree_ptr>> requests;
 	std::unordered_map<int, part_int> offsets;
@@ -245,50 +241,50 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 			std::vector<hpx::future<void>> futs;
 			const auto data = fut.get();
 			//const int nthreads = 1;
-			const int nthreads = hardware_concurrency();
-			std::vector<part_int> joffsets(nthreads);
-			joffsets[0] = 0;
-			for( int proc = 0; proc < nthreads - 1; proc++) {
-				joffsets[proc + 1] = joffsets[proc];
-				part_int start = proc * i->second.size() / nthreads;
-				part_int stop = (proc+1) * i->second.size() / nthreads;
-				for( int k = start; k < stop; k++) {
-					tree_ptr local_tree = tree_data_global_to_local(i->second[k]);
-					const auto rng = local_tree.get_parts();
-					joffsets[proc + 1] += rng.second - rng.first;
+				const int nthreads = hardware_concurrency();
+				std::vector<part_int> joffsets(nthreads);
+				joffsets[0] = 0;
+				for( int proc = 0; proc < nthreads - 1; proc++) {
+					joffsets[proc + 1] = joffsets[proc];
+					part_int start = proc * i->second.size() / nthreads;
+					part_int stop = (proc+1) * i->second.size() / nthreads;
+					for( int k = start; k < stop; k++) {
+						tree_ptr local_tree = tree_data_global_to_local(i->second[k]);
+						const auto rng = local_tree.get_parts();
+						joffsets[proc + 1] += rng.second - rng.first;
+					}
 				}
-			}
-			for( int proc = 0; proc < nthreads; proc++) {
-				futs.push_back(hpx::async([&offsets,&joffsets,&data,proc,nthreads,i]() {
-									part_int j = 0;
-									part_int start = proc * i->second.size() / nthreads;
-									part_int stop = (proc+1) * i->second.size() / nthreads;
-									part_int offset = joffsets[proc] + offsets[i->first];
-									for( int k = start; k < stop; k++) {
-										assert(i->second[k].rank != hpx_rank());
-										tree_ptr local_tree = tree_data_global_to_local(i->second[k]);
-										const auto rng = local_tree.get_parts();
-										part_iters local_iter;
-										local_iter.first = j + offset;
-										for( part_int l = rng.first; l < rng.second; l++) {
-											assert( !(j + offset > parts->pos_size() || j + offset < 0) );
-											assert( j + offset >= parts->size() );
-											for( int dim = 0; dim < NDIM; dim++) {
-												parts->pos(dim, j + offset) = data[dim + NDIM * (j + joffsets[proc])];
+				for( int proc = 0; proc < nthreads; proc++) {
+					futs.push_back(hpx::async([&offsets,&joffsets,&data,proc,nthreads,i]() {
+										part_int j = 0;
+										part_int start = proc * i->second.size() / nthreads;
+										part_int stop = (proc+1) * i->second.size() / nthreads;
+										part_int offset = joffsets[proc] + offsets[i->first];
+										for( int k = start; k < stop; k++) {
+											assert(i->second[k].rank != hpx_rank());
+											tree_ptr local_tree = tree_data_global_to_local(i->second[k]);
+											const auto rng = local_tree.get_parts();
+											part_iters local_iter;
+											local_iter.first = j + offset;
+											for( part_int l = rng.first; l < rng.second; l++) {
+												assert( !(j + offset > parts->pos_size() || j + offset < 0) );
+												assert( j + offset >= parts->size() );
+												for( int dim = 0; dim < NDIM; dim++) {
+													parts->pos(dim, j + offset) = data[dim + NDIM * (j + joffsets[proc])];
+												}
+												j++;
 											}
-											j++;
-										}
-										local_iter.second = j + offset;
-										local_tree.set_parts(local_iter);
+											local_iter.second = j + offset;
+											local_tree.set_parts(local_iter);
 #ifndef NDEBUG
-										local_tree.set_proc_range(hpx_rank(), hpx_rank());
+				local_tree.set_proc_range(hpx_rank(), hpx_rank());
 #endif
-									}
-								}));
 			}
-			hpx::wait_all(futs.begin(),futs.end());
-
 		}));
+}
+hpx::wait_all(futs.begin(),futs.end());
+
+}));
 	}
 	hpx::wait_all(futs2.begin(), futs2.end());
 //	PRINT("Done filling locals\n");
@@ -319,7 +315,7 @@ void particle_server::generate_random() {
 		}
 	}
 
-	parts->generate_random(1234*hpx_rank() + 42);
+	parts->generate_random(1234 * hpx_rank() + 42);
 
 	hpx::wait_all(futs.begin(), futs.end());
 }
@@ -342,12 +338,14 @@ void particle_server::domain_decomp_send() {
 }
 
 void particle_server::apply_domain_decomp() {
-	bool complete;
-	do {
-		complete = domain_decomp_gather();
-		domain_decomp_send();
-		domain_decomp_finish();
-	} while (!complete);
+	if (hpx_size() > 1) {
+		bool complete;
+		do {
+			complete = domain_decomp_gather();
+			domain_decomp_send();
+			domain_decomp_finish();
+		} while (!complete);
+	}
 }
 
 void particle_server::domain_decomp_finish() {
@@ -357,20 +355,20 @@ void particle_server::domain_decomp_finish() {
 			futs.push_back(hpx::async<particle_server_domain_decomp_finish_action>(hpx_localities()[i]));
 		}
 	}
-	parts->sort_parts(part_recvs.begin(),part_recvs.end());
-	if( free_indices.size() < part_recvs.size()) {
+	parts->sort_parts(part_recvs.begin(), part_recvs.end());
+	if (free_indices.size() < part_recvs.size()) {
 		part_int start = free_indices.size();
 		part_int stop = part_recvs.size();
 		free_indices.resize(part_recvs.size());
 		part_int j = parts->size();
-		for( int i = start; i < stop; i++) {
+		for (int i = start; i < stop; i++) {
 			free_indices[i] = j++;
 		}
 		parts->resize(j);
 	}
 	int nthreads = hardware_concurrency();
-	for( int proc = 0; proc < nthreads; proc++) {
-		futs.push_back(hpx::async([proc,nthreads](){
+	for (int proc = 0; proc < nthreads; proc++) {
+		futs.push_back(hpx::async([proc,nthreads]() {
 			const part_int start = proc * part_recvs.size() / nthreads;
 			const part_int stop = (proc+1) * part_recvs.size() / nthreads;
 			for( part_int i = start; i < stop; i++) {

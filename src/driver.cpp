@@ -453,9 +453,6 @@ void drive_cosmos() {
 //					"n/a", sort_tm, kick_tm, drift_tm, total_time, science_rate);
 //		}
 		itime = inc(itime, max_rung);
-		if (iter >= 1100) {
-			//			break;
-		}
 		iter++;
 	} while (z > 0.0);
 	double total_time = drift_total + sort_total + kick_total;

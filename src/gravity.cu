@@ -140,7 +140,6 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
 			}
 		}
-		L.scale_back();
 		for (int i = tid; i < LP; i += warpSize) {
 			NAN_TEST(L[i]);
 			params.L[shmem.depth][i] += L[i];
