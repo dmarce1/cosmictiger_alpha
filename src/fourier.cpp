@@ -16,6 +16,7 @@ void fourier3d_destroy();
 void fourier3d_execute();
 void fourier3d_inv_execute();
 void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, std::vector<cmplx> data);
+std::vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze);
 
 std::vector<std::vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zbegin, int zend,
 		std::vector<std::vector<cmplx>>);
@@ -27,10 +28,53 @@ HPX_PLAIN_ACTION(fourier3d_destroy);
 HPX_PLAIN_ACTION(fourier3d_transpose);
 HPX_PLAIN_ACTION(fourier3d_accumulate);
 HPX_PLAIN_ACTION(fourier3d_transpose_xz);
+HPX_PLAIN_ACTION(fourier3d_read);
 
 int slab_to_rank(int xi) {
 	return std::min((int) ((xi + int(N % nranks != 0)) * nranks / N), nranks - 1);
 }
+
+std::vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
+	std::vector<cmplx> data;
+	const int yspan = ye - yb;
+	const int zspan = ze - zb;
+	std::vector<hpx::future<void>> futs;
+	if (slab_to_rank(xb) != rank || slab_to_rank(xe) != rank) {
+		const int rankb = slab_to_rank(xb);
+		const int ranke = slab_to_rank(xe);
+		for (int other_rank = rankb; other_rank < ranke; other_rank++) {
+			const int this_xb = std::max(xb, other_rank * N / nranks);
+			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
+			const int this_xspan = this_xe - this_xb;
+			std::vector<cmplx> rank_data(this_xspan * yspan * zspan);
+			auto fut = hpx::async<fourier3d_read_action>(localities[other_rank], this_xb, this_xe, yb, ye, zb, ze);
+			futs.push_back(
+					fut.then(
+							[&data, this_xb, this_xe, yspan, zspan, xb, yb, ye, zb, ze](hpx::future<std::vector<cmplx>> fut) {
+								auto rank_data = fut.get();
+								for( int xi = this_xb; xi < this_xe; xi++) {
+									for( int yi = yb; yi < ye; yi++) {
+										for( int zi = zb; zi < ze; zi++) {
+											data[zspan*yspan*(xi-xb)+zspan*(yi-yb)+(zi-zb)] = rank_data[zspan*yspan*(xi-this_xb)+zspan*(yi-yb)+(zi-zb)];
+										}
+									}
+								}
+							}));
+		}
+	} else {
+		for (int xi = xb; xi < xe; xi++) {
+			for (int yi = yb; yi < ye; yi++) {
+				for (int zi = zb; zi < ze; zi++) {
+					data[zspan * yspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = Y[xi - begin][+zspan * (yi - yb)
+							+ (zi - zb)];
+				}
+			}
+		}
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+	return std::move(data);
+}
+
 void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, std::vector<cmplx> data) {
 	const int yspan = ye - yb;
 	const int zspan = ze - zb;
@@ -46,7 +90,7 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, std::v
 			for (int xi = this_xb; xi < this_xe; xi++) {
 				for (int yi = yb; yi < ye; yi++) {
 					for (int zi = zb; zi < ze; zi++) {
-						rank_data[zspan * yspan * (xi - this_xb) + yspan * (yi - yb) + (zi - zb)] = data[zspan * yspan
+						rank_data[zspan * yspan * (xi - this_xb) + zspan * (yi - yb) + (zi - zb)] = data[zspan * yspan
 								* (xi - xb) + yspan * (yi - yb) + (zi - zb)];
 					}
 				}
@@ -60,7 +104,7 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, std::v
 			std::lock_guard<spinlock_type> lock(*mutexes[xi]);
 			for (int yi = yb; yi < ye; yi++) {
 				for (int zi = zb; zi < ze; zi++) {
-					Y[xi - xb][N * (yi - yb) + (zi - zb)] += data[zspan * yspan * (xi - xb) + yspan * (yi - yb) + (zi - zb)];
+					Y[xi - xb][N * (yi - yb) + (zi - zb)] += data[zspan * yspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)];
 				}
 			}
 		}

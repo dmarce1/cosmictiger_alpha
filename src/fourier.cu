@@ -1,6 +1,5 @@
 #include <cosmictiger/fourier.hpp>
 #include <cosmictiger/global.hpp>
-
 #define FFTSIZE_COMPUTE 32
 #define FFTSIZE_TRANSPOSE 32
 
@@ -211,7 +210,9 @@ void fft3d(cmplx* Y, int N) {
 		float omega = 2.0f * (float) M_PI * (float) i / (float) N;
 		expi[i] = expc(-cmplx(0, 1) * omega);
 	}
+
 	fft3d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
+
 	transpose_yz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	fft3d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
 	transpose_xz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
