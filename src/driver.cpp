@@ -114,8 +114,8 @@ int drift(particle_set& parts, double dt, double a0, double a1, double*ekin, dou
 void save_to_file(int step, time_type itime, double time, double a, double cosmicK);
 void load_from_file_remote();
 
-HPX_PLAIN_ACTION (save_to_file);
-HPX_PLAIN_ACTION (load_from_file_remote);
+HPX_PLAIN_ACTION(save_to_file);
+HPX_PLAIN_ACTION(load_from_file_remote);
 
 void save_to_file(int step, time_type itime, double time, double a, double cosmicK) {
 	particle_server pserv;
@@ -287,7 +287,20 @@ void drive_cosmos() {
 	auto& parts = pserv.get_particle_set();
 
 	if (!have_checkpoint) {
-		pserv.load_NGenIC();
+		//pserv.load_NGenIC();
+		const int N = global().opts.parts_dim;
+		const float Ninv = 1.0f / N;
+		for (size_t i = 0; i < N; i++) {
+			for (size_t j = 0; j < N; j++) {
+				for (size_t k = 0; k < N; k++) {
+					const size_t l = N * (N * i + j) + k;
+					parts.pos(0, l) = (i) * Ninv;
+					parts.pos(1, l) = (j) * Ninv;
+					parts.pos(2, l) = (k) * Ninv;
+				}
+			}
+		}
+		initial_conditions(parts);
 		itime = 0;
 		iter = 0;
 		z = global().opts.z0;

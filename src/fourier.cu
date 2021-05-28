@@ -1,70 +1,57 @@
 #include <cosmictiger/fourier.hpp>
 #include <cosmictiger/global.hpp>
+#include <cufft.h>
+
 #define FFTSIZE_COMPUTE 32
 #define FFTSIZE_TRANSPOSE 32
 
-__device__
-void fft1d(cmplx* y, const cmplx* expi, int N) {
-	const int& tid = threadIdx.x;
-	const int block_size = blockDim.x;
-	int level = 0;
-	for (int i = N; i > 1; i >>= 1) {
-		level++;
-	}
-	for (int i = tid; i < N; i += block_size) {
-		int j = 0;
-		int l = i;
-		for (int k = 0; k < level; k++) {
-			j = (j << 1) | (l & 1);
-			l >>= 1;
-		}
-		if (j > i) {
-			auto tmp = y[i];
-			y[i] = y[j];
-			y[j] = tmp;
-		}
-	}
-	__syncthreads();
-	for (int P = 2; P <= N; P *= 2) {
-		const int s = N / P;
-		if (N > P * P) {
-			for (int i = P * tid; i < N; i += P * block_size) {
-				int k = 0;
-				for (int j = i; j < i + P / 2; j++) {
-					const auto t = y[j + P / 2] * expi[k];
-					y[j + P / 2] = y[j] - t;
-					y[j] += t;
-					k += s;
-				}
-			}
-			__syncthreads();
-		} else {
-			for (int i = 0; i < N; i += P) {
-				int k = s * tid;
-				for (int j = i + tid; j < i + P / 2; j += block_size) {
-					const auto t = y[j + P / 2] * expi[k];
-					y[j + P / 2] = y[j] - t;
-					y[j] += t;
-					k += s * block_size;
-				}
-				__syncthreads();
-			}
-		}
+/* error checker from https://forums.developer.nvidia.com/t/cufft-error-handling/29231 */
+static const char *_cudaGetErrorEnum(cufftResult error) {
+	switch (error) {
+	case CUFFT_SUCCESS:
+		return "CUFFT_SUCCESS";
+
+	case CUFFT_INVALID_PLAN:
+		return "CUFFT_INVALID_PLAN";
+
+	case CUFFT_ALLOC_FAILED:
+		return "CUFFT_ALLOC_FAILED";
+
+	case CUFFT_INVALID_TYPE:
+		return "CUFFT_INVALID_TYPE";
+
+	case CUFFT_INVALID_VALUE:
+		return "CUFFT_INVALID_VALUE";
+
+	case CUFFT_INTERNAL_ERROR:
+		return "CUFFT_INTERNAL_ERROR";
+
+	case CUFFT_EXEC_FAILED:
+		return "CUFFT_EXEC_FAILED";
+
+	case CUFFT_SETUP_FAILED:
+		return "CUFFT_SETUP_FAILED";
+
+	case CUFFT_INVALID_SIZE:
+		return "CUFFT_INVALID_SIZE";
+
+	case CUFFT_UNALIGNED_DATA:
+		return "CUFFT_UNALIGNED_DATA";
 	}
 
+	return "<unknown>";
 }
 
-__global__
-void fft2d_kernel(cmplx* Y, const cmplx* expi, int N) {
-	const int& bid = blockIdx.x;
-	const int& grid_size = gridDim.x;
-	for (int xi = bid; xi < N; xi += grid_size) {
-		int offset = N * xi;
-		cmplx* y = Y + offset;
-		fft1d(y,expi,N);
+inline void _cuda_fft_check(cufftResult err, const char *file, const int line) {
+	if (CUFFT_SUCCESS != err) {
+		fprintf(stderr, "CUFFT error in file '%s', line %d\n %s\nerror %d: %s\nterminating!\n", __FILE__, __LINE__, err,
+				_cudaGetErrorEnum(err));
+		cudaDeviceReset();
+		assert(0);
 	}
-
 }
+
+#define CUDA_FFT_CHECK(a) _cuda_fft_check(a,__FILE__,__LINE__)
 
 __global__
 void transpose_2d(cmplx* Y, int N) {
@@ -101,25 +88,6 @@ void normalize_invert_2d(cmplx* Y, int N) {
 	}
 
 }
-
-__global__
-void fft3d_kernel(cmplx* Y, const cmplx* expi, int N) {
-	const int& bid = blockIdx.x;
-	const int& grid_size = gridDim.x;
-	int level = 0;
-	for (int i = N; i > 1; i >>= 1) {
-		level++;
-	}
-	for (int xy = bid; xy < N * N; xy += grid_size) {
-		int xi = xy / N;
-		int yi = xy % N;
-		int offset = N * (N * xi + yi);
-		cmplx* y = Y + offset;
-		fft1d(y,expi,N);
-	}
-
-}
-
 __global__
 void transpose_xy_3d(cmplx* Y, int N) {
 	const int& tid = threadIdx.x;
@@ -201,29 +169,26 @@ void transpose_yz_3d(cmplx* Y, int N) {
 }
 
 void fft3d(cmplx* Y, int N) {
-	cmplx* expi;
-	CUDA_MALLOC(expi, N / 2);
+	cuda_set_device();
 	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
 	int nblocksc = min(N * N * N / FFTSIZE_COMPUTE, maxgrid);
 	int nblockst = min(N * N * N / FFTSIZE_TRANSPOSE, maxgrid);
-	for (int i = 0; i < N / 2; i++) {
-		float omega = 2.0f * (float) M_PI * (float) i / (float) N;
-		expi[i] = expc(-cmplx(0, 1) * omega);
-	}
-
-	fft3d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
-
+	cufftHandle plan;
+	CUDA_FFT_CHECK(cufftPlan1d(&plan, N, CUFFT_C2C, N * N));
+	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex *)Y, (cufftComplex *)Y, CUFFT_FORWARD));
 	transpose_yz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
-	fft3d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex *)Y, (cufftComplex *)Y, CUFFT_FORWARD));
 	transpose_xz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
-	fft3d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
+	CUDA_CHECK(cudaDeviceSynchronize());
+	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex *)Y, (cufftComplex *)Y, CUFFT_FORWARD));
 	transpose_yz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	transpose_xy_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	CUDA_CHECK(cudaDeviceSynchronize());
-	CUDA_FREE(expi);
 }
 
 void fft3d_inv(cmplx* Y, int N) {
+	cuda_set_device();
 	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
 	int nblocks = min(N * N * N / 32, maxgrid);
 	normalize_invert_3d<<<nblocks,32>>>(Y,N);
@@ -231,40 +196,33 @@ void fft3d_inv(cmplx* Y, int N) {
 }
 
 void fft2d(cmplx* Y, int N) {
-	cmplx* expi;
-	CUDA_MALLOC(expi, N / 2);
+	cuda_set_device();
 	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
 	int nblocksc = min(N * N / FFTSIZE_COMPUTE, maxgrid);
 	int nblockst = min(N * N / FFTSIZE_TRANSPOSE, maxgrid);
-	for (int i = 0; i < N / 2; i++) {
-		float omega = 2.0f * (float) M_PI * (float) i / (float) N;
-		expi[i] = expc(-cmplx(0, 1) * omega);
-	}
-	fft2d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
-	transpose_2d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
-	fft2d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
+	cufftHandle plan;
+	CUDA_FFT_CHECK(cufftPlan1d(&plan, N, CUFFT_C2C, N));
+	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex *)Y, (cufftComplex *)Y, CUFFT_FORWARD));
 	transpose_2d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	CUDA_CHECK(cudaDeviceSynchronize());
-	CUDA_FREE(expi);
+	CUDA_FFT_CHECK(cufftPlan1d(&plan, N, CUFFT_C2C, N));
+	transpose_2d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
+	CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-
 void fft1d(cmplx* Y, int N) {
-	cmplx* expi;
-	CUDA_MALLOC(expi, N / 2);
+	cuda_set_device();
 	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
 	int nblocksc = min(N * N / FFTSIZE_COMPUTE, maxgrid);
 	int nblockst = min(N * N / FFTSIZE_TRANSPOSE, maxgrid);
-	for (int i = 0; i < N / 2; i++) {
-		float omega = 2.0f * (float) M_PI * (float) i / (float) N;
-		expi[i] = expc(-cmplx(0, 1) * omega);
-	}
-	fft2d_kernel<<<nblocksc,FFTSIZE_COMPUTE>>>(Y,expi,N);
+	cufftHandle plan;
+	CUDA_FFT_CHECK(cufftPlan1d(&plan, N, CUFFT_C2C, N));
+	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex *)Y, (cufftComplex *)Y, CUFFT_FORWARD));
 	CUDA_CHECK(cudaDeviceSynchronize());
-	CUDA_FREE(expi);
 }
 
 void fft32_inv(cmplx* Y, int N) {
+	cuda_set_device();
 	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
 	int nblocks = min(N * N / 32, maxgrid);
 	normalize_invert_2d<<<nblocks,32>>>(Y,N);
