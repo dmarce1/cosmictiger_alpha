@@ -319,8 +319,7 @@ void initial_conditions(particle_set& parts) {
 	auto vel_destroy = vel_k->to_device();
 #endif
 
-	generate_random_normals<<<32,32>>>(rands, N3,1234);
-	CUDA_CHECK(cudaDeviceSynchronize());
+	generate_random_normals(rands, N3,hpx_rank()*1234);
 
 	/*	PRINT("\tComputing over/under density\n");
 	 zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, 0, DENSITY);
@@ -377,12 +376,11 @@ void initial_conditions(particle_set& parts) {
 	}
 	fft3d(phi2, N);
 	auto& den_k = cdm_k;
-	create_overdensity_transform<<<1,ZELDOSIZE>>>(phi1, rands, den_k, code_to_mpc, N);
-	CUDA_CHECK(cudaDeviceSynchronize());
-	transform_laplacian<<<1,ZELDOSIZE>>>(phi1, code_to_mpc, N);
-	CUDA_CHECK(cudaDeviceSynchronize());
-	fft3d_inv(phi1, N);
-	dim3 gdim;
+	denpow_to_phi1(*den_k,N,code_to_mpc);
+
+	exit(0);
+
+	/*dim3 gdim;
 	gdim.x = gdim.y = N;
 	gdim.z = 1;
 	phi1_to_delta2<<<gdim,32>>>(phi1, phi2, code_to_mpc);
@@ -397,7 +395,8 @@ void initial_conditions(particle_set& parts) {
 	for (int i = 0; i < N * N; i++) {
 		xdisp = std::max(xdisp, max_disp[i]);
 	}
-	PRINT("\t\tMaximum displacement is %e\n", xdisp);
+	PRINT("\t\tMaximum displacement is %e\n", xdisp);*/
+
 
 #ifndef __CUDA_ARCH__
 	cdm_destroy();

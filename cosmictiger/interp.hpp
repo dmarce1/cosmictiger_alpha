@@ -20,6 +20,16 @@ struct interp_functor {
 	T maxloga;
 	int N;
 	T dloga;
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & values;
+		arc & amin;
+		arc & amax;
+		arc & minloga;
+		arc & maxloga;
+		arc & N;
+		arc & dloga;
+	}
 #ifndef __CUDA_ARCH__
 	std::function<void()> to_device() {
 		cudaStream_t stream;

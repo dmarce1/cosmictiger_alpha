@@ -26,7 +26,7 @@ double find_root(std::function<double(double)> f) {
 }
 
 __global__
-void generate_random_normals(cmplx* nums, size_t N, int seed) {
+void generate_random_normals_kernel(cmplx* nums, size_t N, int seed) {
 	const uint64_t mod = 1LL << 31LL;
 	const uint64_t a1 = 1664525LL;
 	const uint64_t a2 = 22695477LL;
@@ -87,3 +87,9 @@ void generate_random_vectors(fixed32* x, fixed32* y, fixed32* z, size_t N, int s
 	}
 	__syncthreads();
 }
+
+void generate_random_normals(cmplx* rands, int N, int seed) {
+	generate_random_normals_kernel<<<32,32>>>(rands, N, seed);
+	CUDA_CHECK(cudaDeviceSynchronize());
+}
+

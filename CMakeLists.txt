@@ -50,6 +50,7 @@ set(cosmictiger_source_files
     src/tests.cpp
     src/tree.cpp
     src/tree_database.cpp
+    src/zeldovich.cpp
 	src/boltzmann.cu
 	src/direct.cu
     src/ewald_indices.cu

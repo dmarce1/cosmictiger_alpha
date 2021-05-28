@@ -1,7 +1,8 @@
 #include <cosmictiger/fourier.hpp>
 #include <cosmictiger/hpx.hpp>
+#include <cosmictiger/vector.hpp>
 
-static std::vector<vector<cmplx>> Y;
+static vector<vector<cmplx>> Y;
 static std::vector<std::shared_ptr<spinlock_type>> mutexes;
 static int N;
 static int begin;
@@ -11,15 +12,7 @@ static int span;
 static int rank;
 static int nranks;
 
-void fourier3d_initialize(int N_);
-void fourier3d_destroy();
-void fourier3d_execute();
-void fourier3d_inv_execute();
-void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, std::vector<cmplx> data);
-std::vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze);
-
-std::vector<std::vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zbegin, int zend,
-		std::vector<std::vector<cmplx>>);
+vector<vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zbegin, int zend, vector<vector<cmplx>>);
 void fourier3d_transpose_xz();
 void fft1d(cmplx* Y, int N);
 
@@ -29,16 +22,42 @@ HPX_PLAIN_ACTION(fourier3d_transpose);
 HPX_PLAIN_ACTION(fourier3d_accumulate);
 HPX_PLAIN_ACTION(fourier3d_transpose_xz);
 HPX_PLAIN_ACTION(fourier3d_read);
+HPX_PLAIN_ACTION(fourier3d_mirror);
 
 int slab_to_rank(int xi) {
 	return std::min((int) ((xi + int(N % nranks != 0)) * nranks / N), nranks - 1);
 }
 
-std::vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
-	std::vector<cmplx> data;
+void fourier3d_mirror() {
+	std::vector<hpx::future<void>> futs;
+	if (rank == 0) {
+		for (int i = 1; i < nranks; i++) {
+			futs.push_back(hpx::async<fourier3d_mirror_action>(localities[i]));
+		}
+	}
+	for (int xi = begin; xi < end; xi++) {
+		if (xi >= N / 2) {
+			int xi0 = (N - xi) % N;
+			auto future = hpx::async<fourier3d_read_action>(localities[slab_to_rank(xi)], xi0, xi0 + 1, 0, N, 0, N);
+			futs.push_back(future.then([xi](hpx::future<vector<cmplx>> fut) {
+				auto data = fut.get();
+				for( int yi = 0; yi < N; yi++) {
+					for( int zi = 0; zi < N; zi++) {
+						Y[xi-begin][yi*N+zi] = data[((N-yi)%N)*N+((N-zi)%N)].conj();
+					}
+				}
+			}));
+		}
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+}
+
+vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
+	vector<cmplx> data;
 	const int yspan = ye - yb;
 	const int zspan = ze - zb;
 	std::vector<hpx::future<void>> futs;
+	data.resize((xe - xb) * yspan * zspan);
 	if (slab_to_rank(xb) != rank || slab_to_rank(xe) != rank) {
 		const int rankb = slab_to_rank(xb);
 		const int ranke = slab_to_rank(xe);
@@ -46,11 +65,11 @@ std::vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze
 			const int this_xb = std::max(xb, other_rank * N / nranks);
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
 			const int this_xspan = this_xe - this_xb;
-			std::vector<cmplx> rank_data(this_xspan * yspan * zspan);
+			vector<cmplx> rank_data(this_xspan * yspan * zspan);
 			auto fut = hpx::async<fourier3d_read_action>(localities[other_rank], this_xb, this_xe, yb, ye, zb, ze);
 			futs.push_back(
 					fut.then(
-							[&data, this_xb, this_xe, yspan, zspan, xb, yb, ye, zb, ze](hpx::future<std::vector<cmplx>> fut) {
+							[&data, this_xb, this_xe, yspan, zspan, xb, yb, ye, zb, ze](hpx::future<vector<cmplx>> fut) {
 								auto rank_data = fut.get();
 								for( int xi = this_xb; xi < this_xe; xi++) {
 									for( int yi = yb; yi < ye; yi++) {
@@ -75,7 +94,7 @@ std::vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze
 	return std::move(data);
 }
 
-void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, std::vector<cmplx> data) {
+void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector<cmplx> data) {
 	const int yspan = ye - yb;
 	const int zspan = ze - zb;
 	std::vector<hpx::future<void>> futs;
@@ -86,7 +105,7 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, std::v
 			const int this_xb = std::max(xb, other_rank * N / nranks);
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
 			const int this_xspan = this_xe - this_xb;
-			std::vector<cmplx> rank_data(this_xspan * yspan * zspan);
+			vector<cmplx> rank_data(this_xspan * yspan * zspan);
 			for (int xi = this_xb; xi < this_xe; xi++) {
 				for (int yi = yb; yi < ye; yi++) {
 					for (int zi = zb; zi < ze; zi++) {
@@ -152,6 +171,7 @@ void fourier3d_initialize(int N_) {
 	mutexes.resize(span);
 	for (int i = 0; i < span; i++) {
 		mutexes[i] = std::make_shared<spinlock_type>();
+		Y[i].resize(N * N);
 		for (int j = 0; j < N * N; j++) {
 			Y[i][j].real() = Y[i][j].imag() = 0.0;
 		}
@@ -181,7 +201,7 @@ void fourier3d_transpose_xz() {
 			futs.push_back(hpx::async<fourier3d_transpose_xz_action>(localities[i]));
 		}
 	}
-	std::vector<std::vector<cmplx>> data;
+	vector<vector<cmplx>> data;
 	for (int other = rank; other < nranks; other++) {
 		const int zbegin = other * N / nranks;
 		const int zend = (other + 1) * N / nranks;
@@ -197,7 +217,7 @@ void fourier3d_transpose_xz() {
 		}
 		auto future = hpx::async<fourier3d_transpose_action>(localities[other], zbegin, zend, begin, end,
 				std::move(data));
-		futs.push_back(future.then([zspan,zbegin,zend](hpx::future<std::vector<std::vector<cmplx>>> fut) {
+		futs.push_back(future.then([zspan,zbegin,zend](hpx::future<vector<vector<cmplx>>> fut) {
 			auto data = fut.get();
 			for (int i = 0; i < span; i++) {
 				for (int j = 0; j < N; j++) {
@@ -212,13 +232,12 @@ void fourier3d_transpose_xz() {
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-std::vector<std::vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zbegin, int zend,
-		std::vector<std::vector<cmplx>> data) {
+vector<vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zbegin, int zend, vector<vector<cmplx>> data) {
 	const int xspan = xend - xbegin;
 	for (int xi = 0; xi < span; xi++) {
-		for (int yi = 0; yi < N * N; yi++) {
+		for (int yi = 0; yi < N; yi++) {
 			for (int zi = zbegin; zi < zend; zi++) {
-				std::swap(data[zi][yi * xspan + xi], Y[xi][yi * N + zi]);
+				std::swap(data[zi - zbegin][yi * xspan + xi], Y[xi][yi * N + zi]);
 			}
 		}
 	}
