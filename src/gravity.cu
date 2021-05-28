@@ -33,12 +33,12 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	for (int i = 0; i < LP; i++) {
 		L[i] = 0.0f;
 	}
-	const auto pos = tree_data_get_pos(shmem.self.dindex);
+	const auto pos = shmem.self.get_pos();
 	const int sz = multis.size();
 	for (int i = tid; i < sz; i += warpSize) {
-		const multipole mpole = tree_data_get_multi(multis[i].dindex);
+		const multipole mpole = multis[i].get_multi();
 		array<float, NDIM> fpos;
-		const auto other_pos = tree_data_get_pos(multis[i].dindex);
+		const auto other_pos = multis[i].get_pos();
 		for (int dim = 0; dim < NDIM; dim++) {
 			fpos[dim] = distance(pos[dim], other_pos[dim]);
 		}
@@ -81,7 +81,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		return;
 	}
 	auto &sources = shmem.src;
-	const auto myparts = tree_data_get_parts(shmem.self.dindex);
+	const auto myparts = shmem.self.get_parts();
 	int part_index;
 	int flops = 0;
 	int interacts = 0;
@@ -90,15 +90,15 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		for (int j = 0; j < LP; j++) {
 			L[j] = 0.0;
 		}
-		auto these_parts = tree_data_get_parts(parti[0].dindex);
+		auto these_parts = parti[0].get_parts();
 		int i = 0;
-		const auto pos = tree_data_get_pos(shmem.self.dindex);
+		const auto pos = shmem.self.get_pos();
 		const auto partsz = parti.size();
 		while (i < partsz) {
 			part_index = 0;
 			while (part_index < KICK_PP_MAX && i < partsz) {
 				while (i + 1 < partsz) {
-					const auto other_tree_parts = tree_data_get_parts(parti[i + 1].dindex);
+					const auto other_tree_parts = parti[i + 1].get_parts();
 					if (these_parts.second == other_tree_parts.first) {
 						these_parts.second = other_tree_parts.second;
 						i++;
@@ -119,7 +119,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				if (these_parts.first == these_parts.second) {
 					i++;
 					if (i < parti.size()) {
-						these_parts = tree_data_get_parts(parti[i].dindex);
+						these_parts = parti[i].get_parts();
 					}
 				}
 			}
@@ -160,7 +160,7 @@ CUDA_DEVICE int compress_sinks(kick_params_type *params_ptr) {
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
 
-	const auto myparts = tree_data_get_parts(shmem.self.dindex);
+	const auto myparts = shmem.self.get_parts();
 	const int nsinks = myparts.second - myparts.first;
 	const int nsinks_max = max(((nsinks - 1) / warpSize + 1) * warpSize, 0);
 
@@ -233,15 +233,15 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 		return;
 	}
 //   PRINT( "%i\n", parti.size());
-	const auto myparts = tree_data_get_parts(shmem.self.dindex);
+	const auto myparts = shmem.self.get_parts();
 	int i = 0;
-	auto these_parts = tree_data_get_parts(parti[0].dindex);
+	auto these_parts = parti[0].get_parts();
 	const auto partsz = parti.size();
 	while (i < partsz) {
 		part_index = 0;
 		while (part_index < KICK_PP_MAX && i < partsz) {
 			while (i + 1 < partsz) {
-				const auto other_tree_parts = tree_data_get_parts(parti[i + 1].dindex);
+				const auto other_tree_parts = parti[i + 1].get_parts();
 				if (these_parts.second == other_tree_parts.first) {
 					these_parts.second = other_tree_parts.second;
 					i++;
@@ -262,7 +262,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 			if (these_parts.first == these_parts.second) {
 				i++;
 				if (i < partsz) {
-					these_parts = tree_data_get_parts(parti[i].dindex);
+					these_parts = parti[i].get_parts();
 				}
 			}
 		}
@@ -398,7 +398,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	auto &F = params.F;
 	auto& act_map = shmem.act_map;
 	auto &Phi = params.Phi;
-	const auto myparts = tree_data_get_parts(shmem.self.dindex);
+	const auto myparts = shmem.self.get_parts();
 	if (multis.size() == 0) {
 		return;
 	}
@@ -420,7 +420,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 		nsrc = 0;
 		for (int z = 0; z < KICK_PC_MAX; z++) {
 			if (m + z < multis.size()) {
-				const float* src = tree_data_get_multi_ptr(multis[m + z].dindex);
+				const float* src = multis[m + z].get_multi_ptr();
 				float* dst = (float*) &(msrcs[nsrc]);
 				nsrc++;
 				if (tid < msize) {

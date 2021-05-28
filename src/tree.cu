@@ -73,8 +73,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	auto &phi = params.Phi;
 	auto &L = params.L[shmem.depth];
 	int list_index;
-	const auto mypos = tree_data_get_pos(shmem.self.dindex);
-	const auto myradius = tree_data_get_radius(shmem.self.dindex);
+	const auto mypos = shmem.self.get_pos();
+	const auto myradius = shmem.self.get_radius();
 	const auto &Lpos = params.Lpos[shmem.depth];
 	const bool iamleaf = tptr.is_leaf();
 	array<float, NDIM> dx;
@@ -92,7 +92,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			phi[k] = -PHI0;
 		}
 	}
-	const auto myparts = tree_data_get_parts(shmem.self.dindex);
+	const auto myparts = shmem.self.get_parts();
 	array<int, NITERS> count;
 
 	const float& theta = constant.theta;
@@ -135,8 +135,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					}
 					if (ci < check_count) {
 						const auto check = checks[ci];
-						const auto other_pos = tree_data_get_pos(check.dindex);
-						const float other_radius = tree_data_get_radius(check.dindex);
+						const auto other_pos = check.get_pos();
+						const float other_radius = check.get_radius();
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
 							dx[dim] = distance(other_pos[dim], mypos[dim]);
 						}
@@ -197,7 +197,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				__syncwarp();
 				for (int i = tid; i < countCI; i += KICK_BLOCK_SIZE) {
 					const auto base = 2 * i;
-					const auto children = tree_data_get_children(next_checks[i].dindex);
+					const auto children = next_checks[i].get_children();
 					for (int j = 0; j < NCHILD; j++) {
 						checks[base + j] = children[j];
 					}
@@ -232,8 +232,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				my_index[1] = 0;
 				list_index = -1;
 				if (j < parti.size()) {
-					const auto other_pos = tree_data_get_pos(parti[j].dindex);
-					const auto other_radius = tree_data_get_radius(parti[j].dindex);
+					const auto other_pos = parti[j].get_pos();
+					const auto other_radius = parti[j].get_radius();
 //					const auto parti_parts = parti[j].get_parts();
 //					const auto other_nparts = parti_parts.second - parti_parts.first;
 					bool res = false;
@@ -305,9 +305,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		}
 	}
 	if (!shmem.self.is_leaf()) {
-		const auto children = tree_data_get_children(tptr.dindex);
-		const auto left_active = tree_data_get_active_parts(children[LEFT].dindex);
-		const auto right_active = tree_data_get_active_parts(children[RIGHT].dindex);
+		const auto children = tptr.get_children();
+		const auto left_active = children[LEFT].get_active_parts();
+		const auto right_active = children[RIGHT].get_active_parts();
 		if (tid == 0) {
 			shmem.depth++;
 			params.L[shmem.depth] = L;
