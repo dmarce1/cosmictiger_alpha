@@ -370,3 +370,5 @@ struct kick_constants {
 
 void cuda_set_kick_constants(kick_constants consts);
 CUDA_KERNEL cuda_kick_kernel(kick_params_type *params, int);
+int cuda_kick_occupancy();
+

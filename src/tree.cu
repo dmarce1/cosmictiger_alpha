@@ -137,6 +137,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const auto check = checks[ci];
 						const auto other_pos = check.get_pos();
 						const float other_radius = check.get_radius();
+						const int isleaf = check.is_leaf();
+						part_iters other_parts;
+						int other_nparts;
+						if (direct) {
+							other_parts = check.get_parts();
+							other_nparts = other_parts.second - other_parts.first;
+						}
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
 							dx[dim] = distance(other_pos[dim], mypos[dim]);
 						}
@@ -151,10 +158,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const int far1 = R1 < theta2d2;                 // 1
 						const int far2 = R2 < theta2d2;                 // 1
 						const int far3 = R3 < theta2d2;                 // 1
-						const int isleaf = check.is_leaf();
 						interacts++;
 						flops += 27;
-						const bool mi = far1 || (direct && far3/* && other_nparts >= MIN_PC_PARTS*/);
+						const bool mi = far1 || (direct && far3 && other_nparts >= MIN_PC_PARTS);
 						const bool pi = (far2 || direct) && isleaf;
 						list_index = (1 - mi) * (pi * PI + (1 - pi) * (isleaf * OI + (1 - isleaf) * CI));
 						my_index[list_index] = 1;
@@ -234,13 +240,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				if (j < parti.size()) {
 					const auto other_pos = parti[j].get_pos();
 					const auto other_radius = parti[j].get_radius();
-//					const auto parti_parts = parti[j].get_parts();
-//					const auto other_nparts = parti_parts.second - parti_parts.first;
+					const auto parti_parts = parti[j].get_parts();
+					const auto other_nparts = parti_parts.second - parti_parts.first;
 					bool res = false;
 					const int sz = myparts.second - myparts.first;
-//					if (other_nparts < MIN_PC_PARTS) {
-//						res = true;
-//					} else {
+					if (other_nparts < MIN_PC_PARTS) {
+						res = true;
+					} else {
 						for (int k = 0; k < sz; k++) {
 							const auto this_rung = parts.rung(k + myparts.first);
 							if (this_rung >= constant.rung || constant.full_eval) {
@@ -255,7 +261,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 								}
 							}
 						}
-//					}
+					}
 					list_index = res ? PI : MI;
 					my_index[list_index] = 1;
 				}
@@ -418,12 +424,12 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 			}
 			if (constant.full_eval) {
-				if( k >= nparts) {
+				if (k >= nparts) {
 					phi[k] = F[0][k] = F[1][k] = F[2][k] = 0.0f;
 				}
 				kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
 			}
-			if( k < nparts) {
+			if (k < nparts) {
 				kick_return_update_rung_gpu(parts.rung(k + myparts.first));
 			}
 		}
@@ -505,7 +511,7 @@ int cuda_execute_kick_kernel(kick_params_type *params, int grid_size, cudaStream
 	const size_t shmemsize = sizeof(cuda_kick_shmem);
 	int index = success_index++ % NKERNEL_SUCCESS;
 	kernel_success[index] = false;
-		/***************************************************************************************************************************************************/
+	/***************************************************************************************************************************************************/
 	/**/cuda_kick_kernel<<<grid_size, KICK_BLOCK_SIZE, shmemsize, stream>>>(params,index);/**/
 	/***************************************************************************************************************************************************/
 	return index;

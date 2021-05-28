@@ -23,6 +23,13 @@ static range my_domain;
 static bool dry_run;
 static std::unordered_set<tree_ptr, tree_hash> remote_parts;
 
+int cuda_kick_occupancy() {
+	int num_blocks;
+	CUDA_CHECK(
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (const void*) cuda_kick_kernel, KICK_BLOCK_SIZE, sizeof(cuda_kick_shmem)));
+	return num_blocks;
+}
+
 void tree::add_parts_covered(part_iters num) {
 	const part_int count = (parts_covered += num.second - num.first);
 	//PRINT( "%i %i\n", hpx_rank(), count);
@@ -490,9 +497,7 @@ void tree::kick(kick_params_type * params_ptr) {
 		size_t used_mem = (sizeof(rung_t) + NDIM * sizeof(float) + sizeof(fixed32) * NDIM) * particles->size()
 				+ tree_data_bytes_used();
 		double oversubscription = std::max(2.0, (double) used_mem / total_mem);
-		int num_blocks;
-		CUDA_CHECK(
-				cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (const void*) cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
+		int num_blocks = cuda_kick_occupancy();
 		const int block_count = oversubscription * num_blocks * global().cuda.devices[0].multiProcessorCount + 0.5;
 		size_t active_nodes = self.get_active_nodes();
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
@@ -777,9 +782,7 @@ void tree::gpu_daemon() {
 	timer.reset();
 	timer.start();
 	first_call = false;
-	int num_blocks;
-	CUDA_CHECK(
-			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (const void*) cuda_kick_kernel, KICK_BLOCK_SIZE, 0));
+	int num_blocks = cuda_kick_occupancy();
 	int max_oc = num_blocks * global().cuda.devices[0].multiProcessorCount;
 	max_blocks_active = 2 * max_oc;
 	bool first_pass = true;

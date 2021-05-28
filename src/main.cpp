@@ -20,6 +20,7 @@ int hpx_main(int argc, char *argv[]) {
 	//  PRINT( "%li\n", sizeof(std::shared_ptr<int>));
 	//  PRINT( "%li\n", sizeof(sort_params));
 	PRINT("Size of cuda_kick_shmem is %li\n", sizeof(cuda_kick_shmem));
+	PRINT( "cuda kick occupancy = %i\n", cuda_kick_occupancy());
 
 	if (process_options(argc, argv, opts)) {
 
