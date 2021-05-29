@@ -116,7 +116,7 @@ __global__ void phi_to_grid(particle_set parts, cmplx* phi1, cmplx* phi2, float 
 			maxes[tid] = fmaxf(maxes[tid], fabs(this_disp * N));
 			const float x0 = constrain_range(parts.pos(dim, l).to_float() + this_disp);
 			parts.pos(dim, l) = x0;
-	//		PRINT( "%e\n", this_disp);
+			//		PRINT( "%e\n", this_disp);
 			parts.vel(dim, l) = prefactor1 * this_disp1 + prefactor2 * this_disp2;
 		}
 	}
@@ -166,7 +166,8 @@ __global__ void phi1_to_delta2(cmplx* phi, cmplx* delta, float code_to_mpc) {
 				* dxinv2;
 		const float dphidydz = 0.25f * ((phi[lpypz].real() - phi[lmypz].real()) - (phi[lpymz].real() - phi[lmymz].real()))
 				* dxinv2;
-		delta[l].real() = dphidxdx + dphidydy + dphidzdz - sqr(dphidxdy) - sqr(dphidxdz) - sqr(dphidydz);
+		delta[l].real() = dphidxdx * dphidydy + dphidxdx * dphidydy + dphidydy * dphidzdz - sqr(dphidxdy) - sqr(dphidxdz)
+				- sqr(dphidydz);
 		delta[l].imag() = 0.f;
 	}
 }
@@ -187,7 +188,7 @@ void create_overdensity_transform(cmplx* phi, const cmplx* rands, const interp_f
 	const int& block_size = blockDim.x;
 	auto& P = *Pptr;
 	const float N3 = N * N * N;
-		__syncthreads();
+	__syncthreads();
 	for (int ij = thread; ij < N * N; ij += block_size) {
 		int i = ij / N;
 		int j = ij % N;
@@ -227,7 +228,7 @@ void transform_laplacian(cmplx* phi, float box_size, int N) {
 			int l0 = l < N / 2 ? l : l - N;
 			int i2 = i0 * i0 + j0 * j0 + l0 * l0;
 			int index0 = N * (N * i + j) + l;
-			if (i2 > 0 ) {
+			if (i2 > 0) {
 				float kz = 2.f * (float) M_PI / box_size * float(l0);
 				float k2 = (kx * kx + ky * ky + kz * kz);
 				phi[index0].real() /= -k2;
@@ -265,7 +266,6 @@ void initial_conditions(particle_set& parts) {
 	CUDA_MALLOC(result_ptr, 1);
 	CUDA_MALLOC(func_ptr, 1);
 	CUDA_MALLOC(states, Nk);
-
 
 	*max_disp = 0.f;
 	new (cdm_k) interp_functor<float>();
@@ -312,14 +312,14 @@ void initial_conditions(particle_set& parts) {
 	kmax = std::max((float) M_PI / (float) code_to_mpc * (float) (global().opts.parts_dim), kmax);
 	PRINT("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	const float ainit = 1.0f / (global().opts.z0 + 1.0f);
-	einstein_boltzmann_interpolation_function(cdm_k,vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
+	einstein_boltzmann_interpolation_function(cdm_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
 			zeroverse_ptr->amin, 1.0, false, ns);
 #ifndef __CUDA_ARCH__
 	auto cdm_destroy = cdm_k->to_device();
 	auto vel_destroy = vel_k->to_device();
 #endif
 
-	generate_random_normals(rands, N3,hpx_rank()*1234);
+	generate_random_normals(rands, N3, hpx_rank() * 1234);
 
 	/*	PRINT("\tComputing over/under density\n");
 	 zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, 0, DENSITY);
@@ -370,33 +370,32 @@ void initial_conditions(particle_set& parts) {
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
 	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_set(),phi1,N,(float) N3 / (float)parts.size());
 	CUDA_CHECK(cudaDeviceSynchronize());
-	for( int i = 0; i < N*N*N; i++) {
+	for (int i = 0; i < N * N * N; i++) {
 		phi1[i].real() = -phi1[i].real();
 		phi1[i].imag() = -phi1[i].imag();
 	}
 	fft3d(phi2, N);
 	auto& den_k = cdm_k;
-	denpow_to_phi1(*den_k,N,code_to_mpc);
+	denpow_to_phi1(*den_k, N, code_to_mpc);
 
 	exit(0);
 
 	/*dim3 gdim;
-	gdim.x = gdim.y = N;
-	gdim.z = 1;
-	phi1_to_delta2<<<gdim,32>>>(phi1, phi2, code_to_mpc);
-	CUDA_CHECK(cudaDeviceSynchronize());
-	fft3d(phi2, N);
-	transform_laplacian<<<1,ZELDOSIZE>>>(phi2, code_to_mpc, N);
-	CUDA_CHECK(cudaDeviceSynchronize());
-	fft3d_inv(phi2, N);
-	phi_to_grid<<<gdim,32>>>(parts.get_virtual_particle_set(),phi1, phi2, code_to_mpc,D1,D2, a*prefac1,a*prefac2,max_disp);
-	CUDA_CHECK(cudaDeviceSynchronize());
-	xdisp = 0.0;
-	for (int i = 0; i < N * N; i++) {
-		xdisp = std::max(xdisp, max_disp[i]);
-	}
-	PRINT("\t\tMaximum displacement is %e\n", xdisp);*/
-
+	 gdim.x = gdim.y = N;
+	 gdim.z = 1;
+	 phi1_to_delta2<<<gdim,32>>>(phi1, phi2, code_to_mpc);
+	 CUDA_CHECK(cudaDeviceSynchronize());
+	 fft3d(phi2, N);
+	 transform_laplacian<<<1,ZELDOSIZE>>>(phi2, code_to_mpc, N);
+	 CUDA_CHECK(cudaDeviceSynchronize());
+	 fft3d_inv(phi2, N);
+	 phi_to_grid<<<gdim,32>>>(parts.get_virtual_particle_set(),phi1, phi2, code_to_mpc,D1,D2, a*prefac1,a*prefac2,max_disp);
+	 CUDA_CHECK(cudaDeviceSynchronize());
+	 xdisp = 0.0;
+	 for (int i = 0; i < N * N; i++) {
+	 xdisp = std::max(xdisp, max_disp[i]);
+	 }
+	 PRINT("\t\tMaximum displacement is %e\n", xdisp);*/
 
 #ifndef __CUDA_ARCH__
 	cdm_destroy();

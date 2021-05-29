@@ -58,7 +58,110 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 	const int zspan = ze - zb;
 	std::vector<hpx::future<void>> futs;
 	data.resize((xe - xb) * yspan * zspan);
-	if (slab_to_rank(xb) != rank || slab_to_rank(xe) != rank) {
+	if (xb < 0) {
+		auto data1 = fourier3d_read(0, xe, yb, ye, zb, ze);
+		auto data2 = fourier3d_read(xb + N, N, yb, ye, zb, ze);
+		for (int yi = yb; yi < ye; yi++) {
+			for (int zi = zb; zi < ze; zi++) {
+				for (int xi = xb; xi < 0; xi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan * (xi - xb)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+				for (int xi = 0; xi < xe; xi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan * (xi - 0)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+
+			}
+		}
+	} else if (xe > N) {
+		auto data1 = fourier3d_read(xb, N, yb, ye, zb, ze);
+		auto data2 = fourier3d_read(0, xe - N, yb, ye, zb, ze);
+		for (int yi = yb; yi < ye; yi++) {
+			for (int zi = zb; zi < ze; zi++) {
+				for (int xi = N; xi < xe; xi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan * (xi - N)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+				for (int xi = xb; xi < N; xi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan * (xi - xb)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+
+			}
+		}
+
+	} else if (yb < 0) {
+		auto data1 = fourier3d_read(xb, xe, 0, ye, zb, ze);
+		auto data2 = fourier3d_read(xb, xe, yb + N, N, zb, ze);
+		const int yspan1 = ye;
+		const int yspan2 = -yb;
+		for (int xi = xb; xi < xe; xi++) {
+			for (int zi = zb; zi < ze; zi++) {
+				for (int yi = yb; yi < 0; yi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan1 * zspan * (xi - xb)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+				for (int yi = 0; yi < ye; yi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan2 * zspan * (xi - xb)
+							+ zspan * (yi - 0) + (zi - zb)];
+				}
+
+			}
+		}
+	} else if (ye > N) {
+		auto data1 = fourier3d_read(xb, xe, yb, N, zb, ze);
+		auto data2 = fourier3d_read(xb, xe, 0, ye - N, zb, ze);
+		const int yspan1 = N - yb;
+		const int yspan2 = ye - N;
+		for (int xi = xb; xi < xe; xi++) {
+			for (int zi = zb; zi < ze; zi++) {
+				for (int yi = N; yi < ye; yi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan1 * zspan * (xi - xb)
+							+ zspan * (yi - N) + (zi - zb)];
+				}
+				for (int yi = yb; yi < N; yi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan2 * zspan * (xi - xb)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+
+			}
+		}
+	} else if (zb < 0) {
+		auto data1 = fourier3d_read(xb, xe, yb, ye, 0, ze);
+		auto data2 = fourier3d_read(xb, xe, yb, ye, zb + N, N);
+		const int zspan1 = ze;
+		const int zspan2 = -zb;
+		for (int xi = xb; xi < xe; xi++) {
+			for (int yi = yb; yi < ye; yi++) {
+				for (int zi = zb; zi < 0; zi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan * (xi - xb)
+							+ zspan2 * (yi - yb) + (zi - zb)];
+				}
+				for (int zi = 0; zi < ze; zi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan * (xi - xb)
+							+ zspan1 * (yi - yb) + (zi - 0)];
+				}
+			}
+		}
+	} else if (ze > N) {
+		auto data1 = fourier3d_read(xb, xe, yb, ye, zb, N);
+		auto data2 = fourier3d_read(xb, xe, yb, ye, 0, ze - N);
+		const int zspan1 = N - zb;
+		const int zspan2 = ze - N;
+		for (int xi = xb; xi < xe; xi++) {
+			for (int yi = yb; yi < ye; yi++) {
+				for (int zi = N; zi < ze; zi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan * (xi - xb)
+							+ zspan2 * (yi - yb) + (zi - N)];
+				}
+				for (int zi = zb; zi < N; zi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan * (xi - xb)
+							+ zspan1 * (yi - yb) + (zi - zb)];
+				}
+			}
+		}
+	} else if (slab_to_rank(xb) != rank || slab_to_rank(xe) != rank) {
 		const int rankb = slab_to_rank(xb);
 		const int ranke = slab_to_rank(xe);
 		for (int other_rank = rankb; other_rank < ranke; other_rank++) {

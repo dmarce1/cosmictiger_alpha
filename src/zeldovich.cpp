@@ -1,8 +1,34 @@
 #include <cosmictiger/zeldovich.hpp>
+#include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/hpx.hpp>
 
-
 HPX_PLAIN_ACTION(denpow_to_phi1);
+
+float phi1_to_particles(int N, float box_size, float D1, float prefactor) {
+	particle_server pserv;
+	particle_set& parts = pserv.get_particle_set();
+	int xb = hpx_rank() * N / hpx_size();
+	int xe = (hpx_rank() + 1) * N / hpx_size();
+	int xspan = xe - xb;
+	part_int count = xspan * N * N;
+	parts.resize(count);
+	for (int xi = xb; xi < xe; xi++) {
+		const float x = (float(xi) + 0.5f) / float(N);
+		for (int yi = 0; yi < N; yi++) {
+			const float y = (float(yi) + 0.5f) / float(N);
+			for (int zi = 0; zi < N; zi++) {
+				const float z = (float(zi) + 0.5f) / float(N);
+				part_int index = N * N * (xi - xb) + N * yi + zi;
+				parts.pos(0, index) = x;
+				parts.pos(1, index) = y;
+				parts.pos(2, index) = z;
+
+			}
+		}
+	}
+	auto phi1 = fourier3d_read(xb, xe, 0, N, 0, N);
+
+}
 
 void denpow_to_phi1(const interp_functor<float> den_k, int N, float box_size) {
 	fourier3d_initialize(N);
