@@ -16,7 +16,38 @@
 #include <cosmictiger/groups.hpp>
 #include <cosmictiger/time.hpp>
 #include <cosmictiger/direct.hpp>
+#include <cosmictiger/fourier.hpp>
 #include <cmath>
+
+
+static void fft_test() {
+	vector<cmplx> in;
+	int N = 256;
+	in.resize(N*N*N);
+	for( int i = 0; i < N; i++) {
+		for( int j = 0; j < N; j++) {
+			for( int k = 0; k < N; k++) {
+				const float x = float(i) / N;
+				int l = N*N*i+N*j+k;
+				in[l] = cmplx(sin(2.0*M_PI*x), 0.0);
+			}
+		}
+	}
+	fourier3d_initialize(N);
+	fourier3d_accumulate(0,N,0,N,0,N,in);
+	fourier3d_execute();
+	auto out = fourier3d_read(0, N, 0, N, 0, N);
+	for( int i = 0; i < N; i++) {
+		for( int j = 0; j < N; j++) {
+			for( int k = 0; k < N; k++) {
+				int l = N*N*i+N*j+k;
+				if( std::abs(out[l].real())> 1e-6*N*N*N || std::abs(out[l].imag())> 1e-6*N*N*N )
+					printf( "%i %i %i %e %e\n", i, j, k, out[l].real(), out[l].imag());
+			}
+		}
+	}
+	fourier3d_destroy();
+}
 
 static void psort_test() {
 	particle_server pserv;
@@ -417,6 +448,8 @@ void test_run(const std::string test) {
 		kick_test();
 	} else if (test == "psort") {
 		psort_test();
+	} else if (test == "fft") {
+		fft_test();
 	} else if (test == "group") {
 		group_test();
 #ifdef TEST_FORCE

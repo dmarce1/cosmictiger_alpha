@@ -25,6 +25,7 @@ void fourier3d_execute();
 void fourier3d_inv_execute();
 void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector<cmplx> data);
 vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze);
+vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, int ze);
 void fourier3d_mirror();
 
 #endif /* FOURIER_HPP_ */

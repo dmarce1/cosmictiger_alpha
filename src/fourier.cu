@@ -175,13 +175,13 @@ void fft3d(cmplx* Y, int N) {
 	int nblockst = min(N * N * N / FFTSIZE_TRANSPOSE, maxgrid);
 	cufftHandle plan;
 	CUDA_FFT_CHECK(cufftPlan1d(&plan, N, CUFFT_C2C, N * N));
-	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex *)Y, (cufftComplex *)Y, CUFFT_FORWARD));
+	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex * )Y, (cufftComplex * )Y, CUFFT_FORWARD));
 	transpose_yz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	CUDA_CHECK(cudaDeviceSynchronize());
-	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex *)Y, (cufftComplex *)Y, CUFFT_FORWARD));
+	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex * )Y, (cufftComplex * )Y, CUFFT_FORWARD));
 	transpose_xz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	CUDA_CHECK(cudaDeviceSynchronize());
-	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex *)Y, (cufftComplex *)Y, CUFFT_FORWARD));
+	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex * )Y, (cufftComplex * )Y, CUFFT_FORWARD));
 	transpose_yz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	transpose_xy_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	CUDA_CHECK(cudaDeviceSynchronize());
@@ -195,31 +195,34 @@ void fft3d_inv(cmplx* Y, int N) {
 	fft3d(Y, N);
 }
 
+
+void fft1d(cmplx* Y, int N) {
+	cuda_set_device();
+	cufftHandle plan;
+	int rank = 1;                           // --- 1D FFTs
+	int n[] = { N };                 // --- Size of the Fourier transform
+	int istride = 1, ostride = 1;           // --- Distance between two successive input/output elements
+	int idist = N, odist = N; // --- Distance between batches
+	int inembed[] = { 0 };                  // --- Input size with pitch (ignored for 1D transforms)
+	int onembed[] = { 0 };                  // --- Output size with pitch (ignored for 1D transforms)
+	int batch = N;                      // --- Number of batched executions
+	CUDA_FFT_CHECK(cufftPlanMany(&plan, 1, n, inembed, istride, idist, onembed, ostride, odist, CUFFT_C2C, batch));
+	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex * )Y, (cufftComplex * )Y, CUFFT_FORWARD));
+}
+
+
 void fft2d(cmplx* Y, int N) {
 	cuda_set_device();
 	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
-	int nblocksc = min(N * N / FFTSIZE_COMPUTE, maxgrid);
 	int nblockst = min(N * N / FFTSIZE_TRANSPOSE, maxgrid);
-	cufftHandle plan;
-	CUDA_FFT_CHECK(cufftPlan1d(&plan, N, CUFFT_C2C, N));
-	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex *)Y, (cufftComplex *)Y, CUFFT_FORWARD));
+	fft1d(Y, N);
 	transpose_2d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	CUDA_CHECK(cudaDeviceSynchronize());
-	CUDA_FFT_CHECK(cufftPlan1d(&plan, N, CUFFT_C2C, N));
+	fft1d(Y, N);
 	transpose_2d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-void fft1d(cmplx* Y, int N) {
-	cuda_set_device();
-	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
-	int nblocksc = min(N * N / FFTSIZE_COMPUTE, maxgrid);
-	int nblockst = min(N * N / FFTSIZE_TRANSPOSE, maxgrid);
-	cufftHandle plan;
-	CUDA_FFT_CHECK(cufftPlan1d(&plan, N, CUFFT_C2C, N));
-	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex *)Y, (cufftComplex *)Y, CUFFT_FORWARD));
-	CUDA_CHECK(cudaDeviceSynchronize());
-}
 
 void fft32_inv(cmplx* Y, int N) {
 	cuda_set_device();

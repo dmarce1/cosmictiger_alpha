@@ -312,12 +312,12 @@ void initial_conditions(particle_set& parts) {
 	kmax = std::max((float) M_PI / (float) code_to_mpc * (float) (global().opts.parts_dim), kmax);
 	PRINT("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	const float ainit = 1.0f / (global().opts.z0 + 1.0f);
-	einstein_boltzmann_interpolation_function(cdm_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
-			zeroverse_ptr->amin, 1.0, false, ns);
 #ifndef __CUDA_ARCH__
 	auto cdm_destroy = cdm_k->to_device();
 	auto vel_destroy = vel_k->to_device();
 #endif
+	einstein_boltzmann_interpolation_function(cdm_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
+			zeroverse_ptr->amin, 1.0, false, ns);
 
 	generate_random_normals(rands, N3, hpx_rank() * 1234);
 
@@ -334,7 +334,7 @@ void initial_conditions(particle_set& parts) {
 	 }
 	 */
 	vector<float> spec(N / 2);
-	compute_power_spectrum(phi1, spec.data(), N);
+//	compute_power_spectrum(phi1, spec.data(), N);
 	FILE* fp = fopen("power.den", "wt");
 	for (int i = 1; i < N / 2; i++) {
 		const auto k = 2.0 * M_PI * (i + 0.5) / code_to_mpc;
@@ -362,7 +362,7 @@ void initial_conditions(particle_set& parts) {
 	PRINT("H*a*f2 = %e\n", prefac2);
 	PRINT("\t\tComputing positions\n");
 
-	cudaFuncAttributes attrib;
+/*	cudaFuncAttributes attrib;
 	CUDA_CHECK(cudaFuncGetAttributes(&attrib, power_spectrum_init));
 	int block_size = attrib.maxThreadsPerBlock;
 	int num_blocks;
@@ -374,10 +374,10 @@ void initial_conditions(particle_set& parts) {
 		phi1[i].real() = -phi1[i].real();
 		phi1[i].imag() = -phi1[i].imag();
 	}
-	fft3d(phi2, N);
+	fft3d(phi2, N);*/
 	auto& den_k = cdm_k;
 	denpow_to_phi1(*den_k, N, code_to_mpc);
-
+	phi1_to_particles(N, code_to_mpc, D1, a*prefac1);
 	exit(0);
 
 	/*dim3 gdim;

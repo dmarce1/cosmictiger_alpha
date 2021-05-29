@@ -21,6 +21,7 @@ __global__ void zeldovich(cmplx* den, const cmplx* rands, const interp_functor<f
 		int dim, zeldovich_t);
 
 void denpow_to_phi1(const interp_functor<float> den_k, int N, float box_size);
+float phi1_to_particles(int N, float box_size, float D1, float prefactor);
 
 
 #endif /* ZELDOVICH_HPP_ */

@@ -2,7 +2,7 @@
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/vector.hpp>
 
-static vector<vector<cmplx>> Y;
+static std::vector<vector<cmplx>> Y;
 static std::vector<std::shared_ptr<spinlock_type>> mutexes;
 static int N;
 static int begin;
@@ -22,6 +22,7 @@ HPX_PLAIN_ACTION(fourier3d_transpose);
 HPX_PLAIN_ACTION(fourier3d_accumulate);
 HPX_PLAIN_ACTION(fourier3d_transpose_xz);
 HPX_PLAIN_ACTION(fourier3d_read);
+HPX_PLAIN_ACTION(fourier3d_read_real);
 HPX_PLAIN_ACTION(fourier3d_mirror);
 
 int slab_to_rank(int xi) {
@@ -58,7 +59,9 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 	const int zspan = ze - zb;
 	std::vector<hpx::future<void>> futs;
 	data.resize((xe - xb) * yspan * zspan);
+//	printf( "%i %i %i %i %i %i\n", xb, xe, yb, ye, zb, ze);
 	if (xb < 0) {
+//		printf( "1\n");
 		auto data1 = fourier3d_read(0, xe, yb, ye, zb, ze);
 		auto data2 = fourier3d_read(xb + N, N, yb, ye, zb, ze);
 		for (int yi = yb; yi < ye; yi++) {
@@ -75,6 +78,7 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 			}
 		}
 	} else if (xe > N) {
+//		printf( "2\n");
 		auto data1 = fourier3d_read(xb, N, yb, ye, zb, ze);
 		auto data2 = fourier3d_read(0, xe - N, yb, ye, zb, ze);
 		for (int yi = yb; yi < ye; yi++) {
@@ -92,6 +96,7 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 		}
 
 	} else if (yb < 0) {
+//		printf( "3\n");
 		auto data1 = fourier3d_read(xb, xe, 0, ye, zb, ze);
 		auto data2 = fourier3d_read(xb, xe, yb + N, N, zb, ze);
 		const int yspan1 = ye;
@@ -99,17 +104,18 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 		for (int xi = xb; xi < xe; xi++) {
 			for (int zi = zb; zi < ze; zi++) {
 				for (int yi = yb; yi < 0; yi++) {
-					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan1 * zspan * (xi - xb)
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan2 * zspan * (xi - xb)
 							+ zspan * (yi - yb) + (zi - zb)];
 				}
 				for (int yi = 0; yi < ye; yi++) {
-					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan2 * zspan * (xi - xb)
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan1 * zspan * (xi - xb)
 							+ zspan * (yi - 0) + (zi - zb)];
 				}
 
 			}
 		}
 	} else if (ye > N) {
+		//printf( "4\n");
 		auto data1 = fourier3d_read(xb, xe, yb, N, zb, ze);
 		auto data2 = fourier3d_read(xb, xe, 0, ye - N, zb, ze);
 		const int yspan1 = N - yb;
@@ -117,17 +123,18 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 		for (int xi = xb; xi < xe; xi++) {
 			for (int zi = zb; zi < ze; zi++) {
 				for (int yi = N; yi < ye; yi++) {
-					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan1 * zspan * (xi - xb)
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan2 * zspan * (xi - xb)
 							+ zspan * (yi - N) + (zi - zb)];
 				}
 				for (int yi = yb; yi < N; yi++) {
-					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan2 * zspan * (xi - xb)
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan1 * zspan * (xi - xb)
 							+ zspan * (yi - yb) + (zi - zb)];
 				}
 
 			}
 		}
 	} else if (zb < 0) {
+	//	printf( "5\n");
 		auto data1 = fourier3d_read(xb, xe, yb, ye, 0, ze);
 		auto data2 = fourier3d_read(xb, xe, yb, ye, zb + N, N);
 		const int zspan1 = ze;
@@ -135,16 +142,17 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 		for (int xi = xb; xi < xe; xi++) {
 			for (int yi = yb; yi < ye; yi++) {
 				for (int zi = zb; zi < 0; zi++) {
-					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan * (xi - xb)
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan2 * (xi - xb)
 							+ zspan2 * (yi - yb) + (zi - zb)];
 				}
 				for (int zi = 0; zi < ze; zi++) {
-					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan * (xi - xb)
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan1 * (xi - xb)
 							+ zspan1 * (yi - yb) + (zi - 0)];
 				}
 			}
 		}
 	} else if (ze > N) {
+//		printf( "6\n");
 		auto data1 = fourier3d_read(xb, xe, yb, ye, zb, N);
 		auto data2 = fourier3d_read(xb, xe, yb, ye, 0, ze - N);
 		const int zspan1 = N - zb;
@@ -152,16 +160,17 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 		for (int xi = xb; xi < xe; xi++) {
 			for (int yi = yb; yi < ye; yi++) {
 				for (int zi = N; zi < ze; zi++) {
-					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan * (xi - xb)
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan2 * (xi - xb)
 							+ zspan2 * (yi - yb) + (zi - N)];
 				}
 				for (int zi = zb; zi < N; zi++) {
-					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan * (xi - xb)
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan1 * (xi - xb)
 							+ zspan1 * (yi - yb) + (zi - zb)];
 				}
 			}
 		}
 	} else if (slab_to_rank(xb) != rank || slab_to_rank(xe) != rank) {
+//		printf( "7\n");
 		const int rankb = slab_to_rank(xb);
 		const int ranke = slab_to_rank(xe);
 		for (int other_rank = rankb; other_rank < ranke; other_rank++) {
@@ -189,6 +198,159 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 				for (int zi = zb; zi < ze; zi++) {
 					data[zspan * yspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = Y[xi - begin][+zspan * (yi - yb)
 							+ (zi - zb)];
+				}
+			}
+		}
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+	return std::move(data);
+}
+
+vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, int ze) {
+	vector<float> data;
+	const int yspan = ye - yb;
+	const int zspan = ze - zb;
+	std::vector<hpx::future<void>> futs;
+	data.resize((xe - xb) * yspan * zspan);
+//	printf( "%i %i %i %i %i %i\n", xb, xe, yb, ye, zb, ze);
+	if (xb < 0) {
+//		printf( "1\n");
+		auto data1 = fourier3d_read_real(0, xe, yb, ye, zb, ze);
+		auto data2 = fourier3d_read_real(xb + N, N, yb, ye, zb, ze);
+		for (int yi = yb; yi < ye; yi++) {
+			for (int zi = zb; zi < ze; zi++) {
+				for (int xi = xb; xi < 0; xi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan * (xi - xb)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+				for (int xi = 0; xi < xe; xi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan * (xi - 0)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+
+			}
+		}
+	} else if (xe > N) {
+//		printf( "2\n");
+		auto data1 = fourier3d_read_real(xb, N, yb, ye, zb, ze);
+		auto data2 = fourier3d_read_real(0, xe - N, yb, ye, zb, ze);
+		for (int yi = yb; yi < ye; yi++) {
+			for (int zi = zb; zi < ze; zi++) {
+				for (int xi = N; xi < xe; xi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan * (xi - N)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+				for (int xi = xb; xi < N; xi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan * (xi - xb)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+
+			}
+		}
+
+	} else if (yb < 0) {
+//		printf( "3\n");
+		auto data1 = fourier3d_read_real(xb, xe, 0, ye, zb, ze);
+		auto data2 = fourier3d_read_real(xb, xe, yb + N, N, zb, ze);
+		const int yspan1 = ye;
+		const int yspan2 = -yb;
+		for (int xi = xb; xi < xe; xi++) {
+			for (int zi = zb; zi < ze; zi++) {
+				for (int yi = yb; yi < 0; yi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan2 * zspan * (xi - xb)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+				for (int yi = 0; yi < ye; yi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan1 * zspan * (xi - xb)
+							+ zspan * (yi - 0) + (zi - zb)];
+				}
+
+			}
+		}
+	} else if (ye > N) {
+		//printf( "4\n");
+		auto data1 = fourier3d_read_real(xb, xe, yb, N, zb, ze);
+		auto data2 = fourier3d_read_real(xb, xe, 0, ye - N, zb, ze);
+		const int yspan1 = N - yb;
+		const int yspan2 = ye - N;
+		for (int xi = xb; xi < xe; xi++) {
+			for (int zi = zb; zi < ze; zi++) {
+				for (int yi = N; yi < ye; yi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan2 * zspan * (xi - xb)
+							+ zspan * (yi - N) + (zi - zb)];
+				}
+				for (int yi = yb; yi < N; yi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan1 * zspan * (xi - xb)
+							+ zspan * (yi - yb) + (zi - zb)];
+				}
+
+			}
+		}
+	} else if (zb < 0) {
+	//	printf( "5\n");
+		auto data1 = fourier3d_read_real(xb, xe, yb, ye, 0, ze);
+		auto data2 = fourier3d_read_real(xb, xe, yb, ye, zb + N, N);
+		const int zspan1 = ze;
+		const int zspan2 = -zb;
+		for (int xi = xb; xi < xe; xi++) {
+			for (int yi = yb; yi < ye; yi++) {
+				for (int zi = zb; zi < 0; zi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan2 * (xi - xb)
+							+ zspan2 * (yi - yb) + (zi - zb)];
+				}
+				for (int zi = 0; zi < ze; zi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan1 * (xi - xb)
+							+ zspan1 * (yi - yb) + (zi - 0)];
+				}
+			}
+		}
+	} else if (ze > N) {
+//		printf( "6\n");
+		auto data1 = fourier3d_read_real(xb, xe, yb, ye, zb, N);
+		auto data2 = fourier3d_read_real(xb, xe, yb, ye, 0, ze - N);
+		const int zspan1 = N - zb;
+		const int zspan2 = ze - N;
+		for (int xi = xb; xi < xe; xi++) {
+			for (int yi = yb; yi < ye; yi++) {
+				for (int zi = N; zi < ze; zi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data2[yspan * zspan2 * (xi - xb)
+							+ zspan2 * (yi - yb) + (zi - N)];
+				}
+				for (int zi = zb; zi < N; zi++) {
+					data[yspan * zspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = data1[yspan * zspan1 * (xi - xb)
+							+ zspan1 * (yi - yb) + (zi - zb)];
+				}
+			}
+		}
+	} else if (slab_to_rank(xb) != rank || slab_to_rank(xe) != rank) {
+//		printf( "7\n");
+		const int rankb = slab_to_rank(xb);
+		const int ranke = slab_to_rank(xe);
+		for (int other_rank = rankb; other_rank < ranke; other_rank++) {
+			const int this_xb = std::max(xb, other_rank * N / nranks);
+			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
+			const int this_xspan = this_xe - this_xb;
+			vector<float> rank_data(this_xspan * yspan * zspan);
+			auto fut = hpx::async<fourier3d_read_real_action>(localities[other_rank], this_xb, this_xe, yb, ye, zb, ze);
+			futs.push_back(
+					fut.then(
+							[&data, this_xb, this_xe, yspan, zspan, xb, yb, ye, zb, ze](hpx::future<vector<float>> fut) {
+								auto rank_data = fut.get();
+								for( int xi = this_xb; xi < this_xe; xi++) {
+									for( int yi = yb; yi < ye; yi++) {
+										for( int zi = zb; zi < ze; zi++) {
+											data[zspan*yspan*(xi-xb)+zspan*(yi-yb)+(zi-zb)] = rank_data[zspan*yspan*(xi-this_xb)+zspan*(yi-yb)+(zi-zb)];
+										}
+									}
+								}
+							}));
+		}
+	} else {
+		for (int xi = xb; xi < xe; xi++) {
+			for (int yi = yb; yi < ye; yi++) {
+				for (int zi = zb; zi < ze; zi++) {
+					data[zspan * yspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = Y[xi - begin][zspan * (yi - yb)
+							+ (zi - zb)].real();
 				}
 			}
 		}
@@ -340,7 +502,7 @@ vector<vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zbegin, int 
 	for (int xi = 0; xi < span; xi++) {
 		for (int yi = 0; yi < N; yi++) {
 			for (int zi = zbegin; zi < zend; zi++) {
-				std::swap(data[zi - zbegin][yi * xspan + xi], Y[xi][yi * N + zi]);
+				swap(data[zi - zbegin][yi * xspan + xi], Y[xi][yi * N + zi]);
 			}
 		}
 	}

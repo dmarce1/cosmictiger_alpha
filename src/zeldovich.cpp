@@ -4,7 +4,18 @@
 
 HPX_PLAIN_ACTION(denpow_to_phi1);
 
+static float constrain_range(float r) {
+	while (r >= 1.0f) {
+		r -= 1.f;
+	}
+	while (r < 0.f) {
+		r += 1.f;
+	}
+	return r;
+}
+
 float phi1_to_particles(int N, float box_size, float D1, float prefactor) {
+	float dmax = 0.0f;
 	particle_server pserv;
 	particle_set& parts = pserv.get_particle_set();
 	int xb = hpx_rank() * N / hpx_size();
@@ -22,12 +33,38 @@ float phi1_to_particles(int N, float box_size, float D1, float prefactor) {
 				parts.pos(0, index) = x;
 				parts.pos(1, index) = y;
 				parts.pos(2, index) = z;
-
 			}
 		}
 	}
-	auto phi1 = fourier3d_read(xb, xe, 0, N, 0, N);
-
+	auto phi1 = fourier3d_read_real(xb - 1, xe + 1, -1, N + 1, -1, N + 1);
+	const float factor = -0.5f * D1 * N / box_size;
+	for (int xi = xb; xi < xe; xi++) {
+		const float x = (float(xi) + 0.5f) / float(N);
+		for (int yi = 0; yi < N; yi++) {
+			const float y = (float(yi) + 0.5f) / float(N);
+			for (int zi = 0; zi < N; zi++) {
+				const float z = (float(zi) + 0.5f) / float(N);
+				part_int i0 = N * N * (xi - xb) + N * yi + zi;
+				part_int i1px = (N + 2) * (N + 2) * (xi - xb + 2) + (N + 2) * (yi + 1) + (zi + 1);
+				part_int i1mx = (N + 2) * (N + 2) * (xi - xb + 0) + (N + 2) * (yi + 1) + (zi + 1);
+				part_int i1py = (N + 2) * (N + 2) * (xi - xb + 1) + (N + 2) * (yi + 2) + (zi + 1);
+				part_int i1my = (N + 2) * (N + 2) * (xi - xb + 1) + (N + 2) * (yi + 0) + (zi + 1);
+				part_int i1pz = (N + 2) * (N + 2) * (xi - xb + 1) + (N + 2) * (yi + 1) + (zi + 2);
+				part_int i1mz = (N + 2) * (N + 2) * (xi - xb + 1) + (N + 2) * (yi + 1) + (zi - 0);
+				const float dx = (phi1[i1px] - phi1[i1mx]) * factor;
+				const float dy = (phi1[i1py] - phi1[i1my]) * factor;
+				const float dz = (phi1[i1pz] - phi1[i1mz]) * factor;
+				parts.pos(0, i0) += dx;
+				parts.pos(1, i0) += dy;
+				parts.pos(2, i0) += dz;
+				dmax = std::max(dmax, dx);
+				dmax = std::max(dmax, dy);
+				dmax = std::max(dmax, dz);
+			}
+		}
+	}
+	printf("%e\n", dmax * N);
+	return dmax;
 }
 
 void denpow_to_phi1(const interp_functor<float> den_k, int N, float box_size) {
@@ -46,10 +83,10 @@ void denpow_to_phi1(const interp_functor<float> den_k, int N, float box_size) {
 	const float factor = std::pow(box_size, -1.5);
 	generate_random_normals(Y.data(), xspan * N * N, 42 + hpx_rank() * 1234);
 	for (int i = xbegin; i < xend; i++) {
+		int i0 = i < N / 2 ? i : i - N;
+		float kx = 2.f * (float) M_PI / box_size * float(i0);
 		for (int j = 0; j < N; j++) {
-			int i0 = i < N / 2 ? i : i - N;
 			int j0 = j < N / 2 ? j : j - N;
-			float kx = 2.f * (float) M_PI / box_size * float(i0);
 			float ky = 2.f * (float) M_PI / box_size * float(j0);
 			for (int l = 0; l < N / 2; l++) {
 				int l0 = l < N / 2 ? l : l - N;
@@ -62,6 +99,8 @@ void denpow_to_phi1(const interp_functor<float> den_k, int N, float box_size) {
 					const float number = -std::sqrt(den_k(k)) * factor / k2;
 					Y[index0].real() *= number;
 					Y[index0].imag() *= number;
+				} else {
+					Y[index0].real() = Y[index0].imag() = 0.0;
 				}
 			}
 		}
