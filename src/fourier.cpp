@@ -304,6 +304,7 @@ void fourier3d_destroy() {
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
+
 void fourier3d_transpose_xz() {
 	std::vector<hpx::future<void>> futs;
 	rank = hpx_rank();
