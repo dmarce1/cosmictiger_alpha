@@ -284,7 +284,7 @@ CUDA_EXPORT inline float pow2(float r) {
 
 #endif
 
-void generate_random_normals(cmplx* rands, int N, int seed);
+void generate_random_normals(cmplx* rands, size_t N, int seed);
 
 template<class T>
 CUDA_EXPORT inline T round_up(T num, T mod) {

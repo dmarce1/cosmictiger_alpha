@@ -374,6 +374,7 @@ void initial_conditions(particle_set& parts) {
 	int seed = 14;
 	max_disp = 0.0;
 	for( int dim = 0; dim < NDIM; dim++) {
+		printf( "Computing %c positions and %c velocities\n", 'x' + dim, 'x' + dim);
 		_2lpt(*den_k, N, code_to_mpc, dim, NDIM, seed);
 		max_disp = std::max(max_disp,phi1_to_particles(N, code_to_mpc, D1, a*prefac1, dim));
 	}

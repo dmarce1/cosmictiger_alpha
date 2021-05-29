@@ -28,7 +28,7 @@ void* cuda_unified_alloc(size_t sz, const char* file, int line) {
 	char* ptr;
 	CUDA_CHECK(cudaMallocManaged(&ptr, sz));
 	if( ptr == nullptr) {
-		PRINT( "Unable to allocated unified memory\n");
+		PRINT( "Unable to allocate unified memory\n");
 		abort();
 	}
 //	std::lock_guard<mutex_type> lock(mtx);

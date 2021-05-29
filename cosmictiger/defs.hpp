@@ -97,7 +97,6 @@ inline void print(const char* fmt, Args ...args) {
 #define MIN_CUDA_SORT 65536LL
 #define OVERSUBSCRIPTION 8
 
-#include <gperftools/malloc_extension.h>
 
 #define COUNT_FLOPS
 

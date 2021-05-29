@@ -44,7 +44,7 @@ static const char *_cudaGetErrorEnum(cufftResult error) {
 
 inline void _cuda_fft_check(cufftResult err, const char *file, const int line) {
 	if (CUFFT_SUCCESS != err) {
-		fprintf(stderr, "CUFFT error in file '%s', line %d\n %s\nerror %d: %s\nterminating!\n", __FILE__, __LINE__, err,
+		fprintf(stderr, "CUFFT error in file '%s', line %d\nerror %d: %s\nterminating!\n", file, line, err,
 				_cudaGetErrorEnum(err));
 		cudaDeviceReset();
 		assert(0);
@@ -185,6 +185,7 @@ void fft3d(cmplx* Y, int N) {
 	transpose_yz_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	transpose_xy_3d<<<nblockst,FFTSIZE_TRANSPOSE>>>(Y,N);
 	CUDA_CHECK(cudaDeviceSynchronize());
+	cufftDestroy(plan);
 }
 
 void fft3d_inv(cmplx* Y, int N) {
@@ -207,6 +208,7 @@ void fft1d(cmplx* Y, int N) {
 	int batch = N;                      // --- Number of batched executions
 	CUDA_FFT_CHECK(cufftPlanMany(&plan, 1, n, inembed, istride, idist, onembed, ostride, odist, CUFFT_C2C, batch));
 	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex * )Y, (cufftComplex * )Y, CUFFT_FORWARD));
+	cufftDestroy(plan);
 }
 
 

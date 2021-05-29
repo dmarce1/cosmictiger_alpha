@@ -205,14 +205,12 @@ public:
 		THREAD;
 		BLOCK;
 		if (new_cap > cap) {
-			int i = 1;
+			size_t i = 1;
 			while ((i) / sizeof(T) < new_cap) {
 				i *= 2;
 			}
 			new_cap = (i) / sizeof(T);
-#ifdef __CUDA_ARCH__
-			//       PRINT( "INcreasing capacity from %i to %i\n", cap, new_cap);
-#endif
+	//		       PRINT( "INcreasing capacity from %i to %i\n", cap, new_cap);
 			if (tid == 0) {
 #ifndef __CUDA_ARCH__
 				unified_allocator alloc;
