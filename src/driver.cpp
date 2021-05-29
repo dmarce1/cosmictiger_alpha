@@ -288,18 +288,6 @@ void drive_cosmos() {
 
 	if (!have_checkpoint) {
 		//pserv.load_NGenIC();
-		const int N = global().opts.parts_dim;
-		const float Ninv = 1.0f / N;
-		for (size_t i = 0; i < N; i++) {
-			for (size_t j = 0; j < N; j++) {
-				for (size_t k = 0; k < N; k++) {
-					const size_t l = N * (N * i + j) + k;
-					parts.pos(0, l) = (i) * Ninv;
-					parts.pos(1, l) = (j) * Ninv;
-					parts.pos(2, l) = (k) * Ninv;
-				}
-			}
-		}
 		initial_conditions(parts);
 		itime = 0;
 		iter = 0;

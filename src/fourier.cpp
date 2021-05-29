@@ -2,8 +2,8 @@
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/vector.hpp>
 
-static std::vector<vector<cmplx>> Y;
-static std::vector<std::shared_ptr<spinlock_type>> mutexes;
+static vector<vector<cmplx>> Y;
+static vector<std::shared_ptr<spinlock_type>> mutexes;
 static int N;
 static int begin;
 static std::vector<hpx::id_type> localities;
@@ -59,15 +59,15 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 	int zspan = ze - zb;
 	data.resize(zspan * yspan * (xe - xb));
 	std::vector<hpx::future<void>> futs;
-	if (slab_to_rank(xb) != rank || slab_to_rank(xe) != rank) {
+	if (slab_to_rank(xb) != rank || slab_to_rank(xe - 1) != rank) {
 //		printf( "7\n");
 		const int rankb = slab_to_rank(xb);
 		const int ranke = slab_to_rank(xe);
-		for (int other_rank = rankb; other_rank < ranke; other_rank++) {
+		for (int other_rank = rankb; other_rank <= ranke; other_rank++) {
 			const int this_xb = std::max(xb, other_rank * N / nranks);
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
 			const int this_xspan = this_xe - this_xb;
-			vector<cmplx> rank_data(this_xspan * yspan * zspan);
+//			vector<cmplx> rank_data(this_xspan * yspan * zspan);
 			auto fut = hpx::async<fourier3d_read_action>(localities[other_rank], this_xb, this_xe, yb, ye, zb, ze);
 			futs.push_back(
 					fut.then(
@@ -103,15 +103,14 @@ vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, int ze
 	std::vector<hpx::future<void>> futs;
 	data.resize((xe - xb) * yspan * zspan);
 //	printf( "%i %i %i %i %i %i\n", xb, xe, yb, ye, zb, ze);
-	if (slab_to_rank(xb) != rank || slab_to_rank(xe) != rank) {
+	if (slab_to_rank(xb) != rank || slab_to_rank(xe - 1) != rank) {
 //		printf( "7\n");
 		const int rankb = slab_to_rank(xb);
 		const int ranke = slab_to_rank(xe);
-		for (int other_rank = rankb; other_rank < ranke; other_rank++) {
+		for (int other_rank = rankb; other_rank <= ranke; other_rank++) {
 			const int this_xb = std::max(xb, other_rank * N / nranks);
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
 			const int this_xspan = this_xe - this_xb;
-			vector<float> rank_data(this_xspan * yspan * zspan);
 			auto fut = hpx::async<fourier3d_read_real_action>(localities[other_rank], this_xb, this_xe, yb, ye, zb, ze);
 			futs.push_back(
 					fut.then(
@@ -144,10 +143,10 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 	const int yspan = ye - yb;
 	const int zspan = ze - zb;
 	std::vector<hpx::future<void>> futs;
-	if (slab_to_rank(xb) != rank || slab_to_rank(xe) != rank) {
+	if (slab_to_rank(xb) != rank || slab_to_rank(xe - 1) != rank) {
 		const int rankb = slab_to_rank(xb);
 		const int ranke = slab_to_rank(xe);
-		for (int other_rank = rankb; other_rank < ranke; other_rank++) {
+		for (int other_rank = rankb; other_rank <= ranke; other_rank++) {
 			const int this_xb = std::max(xb, other_rank * N / nranks);
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
 			const int this_xspan = this_xe - this_xb;
@@ -166,7 +165,7 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 		}
 	} else {
 		for (int xi = xb; xi < xe; xi++) {
-			std::lock_guard<spinlock_type> lock(*mutexes[xi]);
+			std::lock_guard<spinlock_type> lock(*mutexes[xi - xb]);
 			for (int yi = yb; yi < ye; yi++) {
 				for (int zi = zb; zi < ze; zi++) {
 					Y[xi - xb][N * (yi - yb) + (zi - zb)] += data[zspan * yspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)];
@@ -177,15 +176,36 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-void fourier3d_execute() {
+void fourier3d_do2dpart() {
 	for (int i = 0; i < span; i++) {
 		fft2d(Y[i].data(), N);
 	}
-	fourier3d_transpose_xz();
+}
+
+void fourier3d_do1dpart() {
 	for (int i = 0; i < span; i++) {
 		fft1d(Y[i].data(), N);
 	}
+}
+
+HPX_PLAIN_ACTION(fourier3d_do1dpart);
+HPX_PLAIN_ACTION(fourier3d_do2dpart);
+
+void fourier3d_execute() {
+	printf("Executing Fourier\n");
+	std::vector<hpx::future<void>> futs;
+	for (int i = 0; i < nranks; i++) {
+		futs.push_back(hpx::async<fourier3d_do2dpart_action>(localities[i]));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
 	fourier3d_transpose_xz();
+	futs.resize(0);
+	for (int i = 0; i < nranks; i++) {
+		futs.push_back(hpx::async<fourier3d_do1dpart_action>(localities[i]));
+	}
+	hpx::wait_all(futs.begin(), futs.end());
+	fourier3d_transpose_xz();
+	printf("Done executing Fourier\n");
 }
 
 void fourier3d_inv_execute() {
@@ -205,11 +225,11 @@ void fourier3d_initialize(int N_) {
 	nranks = hpx_size();
 	localities = hpx_localities();
 	if (rank == 0) {
+		fourier3d_destroy();
 		for (int i = 1; i < nranks; i++) {
-			futs.push_back(hpx::async<fourier3d_initialize_action>(localities[i], N));
+			futs.push_back(hpx::async<fourier3d_initialize_action>(localities[i], N_));
 		}
 	}
-	fourier3d_destroy();
 	N = N_;
 	begin = rank * N / nranks;
 	end = (rank + 1) * N / nranks;

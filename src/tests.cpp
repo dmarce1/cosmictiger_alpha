@@ -22,14 +22,14 @@
 
 static void fft_test() {
 	vector<cmplx> in;
-	int N = 256;
+	int N = 8;
 	in.resize(N*N*N);
 	for( int i = 0; i < N; i++) {
 		for( int j = 0; j < N; j++) {
 			for( int k = 0; k < N; k++) {
-				const float x = float(i) / N;
+				const float z = float(k) / N;
 				int l = N*N*i+N*j+k;
-				in[l] = cmplx(sin(2.0*M_PI*x), 0.0);
+				in[l] = cmplx(sin(2.0*M_PI*z), 0.0);
 			}
 		}
 	}

@@ -16,7 +16,7 @@ static double constrain_range(double r) {
 }
 
 float phi1_to_particles(int N, float box_size, float D1, float prefactor, int dim) {
-	std::vector<hpx::future<void>> futs;
+	std::vector<hpx::future<float>> futs;
 	if (hpx_rank() == 0) {
 		for (int i = 1; i < hpx_size(); i++) {
 			futs.push_back(hpx::async<phi1_to_particles_action>(hpx_localities()[i], N, box_size, D1, prefactor, dim));
@@ -61,12 +61,15 @@ float phi1_to_particles(int N, float box_size, float D1, float prefactor, int di
 				const double x = parts.pos(dim, i0).to_double() + dx;
 				constrain_range(x);
 				parts.pos(dim, i0) = x;
+				parts.vel(dim, i0) = prefactor * dx;
 				dmax = std::max(dmax, dx);
 			}
 		}
 	}
-	printf("%e\n", dmax * N);
-	hpx::wait_all(futs.begin(), futs.end());
+	dmax *= N;
+	for (auto& f : futs) {
+		dmax = std::max(f.get(), (float) dmax);
+	}
 	return dmax;
 }
 
@@ -99,7 +102,7 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 					float kz = 2.f * (float) M_PI / box_size * float(l0);
 					float k2 = kx * kx + ky * ky + kz * kz;
 					float k = std::sqrt(kx * kx + ky * ky + kz * kz);
-					const cmplx K[NDIM + 1] = { {kx,0}, {ky,0}, {kz,0}, {0,-1} };
+					const cmplx K[NDIM + 1] = { { kx, 0 }, { ky, 0 }, { kz, 0 }, { 0, -1 } };
 					const cmplx number = std::sqrt(den_k(k)) * factor * K[dim1] * K[dim2] / k2;
 					Y[index0] = Y[index0] * number;
 				} else {
@@ -108,8 +111,12 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 			}
 		}
 	}
+	printf( "Start accumulating on %i\n", hpx_rank());
 	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
+	printf( "Done accumulating on %i\n", hpx_rank());
 	hpx::wait_all(futs.begin(), futs.end());
-	fourier3d_mirror();
-	fourier3d_execute();
+	if (hpx_rank() == 0) {
+		fourier3d_mirror();
+		fourier3d_execute();
+	}
 }

@@ -199,7 +199,6 @@ void fft3d_inv(cmplx* Y, int N) {
 void fft1d(cmplx* Y, int N) {
 	cuda_set_device();
 	cufftHandle plan;
-	int rank = 1;                           // --- 1D FFTs
 	int n[] = { N };                 // --- Size of the Fourier transform
 	int istride = 1, ostride = 1;           // --- Distance between two successive input/output elements
 	int idist = N, odist = N; // --- Distance between batches

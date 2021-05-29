@@ -253,9 +253,8 @@ void initial_conditions(particle_set& parts) {
 	const size_t N = global().opts.parts_dim;
 	int Nk = 1024;
 	const size_t N3 = sqr(N) * N;
-	float* max_disp;
+	float max_disp;
 
-	CUDA_MALLOC(max_disp, N * N);
 	CUDA_MALLOC(phi1, N3);
 	CUDA_MALLOC(phi2, N3);
 	CUDA_MALLOC(cdm_k, 1);
@@ -265,7 +264,6 @@ void initial_conditions(particle_set& parts) {
 	CUDA_MALLOC(func_ptr, 1);
 	CUDA_MALLOC(states, Nk);
 
-	*max_disp = 0.f;
 	new (cdm_k) interp_functor<float>();
 	new (vel_k) interp_functor<float>();
 
@@ -340,7 +338,6 @@ void initial_conditions(particle_set& parts) {
 	}
 	fclose(fp);
 
-	float xdisp = 0.0;
 	const double omega_m = params.omega_b + params.omega_c;
 	const double a = ainit;
 	const double Om = omega_m / (omega_m + (a * a * a) * (1.0 - omega_m));
@@ -374,11 +371,14 @@ void initial_conditions(particle_set& parts) {
 	}
 	fft3d(phi2, N);*/
 	auto& den_k = cdm_k;
-	int seed = 143434;
+	int seed = 14344;
+	max_disp = 0.0;
 	for( int dim = 0; dim < NDIM; dim++) {
 		_2lpt(*den_k, N, code_to_mpc, dim, NDIM, seed);
-		phi1_to_particles(N, code_to_mpc, D1, a*prefac1, dim);
+		max_disp = std::max(max_disp,phi1_to_particles(N, code_to_mpc, D1, a*prefac1, dim));
 	}
+	printf( "Maximum displacement is %e\n", max_disp);
+	fourier3d_destroy();
 	exit(0);
 
 	/*dim3 gdim;
@@ -420,7 +420,6 @@ void initial_conditions(particle_set& parts) {
 	CUDA_FREE(cdm_k);
 	CUDA_FREE(phi1);
 	CUDA_FREE(phi2);
-	CUDA_FREE(max_disp);
 	free_zeroverse();
 	PRINT("Done initializing\n");
 }
