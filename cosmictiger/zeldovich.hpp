@@ -20,8 +20,8 @@ enum zeldovich_t {
 __global__ void zeldovich(cmplx* den, const cmplx* rands, const interp_functor<float>* P, float box_size, int N,
 		int dim, zeldovich_t);
 
-void denpow_to_phi1(const interp_functor<float> den_k, int N, float box_size);
-float phi1_to_particles(int N, float box_size, float D1, float prefactor);
+void _2lpt(const interp_functor<float> den_k, int N, float box_size, int = NDIM, int = NDIM, int seed = 42);
+float phi1_to_particles(int N, float box_size, float D1, float prefactor, int);
 
 
 #endif /* ZELDOVICH_HPP_ */

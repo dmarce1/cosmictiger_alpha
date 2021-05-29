@@ -250,7 +250,6 @@ void initial_conditions(particle_set& parts) {
 	interp_functor<float>* vel_k;
 	cmplx* phi1;
 	cmplx* phi2;
-	cmplx* rands;
 	const size_t N = global().opts.parts_dim;
 	int Nk = 1024;
 	const size_t N3 = sqr(N) * N;
@@ -259,7 +258,6 @@ void initial_conditions(particle_set& parts) {
 	CUDA_MALLOC(max_disp, N * N);
 	CUDA_MALLOC(phi1, N3);
 	CUDA_MALLOC(phi2, N3);
-	CUDA_MALLOC(rands, N3);
 	CUDA_MALLOC(cdm_k, 1);
 	CUDA_MALLOC(vel_k, 1);
 	CUDA_MALLOC(zeroverse_ptr, 1);
@@ -319,7 +317,7 @@ void initial_conditions(particle_set& parts) {
 	einstein_boltzmann_interpolation_function(cdm_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
 			zeroverse_ptr->amin, 1.0, false, ns);
 
-	generate_random_normals(rands, N3, hpx_rank() * 1234);
+	//generate_random_normals(rands, N3, hpx_rank() * 1234);
 
 	/*	PRINT("\tComputing over/under density\n");
 	 zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, 0, DENSITY);
@@ -376,8 +374,11 @@ void initial_conditions(particle_set& parts) {
 	}
 	fft3d(phi2, N);*/
 	auto& den_k = cdm_k;
-	denpow_to_phi1(*den_k, N, code_to_mpc);
-	phi1_to_particles(N, code_to_mpc, D1, a*prefac1);
+	int seed = 143434;
+	for( int dim = 0; dim < NDIM; dim++) {
+		_2lpt(*den_k, N, code_to_mpc, dim, NDIM, seed);
+		phi1_to_particles(N, code_to_mpc, D1, a*prefac1, dim);
+	}
 	exit(0);
 
 	/*dim3 gdim;
@@ -417,7 +418,6 @@ void initial_conditions(particle_set& parts) {
 	CUDA_FREE(states);
 	CUDA_FREE(vel_k);
 	CUDA_FREE(cdm_k);
-	CUDA_FREE(rands);
 	CUDA_FREE(phi1);
 	CUDA_FREE(phi2);
 	CUDA_FREE(max_disp);
