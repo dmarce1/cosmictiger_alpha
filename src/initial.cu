@@ -308,12 +308,12 @@ void initial_conditions(particle_set& parts) {
 	kmax = std::max((float) M_PI / (float) code_to_mpc * (float) (global().opts.parts_dim), kmax);
 	PRINT("\tComputing Einstain-Boltzmann interpolation solutions for wave numbers %e to %e Mpc^-1\n", kmin, kmax);
 	const float ainit = 1.0f / (global().opts.z0 + 1.0f);
+	einstein_boltzmann_interpolation_function(cdm_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
+			zeroverse_ptr->amin, 1.0, false, ns);
 #ifndef __CUDA_ARCH__
 	auto cdm_destroy = cdm_k->to_device();
 	auto vel_destroy = vel_k->to_device();
 #endif
-	einstein_boltzmann_interpolation_function(cdm_k, vel_k, states, zeroverse_ptr, kmin, kmax, normalization, Nk,
-			zeroverse_ptr->amin, 1.0, false, ns);
 
 	//generate_random_normals(rands, N3, hpx_rank() * 1234);
 
@@ -357,30 +357,29 @@ void initial_conditions(particle_set& parts) {
 	PRINT("H*a*f2 = %e\n", prefac2);
 	PRINT("\t\tComputing positions\n");
 
-/*	cudaFuncAttributes attrib;
-	CUDA_CHECK(cudaFuncGetAttributes(&attrib, power_spectrum_init));
-	int block_size = attrib.maxThreadsPerBlock;
-	int num_blocks;
-	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, power_spectrum_init, block_size, 0));
-	num_blocks *= global().cuda.devices[0].multiProcessorCount;
-	power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_set(),phi1,N,(float) N3 / (float)parts.size());
-	CUDA_CHECK(cudaDeviceSynchronize());
-	for (int i = 0; i < N * N * N; i++) {
-		phi1[i].real() = -phi1[i].real();
-		phi1[i].imag() = -phi1[i].imag();
-	}
-	fft3d(phi2, N);*/
+	/*	cudaFuncAttributes attrib;
+	 CUDA_CHECK(cudaFuncGetAttributes(&attrib, power_spectrum_init));
+	 int block_size = attrib.maxThreadsPerBlock;
+	 int num_blocks;
+	 CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, power_spectrum_init, block_size, 0));
+	 num_blocks *= global().cuda.devices[0].multiProcessorCount;
+	 power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_set(),phi1,N,(float) N3 / (float)parts.size());
+	 CUDA_CHECK(cudaDeviceSynchronize());
+	 for (int i = 0; i < N * N * N; i++) {
+	 phi1[i].real() = -phi1[i].real();
+	 phi1[i].imag() = -phi1[i].imag();
+	 }
+	 fft3d(phi2, N);*/
 	auto& den_k = cdm_k;
-	int seed = 14;
+	int seed = time(NULL);
 	max_disp = 0.0;
-	for( int dim = 0; dim < NDIM; dim++) {
-		printf( "Computing %c positions and %c velocities\n", 'x' + dim, 'x' + dim);
+	for (int dim = 0; dim < NDIM; dim++) {
+		printf("Computing %c positions and %c velocities\n", 'x' + dim, 'x' + dim);
 		_2lpt(*den_k, N, code_to_mpc, dim, NDIM, seed);
-		max_disp = std::max(max_disp,phi1_to_particles(N, code_to_mpc, D1, a*prefac1, dim));
+		max_disp = std::max(max_disp, phi1_to_particles(N, code_to_mpc, D1, a * prefac1, dim));
 	}
-	printf( "Maximum displacement is %e\n", max_disp);
+	printf("Maximum displacement is %e\n", max_disp);
 	fourier3d_destroy();
-	exit(0);
 
 	/*dim3 gdim;
 	 gdim.x = gdim.y = N;
