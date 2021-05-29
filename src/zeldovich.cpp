@@ -81,7 +81,7 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 			futs.push_back(hpx::async<_2lpt_action>(hpx_localities()[i], den_k, N, box_size, dim1, dim2, seed));
 		}
 	}
-	printf( "2lpt on %i\n", hpx_rank());
+	printf("2lpt on %i\n", hpx_rank());
 	vector<cmplx> Y;
 	int xbegin = hpx_rank() * N / hpx_size();
 	int xend = (hpx_rank() + 1) * N / hpx_size();
@@ -89,29 +89,7 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 	Y.resize(xspan * N * N);
 	const float factor = std::pow(box_size, -1.5);
 	generate_random_normals(Y.data(), xspan * N * N, seed + hpx_rank() * 4321);
-	for (int i = xbegin; i < xend; i++) {
-		int i0 = i < N / 2 ? i : i - N;
-		float kx = 2.f * (float) M_PI / box_size * float(i0);
-		for (int j = 0; j < N; j++) {
-			int j0 = j < N / 2 ? j : j - N;
-			float ky = 2.f * (float) M_PI / box_size * float(j0);
-			for (int l = 0; l < N; l++) {
-				int l0 = l < N / 2 ? l : l - N;
-				int i2 = i0 * i0 + j0 * j0 + l0 * l0;
-				int index0 = N * (N * (i - xbegin) + j) + l;
-				if (i2 > 0 && i2 < N * N / 4) {
-					float kz = 2.f * (float) M_PI / box_size * float(l0);
-					float k2 = kx * kx + ky * ky + kz * kz;
-					float k = std::sqrt(kx * kx + ky * ky + kz * kz);
-					const cmplx K[NDIM + 1] = { { kx, 0 }, { ky, 0 }, { kz, 0 }, { 0, -1 } };
-					const cmplx number = std::sqrt(den_k(k)) * factor * K[dim1] * K[dim2] / k2;
-					Y[index0] = Y[index0] * number;
-				} else {
-					Y[index0].real() = Y[index0].imag() = 0.0;
-				}
-			}
-		}
-	}
+	execute_2lpt_kernel(Y.data(), xbegin, xend, den_k, N, box_size, dim1, dim2);
 	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
 	hpx::wait_all(futs.begin(), futs.end());
 	if (hpx_rank() == 0) {

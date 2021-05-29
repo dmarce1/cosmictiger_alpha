@@ -108,15 +108,14 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 	return std::move(data);
 }
 
+
 vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, int ze) {
 	vector<float> data;
-	const int yspan = ye - yb;
-	const int zspan = ze - zb;
+	int yspan = ye - yb;
+	int zspan = ze - zb;
+	data.resize(zspan * yspan * (xe - xb));
 	std::vector<hpx::future<void>> futs;
-	data.resize((xe - xb) * yspan * zspan);
-//	printf( "%i %i %i %i %i %i\n", xb, xe, yb, ye, zb, ze);
 	if (slab_to_rank(xb) != rank || slab_to_rank(xe - 1) != rank) {
-//		printf( "7\n");
 		const int rankb = slab_to_rank(xb);
 		const int ranke = slab_to_rank(xe - 1);
 		for (int other_rank = rankb; other_rank <= ranke; other_rank++) {
@@ -128,23 +127,37 @@ vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, int ze
 					fut.then(
 							[&data, this_xb, this_xe, yspan, zspan, xb, yb, ye, zb, ze](hpx::future<vector<float>> fut) {
 								auto rank_data = fut.get();
-								for( int xi = this_xb; xi < this_xe; xi++) {
-									for( int yi = yb; yi < ye; yi++) {
-										for( int zi = zb; zi < ze; zi++) {
-											data[zspan*yspan*(xi-xb)+zspan*(yi-yb)+(zi-zb)] = rank_data[zspan*yspan*(xi-this_xb)+zspan*(yi-yb)+(zi-zb)];
+								std::vector<hpx::future<void>> these_futs;
+								int nthreads = hardware_concurrency();
+								for( int proc = 0; proc < nthreads; proc++) {
+									const auto func = [xb,this_xb,proc,this_xe,nthreads,yb,ye,zb,ze,&data,&rank_data,zspan, yspan]() {
+										for( int xi = this_xb + proc; xi < this_xe; xi+=nthreads) {
+											for( int yi = yb; yi < ye; yi++) {
+												for( int zi = zb; zi < ze; zi++) {
+													data[zspan*yspan*(xi-xb)+zspan*(yi-yb)+(zi-zb)] = rank_data[zspan*yspan*(xi-this_xb)+zspan*(yi-yb)+(zi-zb)];
+												}
+											}
 										}
-									}
+									};
+									these_futs.push_back(hpx::async(func));
 								}
+								hpx::wait_all(these_futs.begin(),these_futs.end());
 							}));
 		}
 	} else {
-		for (int xi = xb; xi < xe; xi++) {
-			for (int yi = yb; yi < ye; yi++) {
-				for (int zi = zb; zi < ze; zi++) {
-					data[zspan * yspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = Y[xi - begin][zspan * (yi - yb)
+		int nthreads = hardware_concurrency();
+		for (int proc = 0; proc < nthreads; proc++) {
+			const auto func = [xb,proc,xe,nthreads,yb,ye,zb,ze,yspan,zspan,&data]() {
+				for (int xi = xb + proc; xi < xe; xi+=nthreads) {
+					for (int yi = yb; yi < ye; yi++) {
+						for (int zi = zb; zi < ze; zi++) {
+							data[zspan * yspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = Y[xi - begin][zspan * (yi - yb)
 							+ (zi - zb)].real();
+						}
+					}
 				}
-			}
+			};
+			futs.push_back(hpx::async(func));
 		}
 	}
 	hpx::wait_all(futs.begin(), futs.end());
