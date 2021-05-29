@@ -12,7 +12,7 @@ static int span;
 static int rank;
 static int nranks;
 
-vector<vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zbegin, int zend, vector<vector<cmplx>>);
+vector<cmplx> fourier3d_transpose(int xbegin, int xend, int zi, vector<cmplx>);
 void fourier3d_transpose_xz();
 void fft1d(cmplx* Y, int N);
 
@@ -107,7 +107,6 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 	hpx::wait_all(futs.begin(), futs.end());
 	return std::move(data);
 }
-
 
 vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, int ze) {
 	vector<float> data;
@@ -304,7 +303,6 @@ void fourier3d_destroy() {
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-
 void fourier3d_transpose_xz() {
 	std::vector<hpx::future<void>> futs;
 	rank = hpx_rank();
@@ -315,68 +313,41 @@ void fourier3d_transpose_xz() {
 			futs.push_back(hpx::async<fourier3d_transpose_xz_action>(localities[i]));
 		}
 	}
-	vector<vector<cmplx>> data;
 	for (int other = rank; other < nranks; other++) {
-		const int zbegin = other * N / nranks;
-		const int zend = (other + 1) * N / nranks;
-		const int zspan = zend - zbegin;
-		data.resize(span);
-		int nthreads = hardware_concurrency();
-		std::vector<hpx::future<void>> these_futs;
-		for (int proc = 0; proc < nthreads; proc++) {
-			const auto func = [proc,nthreads,&data,zbegin,zend,zspan]() {
-				for (int i = proc; i < span; i+=nthreads) {
-					data[i].resize(N * zspan);
-					for (int j = 0; j < N; j++) {
-						for (int k = zbegin; k < zend; k++) {
-							data[i][j * zspan + k - zbegin] = Y[i][j * N + k];
-						}
+		for (int xi = begin; xi < end; xi++) {
+			vector<cmplx> data;
+			const int zend = (other + 1) * N / nranks;
+			const int zbegin = other * N / nranks + ((other == rank) ? (xi - begin) : 0);
+			const int zspan = zend - zbegin;
+			data.resize(N * zspan);
+			for (int j = 0; j < N; j++) {
+				for (int k = zbegin; k < zend; k++) {
+					data[j * zspan + k - zbegin] = Y[xi - begin][j * N + k];
+				}
+			}
+			auto future = hpx::async<fourier3d_transpose_action>(localities[other], zbegin, zend, xi, std::move(data));
+			futs.push_back(future.then([zspan,zbegin,zend,xi](hpx::future<vector<cmplx>> fut) {
+				auto data = fut.get();
+				for (int j = 0; j < N; j++) {
+					for (int k = zbegin; k < zend; k++) {
+						Y[xi-begin][j * N + k] = data[j * zspan + k - zbegin];
 					}
 				}
-			};
-			these_futs.push_back(hpx::async(func));
+			}));
 		}
-		hpx::wait_all(these_futs.begin(), these_futs.end());
-		auto future = hpx::async<fourier3d_transpose_action>(localities[other], zbegin, zend, begin, end,
-				std::move(data));
-		futs.push_back(future.then([zspan,zbegin,zend,nthreads](hpx::future<vector<vector<cmplx>>> fut) {
-			auto data = fut.get();
-			std::vector<hpx::future<void>> these_futs;
-			for( int proc = 0; proc < nthreads; proc++) {
-				const auto func = [&data,proc,nthreads,zbegin,zend,zspan]() {
-					for (int i = proc; i < span; i+=nthreads) {
-						for (int j = 0; j < N; j++) {
-							for (int k = zbegin; k < zend; k++) {
-								Y[i][j * N + k] = data[i][j * zspan + k - zbegin];
-							}
-						}
-					}
-				};
-				these_futs.push_back(hpx::async(func));
-			}
-			hpx::wait_all(these_futs.begin(), these_futs.end());
-		}));
 	}
 
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-vector<vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zbegin, int zend, vector<vector<cmplx>> data) {
+vector<cmplx> fourier3d_transpose(int xbegin, int xend, int zi, vector<cmplx> data) {
 	const int xspan = xend - xbegin;
-	int nthreads = hardware_concurrency();
-	std::vector<hpx::future<void>> futs;
-	for (int proc = 0; proc < nthreads; proc++) {
-		const auto func = [proc,nthreads,xspan, zbegin, zend, &data]() {
-			for (int xi = proc; xi < span; xi+=nthreads) {
-				for (int yi = 0; yi < N; yi++) {
-					for (int zi = zbegin; zi < zend; zi++) {
-						swap(data[zi - zbegin][yi * xspan + xi], Y[xi][yi * N + zi]);
-					}
-				}
-			}
-		};
-		futs.push_back(hpx::async(func));
+	for (int xi = 0; xi < xspan; xi++) {
+		for (int yi = 0; yi < N; yi++) {
+			auto& a = data[yi * xspan + xi];
+			auto& b = Y[xi + xbegin - begin][yi * N + zi];
+			swap(a, b);
+		}
 	}
-	hpx::wait_all(futs.begin(), futs.end());
 	return std::move(data);
 }
