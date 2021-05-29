@@ -371,7 +371,7 @@ void initial_conditions(particle_set& parts) {
 	}
 	fft3d(phi2, N);*/
 	auto& den_k = cdm_k;
-	int seed = 14344;
+	int seed = 14;
 	max_disp = 0.0;
 	for( int dim = 0; dim < NDIM; dim++) {
 		_2lpt(*den_k, N, code_to_mpc, dim, NDIM, seed);

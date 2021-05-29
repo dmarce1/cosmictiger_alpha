@@ -62,7 +62,7 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 	if (slab_to_rank(xb) != rank || slab_to_rank(xe - 1) != rank) {
 //		printf( "7\n");
 		const int rankb = slab_to_rank(xb);
-		const int ranke = slab_to_rank(xe);
+		const int ranke = slab_to_rank(xe-1);
 		for (int other_rank = rankb; other_rank <= ranke; other_rank++) {
 			const int this_xb = std::max(xb, other_rank * N / nranks);
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
@@ -106,7 +106,7 @@ vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, int ze
 	if (slab_to_rank(xb) != rank || slab_to_rank(xe - 1) != rank) {
 //		printf( "7\n");
 		const int rankb = slab_to_rank(xb);
-		const int ranke = slab_to_rank(xe);
+		const int ranke = slab_to_rank(xe-1);
 		for (int other_rank = rankb; other_rank <= ranke; other_rank++) {
 			const int this_xb = std::max(xb, other_rank * N / nranks);
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
@@ -145,7 +145,7 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 	std::vector<hpx::future<void>> futs;
 	if (slab_to_rank(xb) != rank || slab_to_rank(xe - 1) != rank) {
 		const int rankb = slab_to_rank(xb);
-		const int ranke = slab_to_rank(xe);
+		const int ranke = slab_to_rank(xe-1);
 		for (int other_rank = rankb; other_rank <= ranke; other_rank++) {
 			const int this_xb = std::max(xb, other_rank * N / nranks);
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);

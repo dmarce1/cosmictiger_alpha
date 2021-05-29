@@ -113,8 +113,8 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 	}
 	printf( "Start accumulating on %i\n", hpx_rank());
 	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
-	printf( "Done accumulating on %i\n", hpx_rank());
 	hpx::wait_all(futs.begin(), futs.end());
+	printf( "Done accumulating on %i\n", hpx_rank());
 	if (hpx_rank() == 0) {
 		fourier3d_mirror();
 		fourier3d_execute();
