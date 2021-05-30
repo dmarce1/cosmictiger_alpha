@@ -183,8 +183,6 @@ void initial_conditions(particle_set& parts) {
 			_2lpt_destroy();
 		}
 		fourier3d_destroy();
-		printf("Computing initial matter power spectrum\n");
-		matter_power_spectrum(0);
 		sigma8_func->power.values.~vector<float>();
 		CUDA_FREE(sigma8_func);
 		CUDA_FREE(result_ptr);
@@ -193,7 +191,11 @@ void initial_conditions(particle_set& parts) {
 
 	unified_allocator alloc;
 	alloc.reset();
-	PRINT("Allocator reset\n");
+
+	printf("Computing initial matter power spectrum\n");
+	matter_power_spectrum(0);
+	alloc.reset();
+
 
 	PRINT("Done initializing\n");
 }

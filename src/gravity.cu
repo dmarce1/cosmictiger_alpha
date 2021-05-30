@@ -225,6 +225,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
 	const auto& h2 = constant.h2;
+	const auto h3inv = 1.f / (constant.h * constant.h2);
 	const auto& hinv = constant.hinv;
 	int flops = 0;
 	int interacts = 0;
@@ -305,7 +306,9 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
 						r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
 					}
-					flops += FLOP_SQRT + 16;
+					r1inv *= hinv;
+					r3inv *= h3inv;
+					flops += FLOP_SQRT + 18;
 				}
 				fx = fmaf(dx0, r3inv, fx); // 2
 				fy = fmaf(dx1, r3inv, fy); // 2
@@ -351,7 +354,9 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
 						r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
 					}
-					flops += FLOP_SQRT + 16;
+					r1inv *= hinv;
+					r3inv *= h3inv;
+					flops += FLOP_SQRT + 18;
 				}
 				fx = fmaf(dx0, r3inv, fx); // 2
 				fy = fmaf(dx1, r3inv, fy); // 2

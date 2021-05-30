@@ -96,7 +96,7 @@ void direct_force_test() {
 		gdir = std::sqrt(gdir);
 		gnum = std::sqrt(gnum);
 		phinum = test_parts[i].f.phi;
-		phidir = total[i].phi - PHI0 * global().opts.G * global().opts.M;
+		phidir = total[i].phi - PHI0/global().opts.hsoft * global().opts.G * global().opts.M;
 		gnorm += gdir;
 		phinorm += std::abs(phidir);
 		gerr += std::abs(gdir - gnum);

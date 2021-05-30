@@ -9,6 +9,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 	const int &tid = threadIdx.x;
 	const int &bid = blockIdx.x;
 	const auto hinv = 1.f / h;
+	const auto h3inv = 1.f / h / h / h;
 	const auto h2 = h * h;
 	array<fixed32, NDIM> sink;
 	sink[0] = x[bid];
@@ -34,10 +35,12 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 			float r3inv = +15.0f / 8.0f;
 			r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
 			r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
+			r3inv *= h3inv;
 			float r1inv = -5.0f / 16.0f;
 			r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
 			r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
 			r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
+			r1inv *= hinv;
 			phi[tid] -= r1inv;
 			for (int dim = 0; dim < NDIM; dim++) {
 				f[dim][tid] -= X[dim] * r3inv;

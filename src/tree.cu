@@ -89,7 +89,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				F[dim][k] = 0.f;
 			}
-			phi[k] = -PHI0;
+			phi[k] = -PHI0 / constant.h;
 		}
 	}
 	const auto myparts = shmem.self.get_parts();

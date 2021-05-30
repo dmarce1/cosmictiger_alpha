@@ -511,7 +511,7 @@ void tree::kick(kick_params_type * params_ptr) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				F[dim][i] = 0.f;
 			}
-			phi[i] = -PHI0;
+			phi[i] = -PHI0 / params.hsoft;
 		}
 	}
 

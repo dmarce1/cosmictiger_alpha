@@ -33,12 +33,11 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("code_to_g", po::value<double>(&(opts.code_to_g))->default_value(1.99e33), "code to g") //
 	("code_to_cm", po::value<double>(&(opts.code_to_cm))->default_value(6.17e27), "code to cm") //
 	("code_to_cms", po::value<double>(&(opts.code_to_cms))->default_value(3e10), "code to cm/s") //
-	("omega_b", po::value<double>(&(opts.omega_b))->default_value(0.05), "") //
-	("omega_c", po::value<double>(&(opts.omega_c))->default_value(0.25), "") //
+	("omega_b", po::value<double>(&(opts.omega_b))->default_value(0.049), "") //
+	("omega_c", po::value<double>(&(opts.omega_c))->default_value(0.265), "") //
 	("Neff", po::value<double>(&(opts.Neff))->default_value(3.046), "") //
 	("Theta", po::value<double>(&(opts.Theta))->default_value(1.00), "") //
-	("Y", po::value<double>(&(opts.Y))->default_value(0.24), "") //
-	("sigma8", po::value<double>(&(opts.sigma8))->default_value(0.83), "") //
+	("sigma8", po::value<double>(&(opts.sigma8))->default_value(0.81), "") //
 	("theta", po::value<double>(&(opts.theta))->default_value(0.7), "") //
 	("hubble", po::value<double>(&(opts.hubble))->default_value(0.7), "") //
 	("silo_interval", po::value<double>(&(opts.silo_interval))->default_value(-1.), "interval between SILO outs") //
@@ -46,7 +45,6 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("parts_dim", po::value<size_t>(&(opts.parts_dim))->default_value(128), "number of particles = parts_dim^3") //
 	("test", po::value<std::string>(&(opts.test))->default_value(""), "test problem") //
 	("z0", po::value<double>(&(opts.z0))->default_value(49), "starting redshift") //
-	("ns", po::value<double>(&(opts.ns))->default_value(1.0), "spectral index") //
 			;
 
 	boost::program_options::variables_map vm;
@@ -147,10 +145,8 @@ bool process_options(int argc, char *argv[], options &opts) {
 	PRINT("Cosmological Options\n");
 	SHOW(hubble);
 	SHOW(z0);
-	SHOW(ns);
 	SHOW(sigma8);
 	SHOW(Neff);
-	SHOW(Y);
 	SHOW(omega_m);
 	SHOW(omega_r);
 	SHOW(omega_c);

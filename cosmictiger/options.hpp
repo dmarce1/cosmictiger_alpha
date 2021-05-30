@@ -33,7 +33,6 @@ struct options {
 	double M;
 	double map_freq;
 	double Neff;
-	double ns;
 	double omega_b;
 	double omega_c;
 	double omega_gam;
@@ -44,7 +43,6 @@ struct options {
 	double silo_interval;
 	double theta;
 	double Theta;
-	double Y;
 	double z0;
 
 	size_t nparts;
@@ -76,7 +74,6 @@ struct options {
 		arc & M;
 		arc & map_freq;
 		arc & Neff;
-		arc & ns;
 		arc & omega_b;
 		arc & omega_c;
 		arc & omega_gam;
@@ -87,7 +84,6 @@ struct options {
 		arc & silo_interval;
 		arc & theta;
 		arc & Theta;
-		arc & Y;
 		arc & z0;
 		arc & nparts;
 		arc & parts_dim;
