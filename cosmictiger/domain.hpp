@@ -64,8 +64,8 @@ struct domain_bounds {
 		arc & xdim;
 		if (!leaf) {
 			unified_allocator alloc;
-			left = (domain_bounds*) alloc.allocate(sizeof(domain_bounds));
-			right = (domain_bounds*) alloc.allocate(sizeof(domain_bounds));
+			CUDA_MALLOC(left,1);
+			CUDA_MALLOC(right,1);
 			arc & *left;
 			arc & *right;
 		}

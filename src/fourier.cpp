@@ -108,8 +108,8 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 	return std::move(data);
 }
 
-vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, int ze) {
-	vector<float> data;
+std::vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, int ze) {
+	std::vector<float> data;
 	int yspan = ye - yb;
 	int zspan = ze - zb;
 	data.resize(zspan * yspan * (xe - xb));
@@ -124,7 +124,7 @@ vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, int ze
 			auto fut = hpx::async<fourier3d_read_real_action>(localities[other_rank], this_xb, this_xe, yb, ye, zb, ze);
 			futs.push_back(
 					fut.then(
-							[&data, this_xb, this_xe, yspan, zspan, xb, yb, ye, zb, ze](hpx::future<vector<float>> fut) {
+							[&data, this_xb, this_xe, yspan, zspan, xb, yb, ye, zb, ze](hpx::future<std::vector<float>> fut) {
 								auto rank_data = fut.get();
 								std::vector<hpx::future<void>> these_futs;
 								int nthreads = hardware_concurrency();
@@ -230,7 +230,7 @@ void fourier3d_do1dpart() {
 HPX_PLAIN_ACTION(fourier3d_do1dpart);
 HPX_PLAIN_ACTION(fourier3d_do2dpart);
 
-void fourier3d_execute(bool skip_final_transpose) {
+void fourier3d_execute() {
 	printf("Executing Fourier\n");
 	std::vector<hpx::future<void>> futs;
 	printf("doing 2d transform\n");
@@ -246,11 +246,9 @@ void fourier3d_execute(bool skip_final_transpose) {
 		futs.push_back(hpx::async<fourier3d_do1dpart_action>(localities[i]));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	if (!skip_final_transpose) {
-		printf("Transposing\n");
-		fourier3d_transpose_xz();
-		printf("Done executing Fourier\n");
-	}
+	printf("Transposing\n");
+	fourier3d_transpose_xz();
+	printf("Done executing Fourier\n");
 }
 
 void fourier3d_inv_execute() {

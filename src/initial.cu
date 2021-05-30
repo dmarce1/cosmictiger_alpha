@@ -22,156 +22,6 @@ __global__ void vector_free_kernel(vector<T>* vect) {
 	}
 }
 
-__device__ float constrain_range(float r) {
-	while (r >= 1.0f) {
-		r -= 1.f;
-	}
-	while (r < 0.f) {
-		r += 1.f;
-	}
-	return r;
-}
-
-__global__ void phi_to_grid(particle_set parts, cmplx* phi1, cmplx* phi2, float code_to_mpc, float D1, float D2,
-		float prefactor1, float prefactor2, float* maxdisp) {
-	int i = blockIdx.x;
-	int j = blockIdx.y;
-	int N = gridDim.x;
-	const int ij = i * N + j;
-	const float Ninv = 1.0 / (float) N;
-	const float unitinv = 1.0 / code_to_mpc;
-	__shared__ float maxes[32];
-	const float dxinv = N * unitinv;
-	const auto tid = threadIdx.x;
-	maxes[tid] = 0.f;
-	__syncthreads();
-	const auto wt = [](float x, int n ) {
-		x -= 0.5f;
-		if( n == 0 ) {
-			return -1.0f/16.0f + (1.0f/24.0f + (0.25f - 1.0f/6.0f * x) * x) * x;
-		} else if( n == 1 ) {
-			return 9.0f/16.0f + (-9.0f/8.0f + (-0.25f + 1.0f/2.0f * x) * x) * x;
-		} else if( n == 2 ) {
-			return 9.0f/16.0f + (9.0f/8.0f + (-0.25f - 1.0f/2.0f * x) * x) * x;
-		} else {
-			return -1.0f/16.0f + (-1.0f/24.0f + (0.25f + 1.0f/6.0f * x) * x) * x;
-		}
-	};
-	const auto dwt = [](float x, int n ) {
-		x -= 0.5f;
-		if( n == 0 ) {
-			return 1.0f/24.0f + (0.5f - 0.5f * x) * x;
-		} else if( n == 1 ) {
-			return -9.0f/8.0f + (-0.5f + 1.5f * x) * x;
-		} else if( n == 2 ) {
-			return 9.0f/8.0f + (-0.5f - 1.5f * x) * x;
-		} else {
-			return -1.0f/24.0f + (0.5f + 0.5f * x) * x;
-		}
-	};
-	const auto dphidx = [N, unitinv, wt, dwt](cmplx* phi, float x, float y, float z) {
-		array<int,NDIM> i;
-		array<float,NDIM> X;
-		i[0] = x;
-		i[1] = y;
-		i[2] = z;
-		X[0] = x - i[0];
-		X[1] = y - i[1];
-		X[2] = z - i[2];
-		array<float,NDIM> dphi;
-		dphi[0] = dphi[1] = dphi[2] = 0.f;
-		for( int j = 0; j < 4; j++) {
-			for( int k = 0; k < 4; k++) {
-				for( int l = 0; l < 4; l++) {
-					const int j0 = (i[0] - 1 + j + N) % N;
-					const int k0 = (i[1] - 1 + k + N) % N;
-					const int l0 = (i[2] - 1 + l + N) % N;
-					const int n = N * ( N * j0 + k0) + l0;
-					const float wtx = dwt(X[0],j) * wt(X[1],k) * wt(X[2],l);
-					const float wty = wt(X[0],j) * dwt(X[1],k) * wt(X[2],l);
-					const float wtz = wt(X[0],j) * wt(X[1],k) * dwt(X[2],l);
-					dphi[0] += wtx * phi[n].real() * N * unitinv;
-					dphi[1] += wty * phi[n].real() * N * unitinv;
-					dphi[2] += wtz * phi[n].real() * N * unitinv;
-				}
-			}
-		}
-		return dphi;
-	};
-
-	for (int k = tid; k < N; k += blockDim.x) {
-		const int l = N * (N * i + j) + k;
-		const float x = parts.pos(0, l).to_float() * N;
-		const float y = parts.pos(1, l).to_float() * N;
-		const float z = parts.pos(2, l).to_float() * N;
-		const int i0 = x;
-		const int j0 = y;
-		const int k0 = z;
-		const auto dphi1dx = dphidx(phi1, x, y, z);
-		const auto dphi2dx = dphidx(phi2, x, y, z);
-		for (int dim = 0; dim < NDIM; dim++) {
-			const float this_disp1 = -D1 * dphi1dx[dim] * unitinv;
-			const float this_disp2 = D2 * dphi2dx[dim] * unitinv;
-			const float this_disp = this_disp1 + this_disp2;
-			maxes[tid] = fmaxf(maxes[tid], fabs(this_disp * N));
-			const float x0 = constrain_range(parts.pos(dim, l).to_float() + this_disp);
-			parts.pos(dim, l) = x0;
-			//		PRINT( "%e\n", this_disp);
-			parts.vel(dim, l) = prefactor1 * this_disp1 + prefactor2 * this_disp2;
-		}
-	}
-	for (int P = blockDim.x / 2; P >= 1; P /= 2) {
-		__syncthreads();
-		if (tid + P < blockDim.x) {
-			maxes[tid] = fmaxf(maxes[tid], maxes[tid + P]);
-		}
-	}
-	maxdisp[ij] = maxes[0];
-}
-
-__global__ void phi1_to_delta2(cmplx* phi, cmplx* delta, float code_to_mpc) {
-	int i = blockIdx.x;
-	int j = blockIdx.y;
-	const float unitinv = 1.0 / code_to_mpc;
-	int N = gridDim.x;
-	const float Ninv = 1.0 / (float) N;
-	const float dxinv2 = sqr(N * unitinv);
-	const auto tid = threadIdx.x;
-	for (int k = tid; k < N; k += blockDim.x) {
-		const int l = N * (N * i + j) + k;
-		const int lpx = N * (N * ((i + 1) % N) + j) + k;
-		const int lpy = N * (N * i + ((j + 1) % N)) + k;
-		const int lpz = N * (N * i + j) + (k + 1) % N;
-		const int lmx = N * (N * ((i + N - 1) % N) + j) + k;
-		const int lmy = N * (N * i + ((j + N - 1) % N)) + k;
-		const int lmz = N * (N * i + j) + (k + N - 1) % N;
-		const int lpxpy = N * (N * ((i + 1) % N) + ((j + 1) % N)) + k;
-		const int lpxpz = N * (N * ((i + 1) % N) + j) + (k + 1) % N;
-		const int lpypz = N * (N * i + ((j + 1) % N)) + (k + 1) % N;
-		const int lmxpy = N * (N * ((i - 1 + N) % N) + ((j + 1) % N)) + k;
-		const int lmxpz = N * (N * ((i - 1 + N) % N) + j) + (k + 1) % N;
-		const int lmypz = N * (N * i + ((j - 1 + N) % N)) + (k + 1) % N;
-		const int lpxmy = N * (N * ((i + 1) % N) + ((j - 1 + N) % N)) + k;
-		const int lpxmz = N * (N * ((i + 1) % N) + j) + (k - 1 + N) % N;
-		const int lpymz = N * (N * i + ((j + 1) % N)) + (k - 1 + N) % N;
-		const int lmxmy = N * (N * ((i - 1 + N) % N) + ((j - 1 + N) % N)) + k;
-		const int lmxmz = N * (N * ((i - 1 + N) % N) + j) + (k - 1 + N) % N;
-		const int lmymz = N * (N * i + ((j - 1 + N) % N)) + (k - 1 + N) % N;
-		const float dphidxdx = (phi[lpx].real() + phi[lmx].real() - 2.f * phi[l].real()) * dxinv2;
-		const float dphidydy = (phi[lpy].real() + phi[lmy].real() - 2.f * phi[l].real()) * dxinv2;
-		const float dphidzdz = (phi[lpz].real() + phi[lmz].real() - 2.f * phi[l].real()) * dxinv2;
-		const float dphidxdy = 0.25f * ((phi[lpxpy].real() - phi[lmxpy].real()) - (phi[lpxmy].real() - phi[lmxmy].real()))
-				* dxinv2;
-		const float dphidxdz = 0.25f * ((phi[lpxpz].real() - phi[lmxpz].real()) - (phi[lpxmz].real() - phi[lmxmz].real()))
-				* dxinv2;
-		const float dphidydz = 0.25f * ((phi[lpypz].real() - phi[lmypz].real()) - (phi[lpymz].real() - phi[lmymz].real()))
-				* dxinv2;
-		delta[l].real() = dphidxdx * dphidydy + dphidxdx * dphidydy + dphidydy * dphidzdz - sqr(dphidxdy) - sqr(dphidxdz)
-				- sqr(dphidydz);
-		delta[l].imag() = 0.f;
-	}
-}
-
 float growth_factor(float omega_m, float a) {
 	const float omega_l = 1.f - omega_m;
 	const float a3 = a * sqr(a);
@@ -179,64 +29,6 @@ float growth_factor(float omega_m, float a) {
 	const float Om = omega_m * deninv;
 	const float Ol = a3 * omega_l * deninv;
 	return a * 2.5 * Om / (pow(Om, 4.f / 7.f) - Ol + (1.f + 0.5f * Om) * (1.f + 0.014285714f * Ol));
-}
-
-__global__
-void create_overdensity_transform(cmplx* phi, const cmplx* rands, const interp_functor<float>* Pptr, float box_size,
-		int N) {
-	const int& thread = threadIdx.x;
-	const int& block_size = blockDim.x;
-	auto& P = *Pptr;
-	const float N3 = N * N * N;
-	__syncthreads();
-	for (int ij = thread; ij < N * N; ij += block_size) {
-		int i = ij / N;
-		int j = ij % N;
-		int i0 = i < N / 2 ? i : i - N;
-		int j0 = j < N / 2 ? j : j - N;
-		float kx = 2.f * (float) M_PI / box_size * float(i0);
-		float ky = 2.f * (float) M_PI / box_size * float(j0);
-		for (int l = 0; l < N; l++) {
-			int l0 = l < N / 2 ? l : l - N;
-			int i2 = i0 * i0 + j0 * j0 + l0 * l0;
-			int index0 = N * (N * i + j) + l;
-			int index1 = N * (N * ((N - i) % N) + ((N - j) % N)) + ((N - l) % N);
-			if (i2 < N * N / 4 && index0 < index1) {
-				float kz = 2.f * (float) M_PI / box_size * float(l0);
-				float k = sqrt(kx * kx + ky * ky + kz * kz);
-				phi[index0] += rands[index0] * sqrtf(P(k)) * powf(box_size, -1.5) * N3;
-				phi[index1] = phi[index0].conj();
-			}
-		}
-	}
-	__syncthreads();
-}
-
-__global__
-void transform_laplacian(cmplx* phi, float box_size, int N) {
-	const int& thread = threadIdx.x;
-	const int& block_size = blockDim.x;
-	__syncthreads();
-	for (int ij = thread; ij < N * N; ij += block_size) {
-		int i = ij / N;
-		int j = ij % N;
-		int i0 = i < N / 2 ? i : i - N;
-		int j0 = j < N / 2 ? j : j - N;
-		float kx = 2.f * (float) M_PI / box_size * float(i0);
-		float ky = 2.f * (float) M_PI / box_size * float(j0);
-		for (int l = 0; l < N; l++) {
-			int l0 = l < N / 2 ? l : l - N;
-			int i2 = i0 * i0 + j0 * j0 + l0 * l0;
-			int index0 = N * (N * i + j) + l;
-			if (i2 > 0) {
-				float kz = 2.f * (float) M_PI / box_size * float(l0);
-				float k2 = (kx * kx + ky * ky + kz * kz);
-				phi[index0].real() /= -k2;
-				phi[index0].imag() /= -k2;
-			}
-		}
-	}
-	__syncthreads();
 }
 
 void initial_conditions(particle_set& parts) {
@@ -315,28 +107,14 @@ void initial_conditions(particle_set& parts) {
 	auto vel_destroy = vel_k->to_device();
 #endif
 
-	//generate_random_normals(rands, N3, hpx_rank() * 1234);
-
-	/*	PRINT("\tComputing over/under density\n");
-	 zeldovich<<<1,ZELDOSIZE>>>(phi, rands, den_k, code_to_mpc, N, 0, DENSITY);
-	 CUDA_CHECK(cudaDeviceSynchronize());
-	 fft3d(phi, N);
-	 float drho = phi_max(phi, N3);
-	 PRINT("\t\tMaximum over/under density is %e\n", drho);
-	 if (drho > 1.0) {
-	 PRINT("The overdensity is high, consider using an ealier starting redshift\n");
-	 } else if (drho < 0.1) {
-	 PRINT("The overdensity is low, consider using a later starting redshift\n");
+	/*	vector<float> spec(N / 2);
+	 compute_power_spectrum(phi1, spec.data(), N);
+	 FILE* fp = fopen("power.den", "wt");
+	 for (int i = 1; i < N / 2; i++) {
+	 const auto k = 2.0 * M_PI * (i + 0.5) / code_to_mpc;
+	 fprintf(fp, "%e %e\n", k, spec[i]);
 	 }
-	 */
-	vector<float> spec(N / 2);
-//	compute_power_spectrum(phi1, spec.data(), N);
-	FILE* fp = fopen("power.den", "wt");
-	for (int i = 1; i < N / 2; i++) {
-		const auto k = 2.0 * M_PI * (i + 0.5) / code_to_mpc;
-		fprintf(fp, "%e %e\n", k, spec[i]);
-	}
-	fclose(fp);
+	 fclose(fp);*/
 
 	const double omega_m = params.omega_b + params.omega_c;
 	const double a = ainit;
@@ -357,46 +135,57 @@ void initial_conditions(particle_set& parts) {
 	PRINT("H*a*f2 = %e\n", prefac2);
 	PRINT("\t\tComputing positions\n");
 
-	/*	cudaFuncAttributes attrib;
-	 CUDA_CHECK(cudaFuncGetAttributes(&attrib, power_spectrum_init));
-	 int block_size = attrib.maxThreadsPerBlock;
-	 int num_blocks;
-	 CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, power_spectrum_init, block_size, 0));
-	 num_blocks *= global().cuda.devices[0].multiProcessorCount;
-	 power_spectrum_init<<<num_blocks,block_size>>>(parts.get_virtual_particle_set(),phi1,N,(float) N3 / (float)parts.size());
-	 CUDA_CHECK(cudaDeviceSynchronize());
-	 for (int i = 0; i < N * N * N; i++) {
-	 phi1[i].real() = -phi1[i].real();
-	 phi1[i].imag() = -phi1[i].imag();
-	 }
-	 fft3d(phi2, N);*/
 	auto& den_k = cdm_k;
-	int seed = time(NULL);
+	int seed = 42;
 	max_disp = 0.0;
 	for (int dim = 0; dim < NDIM; dim++) {
-		printf("Computing %c positions and %c velocities\n", 'x' + dim, 'x' + dim);
+		printf("Computing order 1 %c positions and %c velocities\n", 'x' + dim, 'x' + dim);
 		_2lpt(*den_k, N, code_to_mpc, dim, NDIM, seed);
 		max_disp = std::max(max_disp, phi1_to_particles(N, code_to_mpc, D1, a * prefac1, dim));
 	}
+	bool use_2lpt = true;
 	printf("Maximum displacement is %e\n", max_disp);
+	if (use_2lpt) {
+		printf("2LPT phase 1\n");
+		_2lpt_init(N);
+		_2lpt(*den_k, N, code_to_mpc, 0, 0, seed);
+		_2lpt_phase(N, 0);
+		printf("2LPT phase 2\n");
+		_2lpt(*den_k, N, code_to_mpc, 1, 1, seed);
+		_2lpt_phase(N, 1);
+		printf("2LPT phase 3\n");
+		_2lpt(*den_k, N, code_to_mpc, 0, 0, seed);
+		_2lpt_phase(N, 2);
+		printf("2LPT phase 4\n");
+		_2lpt(*den_k, N, code_to_mpc, 2, 2, seed);
+		_2lpt_phase(N, 3);
+		printf("2LPT phase 5\n");
+		_2lpt(*den_k, N, code_to_mpc, 1, 1, seed);
+		_2lpt_phase(N, 4);
+		printf("2LPT phase 6\n");
+		_2lpt(*den_k, N, code_to_mpc, 2, 2, seed);
+		_2lpt_phase(N, 5);
+		printf("2LPT phase 7\n");
+		_2lpt(*den_k, N, code_to_mpc, 0, 1, seed);
+		_2lpt_phase(N, 6);
+		printf("2LPT phase 8\n");
+		_2lpt(*den_k, N, code_to_mpc, 0, 2, seed);
+		_2lpt_phase(N, 7);
+		printf("2LPT phase 9\n");
+		_2lpt(*den_k, N, code_to_mpc, 1, 2, seed);
+		_2lpt_phase(N, 8);
+		printf("Computing 2LPT correction\n");
+		_2lpt_correction1(N, code_to_mpc);
+		max_disp = 0.0;
+		for (int dim = 0; dim < NDIM; dim++) {
+			printf("Computing 2LPT correction to %c positions and velocities\n", 'x' + dim);
+			_2lpt_correction2(N, code_to_mpc, dim);
+			max_disp = std::max(max_disp, phi2_to_particles(N, code_to_mpc, D2, a * prefac2, dim));
+		}
+		printf("Maxmimum correction = %e\n", max_disp);
+		_2lpt_destroy();
+	}
 	fourier3d_destroy();
-
-	/*dim3 gdim;
-	 gdim.x = gdim.y = N;
-	 gdim.z = 1;
-	 phi1_to_delta2<<<gdim,32>>>(phi1, phi2, code_to_mpc);
-	 CUDA_CHECK(cudaDeviceSynchronize());
-	 fft3d(phi2, N);
-	 transform_laplacian<<<1,ZELDOSIZE>>>(phi2, code_to_mpc, N);
-	 CUDA_CHECK(cudaDeviceSynchronize());
-	 fft3d_inv(phi2, N);
-	 phi_to_grid<<<gdim,32>>>(parts.get_virtual_particle_set(),phi1, phi2, code_to_mpc,D1,D2, a*prefac1,a*prefac2,max_disp);
-	 CUDA_CHECK(cudaDeviceSynchronize());
-	 xdisp = 0.0;
-	 for (int i = 0; i < N * N; i++) {
-	 xdisp = std::max(xdisp, max_disp[i]);
-	 }
-	 PRINT("\t\tMaximum displacement is %e\n", xdisp);*/
 
 #ifndef __CUDA_ARCH__
 	cdm_destroy();
@@ -421,6 +210,10 @@ void initial_conditions(particle_set& parts) {
 	CUDA_FREE(phi1);
 	CUDA_FREE(phi2);
 	free_zeroverse();
+	unified_allocator alloc;
+	alloc.reset();
+	PRINT("Allocator reset\n");
+
 	PRINT("Done initializing\n");
 }
 

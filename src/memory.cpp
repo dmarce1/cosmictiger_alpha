@@ -27,8 +27,8 @@ size_t cuda_unified_total() {
 void* cuda_unified_alloc(size_t sz, const char* file, int line) {
 	char* ptr;
 	CUDA_CHECK(cudaMallocManaged(&ptr, sz));
-	if( ptr == nullptr) {
-		PRINT( "Unable to allocate unified memory\n");
+	if (ptr == nullptr) {
+		PRINT("Unable to allocate unified memory\n");
 		abort();
 	}
 //	std::lock_guard<mutex_type> lock(mtx);
@@ -41,9 +41,9 @@ void* cuda_unified_alloc(size_t sz, const char* file, int line) {
 }
 
 void cuda_unified_show_outstanding() {
-/*	for (auto i = alloc_map.begin(); i != alloc_map.end(); i++) {
-		PRINT("%li KB %s %i\n", i->second / 1024, filenames[i->first].c_str(), linenumbers[i->first]);
-	}*/
+	/*	for (auto i = alloc_map.begin(); i != alloc_map.end(); i++) {
+	 PRINT("%li KB %s %i\n", i->second / 1024, filenames[i->first].c_str(), linenumbers[i->first]);
+	 }*/
 }
 
 void cuda_unified_free(void* ptr) {
@@ -95,7 +95,16 @@ mutex_type cuda_allocator::mtx;
 std::unordered_map<void*, int> cuda_allocator::delete_indexes;
 std::stack<void*> unified_allocator::allocs;
 
+HPX_PLAIN_ACTION(unified_allocator::reset, unified_allocator_reset_action);
+
 void unified_allocator::reset() {
+	std::vector<hpx::future<void>> futs;
+	if (hpx_rank() == 0) {
+		for (int i = 1; i < hpx_size(); i++) {
+			futs.push_back(hpx::async<unified_allocator_reset_action>(hpx_localities()[i]));
+		}
+	}
+
 	if (allocated != 0) {
 		PRINT("Attempt to reset unified allocator without freeing all memory, %li left allocated.\n", allocated);
 		abort();
@@ -107,6 +116,7 @@ void unified_allocator::reset() {
 		allocs.pop();
 	}
 	cuda_unified_show_outstanding();
+	hpx::wait_all(futs.begin(), futs.end());
 }
 
 void* unified_allocator::allocate(size_t sz) {

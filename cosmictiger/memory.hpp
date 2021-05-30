@@ -106,7 +106,7 @@ private:
 public:
 	void* allocate(size_t sz);
 	void deallocate(void *ptr);
-	void reset();
+	static void reset();
 };
 cudaStream_t get_stream();
 void cleanup_stream(cudaStream_t s);

@@ -346,6 +346,8 @@ void particle_server::apply_domain_decomp() {
 			domain_decomp_finish();
 		} while (!complete);
 	}
+	unified_allocator alloc;
+	alloc.reset();
 }
 
 void particle_server::domain_decomp_finish() {

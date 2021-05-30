@@ -20,9 +20,8 @@ void domain_bounds::create_uniform_bounds(range box, int nbegin, int nend) {
 		range box_left, box_right;
 		box_left = box_right = box;
 		box_left.end[xdim] = box_right.begin[xdim] = bound.to_double();
-		unified_allocator alloc;
-		left = (domain_bounds*) alloc.allocate(sizeof(domain_bounds));
-		right = (domain_bounds*) alloc.allocate(sizeof(domain_bounds));
+		CUDA_MALLOC(left,1);
+		CUDA_MALLOC(right,1);
 		left->create_uniform_bounds(box_left, nbegin, nmid);
 		right->create_uniform_bounds(box_right, nmid, nend);
 	}
@@ -42,8 +41,8 @@ void domain_bounds::destroy() {
 		unified_allocator alloc;
 		left->destroy();
 		right->destroy();
-		alloc.deallocate(left);
-		alloc.deallocate(right);
+		CUDA_FREE(left);
+		CUDA_FREE(right);
 	}
 }
 
