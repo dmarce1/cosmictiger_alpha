@@ -3,6 +3,7 @@
 #include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/constants.hpp>
 #include <cosmictiger/global.hpp>
+#include <cosmictiger/kernel.hpp>
 
 __global__ void matter_power_spectrum_kernel(particle_set parts, float*den_k, int xb, int xe, int yb, int ye, int zb,
 		int ze, int N) {
@@ -40,19 +41,6 @@ __global__ void matter_power_spectrum_kernel(particle_set parts, float*den_k, in
 		atomicAdd(&(den_k[(xi1 - xb) * yspan * zspan + (yi1 - yb) * zspan + (zi0 - zb)]), w1x * w1y * w0z);
 		atomicAdd(&(den_k[(xi1 - xb) * yspan * zspan + (yi1 - yb) * zspan + (zi1 - zb)]), w1x * w1y * w1z);
 	}
-}
-
-template<class F, class ...Args>
-void execute_kernel(F&& kernel, Args&& ... args) {
-	cuda_set_device();
-	cudaFuncAttributes attribs;
-	CUDA_CHECK(cudaFuncGetAttributes(&attribs, kernel));
-	int num_threads = attribs.maxThreadsPerBlock;
-	int num_blocks;
-	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, kernel, num_threads, 0));
-	num_blocks *= global().cuda.devices[0].multiProcessorCount;
-	kernel<<<num_blocks,num_threads>>>(std::forward<Args>(args)...);
-	CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 void matter_power_spectrum_init() {

@@ -133,7 +133,7 @@ void initial_conditions(particle_set& parts) {
 		PRINT("H*a*f2 = %e\n", prefac2);
 		PRINT("\t\tComputing positions\n");
 
-		int seed = time(NULL) * 42 + 1234;
+		int seed = 1234;
 		float max_disp = 0.0;
 		for (int dim = 0; dim < NDIM; dim++) {
 			printf("Computing order 1 %c positions and %c velocities\n", 'x' + dim, 'x' + dim);
