@@ -136,14 +136,14 @@ void initial_conditions(particle_set& parts) {
 	PRINT("\t\tComputing positions\n");
 
 	auto& den_k = cdm_k;
-	int seed = 42;
+	int seed = time(NULL)+42;
 	max_disp = 0.0;
 	for (int dim = 0; dim < NDIM; dim++) {
 		printf("Computing order 1 %c positions and %c velocities\n", 'x' + dim, 'x' + dim);
 		_2lpt(*den_k, N, code_to_mpc, dim, NDIM, seed);
 		max_disp = std::max(max_disp, phi1_to_particles(N, code_to_mpc, D1, a * prefac1, dim));
 	}
-	bool use_2lpt = true;
+	bool use_2lpt = false;
 	printf("Maximum displacement is %e\n", max_disp);
 	if (use_2lpt) {
 		printf("2LPT phase 1\n");
@@ -186,6 +186,9 @@ void initial_conditions(particle_set& parts) {
 		_2lpt_destroy();
 	}
 	fourier3d_destroy();
+	printf( "Computing initial matter power spectrum\n");
+	matter_power_spectrum(0);
+
 
 #ifndef __CUDA_ARCH__
 	cdm_destroy();

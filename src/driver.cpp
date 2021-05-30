@@ -361,13 +361,12 @@ void drive_cosmos() {
 		if (full_eval && (power || groups)) {
 			alloc.reset();
 			if (power) {
-				ERROR()
 				;
 				tree_data_free_all();
 				timer tm;
 				PRINT("Computing matter power spectrum\n");
 				tm.start();
-				compute_particle_power_spectrum(parts, time + 0.5);
+				matter_power_spectrum(time + 0.5);
 				tm.stop();
 				PRINT("Took %e seconds\n", tm.read());
 				if (!groups) {

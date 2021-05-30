@@ -13,8 +13,8 @@
 #include <cosmictiger/particle.hpp>
 #include <cosmictiger/math.hpp>
 
-void compute_particle_power_spectrum(particle_set& parts, int filenum);
-void compute_power_spectrum(cmplx* den, float* spec, int N);
-__global__ void power_spectrum_init(particle_set partsets, cmplx* den_k, size_t N, float mass0);
+void matter_power_spectrum_init();
+void matter_power_spectrum(int filenum);
+
 
 #endif /* POWER_HPP_ */

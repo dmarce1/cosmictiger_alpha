@@ -46,6 +46,7 @@ set(cosmictiger_source_files
     src/options.cpp
     src/particle.cpp
     src/particle_server.cpp
+    src/power.cpp
     src/rand.cpp
     src/tests.cpp
     src/tree.cpp

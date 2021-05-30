@@ -47,14 +47,14 @@ inline void print(const char* fmt, Args ...args) {
 
 //#define USE_READMOSTLY
 //#define USE_NAN_TEST
-#define TEST_FORCE
+//#define TEST_FORCE
 //#define TEST_STACK
 #define CONFORMAL_TIME
 #define N_TEST_PARTS (100)
 
 #define NKICKS 10
 
-#define KICK_PP_MAX (10*32)
+#define KICK_PP_MAX (8*32)
 #define MAX_BUCKET_SIZE 160
 
 #define MIN_ACTIVE_PER_BLOCK 16
