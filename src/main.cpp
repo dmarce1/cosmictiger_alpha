@@ -9,8 +9,6 @@
 #include <cosmictiger/ewald_indices.hpp>
 #include <cosmictiger/driver.hpp>
 #include <cosmictiger/tree_database.hpp>
-#include <cosmictiger/zero_order.hpp>
-
 void yield() {
 	hpx::this_thread::yield();
 }
