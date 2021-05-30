@@ -21,7 +21,7 @@ void matter_power_spectrum(int filenum) {
 	FILE* fp = fopen( filename.c_str(), "wt");
 	for( int n = 0; n < spec.size(); n++) {
 		const float k = 2.0f * M_PI * n / code_to_mpc;
-		fprintf( fp, "%e %e\n", k, spec[n]);
+		fprintf( fp, "%e %e\n", k, spec[n] * std::pow(code_to_mpc, 3) );
 	}
 	fclose(fp);
 	fourier3d_destroy();

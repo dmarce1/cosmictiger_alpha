@@ -14,21 +14,6 @@ void free_zeroverse() {
 	CUDA_FREE(zero_verse);
 }
 
-__device__ float sigma8_integrand::operator()(float x) const {
-	const float R = 8 / littleh;
-	const float c0 = float(9) / (2. * float(M_PI) * float(M_PI)) / powf(R, 6);
-	float k = expf(x);
-	cos_state U;
-	einstein_boltzmann_init(&U, uni, k, 1., uni->amin, ns);
-	einstein_boltzmann(&U, uni, k, uni->amin, 1.);
-	float oc = zero_verse->params.omega_c;
-	float ob = zero_verse->params.omega_b;
-	float tmp = (oc * U[deltaci] + ob * U[deltabi]) / (oc + ob);
-	float P = tmp * tmp;
-	tmp = (SIN(k*R) - k * R * COS(k * R));
-	return c0 * P * tmp * tmp * powf(k, -3);
-}
-
 __device__ void einstein_boltzmann_init(cos_state* uptr, const zero_order_universe* uni_ptr, float k,
 		float normalization, float a, float ns) {
 	cos_state& U = *uptr;

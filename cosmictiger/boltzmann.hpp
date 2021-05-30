@@ -51,9 +51,8 @@ __device__
 void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, float k, float amin, float amax);
 
 struct sigma8_integrand {
-	zero_order_universe* uni;
+	interp_functor<float> power;
 	float littleh;
-	float ns;
 	__device__ float operator()(float x) const;
 };
 
