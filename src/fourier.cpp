@@ -24,6 +24,7 @@ HPX_PLAIN_ACTION(fourier3d_transpose_xz);
 HPX_PLAIN_ACTION(fourier3d_read);
 HPX_PLAIN_ACTION(fourier3d_read_real);
 HPX_PLAIN_ACTION(fourier3d_mirror);
+HPX_PLAIN_ACTION(fourier3d_inv_execute);
 
 int slab_to_rank(int xi) {
 	return std::min((int) ((xi + int(N % nranks != 0)) * nranks / N), nranks - 1);
@@ -231,27 +232,28 @@ HPX_PLAIN_ACTION(fourier3d_do1dpart);
 HPX_PLAIN_ACTION(fourier3d_do2dpart);
 
 void fourier3d_execute() {
-	printf("Executing Fourier\n");
 	std::vector<hpx::future<void>> futs;
-	printf("doing 2d transform\n");
 	for (int i = 0; i < nranks; i++) {
 		futs.push_back(hpx::async<fourier3d_do2dpart_action>(localities[i]));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	printf("Transposing\n");
 	fourier3d_transpose_xz();
 	futs.resize(0);
-	printf("doing 1d transform\n");
 	for (int i = 0; i < nranks; i++) {
 		futs.push_back(hpx::async<fourier3d_do1dpart_action>(localities[i]));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	printf("Transposing\n");
 	fourier3d_transpose_xz();
-	printf("Done executing Fourier\n");
 }
 
+
 void fourier3d_inv_execute() {
+	std::vector<hpx::future<void>> futs;
+	if (rank == 0) {
+		for (int i = 1; i < nranks; i++) {
+			futs.push_back(hpx::async<fourier3d_inv_execute_action>(localities[i]));
+		}
+	}
 	const float factor = 1.0f / (N * N * N);
 	for (int i = 0; i < span; i++) {
 		for (int j = 0; j < N * N; j++) {
@@ -259,7 +261,10 @@ void fourier3d_inv_execute() {
 			Y[i][j].imag() *= factor;
 		}
 	}
-	fourier3d_execute();
+	hpx::wait_all(futs.begin(), futs.end());
+	if (rank == 0) {
+		fourier3d_execute();
+	}
 }
 
 void fourier3d_initialize(int N_) {

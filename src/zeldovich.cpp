@@ -56,7 +56,6 @@ void _2lpt_phase(int N, int phase) {
 	int xbegin = hpx_rank() * N / hpx_size();
 	int xend = (hpx_rank() + 1) * N / hpx_size();
 	int xspan = xend - xbegin;
-	float sgn;
 	if (phase > 2 * NDIM) {
 		auto this_delta2_part = fourier3d_read_real(xbegin, xend, 0, N, 0, N);
 		for (int i = 0; i < xspan * N * N; i++) {
@@ -157,7 +156,7 @@ float phi2_to_particles(int N, float box_size, float D2, float prefactor, int di
 	int xspan = xe - xb;
 	part_int count = xspan * N * N;
 	auto phi2 = fourier3d_read_real(xb, xe, 0, N, 0, N);
-	const float factor = -D2 / box_size;
+	const float factor = D2 / box_size;
 	for (int xi = xb; xi < xe; xi++) {
 		const float x = (float(xi) + 0.5f) / float(N);
 		for (int yi = 0; yi < N; yi++) {
@@ -191,7 +190,6 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 			futs.push_back(hpx::async<_2lpt_action>(hpx_localities()[i], den_k, N, box_size, dim1, dim2, seed));
 		}
 	}
-	printf("2lpt on %i\n", hpx_rank());
 	vector<cmplx> Y;
 	int xbegin = hpx_rank() * N / hpx_size();
 	int xend = (hpx_rank() + 1) * N / hpx_size();
