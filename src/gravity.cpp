@@ -174,6 +174,7 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	auto& Phi = params.Phi;
 	const simd_float h2(params.hsoft * params.hsoft);
 	const simd_float hinv(1.f / params.hsoft);
+	const simd_float h3inv = hinv * hinv * hinv;
 	const simd_float tiny(1.0e-20);
 	int flops = 0;
 	int interacts = 0;
@@ -243,10 +244,12 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 					simd_float rinv3_near = +15.0f / 8.0f;
 					rinv3_near = fma(rinv3_near, r2oh2, simd_float(-21.0f / 4.0f));
 					rinv3_near = fma(rinv3_near, r2oh2, simd_float(+35.0f / 8.0f));
+					rinv3_near *= h3inv;
 					simd_float rinv1_near = -5.0f / 16.0f;
 					rinv1_near = fma(rinv1_near, r2oh2, simd_float(21.0f / 16.0f));
 					rinv1_near = fma(rinv1_near, r2oh2, simd_float(-35.0f / 16.0f));
 					rinv1_near = fma(rinv1_near, r2oh2, simd_float(35.0f / 16.0f));
+					rinv1_near *= hinv;
 					rinv1 = far_flag * rinv1_far + (simd_float(1) - far_flag) * rinv1_near * mask;                  // 4
 					rinv3 = far_flag * rinv3_far + (simd_float(1) - far_flag) * rinv3_near * mask;                  // 4
 					flops += n * (28 + FLOP_DIV + 2 * FLOP_SQRT);

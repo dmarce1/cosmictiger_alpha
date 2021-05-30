@@ -1,6 +1,7 @@
 #include <cosmictiger/math.hpp>
 
 #include <curand_kernel.h>
+#include <cosmictiger/kernel.hpp>
 
 double find_root(std::function<double(double)> f) {
 	double x = 0.5;
@@ -88,8 +89,8 @@ void generate_random_vectors(fixed32* x, fixed32* y, fixed32* z, size_t N, int s
 	__syncthreads();
 }
 
+
 void generate_random_normals(cmplx* rands, size_t N, int seed) {
-	generate_random_normals_kernel<<<32,32>>>(rands, N, seed);
-	CUDA_CHECK(cudaDeviceSynchronize());
+	execute_kernel(generate_random_normals_kernel,rands, N, seed);
 }
 

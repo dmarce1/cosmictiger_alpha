@@ -8,6 +8,8 @@
 #ifndef KERNEL_HPP_
 #define KERNEL_HPP_
 
+#include <cosmictiger/global.hpp>
+
 
 template<class F, class ...Args>
 void execute_kernel(F&& kernel, Args&& ... args) {
