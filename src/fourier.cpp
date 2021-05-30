@@ -559,21 +559,22 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 		nthreads = std::min(max_nthreads, xspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(
-					hpx::async(
-							[xb,xe,yb,ye,zb,ze,xspan,yspan,zspan1,zspan2,zspan,&data,&data1,&data2,proc,nthreads]() {
-								for (int i = xb+proc; i < xe; i+=nthreads) {
-									for (int j = yb; j < ye; j++) {
-										for (int k = zb; k < N; k++) {
-											data1[(i - xb) * yspan * zspan1 + j * zspan1 + (k - zb)] = data[(i - xb) * yspan * zspan
-											+ (j - yb) * zspan + (k - zb)];
-										}
-										for (int k = N; k < ze; k++) {
-											data2[(i - xb) * yspan * zspan2 + (j - yb) * zspan2 + (k - N)] = data[(i - xb) * yspan * zspan
-											+ (j - yb) * zspan + (k - zb)];
-										}
-									}
+					hpx::async([xb,xe,yb,ye,zb,ze,xspan,yspan,zspan1,zspan2,zspan,&data,&data1,&data2,proc,nthreads]() {
+						for (int i = xb+proc; i < xe; i+=nthreads) {
+							for (int j = yb; j < ye; j++) {
+								for (int k = zb; k < N; k++) {
+									int i0 = (i - xb) * yspan * zspan1 + j * zspan1 + (k - zb);
+									int i1 = (i - xb) * yspan * zspan + (j - yb) * zspan + (k - zb);
+									data1[i0] = data[i1];
 								}
-							}));
+								for (int k = N; k < ze; k++) {
+									int i0 = (i - xb) * yspan * zspan2 + (j - yb) * zspan2 + (k - N);
+									int i1 = (i - xb) * yspan * zspan + (j - yb) * zspan + (k - zb);
+									data2[i0] = data[i1];
+								}
+							}
+						}
+					}));
 		}
 		hpx::wait_all(futs.begin(), futs.end());
 		data = decltype(data)();
@@ -594,8 +595,13 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 					for (int xi = this_xb + proc; xi < this_xe; xi+= nthreads) {
 						for (int yi = yb; yi < ye; yi++) {
 							for (int zi = zb; zi < ze; zi++) {
-								rank_data[zspan * yspan * (xi - this_xb) + zspan * (yi - yb) + (zi - zb)] = data[zspan * yspan
-								* (xi - xb) + yspan * (yi - yb) + (zi - zb)];
+								int i0 = zspan * yspan * (xi - this_xb) + zspan * (yi - yb) + (zi - zb);
+								int i1 = zspan * yspan * (xi - xb) + zspan * (yi - yb) + (zi - zb);
+								assert(i0>=0);
+								assert(i0<rank_data.size());
+								assert(i1>=0);
+								assert(i1<data.size());
+								rank_data[i0] = data[i1];
 							}
 						}
 					}
@@ -649,7 +655,7 @@ std::vector<float> fourier3d_power_spectrum() {
 	}
 	std::vector<float> power;
 	std::vector<size_t> counts;
-	int maxN = (std::sqrt(3)/2.0 * N) + 2;
+	int maxN = N / 2;
 	power.resize(maxN, 0.0f);
 	counts.resize(maxN, 0);
 	for( auto& f : futs ) {
@@ -672,7 +678,7 @@ std::vector<float> fourier3d_power_spectrum() {
 std::pair<std::vector<float>, std::vector<size_t>> fourier3d_get_power_spectrum() {
 	std::vector<float> power;
 	std::vector<size_t> counts;
-	int maxN = int(std::sqrt(3) * N / 2.0)  + 2;
+	int maxN = N / 2;
 	power.resize(maxN, 0.0f);
 	counts.resize(maxN, 0);
 	const int nthreads = hardware_concurrency();
@@ -692,10 +698,12 @@ std::pair<std::vector<float>, std::vector<size_t>> fourier3d_get_power_spectrum(
 						const int zi0 = zi < N / 2 ? zi : zi - N;
 						const int i2 = xi0 * xi0 + yi0 * yi0 + zi0 * zi0;
 						const int i = int(std::sqrt(i2));
-						assert(Y.size() > xi - begin);
-						const float mag = Y[xi-begin][N*yi+zi].norm();
-						this_power[i] += mag;
-						this_counts[i]++;
+						if( i < maxN ) {
+							assert(Y.size() > xi - begin);
+							const float mag = Y[xi-begin][N*yi+zi].norm();
+							this_power[i] += mag;
+							this_counts[i]++;
+						}
 					}
 				}
 			}

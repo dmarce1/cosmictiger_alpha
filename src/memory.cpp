@@ -106,7 +106,7 @@ void unified_allocator::reset() {
 	}
 
 	if (allocated != 0) {
-		PRINT("Attempt to reset unified allocator without freeing all memory, %li left allocated.\n", allocated);
+		PRINT("Attempt to reset unified allocator without freeing all memory, %li left allocated on %i.\n", allocated, hpx_rank());
 		abort();
 	}
 	freelist = decltype(freelist)();

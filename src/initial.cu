@@ -143,7 +143,7 @@ void initial_conditions(particle_set& parts) {
 		_2lpt(*den_k, N, code_to_mpc, dim, NDIM, seed);
 		max_disp = std::max(max_disp, phi1_to_particles(N, code_to_mpc, D1, a * prefac1, dim));
 	}
-	bool use_2lpt = false;
+	bool use_2lpt = true;
 	printf("Maximum displacement is %e\n", max_disp);
 	if (use_2lpt) {
 		printf("2LPT phase 1\n");
