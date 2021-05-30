@@ -25,7 +25,6 @@ enable_language(CUDA)
 set(CMAKE_CXX_FLAGS "-ffast-math -march=native -Wno-deprecated-declarations -Wno-format-security")
 
 set(cosmictiger_source_files
-    src/chemistry.cpp
     src/cosmos.cpp
     src/cuda.cpp
     src/direct.cpp
@@ -52,7 +51,6 @@ set(cosmictiger_source_files
     src/tree.cpp
     src/tree_database.cpp
     src/zeldovich.cpp
-	src/boltzmann.cu
 	src/direct.cu
     src/ewald_indices.cu
     src/expansion.cu
@@ -69,16 +67,13 @@ set(cosmictiger_source_files
     src/tree.cu
     src/tree_database.cu
     src/zeldovich.cu
-    src/zero_order.cu
-)
-                        
+    
+                  )      
                        
                         
                         
 
 set(cosmictiger_header_files
-	cosmictiger/boltzmann.hpp
-	cosmictiger/chemistry.hpp
 	cosmictiger/cosmos.hpp
 	cosmictiger/domain.hpp
 	cosmictiger/defs.hpp

@@ -1,8 +1,6 @@
 #include <cosmictiger/initial.hpp>
 #include <cosmictiger/fourier.hpp>
 #include <cosmictiger/global.hpp>
-#include <cosmictiger/boltzmann.hpp>
-#include <cosmictiger/zero_order.hpp>
 #include <cosmictiger/zeldovich.hpp>
 #include <cosmictiger/constants.hpp>
 #include <cosmictiger/particle.hpp>
@@ -15,12 +13,13 @@
 #define RANDSIZE 256
 #define ZELDOSIZE 1024
 
-template<class T>
-__global__ void vector_free_kernel(vector<T>* vect) {
-	if (threadIdx.x == 0) {
-		vect->vector < T > ::~vector<T>();
-	}
-}
+struct sigma8_integrand {
+	interp_functor<float> power;
+	float littleh;
+	__device__ float operator()(float x) const;
+};
+
+
 
 double growth_factor(double omega_m, float a) {
 	const double omega_l = 1.f - omega_m;
