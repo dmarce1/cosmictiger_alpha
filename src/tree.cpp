@@ -32,7 +32,7 @@ int cuda_kick_occupancy() {
 
 void tree::add_parts_covered(part_iters num) {
 	const part_int count = (parts_covered += num.second - num.first);
-	//PRINT( "%i %i\n", hpx_rank(), count);
+	PRINT( "%i %i\n", hpx_rank(), count);
 	static particle_server pserv;
 	static const auto& parts = pserv.get_particle_set();
 	if (count == parts.size()) {
@@ -40,7 +40,7 @@ void tree::add_parts_covered(part_iters num) {
 //			PRINT("Doing global to local\n");
 			pserv.global_to_local(std::move(remote_parts));
 		} else {
-//			PRINT("Sending tree pieces to gpu\n");
+			PRINT("Sending tree pieces to gpu\n");
 			gpu_daemon();
 		}
 

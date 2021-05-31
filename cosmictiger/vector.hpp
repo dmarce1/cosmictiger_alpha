@@ -13,13 +13,13 @@
 #define vectorPOD 1
 
 #ifdef __CUDA_ARCH__
-#define BLOCK const int& blocksize = blockDim.x
-#define THREAD const int& tid = threadIdx.x
+#define BLOCK const unsigned& blocksize = blockDim.x
+#define THREAD const unsigned& tid = threadIdx.x
 #define FENCE() __threadfence_block()
 #define SYNC() __syncthreads()
 #else
-#define BLOCK constexpr int blocksize = 1
-#define THREAD constexpr int tid = 0
+#define BLOCK constexpr unsigned blocksize = 1
+#define THREAD constexpr unsigned tid = 0
 #define SYNC()
 #define FENCE()
 #endif
@@ -31,23 +31,23 @@ template<class T>
 class vector {
 	T *ptr;
 	T *new_ptr;
-	int cap;
-	int sz;
+	unsigned cap;
+	unsigned sz;
 	bool dontfree;CUDA_EXPORT
 	inline
-	void destruct(int b, int e) {
+	void destruct(unsigned b, unsigned e) {
 		THREAD;
 		BLOCK;
-		for (int i = b + tid; i < e; i += blocksize) {
+		for (unsigned i = b + tid; i < e; i += blocksize) {
 			(*this)[i].T::~T();
 		}
 	}
 	CUDA_EXPORT
 	inline
-	void construct(int b, int e) {
+	void construct(unsigned b, unsigned e) {
 		THREAD;
 		BLOCK;
-		for (int i = b + tid; i < e; i += blocksize) {
+		for (unsigned i = b + tid; i < e; i += blocksize) {
 			new (ptr + i) T();
 		}
 	}
@@ -58,7 +58,7 @@ public:
 		auto this_sz = sz;
 		arc & this_sz;
 		resize(this_sz);
-		for( int i = 0; i < sz; i++) {
+		for( unsigned i = 0; i < sz; i++) {
 			arc & (*this)[i];
 		}
 	}
@@ -78,7 +78,7 @@ public:
 			auto func = [dptr, sz_]() {
 				unified_allocator alloc;
 				if (dptr) {
-					for (int i = 0; i < sz_; i++) {
+					for (unsigned i = 0; i < sz_; i++) {
 						dptr[i].T::~T();
 					}
 					alloc.deallocate(dptr);
@@ -94,7 +94,7 @@ public:
 	}
 #endif
 	CUDA_EXPORT
-	inline int capacity() const {
+	inline unsigned capacity() const {
 		return cap;
 	}
 	CUDA_EXPORT
@@ -109,7 +109,7 @@ public:
 //      reserve(1);
 	}
 	CUDA_EXPORT
-	inline vector(int _sz) {
+	inline vector(unsigned _sz) {
 		THREAD;
 		if (tid == 0) {
 			dontfree = false;
@@ -121,7 +121,7 @@ public:
 //      reserve(1);
 	}
 	CUDA_EXPORT
-	inline vector(int _sz, T ele) {
+	inline vector(unsigned _sz, T ele) {
 		THREAD;
 		BLOCK;
 		if (tid == 0) {
@@ -132,7 +132,7 @@ public:
 		}
 		resize(_sz);
 		SYNC();
-		for (int i = tid; i < _sz; i += blocksize) {
+		for (unsigned i = tid; i < _sz; i += blocksize) {
 			(*this)[i] = ele;
 		}
 //      reserve(1);
@@ -165,7 +165,7 @@ public:
 		}
 		construct(0, other.sz);
 
-		for (int i = tid; i < other.sz; i += blocksize) {
+		for (unsigned i = tid; i < other.sz; i += blocksize) {
 			(*this)[i] = other[i];
 		}
 	}
@@ -175,7 +175,7 @@ public:
 		BLOCK;
 		reserve(other.cap);
 		resize(other.size());
-		for (int i = tid; i < other.size(); i += blocksize) {
+		for (unsigned i = tid; i < other.size(); i += blocksize) {
 			(*this)[i] = other[i];
 		}
 		return *this;
@@ -201,7 +201,7 @@ public:
 	}
 	CUDA_EXPORT
 	inline
-	void reserve(int new_cap) {
+	void reserve(unsigned new_cap) {
 		THREAD;
 		BLOCK;
 		if (new_cap > cap) {
@@ -219,7 +219,7 @@ public:
 				CUDA_MALLOC(new_ptr, new_cap);
 #endif
 			}SYNC();
-			for (int i = tid; i < sz; i += blocksize) {
+			for (unsigned i = tid; i < sz; i += blocksize) {
 				new (new_ptr + i) T();
 				new_ptr[i] = std::move((*this)[i]);
 			}
@@ -242,7 +242,7 @@ public:
 	}
 	CUDA_EXPORT
 	inline
-	void resize(int new_size, int pod = 0) {
+	void resize(unsigned new_size, unsigned pod = 0) {
 		THREAD;
 		reserve(new_size);
 		auto oldsz = sz;
@@ -261,17 +261,17 @@ public:
 
 	}
 	CUDA_EXPORT
-	inline T operator[](int i) const {
+	inline T operator[](unsigned i) const {
 		assert(i < sz);
 		return ptr[i];
 	}
 	CUDA_EXPORT
-	inline T& operator[](int i) {
+	inline T& operator[](unsigned i) {
 		assert(i < sz);
 		return ptr[i];
 	}
 	CUDA_EXPORT
-	inline int size() const {
+	inline unsigned size() const {
 		return sz;
 	}
 	CUDA_EXPORT
