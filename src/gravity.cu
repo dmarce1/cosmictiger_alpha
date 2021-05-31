@@ -225,7 +225,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
 	const auto& h2 = constant.h2;
-	const auto h3inv = 1.f / (constant.h * constant.h2);
+	const auto& h3inv = constant.h3inv;
 	const auto& hinv = constant.hinv;
 	int flops = 0;
 	int interacts = 0;
@@ -250,7 +250,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 					break;
 				}
 			}
-			const part_int imin = these_parts.first;
+			const part_int& imin = these_parts.first;
 			const part_int imax = min(these_parts.first + (KICK_PP_MAX - part_index), these_parts.second);
 			const int sz = imax - imin;
 			for (int j = tid; j < sz; j += warpSize) {
@@ -326,63 +326,6 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 				Phi[l] += phi;
 			}
 //			}
-		}
-		__syncwarp();
-		for (int k = kmid; k < nactive; k++) {
-			fx = 0.f;
-			fy = 0.f;
-			fz = 0.f;
-			phi = 0.f;
-			for (int j = tid; j < part_index; j += warpSize) {
-				dx0 = distance(sinks[0][k], sources[0][j]);
-				dx1 = distance(sinks[1][k], sources[1][j]);
-				dx2 = distance(sinks[2][k], sources[2][j]);               // 3
-				const auto r2 = fmaf(dx0, dx0, fmaf(dx1, dx1, sqr(dx2))); // 5
-				if (r2 >= h2) {
-					r1inv = rsqrt(r2);                                    // FLOP_RSQRT
-					r3inv = r1inv * r1inv * r1inv;                        // 2
-					flops += 2 + FLOP_RSQRT;
-				} else {
-					const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
-					const float r2oh2 = r1oh1 * r1oh1;           // 1
-					r3inv = +15.0f / 8.0f;
-					r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
-					r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
-					if (constant.full_eval) {
-						r1inv = -5.0f / 16.0f;
-						r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
-						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
-						r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
-					}
-					r1inv *= hinv;
-					r3inv *= h3inv;
-					flops += FLOP_SQRT + 18;
-				}
-				fx = fmaf(dx0, r3inv, fx); // 2
-				fy = fmaf(dx1, r3inv, fy); // 2
-				fz = fmaf(dx2, r3inv, fz); // 2
-				NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
-				phi -= r1inv; // 1
-				flops += 15;
-				interacts++;
-			}
-			for (int P = warpSize / 2; P >= 1; P /= 2) {
-				fx += __shfl_down_sync(0xffffffff, fx, P);
-				fy += __shfl_down_sync(0xffffffff, fy, P);
-				fz += __shfl_down_sync(0xffffffff, fz, P);
-				if (constant.full_eval) {
-					phi += __shfl_down_sync(0xffffffff, phi, P);
-				}
-			}
-			if (tid == 0) {
-				const auto l = act_map[k];
-				F[0][l] -= fx;
-				F[1][l] -= fy;
-				F[2][l] -= fz;
-				if (constant.full_eval) {
-					Phi[l] += phi;
-				}
-			}
 		}
 	}
 	__syncwarp();
@@ -500,5 +443,5 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 
 }
 
-CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, part_int *test_parts, float *ferr, float *fnorm, float* perr,
-		float* pnorm, float GM, float h);
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, part_int *test_parts, float *ferr, float *fnorm,
+		float* perr, float* pnorm, float GM, float h);

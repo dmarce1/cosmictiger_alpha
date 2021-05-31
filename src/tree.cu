@@ -51,6 +51,7 @@ void cuda_set_kick_constants(kick_constants consts) {
 	consts.minrung = fmaxf(MIN_RUNG, consts.rung);
 	consts.h2 = sqr(consts.h);
 	consts.hinv = 1.f / consts.h;
+	consts.h3inv = 1.f / consts.h / consts.h / consts.h;
 	consts.th = consts.h * consts.theta;
 	cuda_set_device();
 	CUDA_CHECK(cudaMemcpyToSymbol(constant, &consts, sizeof(kick_constants)));
