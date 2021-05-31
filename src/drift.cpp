@@ -17,7 +17,12 @@ int drift_particles(particle_set parts, double dt, double a0, double* ekin, doub
 	static std::atomic<int> rc(0);
 	rc = 0;
 	const auto ddt = cosmos_drift_dtau(a0, dt);
-	const auto a = 1.0 / ddt;
+	double a;
+	if (ddt > 0.) {
+		a = 1.0 / ddt;
+	} else {
+		a = 1.0;
+	}
 	for (int bid = 0; bid < gsz; bid++) {
 		auto func = [a,bid, gsz, dt,ekin, momx, momy, momz, tau, tau_max,&parts]() {
 			auto map_ws = get_map_workspace();

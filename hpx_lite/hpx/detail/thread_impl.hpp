@@ -13,9 +13,9 @@ namespace hpx {
 
 template<class F, class ...Args>
 void thread::wrapper(void* arg) {
-	feenableexcept (FE_DIVBYZERO);
+/*	feenableexcept (FE_DIVBYZERO);
 	feenableexcept (FE_INVALID);
-	feenableexcept (FE_OVERFLOW);
+	feenableexcept (FE_OVERFLOW);*/
 
 	auto tup_ptr = reinterpret_cast<tuple_type<F, Args...>*>(arg);
 	typedef typename std::result_of<F(Args...)>::type return_type;
