@@ -74,7 +74,10 @@ void matter_power_spectrum_init() {
 	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, matter_power_spectrum_kernel, num_threads, 0));
 	num_blocks *= global().cuda.devices[0].multiProcessorCount;
 	execute_kernel(matter_power_spectrum_kernel, parts, M.data(), xb, xe, yb, ye, zb, ze, N);
-	fourier3d_accumulate_real(xb, xe, yb, ye, zb, ze, std::move(M));
+	std::vector<float> M2(M.size());
+	memcpy(M2.data(), M.data(), M.size() * sizeof(float));
+	M = decltype(M)();
+	fourier3d_accumulate_real(xb, xe, yb, ye, zb, ze, std::move(M2));
 }
 
 /*********************************************************************************************************************************/

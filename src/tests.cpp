@@ -21,7 +21,7 @@
 
 
 static void fft_test() {
-	vector<cmplx> in;
+	std::vector<cmplx> in;
 	int N = 8;
 	in.resize(N*N*N);
 	for( int i = 0; i < N; i++) {

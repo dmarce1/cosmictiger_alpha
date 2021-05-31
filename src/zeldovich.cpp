@@ -2,16 +2,16 @@
 #include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/hpx.hpp>
 
-HPX_PLAIN_ACTION(_2lpt);
-HPX_PLAIN_ACTION(_2lpt_correction1);
-HPX_PLAIN_ACTION(_2lpt_correction2);
-HPX_PLAIN_ACTION(_2lpt_init);
-HPX_PLAIN_ACTION(_2lpt_destroy);
-HPX_PLAIN_ACTION(_2lpt_phase);
-HPX_PLAIN_ACTION(phi1_to_particles);
-HPX_PLAIN_ACTION(phi2_to_particles);
+HPX_PLAIN_ACTION (_2lpt);
+HPX_PLAIN_ACTION (_2lpt_correction1);
+HPX_PLAIN_ACTION (_2lpt_correction2);
+HPX_PLAIN_ACTION (_2lpt_init);
+HPX_PLAIN_ACTION (_2lpt_destroy);
+HPX_PLAIN_ACTION (_2lpt_phase);
+HPX_PLAIN_ACTION (phi1_to_particles);
+HPX_PLAIN_ACTION (phi2_to_particles);
 
-static vector<cmplx> delta2;
+static std::vector<cmplx> delta2;
 static std::vector<float> delta2_part;
 
 void _2lpt_init(int N) {
@@ -140,7 +140,6 @@ float phi1_to_particles(int N, float box_size, float D1, float prefactor, int di
 	return dmax;
 }
 
-
 float phi2_to_particles(int N, float box_size, float D2, float prefactor, int dim) {
 	std::vector<hpx::future<float>> futs;
 	if (hpx_rank() == 0) {
@@ -198,7 +197,10 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 	const float factor = std::pow(box_size, -1.5);
 	generate_random_normals(Y.data(), xspan * N * N, seed + hpx_rank() * 4321);
 	execute_2lpt_kernel(Y.data(), xbegin, xend, den_k, N, box_size, dim1, dim2);
-	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
+	std::vector<cmplx> Y2(Y.size());
+	memcpy(Y2.data(), Y.data(), Y.size() * sizeof(cmplx));
+	Y = decltype(Y)();
+	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y2));
 	hpx::wait_all(futs.begin(), futs.end());
 	if (hpx_rank() == 0) {
 		fourier3d_mirror();
@@ -206,7 +208,7 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 	}
 }
 void _2lpt_correction_f2delta2(int N);
-HPX_PLAIN_ACTION(_2lpt_correction_f2delta2);
+HPX_PLAIN_ACTION (_2lpt_correction_f2delta2);
 
 void _2lpt_correction_f2delta2(int N) {
 	std::vector<hpx::future<void>> futs;
@@ -255,9 +257,13 @@ void _2lpt_correction2(int N, float box_size, int dim) {
 			futs.push_back(hpx::async<_2lpt_correction2_action>(hpx_localities()[i], N, box_size, dim));
 		}
 	}
-	auto Y = delta2;
+	vector<cmplx> Y(delta2.size());
+	memcpy(Y.data(),delta2.data(),sizeof(cmplx)*delta2.size());
 	execute_2lpt_correction_kernel(Y.data(), xbegin, xend, N, box_size, dim);
-	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
+	std::vector<cmplx> Y2(Y.size());
+	memcpy(Y2.data(), Y.data(), Y.size() * sizeof(cmplx));
+	Y = decltype(Y)();
+	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y2));
 	hpx::wait_all(futs.begin(), futs.end());
 	if (hpx_rank() == 0) {
 		fourier3d_execute();
