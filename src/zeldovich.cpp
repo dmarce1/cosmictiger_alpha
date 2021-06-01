@@ -137,9 +137,20 @@ float phi1_to_particles(int N, float box_size, float D1, float prefactor, int di
 	for (auto& f : futs) {
 		dmax = std::max(f.get(), (float) dmax);
 	}
+
+	FILE* fp = fopen("zelda.dat", "wt");
+	for (int xi = xb; xi < xe; xi++) {
+		for (int yi = 0; yi < N; yi++) {
+			for (int zi = 0; zi < N; zi++) {
+				part_int i0 = N * N * (xi - xb) + N * yi + zi;
+				fprintf(fp, "%i %i %i %e %e %e\n", xi, yi, zi, parts.pos(0, i0).to_double(), parts.pos(1, i0).to_double(), parts.pos(2, i0).to_double());
+			}
+		}
+	}
+	fclose(fp);
+
 	return dmax;
 }
-
 
 float phi2_to_particles(int N, float box_size, float D2, float prefactor, int dim) {
 	std::vector<hpx::future<float>> futs;

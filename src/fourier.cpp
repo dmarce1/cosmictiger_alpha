@@ -637,6 +637,7 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 
 void fourier3d_do2dpart() {
 	for (int i = 0; i < span; i++) {
+		printf( "%i\n", i );
 		fft2d(Y[i].data(), N);
 	}
 }

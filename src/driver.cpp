@@ -287,7 +287,7 @@ void drive_cosmos() {
 	auto& parts = pserv.get_particle_set();
 
 	if (!have_checkpoint) {
-		//pserv.load_NGenIC();
+//		pserv.load_NGenIC();
 		initial_conditions(parts);
 		itime = 0;
 		iter = 0;
