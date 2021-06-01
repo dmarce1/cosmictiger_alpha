@@ -163,23 +163,23 @@ target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
 #SET_SOURCE_FILES_PROPERTIES( src/tree.cu PROPERTIES COMPILE_FLAGS -G )
 
 
-add_executable( cosmictiger_lite
-    ${cosmictiger_source_files} ${cosmictiger_header_files}
-)
-add_library(hpx_lite 
-	hpx_lite/src/hpx.cpp
-	hpx_lite/src/id_type.cpp
-	hpx_lite/src/thread.cpp
-	hpx_lite/src/future.cpp
-	hpx_lite/src/mutex.cpp
-	hpx_lite/src/serialize.cpp
-)
-set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
-target_link_libraries(cosmictiger_lite PUBLIC  cuda cudart boost_program_options hpx_lite hwloc mpi tcmalloc cufft)
-target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
+#add_executable( cosmictiger_lite
+#    ${cosmictiger_source_files} ${cosmictiger_header_files}
+#)
+#add_library(hpx_lite 
+#	hpx_lite/src/hpx.cpp
+#	hpx_lite/src/id_type.cpp
+#	hpx_lite/src/thread.cpp
+#	hpx_lite/src/future.cpp
+#	hpx_lite/src/mutex.cpp
+#	hpx_lite/src/serialize.cpp
+#)
+#set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+#target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
+#target_link_libraries(cosmictiger_lite PUBLIC  cuda cudart boost_program_options hpx_lite hwloc mpi tcmalloc cufft)
+#target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 #target_compile_options(cosmictiger_lite PUBLIC -D_GLIBCXX_USE_CXX11_ABI=0)
-target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
-                        >)
+#target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+#                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
+#                        >)
  

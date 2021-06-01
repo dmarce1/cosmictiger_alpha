@@ -20,7 +20,7 @@
 #include <hpx_lite/hpx/hpx_lite.hpp>
 #endif
 
-using mutex_type = hpx::lcos::local::spinlock;
+using mutex_type = hpx::lcos::local::mutex;
 using spinlock_type = hpx::lcos::local::spinlock;
 using shared_mutex_type = hpx::lcos::local::shared_mutex;
 
