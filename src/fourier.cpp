@@ -309,10 +309,10 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 								for (int i = xb+proc; i < xe; i+=nthreads) {
 									for (int j = yb; j < ye; j++) {
 										for (int k = 0; k < ze; k++) {
-											data1[(i - xb) * yspan * zspan1 + j * zspan1 + k] = data[(i - xb) * yspan * zspan + (j - yb) * zspan
+											data1[(i - xb) * yspan * zspan1 + (j - yb) * zspan1 + k] = data[(i - xb) * yspan * zspan + (j - yb) * zspan
 											+ (k - zb)];
 										}
-										for (int k = 0; k < ze; k++) {
+										for (int k = zb; k < 0; k++) {
 											data2[(i - xb) * yspan * zspan2 + (j - yb) * zspan2 + (k - zb)] = data[(i - xb) * yspan * zspan
 											+ (j - yb) * zspan + (k - zb)];
 										}
@@ -337,7 +337,7 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 								for (int i = xb+proc; i < xe; i+=nthreads) {
 									for (int j = yb; j < ye; j++) {
 										for (int k = zb; k < N; k++) {
-											data1[(i - xb) * yspan * zspan1 + j * zspan1 + (k - zb)] = data[(i - xb) * yspan * zspan
+											data1[(i - xb) * yspan * zspan1 + (j - yb) * zspan1 + (k - zb)] = data[(i - xb) * yspan * zspan
 											+ (j - yb) * zspan + (k - zb)];
 										}
 										for (int k = N; k < ze; k++) {
@@ -539,7 +539,7 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 								for (int i = xb+proc; i < xe; i+=nthreads) {
 									for (int j = yb; j < ye; j++) {
 										for (int k = 0; k < ze; k++) {
-											data1[(i - xb) * yspan * zspan1 + j * zspan1 + k] = data[(i - xb) * yspan * zspan + (j - yb) * zspan
+											data1[(i - xb) * yspan * zspan1 + (j - yb) * zspan1 + k] = data[(i - xb) * yspan * zspan + (j - yb) * zspan
 											+ (k - zb)];
 										}
 										for (int k = zb; k < 0; k++) {
@@ -566,7 +566,7 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 						for (int i = xb+proc; i < xe; i+=nthreads) {
 							for (int j = yb; j < ye; j++) {
 								for (int k = zb; k < N; k++) {
-									int i0 = (i - xb) * yspan * zspan1 + j * zspan1 + (k - zb);
+									int i0 = (i - xb) * yspan * zspan1 + (j - yb) * zspan1 + (k - zb);
 									int i1 = (i - xb) * yspan * zspan + (j - yb) * zspan + (k - zb);
 									data1[i0] = data[i1];
 								}
