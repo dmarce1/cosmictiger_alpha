@@ -75,7 +75,7 @@ void _2lpt_phase(int N, int phase) {
 
 }
 
-static double constrain_range(double r) {
+static double constrain_range(double& r) {
 	while (r >= 1.0) {
 		r -= 1.;
 	}
@@ -125,7 +125,7 @@ float phi1_to_particles(int N, float box_size, float D1, float prefactor, int di
 				const float z = (float(zi) + 0.5f) / float(N);
 				part_int i0 = N * N * (xi - xb) + N * yi + zi;
 				const double dx = phi1[i0] * factor;
-				const double x = parts.pos(dim, i0).to_double() + dx;
+				double x = parts.pos(dim, i0).to_double() + dx;
 				constrain_range(x);
 				parts.pos(dim, i0) = x;
 				parts.vel(dim, i0) = prefactor * dx;
@@ -165,7 +165,7 @@ float phi2_to_particles(int N, float box_size, float D2, float prefactor, int di
 				const float z = (float(zi) + 0.5f) / float(N);
 				part_int i0 = N * N * (xi - xb) + N * yi + zi;
 				const double dx = phi2[i0] * factor;
-				const double x = parts.pos(dim, i0).to_double() + dx;
+				double x = parts.pos(dim, i0).to_double() + dx;
 				constrain_range(x);
 				parts.pos(dim, i0) = x;
 				parts.vel(dim, i0) += prefactor * dx;
