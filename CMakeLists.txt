@@ -157,7 +157,6 @@ target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
                         >)
 
-#SET_SOURCE_FILES_PROPERTIES( src/math.cu PROPERTIES COMPILE_FLAGS -G )
 #SET_SOURCE_FILES_PROPERTIES( src/fourier.cu PROPERTIES COMPILE_FLAGS -G )
 #SET_SOURCE_FILES_PROPERTIES( src/gravity.cu PROPERTIES COMPILE_FLAGS -G )
 #SET_SOURCE_FILES_PROPERTIES( src/map.cu PROPERTIES COMPILE_FLAGS "--maxrregcount 40" )

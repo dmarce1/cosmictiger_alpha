@@ -7,6 +7,7 @@
 
 #include <cosmictiger/zeldovich.hpp>
 #include <cosmictiger/array.hpp>
+#include <curand_kernel.h>
 
 void execute_2lpt_kernel(cmplx* Y, int xbegin, int xend, const interp_functor<float> den_k, int N, float box_size,
 		int dim1, int dim2) {
@@ -35,6 +36,9 @@ void _2lpt_kernel(cmplx* Y, int xbegin, int xend, const interp_functor<float> de
 	const int bsz = blockDim.x;
 	const int gsz = gridDim.x;
 	const float factor = powf(box_size, -1.5);
+	const int sequence = bid * bsz + tid;
+	curandState_t rand;
+	curand_init(1234, sequence, 0, &rand);
 	for (int i = xbegin + bid; i < xend; i += gsz) {
 		int i0 = i < N / 2 ? i : i - N;
 		float kx = 2.f * (float) M_PI / box_size * float(i0);
@@ -50,8 +54,10 @@ void _2lpt_kernel(cmplx* Y, int xbegin, int xend, const interp_functor<float> de
 					float k2 = kx * kx + ky * ky + kz * kz;
 					float k = sqrtf(kx * kx + ky * ky + kz * kz);
 					const cmplx K[NDIM + 1] = { { kx, 0 }, { ky, 0 }, { kz, 0 }, { 0, -1 } };
-					const cmplx number = sqrtf(den_k(k)) * factor * K[dim1] * K[dim2] / k2;
-					Y[index0] = Y[index0] * number;
+					const cmplx spec = sqrtf(den_k(k)) * factor * K[dim1] * K[dim2] / k2;
+					const float x = (float(curand(&rand)) + 0.5f) / (float(0xFFFFFFFFUL) + 1.f);
+					const float y = (float(curand(&rand)) + 0.5f) / (float(0xFFFFFFFFUL) + 1.f);
+					Y[index0] = spec * sqrtf(-logf(fabsf(x))) * expc(cmplx(0, 1) * 2.f * float(M_PI) * y);
 				} else {
 					Y[index0].real() = Y[index0].imag() = 0.0;
 				}

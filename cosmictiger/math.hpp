@@ -206,8 +206,6 @@ CUDA_EXPORT inline cmplx expc(cmplx z) {
 	return cmplx(x, y);
 }
 
-double find_root(std::function<double(double)> f);
-
 #ifdef __CUDACC__
 
 template<class FUNC, class REAL>
@@ -284,12 +282,13 @@ CUDA_EXPORT inline float pow2(float r) {
 
 #endif
 
-void generate_random_normals(cmplx* rands, size_t N, int seed);
-
 template<class T>
 CUDA_EXPORT inline T round_up(T num, T mod) {
 	return ((num - 1) / mod + 1) * mod;
 }
+
+__global__
+void generate_random_vectors(fixed32* x, fixed32* y, fixed32* z, size_t N, int seed);
 
 #endif /* GPUTIGER_MATH_HPP_ */
 

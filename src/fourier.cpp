@@ -34,6 +34,7 @@ int slab_to_rank(int xi) {
 }
 
 void fourier3d_mirror() {
+	PRINT( "Mirroring\n");
 	std::vector<hpx::future<void>> futs;
 	if (rank == 0) {
 		for (int i = 1; i < nranks; i++) {
@@ -55,6 +56,7 @@ void fourier3d_mirror() {
 		}
 	}
 	hpx::wait_all(futs.begin(), futs.end());
+	PRINT( "Done Mirroring\n");
 }
 
 vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
@@ -719,23 +721,23 @@ std::pair<std::vector<float>, std::vector<size_t>> fourier3d_get_power_spectrum(
 }
 
 void fourier3d_execute() {
-//	PRINT("Executing fourier\n");
+	PRINT("Executing fourier\n");
 	std::vector<hpx::future<void>> futs;
-//	PRINT("doing 2d\n");
+	PRINT("doing 2d\n");
 	for (int i = 0; i < nranks; i++) {
 		futs.push_back(hpx::async<fourier3d_do2dpart_action>(localities[i]));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-//	PRINT("transposing\n");
+	PRINT("transposing\n");
 	fourier3d_transpose_xz();
 	futs.resize(0);
 	for (int i = 0; i < nranks; i++) {
 		futs.push_back(hpx::async<fourier3d_do1dpart_action>(localities[i]));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-//	PRINT("transposing\n");
+	PRINT("transposing\n");
 	fourier3d_transpose_xz();
-//	PRINT("Done executing fourier\n");
+	PRINT("Done executing fourier\n");
 }
 
 void fourier3d_inv_execute() {

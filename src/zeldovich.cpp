@@ -196,7 +196,6 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 	int xspan = xend - xbegin;
 	Y.resize(xspan * N * N);
 	const float factor = std::pow(box_size, -1.5);
-	generate_random_normals(Y.data(), xspan * N * N, seed + hpx_rank() * 4321);
 	execute_2lpt_kernel(Y.data(), xbegin, xend, den_k, N, box_size, dim1, dim2);
 	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
 	hpx::wait_all(futs.begin(), futs.end());
