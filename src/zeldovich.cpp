@@ -11,7 +11,7 @@ HPX_PLAIN_ACTION(_2lpt_phase);
 HPX_PLAIN_ACTION(phi1_to_particles);
 HPX_PLAIN_ACTION(phi2_to_particles);
 
-static vector<cmplx> delta2;
+static std::vector<cmplx> delta2;
 static std::vector<float> delta2_part;
 
 void _2lpt_init(int N) {
@@ -190,13 +190,13 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 			futs.push_back(hpx::async<_2lpt_action>(hpx_localities()[i], den_k, N, box_size, dim1, dim2, seed));
 		}
 	}
-	vector<cmplx> Y;
+	std::vector<cmplx> Y;
 	int xbegin = hpx_rank() * N / hpx_size();
 	int xend = (hpx_rank() + 1) * N / hpx_size();
 	int xspan = xend - xbegin;
 	Y.resize(xspan * N * N);
 	const float factor = std::pow(box_size, -1.5);
-	execute_2lpt_kernel(Y.data(), xbegin, xend, den_k, N, box_size, dim1, dim2);
+	execute_2lpt_kernel(Y, xbegin, xend, den_k, N, box_size, dim1, dim2);
 	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
 	hpx::wait_all(futs.begin(), futs.end());
 	if (hpx_rank() == 0) {
@@ -255,7 +255,7 @@ void _2lpt_correction2(int N, float box_size, int dim) {
 		}
 	}
 	auto Y = delta2;
-	execute_2lpt_correction_kernel(Y.data(), xbegin, xend, N, box_size, dim);
+	execute_2lpt_correction_kernel(Y, xbegin, xend, N, box_size, dim);
 	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
 	hpx::wait_all(futs.begin(), futs.end());
 	if (hpx_rank() == 0) {

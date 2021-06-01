@@ -18,14 +18,14 @@ enum zeldovich_t {
 };
 
 __global__
-void _2lpt_kernel(cmplx* Y, int xbegin, int xend, const interp_functor<float> den_k, int N, float box_size, int dim1,
+void _2lpt_kernel(cmplx* Y, int xbegin,const interp_functor<float> den_k, int N, float box_size, int dim1,
 		int dim2);
-void execute_2lpt_kernel(cmplx* Y, int xbegin, int xend, const interp_functor<float> den_k, int N, float box_size, int dim1,
+void execute_2lpt_kernel(std::vector<cmplx>& Y, int xbegin, int xend, const interp_functor<float> den_k, int N, float box_size, int dim1,
 		int dim2);
 
 __global__
 void _2lpt_correction_kernel(cmplx* Y, int xbegin, int xend, int N, float box_size, int dim);
-void execute_2lpt_correction_kernel(cmplx* Y, int xbegin, int xend, int N, float box_size, int dim);
+void execute_2lpt_correction_kernel( std::vector<cmplx>& Y, int xbegin, int xend, int N, float box_size, int dim);
 
 void _2lpt(const interp_functor<float> den_k, int N, float box_size, int = NDIM, int = NDIM, int seed = 42);
 void _2lpt_correction1(int N, float );

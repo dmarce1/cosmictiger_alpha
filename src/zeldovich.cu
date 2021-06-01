@@ -9,30 +9,41 @@
 #include <cosmictiger/array.hpp>
 #include <curand_kernel.h>
 
-void execute_2lpt_kernel(cmplx* Y, int xbegin, int xend, const interp_functor<float> den_k, int N, float box_size,
-		int dim1, int dim2) {
+void execute_2lpt_kernel(std::vector<cmplx>& Y, int xbegin, int xend, const interp_functor<float> den_k, int N,
+		float box_size, int dim1, int dim2) {
 	cudaFuncAttributes attribs;
 	cuda_set_device();
 	CUDA_CHECK(cudaFuncGetAttributes(&attribs, _2lpt_kernel));
 	const int nthreads = std::min(attribs.maxThreadsPerBlock, N);
-	const int nblocks = xend - xbegin;
-	_2lpt_kernel<<<nblocks,nthreads>>>(Y,xbegin,xend,den_k,N,box_size,dim1,dim2);
-	CUDA_CHECK(cudaDeviceSynchronize());
+	cmplx* dev_ptr;
+	CUDA_CHECK(cudaMalloc(&dev_ptr, sizeof(cmplx) * N * N));
+	CHECK_POINTER(dev_ptr);
+	for (int xi = xbegin; xi < xend; xi++) {
+		CUDA_CHECK(cudaMemcpy(dev_ptr, Y.data() + (xi - xbegin) * N * N, sizeof(cmplx) * N * N, cudaMemcpyHostToDevice));
+		_2lpt_kernel<<<1,nthreads>>>(dev_ptr,xi,den_k,N,box_size,dim1,dim2);
+		CUDA_CHECK(cudaMemcpy(Y.data() + (xi - xbegin) * N * N, dev_ptr, sizeof(cmplx) * N * N, cudaMemcpyDeviceToHost));
+	}
+	CUDA_CHECK(cudaFree(dev_ptr));
 }
 
-void execute_2lpt_correction_kernel(cmplx* Y, int xbegin, int xend, int N, float box_size, int dim) {
+void execute_2lpt_correction_kernel(std::vector<cmplx>& Y, int xbegin, int xend, int N, float box_size, int dim) {
 	cudaFuncAttributes attribs;
 	cuda_set_device();
-	CUDA_CHECK(cudaFuncGetAttributes(&attribs, _2lpt_kernel));
+	CUDA_CHECK(cudaFuncGetAttributes(&attribs, _2lpt_correction_kernel));
 	const int nthreads = std::min(attribs.maxThreadsPerBlock, N);
-	const int nblocks = xend - xbegin;
-	_2lpt_correction_kernel<<<nblocks,nthreads>>>(Y,xbegin,xend,N,box_size, dim);
-	CUDA_CHECK(cudaDeviceSynchronize());
+	cmplx* dev_ptr;
+	CUDA_CHECK(cudaMalloc(&dev_ptr, sizeof(cmplx) * N * N));
+	CHECK_POINTER(dev_ptr);
+	for (int xi = xbegin; xi < xend; xi++) {
+		CUDA_CHECK(cudaMemcpy(dev_ptr, Y.data() + (xi - xbegin) * N * N, sizeof(cmplx) * N * N, cudaMemcpyHostToDevice));
+		_2lpt_correction_kernel<<<1,nthreads>>>(dev_ptr,xi,xi+1,N,box_size,dim);
+		CUDA_CHECK(cudaMemcpy(Y.data() + (xi - xbegin) * N * N, dev_ptr, sizeof(cmplx) * N * N, cudaMemcpyDeviceToHost));
+	}
+	CUDA_CHECK(cudaFree(dev_ptr));
 }
 
 __global__
-void _2lpt_kernel(cmplx* Y, int xbegin, int xend, const interp_functor<float> den_k, int N, float box_size, int dim1,
-		int dim2) {
+void _2lpt_kernel(cmplx* Y, int xbegin, const interp_functor<float> den_k, int N, float box_size, int dim1, int dim2) {
 	const int tid = threadIdx.x;
 	const int bid = blockIdx.x;
 	const int bsz = blockDim.x;

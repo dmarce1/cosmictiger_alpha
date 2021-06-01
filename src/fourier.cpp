@@ -2,8 +2,8 @@
 #include <cosmictiger/hpx.hpp>
 #include <cosmictiger/vector.hpp>
 
-static std::vector<vector<cmplx>> Y;
-static vector<std::shared_ptr<spinlock_type>> mutexes;
+static std::vector<std::vector<cmplx>> Y;
+static std::vector<std::shared_ptr<spinlock_type>> mutexes;
 static int N;
 static int begin;
 static std::vector<hpx::id_type> localities;
@@ -12,9 +12,8 @@ static int span;
 static int rank;
 static int nranks;
 
-vector<cmplx> fourier3d_transpose(int xbegin, int xend, int zi, vector<cmplx>);
+std::vector<cmplx> fourier3d_transpose(int xbegin, int xend, int zi, std::vector<cmplx>);
 void fourier3d_transpose_xz();
-void fft1d(cmplx* Y, int N);
 std::pair<std::vector<float>, std::vector<size_t>> fourier3d_get_power_spectrum();
 
 HPX_PLAIN_ACTION(fourier3d_get_power_spectrum);
@@ -45,7 +44,7 @@ void fourier3d_mirror() {
 		if (xi <= N / 2) {
 			int xi0 = (N - xi) % N;
 			auto future = hpx::async<fourier3d_read_action>(localities[slab_to_rank(xi0)], xi0, xi0 + 1, 0, N, 0, N);
-			futs.push_back(future.then([xi](hpx::future<vector<cmplx>> fut) {
+			futs.push_back(future.then([xi](hpx::future<std::vector<cmplx>> fut) {
 				auto data = fut.get();
 				for( int yi = 0; yi < N; yi++) {
 					for( int zi = 0; zi < N; zi++) {
@@ -59,8 +58,8 @@ void fourier3d_mirror() {
 	PRINT("Done Mirroring\n");
 }
 
-vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
-	vector<cmplx> data;
+std::vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
+	std::vector<cmplx> data;
 	int yspan = ye - yb;
 	int zspan = ze - zb;
 	data.resize(zspan * yspan * (xe - xb));
@@ -75,7 +74,7 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 			auto fut = hpx::async<fourier3d_read_action>(localities[other_rank], this_xb, this_xe, yb, ye, zb, ze);
 			futs.push_back(
 					fut.then(
-							[&data, this_xb, this_xe, yspan, zspan, xb, yb, ye, zb, ze](hpx::future<vector<cmplx>> fut) {
+							[&data, this_xb, this_xe, yspan, zspan, xb, yb, ye, zb, ze](hpx::future<std::vector<cmplx>> fut) {
 								auto rank_data = fut.get();
 								std::vector<hpx::future<void>> these_futs;
 								int nthreads = hardware_concurrency();
@@ -170,7 +169,7 @@ std::vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, i
 	return std::move(data);
 }
 
-void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector<cmplx> data) {
+void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, std::vector<cmplx> data) {
 	const int xspan = xe - xb;
 	const int yspan = ye - yb;
 	const int zspan = ze - zb;
@@ -180,8 +179,8 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 	if (xb < 0) {
 		int xspan1 = xe - 0;
 		int xspan2 = 0 - xb;
-		vector<cmplx> data1(xspan1 * yspan * zspan);
-		vector<cmplx> data2(xspan2 * yspan * zspan);
+		std::vector<cmplx> data1(xspan1 * yspan * zspan);
+		std::vector<cmplx> data2(xspan2 * yspan * zspan);
 		nthreads = std::min(max_nthreads, yspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(hpx::async([xb,xe,yb,ye,zb,ze,xspan1,xspan2,yspan,zspan,&data,&data1,&data2,proc,nthreads]() {
@@ -209,8 +208,8 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 	} else if (xe > N) {
 		int xspan1 = N - xb;
 		int xspan2 = xe - N;
-		vector<cmplx> data1(xspan1 * yspan * zspan);
-		vector<cmplx> data2(xspan2 * yspan * zspan);
+		std::vector<cmplx> data1(xspan1 * yspan * zspan);
+		std::vector<cmplx> data2(xspan2 * yspan * zspan);
 		nthreads = std::min(max_nthreads, yspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(hpx::async([xb,xe,yb,ye,zb,ze,xspan1,xspan2,yspan,zspan,&data,&data1,&data2,proc,nthreads]() {
@@ -239,8 +238,8 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 	} else if (yb < 0) {
 		int yspan1 = ye - 0;
 		int yspan2 = 0 - yb;
-		vector<cmplx> data1(xspan * yspan1 * zspan);
-		vector<cmplx> data2(xspan * yspan2 * zspan);
+		std::vector<cmplx> data1(xspan * yspan1 * zspan);
+		std::vector<cmplx> data2(xspan * yspan2 * zspan);
 		nthreads = std::min(max_nthreads, xspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(
@@ -269,8 +268,8 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 	} else if (ye > N) {
 		int yspan1 = N - yb;
 		int yspan2 = ye - N;
-		vector<cmplx> data1(xspan * yspan1 * zspan);
-		vector<cmplx> data2(xspan * yspan2 * zspan);
+		std::vector<cmplx> data1(xspan * yspan1 * zspan);
+		std::vector<cmplx> data2(xspan * yspan2 * zspan);
 		nthreads = std::min(max_nthreads, xspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(
@@ -299,8 +298,8 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 	} else if (zb < 0) {
 		int zspan1 = ze - 0;
 		int zspan2 = 0 - zb;
-		vector<cmplx> data1(xspan * yspan * zspan1);
-		vector<cmplx> data2(xspan * yspan * zspan2);
+		std::vector<cmplx> data1(xspan * yspan * zspan1);
+		std::vector<cmplx> data2(xspan * yspan * zspan2);
 		nthreads = std::min(max_nthreads, xspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(
@@ -327,8 +326,8 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 	} else if (ze > N) {
 		int zspan1 = N - zb;
 		int zspan2 = ze - N;
-		vector<cmplx> data1(xspan * yspan * zspan1);
-		vector<cmplx> data2(xspan * yspan * zspan2);
+		std::vector<cmplx> data1(xspan * yspan * zspan1);
+		std::vector<cmplx> data2(xspan * yspan * zspan2);
 		nthreads = std::min(max_nthreads, xspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(
@@ -359,7 +358,7 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 			const int this_xb = std::max(xb, other_rank * N / nranks);
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
 			const int this_xspan = this_xe - this_xb;
-			vector<cmplx> rank_data(this_xspan * yspan * zspan);
+			std::vector<cmplx> rank_data(this_xspan * yspan * zspan);
 			int nthreads = hardware_concurrency();
 			std::vector<hpx::future<void>> these_futs;
 			for (int proc = 0; proc < nthreads; proc++) {
@@ -400,7 +399,7 @@ void fourier3d_accumulate(int xb, int xe, int yb, int ye, int zb, int ze, vector
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, vector<float> data) {
+void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, std::vector<float> data) {
 	const int xspan = xe - xb;
 	const int yspan = ye - yb;
 	const int zspan = ze - zb;
@@ -410,8 +409,8 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 	if (xb < 0) {
 		int xspan1 = xe - 0;
 		int xspan2 = 0 - xb;
-		vector<float> data1(xspan1 * yspan * zspan);
-		vector<float> data2(xspan2 * yspan * zspan);
+		std::vector<float> data1(xspan1 * yspan * zspan);
+		std::vector<float> data2(xspan2 * yspan * zspan);
 		nthreads = std::min(max_nthreads, yspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(hpx::async([xb,xe,yb,ye,zb,ze,xspan1,xspan2,yspan,zspan,&data,&data1,&data2,proc,nthreads]() {
@@ -439,8 +438,8 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 	} else if (xe > N) {
 		int xspan1 = N - xb;
 		int xspan2 = xe - N;
-		vector<float> data1(xspan1 * yspan * zspan);
-		vector<float> data2(xspan2 * yspan * zspan);
+		std::vector<float> data1(xspan1 * yspan * zspan);
+		std::vector<float> data2(xspan2 * yspan * zspan);
 		nthreads = std::min(max_nthreads, yspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(hpx::async([xb,xe,yb,ye,zb,ze,xspan1,xspan2,yspan,zspan,&data,&data1,&data2,proc,nthreads]() {
@@ -469,8 +468,8 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 	} else if (yb < 0) {
 		int yspan1 = ye - 0;
 		int yspan2 = 0 - yb;
-		vector<float> data1(xspan * yspan1 * zspan);
-		vector<float> data2(xspan * yspan2 * zspan);
+		std::vector<float> data1(xspan * yspan1 * zspan);
+		std::vector<float> data2(xspan * yspan2 * zspan);
 		nthreads = std::min(max_nthreads, xspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(
@@ -499,8 +498,8 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 	} else if (ye > N) {
 		int yspan1 = N - yb;
 		int yspan2 = ye - N;
-		vector<float> data1(xspan * yspan1 * zspan);
-		vector<float> data2(xspan * yspan2 * zspan);
+		std::vector<float> data1(xspan * yspan1 * zspan);
+		std::vector<float> data2(xspan * yspan2 * zspan);
 		nthreads = std::min(max_nthreads, xspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(
@@ -529,8 +528,8 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 	} else if (zb < 0) {
 		int zspan1 = ze - 0;
 		int zspan2 = 0 - zb;
-		vector<float> data1(xspan * yspan * zspan1);
-		vector<float> data2(xspan * yspan * zspan2);
+		std::vector<float> data1(xspan * yspan * zspan1);
+		std::vector<float> data2(xspan * yspan * zspan2);
 		nthreads = std::min(max_nthreads, xspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(
@@ -557,8 +556,8 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 	} else if (ze > N) {
 		int zspan1 = N - zb;
 		int zspan2 = ze - N;
-		vector<float> data1(xspan * yspan * zspan1);
-		vector<float> data2(xspan * yspan * zspan2);
+		std::vector<float> data1(xspan * yspan * zspan1);
+		std::vector<float> data2(xspan * yspan * zspan2);
 		nthreads = std::min(max_nthreads, xspan);
 		for (int proc = 0; proc < nthreads; proc++) {
 			futs.push_back(
@@ -590,7 +589,7 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 			const int this_xb = std::max(xb, other_rank * N / nranks);
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
 			const int this_xspan = this_xe - this_xb;
-			vector<float> rank_data(this_xspan * yspan * zspan);
+			std::vector<float> rank_data(this_xspan * yspan * zspan);
 			int nthreads = hardware_concurrency();
 			std::vector<hpx::future<void>> these_futs;
 			for (int proc = 0; proc < nthreads; proc++) {
@@ -638,13 +637,13 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 
 void fourier3d_do2dpart() {
 	for (int i = 0; i < span; i++) {
-		fft2d(Y[i].data(), N);
+		fft2d(Y[i], N);
 	}
 }
 
 void fourier3d_do1dpart() {
 	for (int i = 0; i < span; i++) {
-		fft1d(Y[i].data(), N);
+		fft1d(Y[i], N);
 	}
 }
 
@@ -813,7 +812,7 @@ void fourier3d_transpose_xz() {
 	}
 	for (int other = rank; other < nranks; other++) {
 		for (int xi = begin; xi < end; xi++) {
-			vector<cmplx> data;
+			std::vector<cmplx> data;
 			const int zend = (other + 1) * N / nranks;
 			const int zbegin = other * N / nranks + ((other == rank) ? (xi - begin) : 0);
 			const int zspan = zend - zbegin;
@@ -824,7 +823,7 @@ void fourier3d_transpose_xz() {
 				}
 			}
 			auto future = hpx::async<fourier3d_transpose_action>(localities[other], zbegin, zend, xi, std::move(data));
-			futs.push_back(future.then([zspan,zbegin,zend,xi](hpx::future<vector<cmplx>> fut) {
+			futs.push_back(future.then([zspan,zbegin,zend,xi](hpx::future<std::vector<cmplx>> fut) {
 				auto data = fut.get();
 				for (int j = 0; j < N; j++) {
 					for (int k = zbegin; k < zend; k++) {
@@ -838,7 +837,7 @@ void fourier3d_transpose_xz() {
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-vector<cmplx> fourier3d_transpose(int xbegin, int xend, int zi, vector<cmplx> data) {
+std::vector<cmplx> fourier3d_transpose(int xbegin, int xend, int zi, std::vector<cmplx> data) {
 	const int xspan = xend - xbegin;
 	for (int xi = 0; xi < xspan; xi++) {
 		for (int yi = 0; yi < N; yi++) {
