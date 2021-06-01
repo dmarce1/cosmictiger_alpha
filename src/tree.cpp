@@ -34,6 +34,7 @@ void tree::add_parts_covered(part_iters num) {
 	const part_int count = (parts_covered += num.second - num.first);
 	static particle_server pserv;
 	static const auto& parts = pserv.get_particle_set();
+//	PRINT( "%i %i\n", (int) parts_covered, parts.size());
 	if (count == parts.size()) {
 		if (dry_run) {
 //			PRINT("Doing global to local\n");
@@ -502,7 +503,7 @@ void tree::kick(kick_params_type * params_ptr) {
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
 		int min_gpu_nodes = block_count / 8;
 		if (active_nodes < min_gpu_nodes) {
-			params.block_cutoff = 0;
+//			params.block_cutoff = 0;
 		}
 	}
 	if (self.is_leaf()) {
@@ -531,7 +532,7 @@ void tree::kick(kick_params_type * params_ptr) {
 		}
 		shift_expansion(L, dx, params.full_eval);
 	}
-	const auto theta2 = sqr(params.theta * (params.dry_run ? 0.99 : 1.0));
+	const auto theta2 = sqr(params.theta * (params.dry_run ? 1.0 : 1.0));
 
 	array<tree_ptr*, N_INTERACTION_TYPES> all_checks;
 	auto &multis = params.multi_interactions;
@@ -562,9 +563,14 @@ void tree::kick(kick_params_type * params_ptr) {
 					d2 = std::max(d2, (float) EWALD_MIN_DIST2);
 				}
 				const float myradius = SINK_BIAS * self.get_radius();
-				const auto R1 = sqr(other_radius + myradius + th);                 // 2
-				const auto R2 = sqr(other_radius * params.theta + myradius + th);
-				const auto R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + th);
+				auto R1 = sqr(other_radius + myradius + th);                 // 2
+				auto R2 = sqr(other_radius * params.theta + myradius + th);
+				auto R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + th);
+				if( params.dry_run) {
+					R1 *= 1.001;
+					R2 *= 0.999;
+					R3 *= 1.001;
+				}
 				const bool far1 = R1 < theta2 * d2;
 				const bool far2 = R2 < theta2 * d2;
 				const bool far3 = R3 < theta2 * d2;

@@ -276,9 +276,9 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 											}
 											local_iter.second = j + offset;
 											local_tree.set_parts(local_iter);
-#ifndef NDEBUG
+//#ifndef NDEBUG
 				local_tree.set_proc_range(hpx_rank(), hpx_rank());
-#endif
+//#endif
 			}
 		}));
 }

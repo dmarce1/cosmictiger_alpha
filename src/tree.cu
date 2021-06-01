@@ -140,11 +140,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const float other_radius = check.get_radius();
 						const int isleaf = check.is_leaf();
 						part_iters other_parts;
-						int other_nparts;
-						if (direct) {
-							other_parts = check.get_parts();
-							other_nparts = other_parts.second - other_parts.first;
-						}
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
 							dx[dim] = distance(other_pos[dim], mypos[dim]);
 						}
@@ -161,7 +156,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const int far3 = R3 < theta2d2;                 // 1
 						interacts++;
 						flops += 27;
-						const bool mi = far1 || (direct && far3 && other_nparts >= MIN_PC_PARTS);
+						const bool mi = far1 || (direct && far3);
 						const bool pi = (far2 || direct) && isleaf;
 						list_index = (1 - mi) * (pi * PI + (1 - pi) * (isleaf * OI + (1 - isleaf) * CI));
 						my_index[list_index] = 1;
@@ -245,9 +240,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					const auto other_nparts = parti_parts.second - parti_parts.first;
 					bool res = false;
 					const int sz = myparts.second - myparts.first;
-					if (other_nparts < MIN_PC_PARTS) {
-						res = true;
-					} else {
+//					if (other_nparts < MIN_PC_PARTS) {
+//						res = true;
+//					} else {
 						for (int k = 0; k < sz; k++) {
 							const auto this_rung = parts.rung(k + myparts.first);
 							if (this_rung >= constant.rung || constant.full_eval) {
@@ -262,7 +257,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 								}
 							}
 						}
-					}
+//					}
 					list_index = res ? PI : MI;
 					my_index[list_index] = 1;
 				}
