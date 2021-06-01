@@ -13,7 +13,7 @@ void execute_2lpt_kernel(cmplx* Y, int xbegin, int xend, const interp_functor<fl
 		int dim1, int dim2) {
 	cudaFuncAttributes attribs;
 	CUDA_CHECK(cudaFuncGetAttributes(&attribs, _2lpt_kernel));
-	const int nthreads = std::min(attribs.maxThreadsPerBlock, N);
+	const int nthreads = std::min(256,std::min(attribs.maxThreadsPerBlock, N));
 	const int nblocks = xend - xbegin;
 	_2lpt_kernel<<<nblocks,nthreads>>>(Y,xbegin,xend,den_k,N,box_size,dim1,dim2);
 	CUDA_CHECK(cudaDeviceSynchronize());
