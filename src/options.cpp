@@ -10,12 +10,19 @@
 #include <cosmictiger/hpx.hpp>
 #include <fstream>
 #include <iostream>
+#ifdef USE_HPX
+#else
 #include <boost/program_options.hpp>
+#endif
 #include <cosmictiger/constants.hpp>
 #include <cosmictiger/math.hpp>
 
 bool process_options(int argc, char *argv[], options &opts) {
+#ifdef USE_HPX
+	namespace po = hpx::program_options;
+#else
 	namespace po = boost::program_options;
+#endif
 	bool rc;
 	po::options_description command_opts("options");
 
@@ -47,7 +54,11 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("z0", po::value<double>(&(opts.z0))->default_value(49), "starting redshift") //
 			;
 
+#ifdef USE_HPX
+	hpx::program_options::variables_map vm;
+#else
 	boost::program_options::variables_map vm;
+#endif
 	po::store(po::parse_command_line(argc, argv, command_opts), vm);
 	po::notify(vm);
 	if (vm.count("help")) {
