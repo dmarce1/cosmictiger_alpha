@@ -542,7 +542,7 @@ void fourier3d_accumulate_real(int xb, int xe, int yb, int ye, int zb, int ze, v
 											data1[(i - xb) * yspan * zspan1 + j * zspan1 + k] = data[(i - xb) * yspan * zspan + (j - yb) * zspan
 											+ (k - zb)];
 										}
-										for (int k = 0; k < ze; k++) {
+										for (int k = zb; k < 0; k++) {
 											data2[(i - xb) * yspan * zspan2 + (j - yb) * zspan2 + (k - zb)] = data[(i - xb) * yspan * zspan
 											+ (j - yb) * zspan + (k - zb)];
 										}

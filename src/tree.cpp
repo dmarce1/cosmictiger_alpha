@@ -45,7 +45,9 @@ void tree::add_parts_covered(part_iters num) {
 		}
 
 	}
-	assert(parts_covered <= parts.size());
+	if(parts_covered > parts.size()) {
+		ERROR();
+	}
 }
 
 timer tmp_tm;
@@ -503,7 +505,8 @@ void tree::kick(kick_params_type * params_ptr) {
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
 		int min_gpu_nodes = block_count / 8;
 		if (active_nodes < min_gpu_nodes) {
-//			params.block_cutoff = 0;
+			PRINT( "cpu only\n");
+			params.block_cutoff = 0;
 		}
 	}
 	if (self.is_leaf()) {
