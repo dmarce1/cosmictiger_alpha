@@ -34,35 +34,29 @@ int slab_to_rank(int xi) {
 }
 
 void fourier3d_mirror() {
-	PRINT("Mirroring\n");
+	PRINT( "Mirroring\n");
 	std::vector<hpx::future<void>> futs;
 	if (rank == 0) {
 		for (int i = 1; i < nranks; i++) {
 			futs.push_back(hpx::async<fourier3d_mirror_action>(localities[i]));
 		}
 	}
-	const int dslab = span * std::min(float(1024 * 1024 * 256) / float(span * N * N), 1.0f);
-	for (int xi = begin; xi < end; xi += dslab) {
-		if (xi + dslab - 1 >= N / 2) {
-			int xb = std::min(xi, N / 2);
-			int xe = xb + dslab;
-			int xb0 = (N - xb) % N;
-			int xe0 = (N - xe) % N;
-			auto future = hpx::async<fourier3d_read_action>(localities[slab_to_rank(xb0)], xb0, xe0, 0, N, 0, N);
-			futs.push_back(future.then([xb,xe,xb0,xe0](hpx::future<vector<cmplx>> fut) {
+	for (int xi = begin; xi < end; xi++) {
+		if (xi <= N / 2) {
+			int xi0 = (N - xi) % N;
+			auto future = hpx::async<fourier3d_read_action>(localities[slab_to_rank(xi0)], xi0, xi0 + 1, 0, N, 0, N);
+			futs.push_back(future.then([xi](hpx::future<vector<cmplx>> fut) {
 				auto data = fut.get();
-				for( int xi = xb; xi < xe; xi++) {
-					for( int yi = 0; yi < N; yi++) {
-						for( int zi = 0; zi < N; zi++) {
-							Y[xi-begin][yi*N+zi] = data[(xe0 - xi + xb - xb0) * N * N + ((N-yi)%N)*N+((N-zi)%N)].conj();
-						}
+				for( int yi = 0; yi < N; yi++) {
+					for( int zi = 0; zi < N; zi++) {
+						Y[xi-begin][yi*N+zi] = data[((N-yi)%N)*N+((N-zi)%N)].conj();
 					}
 				}
 			}));
 		}
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	PRINT("Done Mirroring\n");
+	PRINT( "Done Mirroring\n");
 }
 
 vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
