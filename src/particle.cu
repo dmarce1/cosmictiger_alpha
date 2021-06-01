@@ -31,13 +31,8 @@ void particle_set::sort_indices(part_int* begin, part_int* end) {
 void particle_set::generate_random(int seed) {
 	cuda_set_device();
 	if (size_) {
-		cudaFuncAttributes attribs;
-		CUDA_CHECK(cudaFuncGetAttributes(&attribs, generate_random_vectors));
-		int num_threads = attribs.maxThreadsPerBlock;
-		int num_blocks;
-		CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, generate_random_vectors, num_threads, 0));
-		num_blocks *= global().cuda.devices[0].multiProcessorCount;
-		generate_random_vectors<<<num_blocks,num_threads>>>(xptr_[0],xptr_[1],xptr_[2],size_,seed);
+		const int N = global().opts.parts_dim;
+		generate_random_vectors<<<N,WARP_SIZE>>>(xptr_[0],xptr_[1],xptr_[2],size_,seed);
 		CUDA_CHECK(cudaDeviceSynchronize());
 
 		for (int i = 0; i < size_; i++) {
