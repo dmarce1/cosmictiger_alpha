@@ -370,13 +370,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 			}
 		}
 		__syncwarp();
-		int kmid;
-		if ((nactive % warpSize) < MIN_KICK_WARP) {
-			kmid = nactive - (nactive % warpSize);
-		} else {
-			kmid = nactive;
-		}
-		for (int k = tid; k < kmid; k += warpSize) {
+		for (int k = tid; k < nactive; k += warpSize) {
 			for (int i = 0; i < NDIM + 1; i++) {
 				Lforce[i] = 0.f;
 			}
@@ -399,35 +393,6 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 			}
 		}
 		__syncwarp();
-		for (int k = kmid; k < nactive; k++) {
-			for (int i = 0; i < NDIM + 1; i++) {
-				Lforce[i] = 0.f;
-			}
-			for (int i = tid; i < nsrc; i += warpSize) {
-				const auto &source = msrcs[i].pos;
-				dx0 = distance(sinks[0][k], source[0]);
-				dx1 = distance(sinks[1][k], source[1]);
-				dx2 = distance(sinks[2][k], source[2]);
-				flops += 6;
-				flops += green_direct(D, dx);
-				flops += multipole_interaction(Lforce, msrcs[i].multi, D, constant.full_eval);
-				interacts++;
-			}
-			for (int P = warpSize / 2; P >= 1; P /= 2) {
-				for (int dim = 0; dim < NDIM + 1; dim++) {
-					Lforce[dim] += __shfl_down_sync(0xffffffff, Lforce[dim], P);
-				}
-			}
-			if (tid == 0) {
-				const int l = act_map[k];
-				F[0][l] -= Lforce[1];
-				F[1][l] -= Lforce[2];
-				F[2][l] -= Lforce[3];
-				if (constant.full_eval) {
-					Phi[l] += Lforce[0];
-				}
-			}
-		}
 	}
 	__syncwarp();
 	if (constant.full_eval) {
