@@ -51,15 +51,12 @@ void fourier3d_mirror() {
 	int j = 0;
 	for (int xi = begin; xi < end; xi++) {
 		if (xi >= N / 2) {
-			futs.push_back(hpx::async([j,&data_futs,xi]() {
-				auto data = data_futs[j].get();
-				for (int yi = 0; yi < N; yi++) {
-					for (int zi = 0; zi < N; zi++) {
-						Y[xi - begin][yi * N + zi] = data[((N - yi) % N) * N + ((N - zi) % N)].conj();
-					}
+			auto data = data_futs[j++].get();
+			for (int yi = 0; yi < N; yi++) {
+				for (int zi = 0; zi < N; zi++) {
+					Y[xi - begin][yi * N + zi] = data[((N - yi) % N) * N + ((N - zi) % N)].conj();
 				}
-			}));
-			j++;
+			}
 		}
 	}
 	hpx::wait_all(futs.begin(), futs.end());
@@ -821,7 +818,7 @@ void fourier3d_destroy() {
 
 void fourier3d_transpose_xz() {
 	std::vector<hpx::future<void>> futs;
-	std::vector<hpx::future<vector<cmplx>>> data_futs;
+	std::vector<hpx::future<vector<cmplx>>>data_futs;
 	rank = hpx_rank();
 	nranks = hpx_size();
 	localities = hpx_localities();
@@ -842,7 +839,8 @@ void fourier3d_transpose_xz() {
 					data[j * zspan + k - zbegin] = Y[xi - begin][j * N + k];
 				}
 			}
-			data_futs.push_back(hpx::async<fourier3d_transpose_action>(localities[other], zbegin, zend, xi, std::move(data)));
+			data_futs.push_back(
+					hpx::async<fourier3d_transpose_action>(localities[other], zbegin, zend, xi, std::move(data)));
 		}
 	}
 	int j = 0;
@@ -854,7 +852,7 @@ void fourier3d_transpose_xz() {
 			auto data = data_futs[j++].get();
 			for (int j = 0; j < N; j++) {
 				for (int k = zbegin; k < zend; k++) {
-					Y[xi-begin][j * N + k] = data[j * zspan + k - zbegin];
+					Y[xi - begin][j * N + k] = data[j * zspan + k - zbegin];
 				}
 			}
 		}
