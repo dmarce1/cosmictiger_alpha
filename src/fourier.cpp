@@ -17,25 +17,26 @@ void fourier3d_transpose_xz();
 void fft1d(cmplx* Y, int N);
 std::pair<std::vector<float>, std::vector<size_t>> fourier3d_get_power_spectrum();
 
-HPX_PLAIN_ACTION(fourier3d_get_power_spectrum);
-HPX_PLAIN_ACTION(fourier3d_initialize);
-HPX_PLAIN_ACTION(fourier3d_destroy);
-HPX_PLAIN_ACTION(fourier3d_transpose);
-HPX_PLAIN_ACTION(fourier3d_accumulate);
-HPX_PLAIN_ACTION(fourier3d_accumulate_real);
-HPX_PLAIN_ACTION(fourier3d_transpose_xz);
-HPX_PLAIN_ACTION(fourier3d_read);
-HPX_PLAIN_ACTION(fourier3d_read_real);
-HPX_PLAIN_ACTION(fourier3d_mirror);
-HPX_PLAIN_ACTION(fourier3d_inv_execute);
+HPX_PLAIN_ACTION (fourier3d_get_power_spectrum);
+HPX_PLAIN_ACTION (fourier3d_initialize);
+HPX_PLAIN_ACTION (fourier3d_destroy);
+HPX_PLAIN_ACTION (fourier3d_transpose);
+HPX_PLAIN_ACTION (fourier3d_accumulate);
+HPX_PLAIN_ACTION (fourier3d_accumulate_real);
+HPX_PLAIN_ACTION (fourier3d_transpose_xz);
+HPX_PLAIN_ACTION (fourier3d_read);
+HPX_PLAIN_ACTION (fourier3d_read_real);
+HPX_PLAIN_ACTION (fourier3d_mirror);
+HPX_PLAIN_ACTION (fourier3d_inv_execute);
 
 int slab_to_rank(int xi) {
 	return std::min((int) ((xi + int(N % nranks != 0)) * nranks / N), nranks - 1);
 }
 
 void fourier3d_mirror() {
-	PRINT( "Mirroring\n");
+	PRINT("Mirroring\n");
 	std::vector<hpx::future<void>> futs;
+	std::vector<hpx::future<vector<cmplx>>>data_futs;
 	if (rank == 0) {
 		for (int i = 1; i < nranks; i++) {
 			futs.push_back(hpx::async<fourier3d_mirror_action>(localities[i]));
@@ -44,19 +45,25 @@ void fourier3d_mirror() {
 	for (int xi = begin; xi < end; xi++) {
 		if (xi >= N / 2) {
 			int xi0 = (N - xi) % N;
-			auto future = hpx::async<fourier3d_read_action>(localities[slab_to_rank(xi)], xi0, xi0 + 1, 0, N, 0, N);
-			futs.push_back(future.then([xi](hpx::future<vector<cmplx>> fut) {
-				auto data = fut.get();
-				for( int yi = 0; yi < N; yi++) {
-					for( int zi = 0; zi < N; zi++) {
-						Y[xi-begin][yi*N+zi] = data[((N-yi)%N)*N+((N-zi)%N)].conj();
+			data_futs.push_back(hpx::async<fourier3d_read_action>(localities[slab_to_rank(xi)], xi0, xi0 + 1, 0, N, 0, N));
+		}
+	}
+	int j = 0;
+	for (int xi = begin; xi < end; xi++) {
+		if (xi >= N / 2) {
+			futs.push_back(hpx::async([j,&data_futs,xi]() {
+				auto data = data_futs[j].get();
+				for (int yi = 0; yi < N; yi++) {
+					for (int zi = 0; zi < N; zi++) {
+						Y[xi - begin][yi * N + zi] = data[((N - yi) % N) * N + ((N - zi) % N)].conj();
 					}
 				}
 			}));
+			j++;
 		}
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	PRINT( "Done Mirroring\n");
+	PRINT("Done Mirroring\n");
 }
 
 vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
@@ -65,6 +72,7 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 	int zspan = ze - zb;
 	data.resize(zspan * yspan * (xe - xb));
 	std::vector<hpx::future<void>> futs;
+	std::vector<hpx::future<vector<cmplx>>>data_futs;
 	if (slab_to_rank(xb) != rank || slab_to_rank(xe - 1) != rank) {
 		const int rankb = slab_to_rank(xb);
 		const int ranke = slab_to_rank(xe - 1);
@@ -73,26 +81,31 @@ vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
 			const int this_xspan = this_xe - this_xb;
 			auto fut = hpx::async<fourier3d_read_action>(localities[other_rank], this_xb, this_xe, yb, ye, zb, ze);
-			futs.push_back(
-					fut.then(
-							[&data, this_xb, this_xe, yspan, zspan, xb, yb, ye, zb, ze](hpx::future<vector<cmplx>> fut) {
-								auto rank_data = fut.get();
-								std::vector<hpx::future<void>> these_futs;
-								int nthreads = hardware_concurrency();
-								for( int proc = 0; proc < nthreads; proc++) {
-									const auto func = [xb,this_xb,proc,this_xe,nthreads,yb,ye,zb,ze,&data,&rank_data,zspan, yspan]() {
-										for( int xi = this_xb + proc; xi < this_xe; xi+=nthreads) {
-											for( int yi = yb; yi < ye; yi++) {
-												for( int zi = zb; zi < ze; zi++) {
-													data[zspan*yspan*(xi-xb)+zspan*(yi-yb)+(zi-zb)] = rank_data[zspan*yspan*(xi-this_xb)+zspan*(yi-yb)+(zi-zb)];
-												}
-											}
-										}
-									};
-									these_futs.push_back(hpx::async(func));
+			data_futs.push_back(std::move(fut));
+		}
+		int j = 0;
+		for (int other_rank = rankb; other_rank <= ranke; other_rank++) {
+			const int this_xb = std::max(xb, other_rank * N / nranks);
+			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
+			const int this_xspan = this_xe - this_xb;
+			auto& fut = data_futs[j++];
+			auto rank_data = fut.get();
+			std::vector<hpx::future<void>> these_futs;
+			int nthreads = hardware_concurrency();
+			for (int proc = 0; proc < nthreads; proc++) {
+				const auto func =
+						[xb,this_xb,proc,this_xe,nthreads,yb,ye,zb,ze,&data,&rank_data,zspan, yspan]() {
+							for( int xi = this_xb + proc; xi < this_xe; xi+=nthreads) {
+								for( int yi = yb; yi < ye; yi++) {
+									for( int zi = zb; zi < ze; zi++) {
+										data[zspan*yspan*(xi-xb)+zspan*(yi-yb)+(zi-zb)] = rank_data[zspan*yspan*(xi-this_xb)+zspan*(yi-yb)+(zi-zb)];
+									}
 								}
-								hpx::wait_all(these_futs.begin(),these_futs.end());
-							}));
+							}
+						};
+				these_futs.push_back(hpx::async(func));
+			}
+			hpx::wait_all(these_futs.begin(), these_futs.end());
 		}
 	} else {
 		int nthreads = hardware_concurrency();
@@ -120,6 +133,7 @@ std::vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, i
 	int zspan = ze - zb;
 	data.resize(zspan * yspan * (xe - xb));
 	std::vector<hpx::future<void>> futs;
+	std::vector<hpx::future<std::vector<float>>>data_futs;
 	if (slab_to_rank(xb) != rank || slab_to_rank(xe - 1) != rank) {
 		const int rankb = slab_to_rank(xb);
 		const int ranke = slab_to_rank(xe - 1);
@@ -128,26 +142,31 @@ std::vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, i
 			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
 			const int this_xspan = this_xe - this_xb;
 			auto fut = hpx::async<fourier3d_read_real_action>(localities[other_rank], this_xb, this_xe, yb, ye, zb, ze);
-			futs.push_back(
-					fut.then(
-							[&data, this_xb, this_xe, yspan, zspan, xb, yb, ye, zb, ze](hpx::future<std::vector<float>> fut) {
-								auto rank_data = fut.get();
-								std::vector<hpx::future<void>> these_futs;
-								int nthreads = hardware_concurrency();
-								for( int proc = 0; proc < nthreads; proc++) {
-									const auto func = [xb,this_xb,proc,this_xe,nthreads,yb,ye,zb,ze,&data,&rank_data,zspan, yspan]() {
-										for( int xi = this_xb + proc; xi < this_xe; xi+=nthreads) {
-											for( int yi = yb; yi < ye; yi++) {
-												for( int zi = zb; zi < ze; zi++) {
-													data[zspan*yspan*(xi-xb)+zspan*(yi-yb)+(zi-zb)] = rank_data[zspan*yspan*(xi-this_xb)+zspan*(yi-yb)+(zi-zb)];
-												}
-											}
-										}
-									};
-									these_futs.push_back(hpx::async(func));
+			data_futs.push_back(std::move(fut));
+		}
+		int j = 0;
+		for (int other_rank = rankb; other_rank <= ranke; other_rank++) {
+			const int this_xb = std::max(xb, other_rank * N / nranks);
+			const int this_xe = std::min(xe, (other_rank + 1) * N / nranks);
+			const int this_xspan = this_xe - this_xb;
+			auto& fut = data_futs[j++];
+			auto rank_data = fut.get();
+			std::vector<hpx::future<void>> these_futs;
+			int nthreads = hardware_concurrency();
+			for (int proc = 0; proc < nthreads; proc++) {
+				const auto func =
+						[xb,this_xb,proc,this_xe,nthreads,yb,ye,zb,ze,&data,&rank_data,zspan, yspan]() {
+							for( int xi = this_xb + proc; xi < this_xe; xi+=nthreads) {
+								for( int yi = yb; yi < ye; yi++) {
+									for( int zi = zb; zi < ze; zi++) {
+										data[zspan*yspan*(xi-xb)+zspan*(yi-yb)+(zi-zb)] = rank_data[zspan*yspan*(xi-this_xb)+zspan*(yi-yb)+(zi-zb)];
+									}
 								}
-								hpx::wait_all(these_futs.begin(),these_futs.end());
-							}));
+							}
+						};
+				these_futs.push_back(hpx::async(func));
+			}
+			hpx::wait_all(these_futs.begin(), these_futs.end());
 		}
 	} else {
 		int nthreads = hardware_concurrency();
@@ -647,8 +666,8 @@ void fourier3d_do1dpart() {
 	}
 }
 
-HPX_PLAIN_ACTION(fourier3d_do1dpart);
-HPX_PLAIN_ACTION(fourier3d_do2dpart);
+HPX_PLAIN_ACTION (fourier3d_do1dpart);
+HPX_PLAIN_ACTION (fourier3d_do2dpart);
 
 std::vector<float> fourier3d_power_spectrum() {
 	std::vector<hpx::future<std::pair<std::vector<float>, std::vector<size_t>>> >futs;
@@ -730,6 +749,7 @@ void fourier3d_execute() {
 	hpx::wait_all(futs.begin(), futs.end());
 	PRINT("transposing\n");
 	fourier3d_transpose_xz();
+	PRINT("1d transform\n");
 	futs.resize(0);
 	for (int i = 0; i < nranks; i++) {
 		futs.push_back(hpx::async<fourier3d_do1dpart_action>(localities[i]));
@@ -801,6 +821,7 @@ void fourier3d_destroy() {
 
 void fourier3d_transpose_xz() {
 	std::vector<hpx::future<void>> futs;
+	std::vector<hpx::future<vector<cmplx>>> data_futs;
 	rank = hpx_rank();
 	nranks = hpx_size();
 	localities = hpx_localities();
@@ -821,18 +842,23 @@ void fourier3d_transpose_xz() {
 					data[j * zspan + k - zbegin] = Y[xi - begin][j * N + k];
 				}
 			}
-			auto future = hpx::async<fourier3d_transpose_action>(localities[other], zbegin, zend, xi, std::move(data));
-			futs.push_back(future.then([zspan,zbegin,zend,xi](hpx::future<vector<cmplx>> fut) {
-				auto data = fut.get();
-				for (int j = 0; j < N; j++) {
-					for (int k = zbegin; k < zend; k++) {
-						Y[xi-begin][j * N + k] = data[j * zspan + k - zbegin];
-					}
-				}
-			}));
+			data_futs.push_back(hpx::async<fourier3d_transpose_action>(localities[other], zbegin, zend, xi, std::move(data)));
 		}
 	}
-
+	int j = 0;
+	for (int other = rank; other < nranks; other++) {
+		for (int xi = begin; xi < end; xi++) {
+			const int zend = (other + 1) * N / nranks;
+			const int zbegin = other * N / nranks + ((other == rank) ? (xi - begin) : 0);
+			const int zspan = zend - zbegin;
+			auto data = data_futs[j++].get();
+			for (int j = 0; j < N; j++) {
+				for (int k = zbegin; k < zend; k++) {
+					Y[xi-begin][j * N + k] = data[j * zspan + k - zbegin];
+				}
+			}
+		}
+	}
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
