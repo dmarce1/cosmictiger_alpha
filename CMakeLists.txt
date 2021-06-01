@@ -180,6 +180,6 @@ target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
 #target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 #target_compile_options(cosmictiger_lite PUBLIC -D_GLIBCXX_USE_CXX11_ABI=0)
 #target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-#                        --use_fast_math --maxrregcount 128 -G --gpu-architecture=compute_70;
+#                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
 #                        >)
  

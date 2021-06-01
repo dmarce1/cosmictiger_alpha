@@ -45,8 +45,9 @@ void tree::add_parts_covered(part_iters num) {
 		}
 
 	}
-	if(parts_covered > parts.size()) {
-		ERROR();
+	if (parts_covered > parts.size()) {
+		ERROR()
+		;
 	}
 }
 
@@ -412,7 +413,7 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	const auto proc_range = get_proc_range();
 	const auto num_active = get_active_nodes();
 	const auto sm_count = global().cuda.devices[0].multiProcessorCount;
-	const part_int min_parts2thread = particles->size() / hpx::thread::hardware_concurrency() / OVERSUBSCRIPTION;
+	const bool isnt_global = proc_range.second - proc_range.first == 1;
 	if (params.dry_run) {
 		const bool all_local = all_checks_local(params.dchecks) && all_checks_local(params.echecks);
 		if (all_local) {
@@ -431,9 +432,8 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 	}
 #endif
 
-	if (!params.dry_run && use_cuda && num_active <= params.block_cutoff && num_active
-			&& params.tptr.rank == hpx_rank()) {
-		//	printf( "Sending kick\n");
+	if (!params.dry_run && use_cuda && num_active <= params.block_cutoff && num_active && params.tptr.rank == hpx_rank()
+			&& isnt_global) {
 		return tree::send_kick_to_gpu(params_ptr);
 	} else {
 		if (params.tptr.rank != hpx_rank()) {
@@ -505,7 +505,6 @@ void tree::kick(kick_params_type * params_ptr) {
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
 		int min_gpu_nodes = block_count / 8;
 		if (active_nodes < min_gpu_nodes) {
-			PRINT( "cpu only\n");
 			params.block_cutoff = 0;
 		}
 	}
@@ -569,7 +568,7 @@ void tree::kick(kick_params_type * params_ptr) {
 				auto R1 = sqr(other_radius + myradius + th);                 // 2
 				auto R2 = sqr(other_radius * params.theta + myradius + th);
 				auto R3 = sqr(other_radius + (myradius * params.theta / SINK_BIAS) + th);
-				if( params.dry_run) {
+				if (params.dry_run) {
 					R1 *= 1.001;
 					R2 *= 0.999;
 					R3 *= 1.001;
@@ -634,7 +633,13 @@ void tree::kick(kick_params_type * params_ptr) {
 		futs[LEFT] = hpx::make_ready_future();
 		futs[RIGHT] = hpx::make_ready_future();
 		auto children = self.get_children();
-		if ((children[LEFT].get_active_parts() && children[RIGHT].get_active_parts()) || params.full_eval) {
+		const auto left_procs = children[LEFT].get_proc_range();
+		const auto right_procs = children[RIGHT].get_proc_range();
+		const bool left_branch = (left_procs.second - left_procs.first > 1) || children[LEFT].local_root()
+				|| children[LEFT].get_active_parts();
+		const bool right_branch = (right_procs.second - right_procs.first > 1) || children[RIGHT].local_root()
+				|| children[RIGHT].get_active_parts();
+		if ((left_branch && right_branch) || params.full_eval) {
 			int depth0 = params.depth;
 			params.depth++;
 			params.dchecks.push_top();
@@ -649,9 +654,8 @@ void tree::kick(kick_params_type * params_ptr) {
 			params.tptr = children[RIGHT];
 			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
 			params.depth--;
-		} else if (children[LEFT].get_active_parts()) {
+		} else if (left_branch) {
 			const auto other_parts = children[RIGHT].get_parts();
-//			covered_ranges.add_range(parts);
 			add_parts_covered(other_parts);
 			int depth0 = params.depth;
 			params.depth++;
@@ -660,9 +664,8 @@ void tree::kick(kick_params_type * params_ptr) {
 			params.tptr = children[LEFT];
 			futs[LEFT] = children[LEFT].kick(params_ptr, false);
 			params.depth--;
-		} else if (children[RIGHT].get_active_parts()) {
+		} else if (right_branch) {
 			const auto other_parts = children[LEFT].get_parts();
-//			covered_ranges.add_range(parts);
 			add_parts_covered(other_parts);
 			int depth0 = params.depth;
 			params.depth++;
@@ -671,6 +674,9 @@ void tree::kick(kick_params_type * params_ptr) {
 			params.tptr = children[RIGHT];
 			futs[RIGHT] = children[RIGHT].kick(params_ptr, false);
 			params.depth--;
+		} else {
+			add_parts_covered(children[RIGHT].get_parts());
+			add_parts_covered(children[LEFT].get_parts());
 		}
 		int depth = params.depth;
 		const bool dry = params.dry_run;
