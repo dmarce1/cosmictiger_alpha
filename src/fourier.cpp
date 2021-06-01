@@ -732,6 +732,7 @@ void fourier3d_execute() {
 	PRINT("transposing\n");
 	fourier3d_transpose_xz();
 	futs.resize(0);
+	PRINT( "Doing 1d\n");
 	for (int i = 0; i < nranks; i++) {
 		futs.push_back(hpx::async<fourier3d_do1dpart_action>(localities[i]));
 	}

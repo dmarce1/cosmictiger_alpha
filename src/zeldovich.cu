@@ -12,6 +12,7 @@
 void execute_2lpt_kernel(cmplx* Y, int xbegin, int xend, const interp_functor<float> den_k, int N, float box_size,
 		int dim1, int dim2) {
 	cudaFuncAttributes attribs;
+	cuda_set_device();
 	CUDA_CHECK(cudaFuncGetAttributes(&attribs, _2lpt_kernel));
 	const int nthreads = std::min(attribs.maxThreadsPerBlock, N);
 	const int nblocks = xend - xbegin;
@@ -21,6 +22,7 @@ void execute_2lpt_kernel(cmplx* Y, int xbegin, int xend, const interp_functor<fl
 
 void execute_2lpt_correction_kernel(cmplx* Y, int xbegin, int xend, int N, float box_size, int dim) {
 	cudaFuncAttributes attribs;
+	cuda_set_device();
 	CUDA_CHECK(cudaFuncGetAttributes(&attribs, _2lpt_kernel));
 	const int nthreads = std::min(attribs.maxThreadsPerBlock, N);
 	const int nblocks = xend - xbegin;
@@ -34,7 +36,6 @@ void _2lpt_kernel(cmplx* Y, int xbegin, int xend, const interp_functor<float> de
 	const int tid = threadIdx.x;
 	const int bid = blockIdx.x;
 	const int bsz = blockDim.x;
-	const int gsz = gridDim.x;
 	const float factor = powf(box_size, -1.5);
 	int i = xbegin + bid;
 	int i0;
