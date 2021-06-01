@@ -76,12 +76,12 @@ void _2lpt_phase(int N, int phase) {
 }
 
 static double constrain_range(double r) {
-	while (r >= 1.0) {
+/*	while (r >= 1.0) {
 		r -= 1.;
 	}
 	while (r < 0.) {
 		r += 1.;
-	}
+	}*/
 	return r;
 }
 
