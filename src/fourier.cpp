@@ -45,7 +45,7 @@ void fourier3d_mirror() {
 	for (int xi = begin; xi < end; xi++) {
 		if (xi >= N / 2) {
 			int xi0 = (N - xi) % N;
-			data_futs.push_back(hpx::async<fourier3d_read_action>(localities[slab_to_rank(xi)], xi0, xi0 + 1, 0, N, 0, N));
+			data_futs.push_back(hpx::async<fourier3d_read_action>(localities[slab_to_rank(xi0)], xi0, xi0 + 1, 0, N, 0, N));
 		}
 	}
 	int j = 0;
