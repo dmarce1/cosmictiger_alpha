@@ -88,7 +88,7 @@ __global__ void find_range_kernel(fixed32* x, part_int part_count, fixed32* xmin
 		__syncthreads();
 		if (tid < P) {
 			mymax[tid] = max(mymax[tid], mymax[tid + P]);
-			mymin[tid] = min(mymin[tid], mymax[tid + P]);
+			mymin[tid] = min(mymin[tid], mymin[tid + P]);
 		}
 	}
 	if (tid == 0) {

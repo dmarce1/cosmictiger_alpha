@@ -3,7 +3,7 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/zeldovich.hpp>
 #include <cosmictiger/constants.hpp>
-#include <cosmictiger/particle.hpp>
+#include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/power.hpp>
 
 #include <unistd.h>
@@ -191,7 +191,9 @@ void initial_conditions(particle_set& parts) {
 
 	unified_allocator alloc;
 	alloc.reset();
-
+	printf( "Doing initial domain decomposition\n");
+	particle_server pserv;
+	pserv.apply_domain_decomp();
 	printf("Computing initial matter power spectrum\n");
 	matter_power_spectrum(0);
 	alloc.reset();
