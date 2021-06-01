@@ -44,7 +44,7 @@ void fourier3d_mirror() {
 	for (int xi = begin; xi < end; xi++) {
 		if (xi >= N / 2) {
 			int xi0 = (N - xi) % N;
-			auto future = hpx::async<fourier3d_read_action>(localities[slab_to_rank(xi)], xi0, xi0 + 1, 0, N, 0, N);
+			auto future = hpx::async<fourier3d_read_action>(localities[slab_to_rank(xi0)], xi0, xi0 + 1, 0, N, 0, N);
 			futs.push_back(future.then([xi](hpx::future<vector<cmplx>> fut) {
 				auto data = fut.get();
 				for( int yi = 0; yi < N; yi++) {
