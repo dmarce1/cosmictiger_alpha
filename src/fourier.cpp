@@ -34,7 +34,7 @@ int slab_to_rank(int xi) {
 }
 
 void fourier3d_mirror() {
-	PRINT( "Mirroring\n");
+	PRINT("Mirroring\n");
 	std::vector<hpx::future<void>> futs;
 	if (rank == 0) {
 		for (int i = 1; i < nranks; i++) {
@@ -56,7 +56,7 @@ void fourier3d_mirror() {
 		}
 	}
 	hpx::wait_all(futs.begin(), futs.end());
-	PRINT( "Done Mirroring\n");
+	PRINT("Done Mirroring\n");
 }
 
 vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze) {
@@ -156,8 +156,9 @@ std::vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, i
 				for (int xi = xb + proc; xi < xe; xi+=nthreads) {
 					for (int yi = yb; yi < ye; yi++) {
 						for (int zi = zb; zi < ze; zi++) {
-							data[zspan * yspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)] = Y[xi - begin][zspan * (yi - yb)
-							+ (zi - zb)].real();
+							auto& d = data[zspan * yspan * (xi - xb) + zspan * (yi - yb) + (zi - zb)];
+							const auto& y = Y[xi - begin][zspan * (yi - yb) + (zi - zb)];
+							d = y.real();
 						}
 					}
 				}

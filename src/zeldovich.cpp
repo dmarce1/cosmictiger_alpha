@@ -200,7 +200,7 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
 	hpx::wait_all(futs.begin(), futs.end());
 	if (hpx_rank() == 0) {
-		fourier3d_mirror();
+	//	fourier3d_mirror();
 		fourier3d_execute();
 	}
 }
