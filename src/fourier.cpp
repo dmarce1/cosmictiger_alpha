@@ -12,7 +12,8 @@ static int span;
 static int rank;
 static int nranks;
 
-std::vector<cmplx> fourier3d_transpose(int xbegin, int xend, int zi, std::vector<cmplx>);
+std::vector<std::vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zbegin, int zend,
+		std::vector<std::vector<cmplx>>);
 void fourier3d_transpose_xz();
 std::pair<std::vector<float>, std::vector<size_t>> fourier3d_get_power_spectrum();
 
@@ -731,7 +732,7 @@ void fourier3d_execute() {
 	PRINT("transposing\n");
 	fourier3d_transpose_xz();
 	futs.resize(0);
-	PRINT( "Doing 1d\n");
+	PRINT("Doing 1d\n");
 	for (int i = 0; i < nranks; i++) {
 		futs.push_back(hpx::async<fourier3d_do1dpart_action>(localities[i]));
 	}
@@ -810,40 +811,62 @@ void fourier3d_transpose_xz() {
 			futs.push_back(hpx::async<fourier3d_transpose_xz_action>(localities[i]));
 		}
 	}
-	for (int other = rank; other < nranks; other++) {
-		for (int xi = begin; xi < end; xi++) {
-			std::vector<cmplx> data;
+	int dx = end - begin;
+	while (size_t(N) * size_t(N) * size_t(dx) * size_t(sizeof(cmplx)) > 0xFFFFFFFFULL) {
+		dx /= 2;
+	}
+	dx = std::max(1, dx);
+	for (int other = rank + 1; other < nranks; other++) {
+		for (int xi = begin; xi < end; xi += dx) {
+			dx = std::min(end - xi, dx);
+			std::vector<std::vector<cmplx>> data(dx);
 			const int zend = (other + 1) * N / nranks;
-			const int zbegin = other * N / nranks + ((other == rank) ? (xi - begin) : 0);
+			const int zbegin = other * N / nranks;
 			const int zspan = zend - zbegin;
-			data.resize(N * zspan);
-			for (int j = 0; j < N; j++) {
-				for (int k = zbegin; k < zend; k++) {
-					data[j * zspan + k - zbegin] = Y[xi - begin][j * N + k];
-				}
+			for (int i = 0; i < dx; i++) {
+				data[i].resize(N * zspan);
 			}
-			auto future = hpx::async<fourier3d_transpose_action>(localities[other], zbegin, zend, xi, std::move(data));
-			futs.push_back(future.then([zspan,zbegin,zend,xi](hpx::future<std::vector<cmplx>> fut) {
-				auto data = fut.get();
+			for (int i = xi; i < xi + dx; i++) {
 				for (int j = 0; j < N; j++) {
 					for (int k = zbegin; k < zend; k++) {
-						Y[xi-begin][j * N + k] = data[j * zspan + k - zbegin];
+						data[i - xi][j * zspan + k - zbegin] = Y[i - begin][j * N + k];
+					}
+				}
+			}
+			auto future = hpx::async<fourier3d_transpose_action>(localities[other], zbegin, zend, xi, xi + dx,
+					std::move(data));
+			futs.push_back(future.then([zspan,zbegin,zend,dx,xi](hpx::future<std::vector<std::vector<cmplx>>> fut) {
+				auto data = fut.get();
+				for( int i = 0; i < dx; i++) {
+					for (int j = 0; j < N; j++) {
+						for (int k = zbegin; k < zend; k++) {
+							Y[xi+i-begin][j * N + k] = data[i][j * zspan + k - zbegin];
+						}
 					}
 				}
 			}));
 		}
 	}
-
+	for (int i = begin; i < end; i++) {
+		for (int j = 0; j < N; j++) {
+			for (int k = i + 1; k < end; k++) {
+				swap(Y[i - begin][j * N + k], Y[k - begin][j * N + i]);
+			}
+		}
+	}
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
-std::vector<cmplx> fourier3d_transpose(int xbegin, int xend, int zi, std::vector<cmplx> data) {
+std::vector<std::vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zbegin, int zend,
+		std::vector<std::vector<cmplx>> data) {
 	const int xspan = xend - xbegin;
 	for (int xi = 0; xi < xspan; xi++) {
 		for (int yi = 0; yi < N; yi++) {
-			auto& a = data[yi * xspan + xi];
-			auto& b = Y[xi + xbegin - begin][yi * N + zi];
-			swap(a, b);
+			for (int zi = zbegin; zi < zend; zi++) {
+				auto& a = data[zi - zbegin][yi * xspan + xi];
+				auto& b = Y[xi + xbegin - begin][yi * N + zi];
+				swap(a, b);
+			}
 		}
 	}
 	return std::move(data);
