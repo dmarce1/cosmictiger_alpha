@@ -139,7 +139,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const auto other_pos = check.get_pos();
 						const float other_radius = check.get_radius();
 						const int isleaf = check.is_leaf();
-						part_iters other_parts;
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
 							dx[dim] = distance(other_pos[dim], mypos[dim]);
 						}
@@ -237,7 +236,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					const auto other_pos = parti[j].get_pos();
 					const auto other_radius = parti[j].get_radius();
 					const auto parti_parts = parti[j].get_parts();
-					const auto other_nparts = parti_parts.second - parti_parts.first;
+			//		const auto other_nparts = parti_parts.second - parti_parts.first;
 					bool res = false;
 					const int sz = myparts.second - myparts.first;
 //					if (other_nparts < MIN_PC_PARTS) {

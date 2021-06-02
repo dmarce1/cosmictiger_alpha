@@ -845,6 +845,10 @@ void fourier3d_transpose_xz() {
 			}
 		}
 	}
+	dx = end - begin;
+	while (size_t(N) * size_t(N) * size_t(dx) * size_t(sizeof(cmplx)) > 0xFFFFFFFFULL) {
+		dx /= 2;
+	}
 	dx = std::max(1, dx);
 	int j = 0;
 	for (int other = rank + 1; other < nranks; other++) {
