@@ -267,11 +267,11 @@ future<typename std::result_of<Function(hpx::future<T>&&)>::type> future<T>::the
 		}));
 	});
 
-//	if (cont_ptr->fut.state->set_continuation(then_function)) {
-//		return_future.state->set_thread(cont_ptr->fut.state->get_thread());
-//	} else {
+	if (cont_ptr->fut.state->set_continuation(then_function)) {
+		return_future.state->set_thread(cont_ptr->fut.state->get_thread());
+	} else {
 		return_future.state->set_thread(hpx::thread(std::move(then_function)));
-	//}
+	}
 
 	return std::move(return_future);
 }

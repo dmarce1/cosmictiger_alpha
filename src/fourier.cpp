@@ -812,14 +812,13 @@ void fourier3d_transpose_xz() {
 			futs.push_back(hpx::async<fourier3d_transpose_xz_action>(localities[i]));
 		}
 	}
-	int dx = end - begin;
+	int dx0 = end - begin;
 	while (size_t(N) * size_t(N) * size_t(dx) * size_t(sizeof(cmplx)) > 0xFFFFFFFFULL) {
-		dx /= 2;
+		dx0 /= 2;
 	}
-	dx = std::max(1, dx);
 	for (int other = rank + 1; other < nranks; other++) {
 		for (int xi = begin; xi < end; xi += dx) {
-			dx = std::min(end - xi, dx);
+			int dx = std::min(end - xi, dx0);
 			std::vector<std::vector<cmplx>> data(dx);
 			const int zend = (other + 1) * N / nranks;
 			const int zbegin = other * N / nranks;
@@ -845,15 +844,10 @@ void fourier3d_transpose_xz() {
 			}
 		}
 	}
-	dx = end - begin;
-	while (size_t(N) * size_t(N) * size_t(dx) * size_t(sizeof(cmplx)) > 0xFFFFFFFFULL) {
-		dx /= 2;
-	}
-	dx = std::max(1, dx);
 	int j = 0;
 	for (int other = rank + 1; other < nranks; other++) {
 		for (int xi = begin; xi < end; xi += dx) {
-			dx = std::min(end - xi, dx);
+			int dx = std::min(end - xi, dx0);
 			const int zend = (other + 1) * N / nranks;
 			const int zbegin = other * N / nranks;
 			const int zspan = zend - zbegin;
