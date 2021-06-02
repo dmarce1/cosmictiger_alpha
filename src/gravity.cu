@@ -54,7 +54,8 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 
 	for (int P = warpSize / 2; P >= 1; P /= 2) {
 		for (int i = 0; i < LP; i++) {
-			L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
+			L[i].real() += __shfl_xor_sync(0xffffffff, L[i].real(), P);
+			L[i].imag() += __shfl_xor_sync(0xffffffff, L[i].imag(), P);
 		}
 	}
 	for (int i = tid; i < LP; i += warpSize) {
@@ -136,7 +137,8 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		}
 		for (int P = warpSize / 2; P >= 1; P /= 2) {
 			for (int i = 0; i < LP; i++) {
-				L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
+				L[i].real() += __shfl_xor_sync(0xffffffff, L[i].real(), P);
+				L[i].imag() += __shfl_xor_sync(0xffffffff, L[i].imag(), P);
 			}
 		}
 		for (int i = tid; i < LP; i += warpSize) {

@@ -84,14 +84,26 @@ class complex {
 public:
 	complex() = default;
 	CUDA_EXPORT
-	complex(float a) {
+	complex(T a) {
 		x = a;
 		y = T(0.0);
 	}
 	CUDA_EXPORT
-	complex(float a, float b) {
+	complex(T a, T b) {
 		x = a;
 		y = b;
+	}
+	CUDA_EXPORT
+	complex& operator*=(T other) {
+		x *= other;
+		y *= other;
+		return *this;
+	}
+	CUDA_EXPORT
+	complex& operator*=(complex other) {
+		x *= other.x;
+		y *= other.y;
+		return *this;
 	}
 	CUDA_EXPORT
 	complex& operator+=(complex other) {
@@ -117,14 +129,14 @@ public:
 		return *this * other.conj() / other.norm();
 	}
 	CUDA_EXPORT
-	complex operator/(float other) const {
+	complex operator/(T other) const {
 		complex b;
 		b.x = x / other;
 		b.y = y / other;
 		return b;
 	}
 	CUDA_EXPORT
-	complex operator*(float other) const {
+	complex operator*(T other) const {
 		complex b;
 		b.x = x * other;
 		b.y = y * other;
@@ -152,27 +164,27 @@ public:
 		return a;
 	}
 	CUDA_EXPORT
-	float real() const {
+	T real() const {
 		return x;
 	}
 	CUDA_EXPORT
-	float imag() const {
+	T imag() const {
 		return y;
 	}
 	CUDA_EXPORT
-	float& real() {
+	T& real() {
 		return x;
 	}
 	CUDA_EXPORT
-	float& imag() {
+	T& imag() {
 		return y;
 	}
 	CUDA_EXPORT
-	float norm() const {
+	T norm() const {
 		return ((*this) * conj()).real();
 	}
 	CUDA_EXPORT
-	float abs() const {
+	T abs() const {
 		return sqrtf(norm());
 	}
 	CUDA_EXPORT
@@ -202,8 +214,8 @@ CUDA_EXPORT inline complex<T> operator*(T a, complex<T> b) {
 
 template<class T>
 CUDA_EXPORT inline complex<T> expc(complex<T> z) {
-	float x, y;
-	float t = EXP(z.real());
+	T x, y;
+	T t = EXP(z.real());
 	sincosf(z.imag(), &y, &x);
 	x *= t;
 	y *= t;

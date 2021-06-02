@@ -13,7 +13,7 @@ static __constant__ array<array<float, NDIM>, NFOUR> four_indices_dev;
 static __constant__ array<expansion<float>, NFOUR> four_expanse_dev;
 
 void ewald_const::init_gpu() {
-	int n2max = 10;
+/*	int n2max = 10;
 	int nmax = std::sqrt(n2max) + 1;
 	array<float, NDIM> this_h;
 	int count = 0;
@@ -76,7 +76,7 @@ void ewald_const::init_gpu() {
 	CUDA_CHECK(cudaMemcpyToSymbol(real_indices_dev,&real_indices,sizeof(real_indices)));
 	CUDA_CHECK(cudaMemcpyToSymbol(four_indices_dev,&four_indices,sizeof(four_indices)));
 	CUDA_CHECK(cudaMemcpyToSymbol(four_expanse_dev,&four_expanse,sizeof(four_expanse)));
-
+*/
 }
 
 CUDA_EXPORT int ewald_const::nfour() {

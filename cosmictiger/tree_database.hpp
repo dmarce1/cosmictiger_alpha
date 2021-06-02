@@ -611,7 +611,8 @@ CUDA_EXPORT inline multipole tree_data_get_multi(int i) {
 	multipole M;
 	multipole& m = tree_data_.multi[i].multi;
 	for (int i = 0; i < MP; i++) {
-		M[i] = LDG(&m[i]);
+		M[i].real() = LDG(&m[i].real());
+		M[i].imag() = LDG(&m[i].imag());
 	}
 	return M;
 }

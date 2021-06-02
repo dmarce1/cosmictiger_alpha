@@ -8,6 +8,7 @@
 #include <cosmictiger/groups.hpp>
 #include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/tree_database.hpp>
+#include <cosmictiger/spherical_harmonic.hpp>
 
 #include <set>
 
@@ -259,9 +260,11 @@ sort_return tree::sort(sort_params params) {
 		}
 		if (!params.group_sort) {
 			std::array<double, NDIM> com = { 0, 0, 0 };
-			const auto &MR = Mc[RIGHT];
-			const auto &ML = Mc[LEFT];
-			M() = ML() + MR();
+			auto &MR = Mc[RIGHT];
+			auto &ML = Mc[LEFT];
+			double ml = ML(0).real();
+			double mr = MR(0).real();
+			double m = ml + mr;
 			double rleft = 0.0;
 			double rright = 0.0;
 			array<fixed32, NDIM> pos;
@@ -273,14 +276,16 @@ sort_return tree::sort(sort_params params) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				auto& Xl = xl[dim];
 				auto& Xr = xr[dim];
-				com[dim] = (ML() * Xl + MR() * Xr) / (ML() + MR());
+				com[dim] = (ml * Xl + mr * Xr) / (ml + mr);
 				Xl -= com[dim];
 				Xr -= com[dim];
 				rleft += sqr(Xl);
 				rright += sqr(Xr);
 				pos[dim] = com[dim];
 			}
-			M = (ML >> xl) + (MR >> xr);
+			translate_multipole<float, MORDER>(MR, MR, xr[0], xr[1], xr[2]);
+			translate_multipole<float, MORDER>(ML, ML, xl[0], xl[1], xl[2]);
+			auto M = ML + MR;
 			rleft = std::sqrt(rleft) + Rc[LEFT];
 			rright = std::sqrt(rright) + Rc[RIGHT];
 			float radius = std::max(rleft, rright);
@@ -328,23 +333,16 @@ sort_return tree::sort(sort_params params) {
 			multipole M;
 			M = 0.0;
 			float radius = 0.0;
+			sphericalY<float, 1> point;
+			point = 1.0f;
 			for (auto i = parts.first; i < parts.second; i++) {
-				double this_radius = 0.0;
-				M() += 1.0;
-				for (int n = 0; n < NDIM; n++) {
-					const auto xn = particles->pos(n, i).to_double() - com[n];
-					this_radius += xn * xn;
-					for (int m = n; m < NDIM; m++) {
-						const auto xm = particles->pos(m, i).to_double() - com[m];
-						const auto xnm = xn * xm;
-						M(n, m) += xnm;
-						for (int l = m; l > NDIM; l++) {
-							const auto xl = particles->pos(l, i).to_double() - com[l];
-							M(n, m, l) -= xnm * xl;
-						}
-					}
-				}
-				this_radius = std::sqrt(this_radius);
+				const double x = particles->pos(0, i).to_double() - com[0];
+				const double y = particles->pos(1, i).to_double() - com[1];
+				const double z = particles->pos(2, i).to_double() - com[2];
+				const double this_radius = sqrt(sqr(x - com[0]) + sqr(y - com[1]) + sqr(z - com[2]));
+				sphericalY<float,MORDER> this_point;
+				translate_multipole<float,MORDER>(this_point, point, x, y, z);
+				M += this_point;
 				radius = std::max(radius, (float) (this_radius));
 			}
 			rc.active_parts = 0;

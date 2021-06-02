@@ -55,6 +55,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 				f[dim][tid] -= X[dim] * r3inv;
 			}
 		} else {
+#ifndef PERIODIC_OFF
 			const ewald_const econst;
 			for (int i = 0; i < econst.nreal(); i++) {
 				const auto n = econst.real_index(i);
@@ -91,6 +92,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 				}
 			}
 			phi[tid] += float(M_PI / 4.f);
+#endif
 		}
 	}
 	__syncthreads();

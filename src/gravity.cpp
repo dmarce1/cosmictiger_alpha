@@ -41,7 +41,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 	}
 	if (multis.size()) {
 		for (int i = 0; i < LP; i++) {
-			Lacc[i] = 0.f;
+			Lacc[i] = simd_float(0.f);
 		}
 		const auto cnt1 = multis.size();
 		for (int j = 0; j < cnt1; j += simd_float::size()) {
@@ -54,7 +54,8 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 						Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
-						M[i][k] = mpole[i];
+						M[i].real()[k] = mpole[i].real();
+						M[i].imag()[k] = mpole[i].imag();
 					}
 					n++;
 				} else {
@@ -63,7 +64,8 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 						Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
-						M[i][k] = 0.f;
+						M[i].real()[k] = 0.f;
+						M[i].imag()[k] = 0.f;
 					}
 				}
 			}
@@ -78,7 +80,8 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {
 				NAN_TEST(Lacc[i][k]);
-				L[i] += Lacc[i][k];
+				L[i].real() += Lacc[i].real()[k];
+				L[i].imag() += Lacc[i].imag()[k];
 			}
 		}
 	}
@@ -122,7 +125,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 		X[dim] = fixed<int>(pos[dim]).raw();
 	}
 	for (int i = 0; i < LP; i++) {
-		Lacc[i] = 0.f;
+		Lacc[i] = simd_float(0.f);
 	}
 	const auto cnt1 = sources[0].size();
 	for (int j = 0; j < cnt1; j += simd_float::size()) {
@@ -154,7 +157,8 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	}
 	for (int k = 0; k < simd_float::size(); k++) {
 		for (int i = 0; i < LP; i++) {
-			L[i] += Lacc[i][k];
+			L[i].real() += Lacc[i].real()[k];
+			L[i].imag() += Lacc[i].imag()[k];
 		}
 	}
 	cleanup_sources_vector(sptr);
@@ -309,7 +313,8 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 							Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 						}
 						for (int i = 0; i < MP; i++) {
-							M[i][k] = mpole[i];
+							M[i].real()[k] = mpole[i].real();
+							M[i].imag()[k] = mpole[i].imag();
 						}
 						n++;
 					} else {
@@ -318,7 +323,8 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 							Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 						}
 						for (int i = 0; i < MP; i++) {
-							M[i][k] = 0.f;
+							M[i].real()[k] = 0.f;
+							M[i].imag()[k] = 0.f;
 						}
 					}
 				}
@@ -361,7 +367,7 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 	}
 	if (multis.size()) {
 		for (int i = 0; i < LP; i++) {
-			Lacc[i] = 0.f;
+			Lacc[i] = simd_float(0.f);
 		}
 		const auto cnt1 = multis.size();
 		int n;
@@ -375,7 +381,8 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 						Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
-						M[i][k] = mpole[i];
+						M[i].real()[k] = mpole[i].real();
+						M[i].imag()[k] = mpole[i].imag();
 					}
 					n++;
 				} else {
@@ -384,7 +391,8 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 						Y[dim][k] = fixed<int>(other_pos[dim]).raw();
 					}
 					for (int i = 0; i < MP; i++) {
-						M[i][k] = 0.f;
+						M[i].real()[k] = 0.f;
+						M[i].imag()[k] = 0.f;
 					}
 				}
 			}
@@ -398,7 +406,8 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 		}
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {
-				L[i] += Lacc[i][k];
+				L[i].real() += Lacc[i].real()[k];
+				L[i].imag() += Lacc[i].imag()[k];
 			}
 		}
 	}
