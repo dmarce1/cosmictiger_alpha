@@ -813,11 +813,11 @@ void fourier3d_transpose_xz() {
 		}
 	}
 	int dx0 = end - begin;
-	while (size_t(N) * size_t(N) * size_t(dx) * size_t(sizeof(cmplx)) > 0xFFFFFFFFULL) {
+	while (size_t(N) * size_t(N) * size_t(dx0) * size_t(sizeof(cmplx)) > 0xFFFFFFFFULL) {
 		dx0 /= 2;
 	}
 	for (int other = rank + 1; other < nranks; other++) {
-		for (int xi = begin; xi < end; xi += dx) {
+		for (int xi = begin; xi < end; xi += dx0) {
 			int dx = std::min(end - xi, dx0);
 			std::vector<std::vector<cmplx>> data(dx);
 			const int zend = (other + 1) * N / nranks;
@@ -846,7 +846,7 @@ void fourier3d_transpose_xz() {
 	}
 	int j = 0;
 	for (int other = rank + 1; other < nranks; other++) {
-		for (int xi = begin; xi < end; xi += dx) {
+		for (int xi = begin; xi < end; xi += dx0) {
 			int dx = std::min(end - xi, dx0);
 			const int zend = (other + 1) * N / nranks;
 			const int zbegin = other * N / nranks;
