@@ -77,53 +77,9 @@ public:
 			arc & data[i];
 		}
 	}
-	CUDA_EXPORT
-	void scale_back();
 };
 
-template<class T>
-CUDA_EXPORT inline void expansion<T>::scale_back() {
-	return;
-/*	constexpr auto DSCALE2 = DSCALE * DSCALE;
-	constexpr auto DSCALE3 = DSCALE2 * DSCALE;
-	constexpr auto DSCALE4 = DSCALE3 * DSCALE;
-	constexpr auto DSCALE5 = DSCALE4 * DSCALE;
-	data[0] *= T(DSCALE);
-	data[1] *= T(DSCALE2);
-	data[2] *= T(DSCALE2);
-	data[3] *= T(DSCALE2);
-	data[4] *= T(DSCALE3);
-	data[5] *= T(DSCALE3);
-	data[6] *= T(DSCALE3);
-	data[7] *= T(DSCALE3);
-	data[8] *= T(DSCALE3);
-	data[9] *= T(DSCALE3);
-	data[10] *= T(DSCALE4);
-	data[11] *= T(DSCALE4);
-	data[12] *= T(DSCALE4);
-	data[13] *= T(DSCALE4);
-	data[14] *= T(DSCALE4);
-	data[15] *= T(DSCALE4);
-	data[16] *= T(DSCALE4);
-	data[17] *= T(DSCALE4);
-	data[18] *= T(DSCALE4);
-	data[19] *= T(DSCALE4);
-	data[20] *= T(DSCALE5);
-	data[21] *= T(DSCALE5);
-	data[22] *= T(DSCALE5);
-	data[23] *= T(DSCALE5);
-	data[24] *= T(DSCALE5);
-	data[25] *= T(DSCALE5);
-	data[26] *= T(DSCALE5);
-	data[27] *= T(DSCALE5);
-	data[28] *= T(DSCALE5);
-	data[29] *= T(DSCALE5);
-	data[30] *= T(DSCALE5);
-	data[31] *= T(DSCALE5);
-	data[32] *= T(DSCALE5);
-	data[33] *= T(DSCALE5);
-	data[34] *= T(DSCALE5);*/
-}
+
 
 template<class T>
 CUDA_EXPORT inline expansion<T>::expansion() {

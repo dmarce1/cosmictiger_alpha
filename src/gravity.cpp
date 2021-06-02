@@ -75,7 +75,6 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 			flops += n * green_direct(D, dX);
 			flops += n * multipole_interaction(Lacc, M, D, params.full_eval);
 		}
-		Lacc.scale_back();
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {
 				NAN_TEST(Lacc[i][k]);
@@ -153,7 +152,6 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 		flops += n * green_direct(D, dX);
 		flops += n * multipole_interaction(Lacc, M, D);
 	}
-	Lacc.scale_back();
 	for (int k = 0; k < simd_float::size(); k++) {
 		for (int i = 0; i < LP; i++) {
 			L[i] += Lacc[i][k];

@@ -190,7 +190,6 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 	}
 	expansion<T> D1;
 	flops += green_direct(D1, X, T(rmin));
-	D1.scale_back();
 	D() = T(M_PI / 4.0) + D();                          // 1
 	for (int i = 0; i < LP; i++) {                     // 70
 		D[i] -= D1[i];

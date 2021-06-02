@@ -57,7 +57,6 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 			L[i] += __shfl_xor_sync(0xffffffff, L[i], P);
 		}
 	}
-	L.scale_back();
 	for (int i = tid; i < LP; i += warpSize) {
 		NAN_TEST(L[i]);
 		params.L[shmem.depth][i] += L[i];
@@ -90,8 +89,8 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		for (int j = 0; j < LP; j++) {
 			L[j] = 0.0;
 		}
-		if( parti[0].get_proc_range().first != hpx_rank_cuda() && tid == 0) {
-			printf( "CP0\n");
+		if (parti[0].get_proc_range().first != hpx_rank_cuda() && tid == 0) {
+			printf("CP0\n");
 		}
 		auto these_parts = parti[0].get_parts();
 		int i = 0;
@@ -102,8 +101,8 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 			while (part_index < KICK_PP_MAX && i < partsz) {
 				while (i + 1 < partsz) {
 					const auto other_tree_parts = parti[i + 1].get_parts();
-					if( parti[i+1].get_proc_range().first != hpx_rank_cuda() && tid == 0) {
-						printf( "CP %i %i\n", other_tree_parts.first, other_tree_parts.second);
+					if (parti[i + 1].get_proc_range().first != hpx_rank_cuda() && tid == 0) {
+						printf("CP %i %i\n", other_tree_parts.first, other_tree_parts.second);
 					}
 					if (these_parts.second == other_tree_parts.first) {
 						these_parts.second = other_tree_parts.second;
@@ -243,8 +242,8 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	const auto myparts = shmem.self.get_parts();
 	int i = 0;
 	auto these_parts = parti[0].get_parts();
-	if( parti[0].get_proc_range().first != hpx_rank_cuda()) {
-		printf( "PP0\n");
+	if (parti[0].get_proc_range().first != hpx_rank_cuda()) {
+		printf("PP0\n");
 	}
 
 	const auto partsz = parti.size();
@@ -253,8 +252,8 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 		while (part_index < KICK_PP_MAX && i < partsz) {
 			while (i + 1 < partsz) {
 				const auto other_tree_parts = parti[i + 1].get_parts();
-				if( parti[i+1].get_proc_range().first != hpx_rank_cuda()) {
-					printf( "PP\n");
+				if (parti[i + 1].get_proc_range().first != hpx_rank_cuda()) {
+					printf("PP\n");
 				}
 				if (these_parts.second == other_tree_parts.first) {
 					these_parts.second = other_tree_parts.second;
@@ -368,19 +367,16 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	auto& dx1 = dx[1];
 	auto& dx2 = dx[2];
 	int nsrc = 0;
-	const int msize = sizeof(multipole_pos) / sizeof(float);
+//	const int msize = sizeof(multipole_pos) / sizeof(float);
 	const auto mmax = (((multis.size() - 1) / KICK_PC_MAX) + 1) * KICK_PC_MAX;
 	for (int m = 0; m < mmax; m += KICK_PC_MAX) {
 		nsrc = 0;
-		for (int z = 0; z < KICK_PC_MAX; z++) {
+		for (int z = tid; z < KICK_PC_MAX; z += KICK_BLOCK_SIZE) {
 			if (m + z < multis.size()) {
-				const float* src = multis[m + z].get_multi_ptr();
-				float* dst = (float*) &(msrcs[nsrc]);
-				nsrc++;
-				if (tid < msize) {
-					dst[tid] = __ldg(src + tid);
-				}
+				msrcs[nsrc + tid].multi = multis[m + z].get_multi();
+				msrcs[nsrc + tid].pos = multis[m + z].get_pos();
 			}
+			nsrc += min(KICK_BLOCK_SIZE, (int) (multis.size() - m - (z / KICK_BLOCK_SIZE) * KICK_BLOCK_SIZE));
 		}
 		__syncwarp();
 		for (int k = tid; k < nactive; k += warpSize) {
@@ -414,5 +410,5 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 
 }
 
-CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, part_int *test_parts, float *ferr, float *fnorm, float* perr,
-		float* pnorm, float GM, float h);
+CUDA_KERNEL cuda_pp_ewald_interactions(particle_set *parts, part_int *test_parts, float *ferr, float *fnorm,
+		float* perr, float* pnorm, float GM, float h);
