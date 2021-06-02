@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cosmictiger/defs.hpp>
-
+#include <math.h>
 #include <cosmictiger/cuda.hpp>
 
 #ifdef __CUDA_ARCH__
@@ -78,74 +78,75 @@ CUDA_DEVICE inline float erfcexp(const float &x, float *e) {				// 18 + FLOP_DIV
 #define SIN(a) sinf(a)
 //#define SINCOS(a,b,c) sincosf(a,b,c)
 
-class cmplx {
-	float x, y;
+template<class T=float>
+class complex {
+	T x, y;
 public:
-	cmplx() = default;
+	complex() = default;
 	CUDA_EXPORT
-	cmplx(float a) {
+	complex(float a) {
 		x = a;
-		y = 0.f;
+		y = T(0.0);
 	}
 	CUDA_EXPORT
-	cmplx(float a, float b) {
+	complex(float a, float b) {
 		x = a;
 		y = b;
 	}
 	CUDA_EXPORT
-	cmplx& operator+=(cmplx other) {
+	complex& operator+=(complex other) {
 		x += other.x;
 		y += other.y;
 		return *this;
 	}
 	CUDA_EXPORT
-	cmplx& operator-=(cmplx other) {
+	complex& operator-=(complex other) {
 		x -= other.x;
 		y -= other.y;
 		return *this;
 	}
 	CUDA_EXPORT
-	cmplx operator*(cmplx other) const {
-		cmplx a;
+	complex operator*(complex other) const {
+		complex a;
 		a.x = x * other.x - y * other.y;
 		a.y = x * other.y + y * other.x;
 		return a;
 	}
 	CUDA_EXPORT
-	cmplx operator/(cmplx other) const {
+	complex operator/(complex other) const {
 		return *this * other.conj() / other.norm();
 	}
 	CUDA_EXPORT
-	cmplx operator/(float other) const {
-		cmplx b;
+	complex operator/(float other) const {
+		complex b;
 		b.x = x / other;
 		b.y = y / other;
 		return b;
 	}
 	CUDA_EXPORT
-	cmplx operator*(float other) const {
-		cmplx b;
+	complex operator*(float other) const {
+		complex b;
 		b.x = x * other;
 		b.y = y * other;
 		return b;
 	}
 	CUDA_EXPORT
-	cmplx operator+(cmplx other) const {
-		cmplx a;
+	complex operator+(complex other) const {
+		complex a;
 		a.x = x + other.x;
 		a.y = y + other.y;
 		return a;
 	}
 	CUDA_EXPORT
-	cmplx operator-(cmplx other) const {
-		cmplx a;
+	complex operator-(complex other) const {
+		complex a;
 		a.x = x - other.x;
 		a.y = y - other.y;
 		return a;
 	}
 	CUDA_EXPORT
-	cmplx conj() const {
-		cmplx a;
+	complex conj() const {
+		complex a;
 		a.x = x;
 		a.y = -y;
 		return a;
@@ -175,8 +176,8 @@ public:
 		return sqrtf(norm());
 	}
 	CUDA_EXPORT
-	cmplx operator-() const {
-		cmplx a;
+	complex operator-() const {
+		complex a;
 		a.x = -x;
 		a.y = -y;
 		return a;
@@ -188,22 +189,25 @@ public:
 	}
 };
 
-inline void swap(cmplx& a, cmplx& b) {
+template<class T>
+inline void swap(complex<T>& a, complex<T>& b) {
 	std::swap(a.real(), b.real());
 	std::swap(a.imag(), b.imag());
 }
 
-CUDA_EXPORT inline cmplx operator*(float a, cmplx b) {
+template<class T>
+CUDA_EXPORT inline complex<T> operator*(T a, complex<T> b) {
 	return b * a;
 }
 
-CUDA_EXPORT inline cmplx expc(cmplx z) {
+template<class T>
+CUDA_EXPORT inline complex<T> expc(complex<T> z) {
 	float x, y;
 	float t = EXP(z.real());
 	sincosf(z.imag(), &y, &x);
 	x *= t;
 	y *= t;
-	return cmplx(x, y);
+	return complex<T>(x, y);
 }
 
 #ifdef __CUDACC__
@@ -290,5 +294,6 @@ CUDA_EXPORT inline T round_up(T num, T mod) {
 __global__
 void generate_random_vectors(fixed32* x, fixed32* y, fixed32* z, size_t N, int seed);
 
+using cmplx = complex<float>;
 #endif /* GPUTIGER_MATH_HPP_ */
 

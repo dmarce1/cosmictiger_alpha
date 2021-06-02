@@ -9,6 +9,7 @@
 #include <cosmictiger/ewald_indices.hpp>
 #include <cosmictiger/driver.hpp>
 #include <cosmictiger/tree_database.hpp>
+#include <cosmictiger/spherical_harmonic.hpp>
 void yield() {
 	hpx::this_thread::yield();
 }
@@ -19,7 +20,7 @@ int hpx_main(int argc, char *argv[]) {
 	//  PRINT( "%li\n", sizeof(sort_params));
 	PRINT("Size of cuda_kick_shmem is %li\n", sizeof(cuda_kick_shmem));
 	PRINT( "cuda kick occupancy = %i\n", cuda_kick_occupancy());
-
+	spherical_harmonics_init();
 	if (process_options(argc, argv, opts)) {
 
 		hpx_init();
