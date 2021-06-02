@@ -89,9 +89,6 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 		for (int j = 0; j < LP; j++) {
 			L[j] = 0.0;
 		}
-		if (parti[0].get_proc_range().first != hpx_rank_cuda() && tid == 0) {
-			printf("CP0\n");
-		}
 		auto these_parts = parti[0].get_parts();
 		int i = 0;
 		const auto pos = shmem.self.get_pos();
@@ -101,9 +98,6 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 			while (part_index < KICK_PP_MAX && i < partsz) {
 				while (i + 1 < partsz) {
 					const auto other_tree_parts = parti[i + 1].get_parts();
-					if (parti[i + 1].get_proc_range().first != hpx_rank_cuda() && tid == 0) {
-						printf("CP %i %i\n", other_tree_parts.first, other_tree_parts.second);
-					}
 					if (these_parts.second == other_tree_parts.first) {
 						these_parts.second = other_tree_parts.second;
 						i++;
@@ -242,9 +236,6 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	const auto myparts = shmem.self.get_parts();
 	int i = 0;
 	auto these_parts = parti[0].get_parts();
-	if (parti[0].get_proc_range().first != hpx_rank_cuda()) {
-		printf("PP0\n");
-	}
 
 	const auto partsz = parti.size();
 	while (i < partsz) {
@@ -252,9 +243,6 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 		while (part_index < KICK_PP_MAX && i < partsz) {
 			while (i + 1 < partsz) {
 				const auto other_tree_parts = parti[i + 1].get_parts();
-				if (parti[i + 1].get_proc_range().first != hpx_rank_cuda()) {
-					printf("PP\n");
-				}
 				if (these_parts.second == other_tree_parts.first) {
 					these_parts.second = other_tree_parts.second;
 					i++;
