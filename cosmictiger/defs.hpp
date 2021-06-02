@@ -11,6 +11,8 @@
 #include <cstdio>
 #include <cstdlib>
 
+//#define PERIODIC_OFF
+
 template<class ...Args>
 #ifdef __CUDA_ARCH__
 __device__

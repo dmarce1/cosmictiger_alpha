@@ -301,7 +301,9 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			cuda_cp_interactions(params_ptr);
 			break;
 		case CC_CP_EWALD:
+#ifndef PERIODIC_OFF
 			cuda_cc_interactions(params_ptr, EWALD);
+#endif
 			break;
 		}
 	}
