@@ -158,7 +158,11 @@ void kick_return_update_pot_cpu(float phi, float fx, float fy, float fz) {
 }
 
 void kick_return_update_rung_cpu(int rung) {
-	std::lock_guard<mutex_type> lock(mtx);
-	cpu_return.rung_cnt[rung]++;
+	if (rung >= MAX_RUNG) {
+		printf("Rung out of range ! %i\n", rung);
+	} else {
+		std::lock_guard<mutex_type> lock(mtx);
+		cpu_return.rung_cnt[rung]++;
+	}
 
 }

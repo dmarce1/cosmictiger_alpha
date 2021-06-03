@@ -23,6 +23,7 @@ inline bool any_true(simd_float a) {
 
 template<class T>
 CUDA_EXPORT int green_direct(expansion<T> &D, array<T, NDIM> dX, T rmin = 0.f) {
+	irregular_harmonic(D,dX[0],dX[1],dX[2]);
 /*	bool scaled = false;
 	T r2 = FMAX(FMA(dX[0], dX[0], FMA(dX[1], dX[1], sqr(dX[2]))), rmin * rmin);            // 5
 	if (any_true(r2 < T(RCUT2))) {
