@@ -173,7 +173,7 @@ CUDA_EXPORT inline float n1pow(int n) {
 template<class T, int P>
 CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<T, P>& Y, T x, T y, T z, T& r, T& rinv) {
 	const T R2 = fmaf(x, x, sqr(y));
-	const T r2 = r2 + sqr(z);
+	const T r2 = R2 + sqr(z);
 	r = sqrt(r2);
 	const T R = sqrt(R2);
 	const T eps(1.0e-10);
