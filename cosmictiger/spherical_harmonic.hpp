@@ -172,12 +172,16 @@ CUDA_EXPORT inline float n1pow(int n) {
 
 template<class T, int P>
 CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<T, P>& Y, T x, T y, T z, T& r, T& rinv) {
-	const T r2 = fmaf(x, x, fmaf(y, y, sqr(z)));
+	const T R2 = fmaf(x, x, sqr(y));
+	const T r2 = r2 + sqr(z);
 	r = sqrt(r2);
-	T cos0;
-	const T eps(1.0e-37);
+	const T R = sqrt(R2);
+	const T eps(1.0e-10);
 	rinv = 1.0f / max(r, eps);
-	cos0 = min(max(T(-1), z * rinv), T(+1));
+	const T Rinv = 1.0f / max(R, eps);
+	T cos0 = min(max(T(-1), z * rinv), T(+1));
+	T sin0 = sqrt(T(1) - cos0 * cos0);
+	T csc0 = T(1) / max(sin0, eps);
 	Y(0) = complex<T>(1.0f, 0.0);
 	if (P > 1) {
 		Y(1) = complex<T>(cos0, 0.0);
@@ -187,14 +191,14 @@ CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<T, P>& Y, T x, T y,
 	}
 	for (int l = 1; l < P; l++) {
 		for (int m = 0; m < l; m++) {
-			Y(l, m + 1) = T(l - m) * cos0 * Y(l, m) - T(l + m) * Y(l - 1, m);
+			Y(l, m + 1) = (T(l - m) * cos0 * Y(l, m) - T(l + m) * Y(l - 1, m)) * csc0;
 		}
 	}
 	for (int l = 1; l < P; l++) {
-		complex<T> Rpow = complex<T>(x, y);
+		complex<T> Rpow = complex<T>(x, y) * Rinv;
 		for (int m = 1; m <= l; m++) {
 			Y(l, m) *= Rpow;
-			Rpow *= complex<T>(x, y);
+			Rpow *= complex<T>(x, y) * Rinv;
 		}
 	}
 	for (int l = 0; l < P; l++) {
