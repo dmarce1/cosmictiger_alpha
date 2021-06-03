@@ -13,7 +13,6 @@
 #include <cosmictiger/math.hpp>
 #include <math.h>
 
-
 using std::max;
 
 using std::min;
@@ -165,7 +164,7 @@ CUDA_EXPORT inline float Ynorm(int n, int m) {
 }
 
 CUDA_EXPORT inline cmplx ipow(int n) {
-	if( n >= 0 ) {
+	if (n >= 0) {
 		return spherical_constants.ipow[n % 4];
 	} else {
 		return -spherical_constants.ipow[-n % 4];
@@ -182,8 +181,8 @@ CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<T, P>& Y, T x, T y,
 	r = sqrt(r2);
 	T cos0;
 	const T eps(1.0e-37);
-	rinv = 1.0f / max(r,eps);
-	cos0 = min(max(T(-1),z * rinv),T(+1));
+	rinv = 1.0f / max(r, eps);
+	cos0 = min(max(T(-1), z * rinv), T(+1));
 	Y(0) = complex<T>(1.0f, 0.0);
 	if (P > 1) {
 		Y(1) = complex<T>(cos0, 0.0);
@@ -278,7 +277,7 @@ CUDA_EXPORT inline void translate_multipole(sphericalY<T, P>& M, const spherical
 template<class T, int P, int Q>
 CUDA_EXPORT inline void translate_expansion(sphericalY<T, P>& L, const sphericalY<T, Q> O, T x, T y, T z) {
 	sphericalY<T, cmax(P, Q)> R0;
-	regular_harmonic(R0, x, y, z);
+	spherical_harmonic(R0, x, y, z);
 	const auto R = R0;
 	for (int j = 0; j < P; j++) {
 		for (int k = 0; k <= j; k++) {
