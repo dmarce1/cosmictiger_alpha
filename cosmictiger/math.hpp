@@ -101,8 +101,7 @@ public:
 	}
 	CUDA_EXPORT
 	complex& operator*=(complex other) {
-		x *= other.x;
-		y *= other.y;
+		(*this) = (*this) * other;
 		return *this;
 	}
 	CUDA_EXPORT

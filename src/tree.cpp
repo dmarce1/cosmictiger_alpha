@@ -264,6 +264,7 @@ sort_return tree::sort(sort_params params) {
 			auto &ML = Mc[LEFT];
 			double ml = ML(0).real();
 			double mr = MR(0).real();
+		//	printf( "%e %e\n", mr, ml);
 			double m = ml + mr;
 			double rleft = 0.0;
 			double rright = 0.0;
@@ -277,8 +278,8 @@ sort_return tree::sort(sort_params params) {
 				auto& Xl = xl[dim];
 				auto& Xr = xr[dim];
 				com[dim] = (ml * Xl + mr * Xr) / (ml + mr);
-				Xl -= com[dim];
-				Xr -= com[dim];
+				Xl = -Xl + com[dim];
+				Xr = -Xr + com[dim];
 				rleft += sqr(Xl);
 				rright += sqr(Xr);
 				pos[dim] = com[dim];
@@ -334,15 +335,14 @@ sort_return tree::sort(sort_params params) {
 			M = 0.0;
 			float radius = 0.0;
 			sphericalY<float, 1> point;
-			point = 1.0f;
+			point(0).real() = 1.0f;
+			point(0).imag() = 0.0f;
 			for (auto i = parts.first; i < parts.second; i++) {
-				const double x = particles->pos(0, i).to_double() - com[0];
-				const double y = particles->pos(1, i).to_double() - com[1];
-				const double z = particles->pos(2, i).to_double() - com[2];
+				const double x = com[0] - particles->pos(0, i).to_double();
+				const double y = com[1] - particles->pos(1, i).to_double();
+				const double z = com[2] - particles->pos(2, i).to_double();
 				const double this_radius = sqrt(sqr(x - com[0]) + sqr(y - com[1]) + sqr(z - com[2]));
-				sphericalY<float,MORDER> this_point;
-				translate_multipole<float,MORDER>(this_point, point, x, y, z);
-				M += this_point;
+				translate_multipole<float,MORDER>(M, point, x, y, z);
 				radius = std::max(radius, (float) (this_radius));
 			}
 			rc.active_parts = 0;
