@@ -237,7 +237,7 @@ CUDA_EXPORT inline void irregular_harmonic(sphericalY<T, P>& Y, T x, T y, T z) {
 		for (int m = 0; m <= l; m++) {
 			Y(l, m) *= rpow;
 		}
-		rpow *= r;
+		rpow *= rinv;
 	}
 }
 
