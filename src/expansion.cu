@@ -30,6 +30,7 @@ expansion<float>& shift_expansion(expansion<float> &L, const array<float, NDIM> 
 CUDA_EXPORT void shift_expansion(const expansion<float> &Lin, array<float, NDIM> &g, float &phi,
 		const array<float, NDIM> &dX, bool do_phi) {
 	sphericalY<float, 2> Lout;
+	Lout = 0.0f;
 	translate_expansion(Lout, Lin, dX[0], dX[1], dX[2]);
 	phi += Lout(0).real();
 	g[2] += Lout(1).real();

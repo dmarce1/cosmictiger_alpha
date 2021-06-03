@@ -200,8 +200,8 @@ CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<T, P>& Y, T x, T y,
 		complex<T> Rpow = complex<T>(x, y);
 		for (int m = 1; m <= l; m++) {
 			Y(l, m) *= Rpow;
+			Rpow *= complex<T>(x, y);
 		}
-		Rpow *= complex<T>(x, y);
 	}
 	for (int l = 0; l < P; l++) {
 		for (int m = 0; m <= l; m++) {

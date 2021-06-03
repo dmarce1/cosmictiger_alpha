@@ -103,7 +103,7 @@ void direct_force_test() {
 		phierr += std::abs(phidir - phinum);
 		gerr_max = std::max(gerr_max, std::abs(gdir-gnum));
 		phierr_max = std::max(phierr_max,std::abs(phidir-phinum));
-	//	PRINT( "%e %e %e %e\n", gdir, gnum, phidir, phinum);
+		PRINT( "%e %e %e %e\n", gdir, gnum, phidir, phinum);
 	}
 	gerr /= gnorm;
 	phierr /= phinorm;

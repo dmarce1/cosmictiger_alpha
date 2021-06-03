@@ -62,7 +62,7 @@ inline void print(const char* fmt, Args ...args) {
 #define MAX_BUCKET_SIZE 160
 
 #define MIN_ACTIVE_PER_BLOCK 16
-#define MAX_RUNG 24
+#define MAX_RUNG 54
 #define TREE_MAX_DEPTH 54
 #define TREE_RADIX_CUSHION -9
 #define TREE_RADIX_MIN 3
