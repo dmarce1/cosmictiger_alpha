@@ -152,23 +152,19 @@ CUDA_EXPORT inline float lp1inv(int n) {
 }
 
 CUDA_EXPORT inline float bigA(int n, int m) {
-	return spherical_constants.bigA[((n * (n + 1)) >> 1) + m];
+	return spherical_constants.bigA[((n * (n + 1)) >> 1) + abs(m)];
 }
 
 CUDA_EXPORT inline float bigAinv(int n, int m) {
-	return spherical_constants.bigAinv[((n * (n + 1)) >> 1) + m];
+	return spherical_constants.bigAinv[((n * (n + 1)) >> 1) + abs(m)];
 }
 
 CUDA_EXPORT inline float Ynorm(int n, int m) {
-	return spherical_constants.Ynorm[((n * (n + 1)) >> 1) + m];
+	return spherical_constants.Ynorm[((n * (n + 1)) >> 1) + abs(m)];
 }
 
 CUDA_EXPORT inline cmplx ipow(int n) {
-	if (n >= 0) {
-		return spherical_constants.ipow[n % 4];
-	} else {
-		return -spherical_constants.ipow[-n % 4];
-	}
+	return spherical_constants.ipow[(n + 100) % 4];
 }
 
 CUDA_EXPORT inline float n1pow(int n) {
