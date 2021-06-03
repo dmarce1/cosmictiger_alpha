@@ -79,7 +79,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 					}
 				}
 			}
-			for (int i = 0; i < econst.nfour(); i++) {
+/*			for (int i = 0; i < econst.nfour(); i++) {
 				const auto &h = econst.four_index(i);
 				const auto &hpart = econst.four_expansion(i);
 				const float hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];
@@ -89,7 +89,7 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 				for (int dim = 0; dim < NDIM; dim++) {
 					f[dim][tid] -= hpart(dim) * so;
 				}
-			}
+			}*/
 			phi[tid] += float(M_PI / 4.f);
 		}
 	}
