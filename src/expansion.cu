@@ -33,7 +33,7 @@ CUDA_EXPORT void shift_expansion(const expansion<float> &Lin, array<float, NDIM>
 	Lout = 0.0f;
 	translate_expansion(Lout, Lin, dX[0], dX[1], dX[2]);
 	phi += Lout(0).real();
-	g[2] += Lout(1).real();
-	g[0] += Lout(1, 1).real();
-	g[1] += Lout(1, 1).imag();
+	g[2] -= Lout(1).real();
+	g[0] -= Lout(1, 1).real();
+	g[1] -= Lout(1, 1).imag();
 }
