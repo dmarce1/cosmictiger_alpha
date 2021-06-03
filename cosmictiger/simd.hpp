@@ -602,6 +602,143 @@ inline bool isnan(const simd_float& f) {
 	return false;
 }
 
-#endif /* COSMICTIGER_SIMD_HPP_ */
+#include <cosmictiger/math.hpp>
 
+template<>
+class complex<simd_float> {
+	simd_float x, y;
+public:
+	complex<simd_float>() = default;
+
+	complex<simd_float>(simd_float a) {
+		x = a;
+		y = simd_float(0.0);
+	}
+
+	complex<simd_float>(simd_float a, simd_float b) {
+		x = a;
+		y = b;
+	}
+
+	complex<simd_float>& operator*=(simd_float other) {
+		x *= other;
+		y *= other;
+		return *this;
+	}
+
+	complex<simd_float>& operator*=(complex<simd_float> other) {
+		(*this) = (*this) * other;
+		return *this;
+	}
+
+	complex<simd_float>& operator+=(complex<simd_float> other) {
+		x += other.x;
+		y += other.y;
+		return *this;
+	}
+
+	complex<simd_float>& operator-=(complex<simd_float> other) {
+		x -= other.x;
+		y -= other.y;
+		return *this;
+	}
+
+	complex<simd_float> operator*(complex<simd_float> other) const {
+		complex<simd_float> a;
+		a.x = x * other.x - y * other.y;
+		a.y = x * other.y + y * other.x;
+		return a;
+	}
+
+	complex<simd_float> operator*(cmplx other) const {
+		complex<simd_float> a;
+		a.x = x * other.x - y * other.y;
+		a.y = x * other.y + y * other.x;
+		return a;
+	}
+
+	complex<simd_float> operator*(float other) const {
+		complex<simd_float> a;
+		a.x = x * other;
+		a.y = x * other;
+		return a;
+	}
+
+	complex<simd_float> operator/(complex<simd_float> other) const {
+		return *this * other.conj() / other.norm();
+	}
+
+	complex<simd_float> operator/(simd_float other) const {
+		complex<simd_float> b;
+		b.x = x / other;
+		b.y = y / other;
+		return b;
+	}
+
+	complex<simd_float> operator*(simd_float other) const {
+		complex<simd_float> b;
+		b.x = x * other;
+		b.y = y * other;
+		return b;
+	}
+
+	complex<simd_float> operator+(complex<simd_float> other) const {
+		complex<simd_float> a;
+		a.x = x + other.x;
+		a.y = y + other.y;
+		return a;
+	}
+
+	complex<simd_float> operator-(complex<simd_float> other) const {
+		complex<simd_float> a;
+		a.x = x - other.x;
+		a.y = y - other.y;
+		return a;
+	}
+
+	complex<simd_float> conj() const {
+		complex<simd_float> a;
+		a.x = x;
+		a.y = -y;
+		return a;
+	}
+
+	simd_float real() const {
+		return x;
+	}
+
+	simd_float imag() const {
+		return y;
+	}
+
+	simd_float& real() {
+		return x;
+	}
+
+	simd_float& imag() {
+		return y;
+	}
+
+	simd_float norm() const {
+		return ((*this) * conj()).real();
+	}
+
+	simd_float abs() const {
+		return sqrt(norm());
+	}
+
+	complex<simd_float> operator-() const {
+		complex<simd_float> a;
+		a.x = -x;
+		a.y = -y;
+		return a;
+	}
+	template<class A>
+	void serialize(A&& arc, unsigned) {
+		arc & x;
+		arc & y;
+	}
+};
+
+#endif /* COSMICTIGER_SIMD_HPP_ */
 

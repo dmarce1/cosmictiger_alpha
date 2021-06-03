@@ -78,6 +78,8 @@ CUDA_DEVICE inline float erfcexp(const float &x, float *e) {				// 18 + FLOP_DIV
 #define SIN(a) sinf(a)
 //#define SINCOS(a,b,c) sincosf(a,b,c)
 
+class simd_float;
+
 template<class T=float>
 class complex {
 	T x, y;
@@ -198,6 +200,7 @@ public:
 		arc & x;
 		arc & y;
 	}
+	friend class complex<simd_float>;
 };
 
 template<class T>
