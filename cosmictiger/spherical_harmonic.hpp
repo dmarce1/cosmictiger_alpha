@@ -17,7 +17,7 @@ using std::max;
 
 using std::min;
 
-#define PMAX 8
+#define PMAX 10
 #define FACT_MAX 34
 
 struct sphericalYconstants;
@@ -30,8 +30,7 @@ struct sphericalY: public array<complex<T>, P * (P + 1) / 2> {
 		assert(l < P);
 		assert(m >= -l);
 		assert(m <= l);
-		const int index = ((l * (l + 1)) >> 1) + abs(m);
-		return m < 0 ? (*this)[index].conj() : (*this)[index];
+		return m < 0 ? (*this)[((l * (l + 1)) >> 1) - m].conj() : (*this)[((l * (l + 1)) >> 1) + m];
 	}
 	CUDA_EXPORT
 	inline complex<T>& operator()(int l, int m) {
