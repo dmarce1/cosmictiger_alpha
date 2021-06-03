@@ -276,7 +276,7 @@ CUDA_EXPORT inline void translate_multipole(sphericalY<T, P>& M, const spherical
 template<class T, int P, int Q>
 CUDA_EXPORT inline void translate_expansion(sphericalY<T, P>& L, const sphericalY<T, Q> O, T x, T y, T z) {
 	sphericalY<T, cmax(P, Q)> R0;
-	spherical_harmonic(R0, x, y, z);
+	regular_harmonic(R0, x, y, z);
 	const auto R = R0;
 	for (int j = 0; j < P; j++) {
 		for (int k = 0; k <= j; k++) {
