@@ -170,74 +170,37 @@ CUDA_EXPORT inline float n1pow(int n) {
 	return (n & 1) ? -1.f : 1.f;
 }
 
-template<int P>
-CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<float, P>& Y, float x, float y, float z, float& r, float& rinv) {
-	const float R2 = fmaf(x, x, sqr(y));
-	const float r2 = R2 + sqr(z);
-	r = sqrt(r2);
-	const float R = sqrt(R2);
-	const float eps(1.0e-10);
-	rinv = 1.0f / max(r, eps);
-	const float Rinv = 1.0f / max(R, eps);
-	float cos0 = min(max(float(-1), z * rinv), float(+1));
-	float sin0 = sqrt(float(1) - cos0 * cos0);
-	Y(0) = complex<float>(1.0f, 0.0);
-	if (P > 1) {
-		Y(1) = complex<float>(cos0, 0.0);
-	}
-	for (int l = 1; l < P - 1; l++) {
-		Y(l + 1) = (float(2 * l + 1) * cos0 * Y(l) - float(l) * Y(l - 1)) * lp1inv(l);
-	}
-	for (int l = 1; l < P; l++) {
-		for (int m = 0; m < l; m++) {
-			Y(l, m + 1) = -(float(l - m) * cos0 * Y(l, m) - float(l + m) * Y(l - 1, m)) / sin0;
-		}
-	}
-	for (int l = 1; l < P; l++) {
-		complex<float> Rpow = complex<float>(x, y) * Rinv;
-		for (int m = 1; m <= l; m++) {
-			Y(l, m) *= Rpow;
-			Rpow *= complex<float>(x, y) * Rinv;
-		}
-	}
-	for (int l = 0; l < P; l++) {
-		for (int m = 0; m <= l; m++) {
-			Y(l, m) *= Ynorm(l, m);
-		}
-	}
-}
-
 #include <cosmictiger/simd.hpp>
 
-template<int P>
-CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<simd_float, P>& Y, simd_float x, simd_float y, simd_float z, simd_float& r, simd_float& rinv) {
-	const simd_float R2 = fmaf(x, x, sqr(y));
-	const simd_float r2 = R2 + sqr(z);
+template<class TYPE, int P>
+CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<TYPE, P>& Y, TYPE x, TYPE y, TYPE z, TYPE& r, TYPE& rinv) {
+	const TYPE R2 = fmaf(x, x, sqr(y));
+	const TYPE r2 = R2 + sqr(z);
 	r = sqrt(r2);
-	const simd_float R = sqrt(R2);
-	const simd_float eps(1.0e-10);
+	const TYPE R = sqrt(R2);
+	const TYPE eps(1.0e-10);
 	rinv = 1.0f / max(r, eps);
-	const simd_float Rinv = 1.0f / max(R, eps);
-	simd_float cos0 = min(max(simd_float(-1), z * rinv), simd_float(+1));
-	simd_float sin0 = sqrt(simd_float(1) - cos0 * cos0);
-	simd_float csc0 = simd_float(1) / max(sin0, eps);
-	Y(0) = complex<simd_float>(1.0f, 0.0);
+	const TYPE Rinv = 1.0f / max(R, eps);
+	TYPE cos0 = min(max(TYPE(-1), z * rinv), TYPE(+1));
+	TYPE sin0 = sqrt(TYPE(1) - cos0 * cos0);
+	TYPE csc0 = TYPE(1) / max(sin0, eps);
+	Y(0) = complex<TYPE>(1.0f, 0.0);
 	if (P > 1) {
-		Y(1) = complex<simd_float>(cos0, 0.0);
+		Y(1) = complex<TYPE>(cos0, 0.0);
 	}
 	for (int l = 1; l < P - 1; l++) {
-		Y(l + 1) = (simd_float(2 * l + 1) * cos0 * Y(l) - simd_float(l) * Y(l - 1)) * lp1inv(l);
+		Y(l + 1) = (TYPE(2 * l + 1) * cos0 * Y(l) - TYPE(l) * Y(l - 1)) * lp1inv(l);
 	}
 	for (int l = 1; l < P; l++) {
 		for (int m = 0; m < l; m++) {
-			Y(l, m + 1) = (simd_float(l - m) * cos0 * Y(l, m) - simd_float(l + m) * Y(l - 1, m)) * csc0;
+			Y(l, m + 1) = (TYPE(l - m) * cos0 * Y(l, m) - TYPE(l + m) * Y(l - 1, m)) * csc0;
 		}
 	}
 	for (int l = 1; l < P; l++) {
-		complex<simd_float> Rpow = complex<simd_float>(x, y) * Rinv;
+		complex<TYPE> Rpow = complex<TYPE>(x, y) * Rinv;
 		for (int m = 1; m <= l; m++) {
 			Y(l, m) *= Rpow;
-			Rpow *= complex<simd_float>(x, y) * Rinv;
+			Rpow *= complex<TYPE>(x, y) * Rinv;
 		}
 	}
 	for (int l = 0; l < P; l++) {
@@ -295,6 +258,7 @@ CUDA_EXPORT inline void translate_multipole(sphericalY<T, P>& M, const spherical
 	const auto R = R0;
 	for (int j = 0; j < P; j++) {
 		for (int k = 0; k <= j; k++) {
+			M(j,k) = 0.0;
 			for (int n = 0; n <= j; n++) {
 				if (j - n >= Q) {
 					continue;
@@ -319,6 +283,7 @@ CUDA_EXPORT inline void translate_expansion(sphericalY<T, P>& L, const spherical
 	const auto R = R0;
 	for (int j = 0; j < P; j++) {
 		for (int k = 0; k <= j; k++) {
+			L(j,k) = 0.0;
 			for (int n = j; n < Q; n++) {
 				for (int m = -n; m <= n; m++) {
 					if (abs(k - m) > n - j) {
