@@ -345,6 +345,7 @@ sort_return tree::sort(sort_params params) {
 				translate_multipole<float,MORDER>(M, point, x, y, z);
 				radius = std::max(radius, (float) (this_radius));
 			}
+//			printf( "%e\n", M(1,0).real());
 			rc.active_parts = 0;
 			rc.active_nodes = 0;
 			for (part_int k = parts.first; k < parts.second; k++) {
@@ -612,14 +613,14 @@ void tree::kick(kick_params_type * params_ptr) {
 			switch (type) {
 			case CC_CP_DIRECT:
 				cpu_cc_direct(params_ptr);
-				cpu_cp_direct(params_ptr);
+		//		cpu_cp_direct(params_ptr);
 				break;
 			case CC_CP_EWALD:
-				cpu_cc_ewald(params_ptr);
+			//	cpu_cc_ewald(params_ptr);
 				break;
 			case PC_PP_DIRECT:
-				cpu_pc_direct(params_ptr);
-				cpu_pp_direct(params_ptr);
+			//	cpu_pc_direct(params_ptr);
+			//	cpu_pp_direct(params_ptr);
 				break;
 			case PC_PP_EWALD:
 				break;

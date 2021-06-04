@@ -293,12 +293,12 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		switch (type) {
 		case PC_PP_DIRECT:
 			nactive = compress_sinks(params_ptr);
-			cuda_pc_interactions(params_ptr, nactive);
-			cuda_pp_interactions(params_ptr, nactive);
+		//	cuda_pc_interactions(params_ptr, nactive);
+		//	cuda_pp_interactions(params_ptr, nactive);
 			break;
 		case CC_CP_DIRECT:
 			cuda_cc_interactions(params_ptr, DIRECT);
-			cuda_cp_interactions(params_ptr);
+	//		cuda_cp_interactions(params_ptr);
 			break;
 		case CC_CP_EWALD:
 #ifndef PERIODIC_OFF

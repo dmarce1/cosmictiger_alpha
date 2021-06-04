@@ -335,13 +335,13 @@ inline multipole tree_ptr::get_multi() const {
 	}
 #endif
 }
-
+/*
 CUDA_EXPORT
 inline float* tree_ptr::get_multi_ptr() const {
 	assert(rank == hpx_rank_cuda());
 	return tree_data_get_multi_ptr(dindex);
 }
-
+*/
 CUDA_EXPORT
 inline void tree_ptr::set_multi(const multipole& m) const {
 	assert(rank == hpx_rank_cuda());

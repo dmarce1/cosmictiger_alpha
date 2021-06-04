@@ -131,8 +131,8 @@ struct sphericalYconstants {
 
 #ifndef SPHERICAL_HARMONICS_CPP
 #ifdef __CUDA_ARCH__
-extern __constant__ sphericalYconstants gpu_spherical_constants;
-static __device__ auto& spherical_constants = gpu_spherical_constants;
+extern __managed__ sphericalYconstants gpu_spherical_constants;
+#define spherical_constants  gpu_spherical_constants
 #else
 extern sphericalYconstants cpu_spherical_constants;
 static auto& spherical_constants = cpu_spherical_constants;
@@ -170,35 +170,74 @@ CUDA_EXPORT inline float n1pow(int n) {
 	return (n & 1) ? -1.f : 1.f;
 }
 
-template<class T, int P>
-CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<T, P>& Y, T x, T y, T z, T& r, T& rinv) {
-	const T R2 = fmaf(x, x, sqr(y));
-	const T r2 = R2 + sqr(z);
+template<int P>
+CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<float, P>& Y, float x, float y, float z, float& r, float& rinv) {
+	const float R2 = fmaf(x, x, sqr(y));
+	const float r2 = R2 + sqr(z);
 	r = sqrt(r2);
-	const T R = sqrt(R2);
-	const T eps(1.0e-10);
+	const float R = sqrt(R2);
+	const float eps(1.0e-10);
 	rinv = 1.0f / max(r, eps);
-	const T Rinv = 1.0f / max(R, eps);
-	T cos0 = min(max(T(-1), z * rinv), T(+1));
-	T sin0 = sqrt(T(1) - cos0 * cos0);
-	T csc0 = T(1) / max(sin0, eps);
-	Y(0) = complex<T>(1.0f, 0.0);
+	const float Rinv = 1.0f / max(R, eps);
+	float cos0 = min(max(float(-1), z * rinv), float(+1));
+	float sin0 = sqrt(float(1) - cos0 * cos0);
+	Y(0) = complex<float>(1.0f, 0.0);
 	if (P > 1) {
-		Y(1) = complex<T>(cos0, 0.0);
+		Y(1) = complex<float>(cos0, 0.0);
 	}
 	for (int l = 1; l < P - 1; l++) {
-		Y(l + 1) = (T(2 * l + 1) * cos0 * Y(l) - T(l) * Y(l - 1)) * lp1inv(l);
+		Y(l + 1) = (float(2 * l + 1) * cos0 * Y(l) - float(l) * Y(l - 1)) * lp1inv(l);
 	}
 	for (int l = 1; l < P; l++) {
 		for (int m = 0; m < l; m++) {
-			Y(l, m + 1) = (T(l - m) * cos0 * Y(l, m) - T(l + m) * Y(l - 1, m)) * csc0;
+			Y(l, m + 1) = -(float(l - m) * cos0 * Y(l, m) - float(l + m) * Y(l - 1, m)) / sin0;
 		}
 	}
 	for (int l = 1; l < P; l++) {
-		complex<T> Rpow = complex<T>(x, y) * Rinv;
+		complex<float> Rpow = complex<float>(x, y) * Rinv;
 		for (int m = 1; m <= l; m++) {
 			Y(l, m) *= Rpow;
-			Rpow *= complex<T>(x, y) * Rinv;
+			Rpow *= complex<float>(x, y) * Rinv;
+		}
+	}
+	for (int l = 0; l < P; l++) {
+		for (int m = 0; m <= l; m++) {
+			Y(l, m) *= Ynorm(l, m);
+		}
+	}
+}
+
+#include <cosmictiger/simd.hpp>
+
+template<int P>
+CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<simd_float, P>& Y, simd_float x, simd_float y, simd_float z, simd_float& r, simd_float& rinv) {
+	const simd_float R2 = fmaf(x, x, sqr(y));
+	const simd_float r2 = R2 + sqr(z);
+	r = sqrt(r2);
+	const simd_float R = sqrt(R2);
+	const simd_float eps(1.0e-10);
+	rinv = 1.0f / max(r, eps);
+	const simd_float Rinv = 1.0f / max(R, eps);
+	simd_float cos0 = min(max(simd_float(-1), z * rinv), simd_float(+1));
+	simd_float sin0 = sqrt(simd_float(1) - cos0 * cos0);
+	simd_float csc0 = simd_float(1) / max(sin0, eps);
+	Y(0) = complex<simd_float>(1.0f, 0.0);
+	if (P > 1) {
+		Y(1) = complex<simd_float>(cos0, 0.0);
+	}
+	for (int l = 1; l < P - 1; l++) {
+		Y(l + 1) = (simd_float(2 * l + 1) * cos0 * Y(l) - simd_float(l) * Y(l - 1)) * lp1inv(l);
+	}
+	for (int l = 1; l < P; l++) {
+		for (int m = 0; m < l; m++) {
+			Y(l, m + 1) = (simd_float(l - m) * cos0 * Y(l, m) - simd_float(l + m) * Y(l - 1, m)) * csc0;
+		}
+	}
+	for (int l = 1; l < P; l++) {
+		complex<simd_float> Rpow = complex<simd_float>(x, y) * Rinv;
+		for (int m = 1; m <= l; m++) {
+			Y(l, m) *= Rpow;
+			Rpow *= complex<simd_float>(x, y) * Rinv;
 		}
 	}
 	for (int l = 0; l < P; l++) {

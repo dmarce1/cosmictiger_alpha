@@ -2,8 +2,10 @@
 
 #include <cosmictiger/spherical_harmonic.hpp>
 
-__constant__ sphericalYconstants gpu_spherical_constants;
+__managed__ sphericalYconstants gpu_spherical_constants;
 
 void spherical_harmonics_init_gpu(const sphericalYconstants& constants) {
-	CUDA_CHECK(cudaMemcpyToSymbol(gpu_spherical_constants, &constants, sizeof(sphericalYconstants)));
+	cuda_set_device();
+
+	gpu_spherical_constants=constants;
 }
