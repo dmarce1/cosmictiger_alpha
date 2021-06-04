@@ -10,6 +10,7 @@
 
 #include <cosmictiger/array.hpp>
 #include <cosmictiger/cuda.hpp>
+#include <cosmictiger/simd.hpp>
 #include <cosmictiger/math.hpp>
 #include <math.h>
 
@@ -179,11 +180,13 @@ CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<TYPE, P>& Y, TYPE x
 	r = sqrt(r2);
 	const TYPE R = sqrt(R2);
 	const TYPE eps(1.0e-10);
+	const TYPE huge(1.0e+9);
 	rinv = 1.0f / max(r, eps);
 	const TYPE Rinv = 1.0f / max(R, eps);
 	TYPE cos0 = min(max(TYPE(-1), z * rinv), TYPE(+1));
 	TYPE sin0 = sqrt(TYPE(1) - cos0 * cos0);
 	TYPE csc0 = TYPE(1) / max(sin0, eps);
+	csc0 *= (csc0 < huge);
 	Y(0) = complex<TYPE>(1.0f, 0.0);
 	if (P > 1) {
 		Y(1) = complex<TYPE>(cos0, 0.0);
@@ -208,6 +211,9 @@ CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<TYPE, P>& Y, TYPE x
 			Y(l, m) *= Ynorm(l, m);
 		}
 	}
+//	if( P > 1 ) {
+//		printf( "%e\n", first(Y(1,1).real())/first(x/r));
+//	}
 }
 
 template<class T, int P>
@@ -258,7 +264,7 @@ CUDA_EXPORT inline void translate_multipole(sphericalY<T, P>& M, const spherical
 	const auto R = R0;
 	for (int j = 0; j < P; j++) {
 		for (int k = 0; k <= j; k++) {
-			M(j,k) = 0.0;
+			M(j, k) = 0.0;
 			for (int n = 0; n <= j; n++) {
 				if (j - n >= Q) {
 					continue;
@@ -283,7 +289,7 @@ CUDA_EXPORT inline void translate_expansion(sphericalY<T, P>& L, const spherical
 	const auto R = R0;
 	for (int j = 0; j < P; j++) {
 		for (int k = 0; k <= j; k++) {
-			L(j,k) = 0.0;
+			L(j, k) = 0.0;
 			for (int n = j; n < Q; n++) {
 				for (int m = -n; m <= n; m++) {
 					if (abs(k - m) > n - j) {
@@ -295,6 +301,33 @@ CUDA_EXPORT inline void translate_expansion(sphericalY<T, P>& L, const spherical
 			}
 		}
 	}
+}
+
+template<class T, int P, int Q>
+CUDA_EXPORT inline void complete_multipole_interaction(sphericalY<T, P>& L, const sphericalY<T, Q>& M, T x, T y, T z) {
+	constexpr int R = cmax(P,Q);
+	sphericalY<T, R> I0;
+	irregular_harmonic(I0,x,y,z);
+	const auto I = I0;
+	for (int j = 0; j < P; j++) {
+		for (int k = 0; k <= j; k++) {
+			for (int n = 0; n < Q; n++) {
+				if (n + j >= R) {
+					continue;
+				}
+				for (int m = -n; m <= n; m++) {
+					if (abs(m - k) > j + n) {
+						continue;
+					}
+					const complex<float> c0 = ipow(abs(k - m) - abs(k) - abs(m)) * bigA(n, m) * bigA(j, k)
+									* n1pow(n) * bigAinv(j + n, m - k);
+					L(j, k) += M(n, m) * c0 * I(j + n, m - k);
+				//	printf( "%e %e \n", first(c0.real()), first(c0.imag()));
+				}
+			}
+		}
+	}
+//	printf( "%e\n", first(L(1,1).real()) / 0.707106781 /( first(M(0).real())*first(x) * pow(sqr(first(x))+sqr(first(y))+sqr(first(z)),(-1.5))));
 }
 
 template<class T, int P, int Q, int R>
@@ -310,8 +343,10 @@ CUDA_EXPORT inline void sph_multipole_interaction(sphericalY<T, P>& L, const sph
 					if (abs(m - k) > j + n) {
 						continue;
 					}
-					L(j, k) += M(n, m) * ipow(abs(k - m) - abs(k) - abs(m)) * bigA(n, m) * bigA(j, k) * I(j + n, m - k)
-							* n1pow(n) * bigAinv(j + n, m - k);
+					const complex<float> c0 = ipow(abs(k - m)) - abs(k) - abs(m) * (bigA(n, m) * bigA(j, k)
+									* n1pow(n) * bigAinv(j + n, m - k));
+					L(j, k) += M(n, m) * c0 * I(j + n, m - k);
+//					printf( "%e\n", first(c0.real()));
 				}
 			}
 		}

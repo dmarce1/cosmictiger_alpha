@@ -13,7 +13,7 @@
 
 #define PERIODIC_OFF
 
-#define ORDER 5
+#define ORDER 2
 
 template<class ...Args>
 #ifdef __CUDA_ARCH__

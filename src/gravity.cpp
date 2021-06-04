@@ -74,8 +74,14 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 				dX[dim] = distance(X[dim], Y[dim]);
 			}
 			flops += n * 6;
-			flops += n * green_direct(D, dX);
-			flops += n * multipole_interaction(Lacc, M, D, params.full_eval);
+	//		flops += n * green_direct(D, dX);
+			expansion<simd_float> L0;
+			L0 = 0.0;
+			complete_multipole_interaction(L0,M,dX[0],dX[1],dX[2]);
+//			flops += n * multipole_interaction(L0, M, D, params.full_eval);
+			const auto r = sqrt(sqr(dX[0])+sqr(dX[1])+sqr(dX[2]));
+			Lacc += L0;
+
 		}
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {

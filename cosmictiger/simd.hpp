@@ -740,5 +740,14 @@ public:
 	}
 };
 
+inline float first(simd_float a) {
+	return a[0];
+}
+
+CUDA_EXPORT
+inline float first(float a) {
+	return a;
+}
+
 #endif /* COSMICTIGER_SIMD_HPP_ */
 
