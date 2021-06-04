@@ -332,6 +332,7 @@ sort_return tree::sort(sort_params params) {
 				}
 			}
 			multipole M;
+			multipole Mtmp;
 			M = 0.0;
 			float radius = 0.0;
 			sphericalY<float, 1> point;
@@ -342,7 +343,8 @@ sort_return tree::sort(sort_params params) {
 				const double y = com[1] - particles->pos(1, i).to_double();
 				const double z = com[2] - particles->pos(2, i).to_double();
 				const double this_radius = sqrt(sqr(x - com[0]) + sqr(y - com[1]) + sqr(z - com[2]));
-				translate_multipole<float,MORDER>(M, point, x, y, z);
+				translate_multipole<float,MORDER>(Mtmp, point, x, y, z);
+				M = M + Mtmp;
 				radius = std::max(radius, (float) (this_radius));
 			}
 //			printf( "%e\n", M(1,0).real());
@@ -613,14 +615,14 @@ void tree::kick(kick_params_type * params_ptr) {
 			switch (type) {
 			case CC_CP_DIRECT:
 				cpu_cc_direct(params_ptr);
-		//		cpu_cp_direct(params_ptr);
+				cpu_cp_direct(params_ptr);
 				break;
 			case CC_CP_EWALD:
-			//	cpu_cc_ewald(params_ptr);
+				cpu_cc_ewald(params_ptr);
 				break;
 			case PC_PP_DIRECT:
-			//	cpu_pc_direct(params_ptr);
-			//	cpu_pp_direct(params_ptr);
+				cpu_pc_direct(params_ptr);
+				cpu_pp_direct(params_ptr);
 				break;
 			case PC_PP_EWALD:
 				break;
