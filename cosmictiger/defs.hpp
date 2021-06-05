@@ -13,8 +13,8 @@
 
 #define PERIODIC_OFF
 
-#define LORDER 5
-#define MORDER 2
+#define LORDER 7
+#define MORDER 6
 
 template<class ...Args>
 #ifdef __CUDA_ARCH__

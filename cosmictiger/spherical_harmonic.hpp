@@ -181,10 +181,6 @@ CUDA_EXPORT inline float Ynorm(int n, int m) {
 	return spherical_constants.Ynorm[((n * (n + 1)) >> 1) + abs(m)];
 }
 
-CUDA_EXPORT inline cmplx ipow(int n) {
-	return spherical_constants.ipow[(n + 100) % 4];
-}
-
 CUDA_EXPORT inline float n1pow(int n) {
 	return (n & 1) ? -1.f : 1.f;
 }
@@ -328,20 +324,14 @@ CUDA_EXPORT inline void translate_multipole(sphericalY<T, P>& M, const spherical
 		for (int k = 0; k <= j; k++) {
 			M(j, k) = T(0);
 			for (int n = 0; n <= j; n++) {
-				for (int n = 0; n <= j; n++) {
-					if (j - n >= Q) {
-						continue;
-					}
-					for (int m = std::max(-n, -j + k + n); m <= std::min(k - 1, n); m++) {
-						int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
-						int nm = n * n + n - m;
-						M(j, k) += O(j - n, k - m) * R(n, -m) * ipow(m) * n1pow(n);
-					}
-					for (int m = k; m <= std::min(n, j + k - n); m++) {
-						int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
-						int nm = n * n + n - m;
-						M(j, k) += O(j - n, k - m) * R(n, -m) * n1pow(k + n + m);
-					}
+				if (j - n >= Q) {
+					continue;
+				}
+				for (int m = std::max(-n, -j + k + n); m <= std::min(k - 1, n); m++) {
+					M(j, k) += O(j - n, k - m) * R(n, -m) * ((m >= 0) ? 1 : n1pow(m)) * n1pow(n);
+				}
+				for (int m = k; m <= std::min(n, j + k - n); m++) {
+					M(j, k) += O(j - n, k - m) * R(n, -m) * n1pow(k + n + m);
 				}
 			}
 		}
