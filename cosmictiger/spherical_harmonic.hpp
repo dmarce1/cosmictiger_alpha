@@ -327,7 +327,7 @@ CUDA_EXPORT inline void complete_multipole_interaction(sphericalY<T, P>& L, cons
 			}
 		}
 	}
-//	printf( "%e\n", first(L(1,1).real()) / 0.707106781 /( first(M(0).real())*first(x) * pow(sqr(first(x))+sqr(first(y))+sqr(first(z)),(-1.5))));
+	//printf( "%e\n", first(-L(1,1).real()) / 0.707106781 /( first(M(0).real())*first(x) * pow(sqr(first(x))+sqr(first(y))+sqr(first(z)),(-1.5))));
 }
 
 template<class T, int P, int Q, int R>
@@ -343,7 +343,7 @@ CUDA_EXPORT inline void sph_multipole_interaction(sphericalY<T, P>& L, const sph
 					if (abs(m - k) > j + n) {
 						continue;
 					}
-					const complex<float> c0 = ipow(abs(k - m)) - abs(k) - abs(m) * (bigA(n, m) * bigA(j, k)
+					const complex<float> c0 = ipow(abs(k - m) - abs(k) - abs(m)) * (bigA(n, m) * bigA(j, k)
 									* n1pow(n) * bigAinv(j + n, m - k));
 					L(j, k) += M(n, m) * c0 * I(j + n, m - k);
 //					printf( "%e\n", first(c0.real()));

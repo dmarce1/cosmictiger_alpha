@@ -36,8 +36,8 @@ std::vector<test_particle> direct_get_test_particles(int cnt) {
 	return testparts;
 }
 
-HPX_PLAIN_ACTION (direct_get_test_particles);
-HPX_PLAIN_ACTION (cuda_direct);
+HPX_PLAIN_ACTION(direct_get_test_particles);
+HPX_PLAIN_ACTION(cuda_direct);
 
 void direct_force_test() {
 	particle_server pserv;
@@ -96,14 +96,15 @@ void direct_force_test() {
 		gdir = std::sqrt(gdir);
 		gnum = std::sqrt(gnum);
 		phinum = test_parts[i].f.phi;
-		phidir = total[i].phi - PHI0/global().opts.hsoft * global().opts.G * global().opts.M;
+		phidir = total[i].phi - PHI0 / global().opts.hsoft * global().opts.G * global().opts.M;
 		gnorm += gdir;
 		phinorm += std::abs(phidir);
 		gerr += std::abs(gdir - gnum);
 		phierr += std::abs(phidir - phinum);
-		gerr_max = std::max(gerr_max, std::abs(gdir-gnum));
-		phierr_max = std::max(phierr_max,std::abs(phidir-phinum));
-		PRINT( "%e %e %e %e\n", gdir, gnum, phidir, phinum);
+		gerr_max = std::max(gerr_max, std::abs(gdir - gnum));
+		phierr_max = std::max(phierr_max, std::abs(phidir - phinum));
+		PRINT("%e %e %e %e %e %e\n", total[i].f[0], test_parts[i].f.f[0], total[i].f[1], test_parts[i].f.f[1], total[i].f[2],
+				test_parts[i].f.f[2]);
 	}
 	gerr /= gnorm;
 	phierr /= phinorm;

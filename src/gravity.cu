@@ -40,7 +40,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		array<float, NDIM> fpos;
 		const auto other_pos = multis[i].get_pos();
 		for (int dim = 0; dim < NDIM; dim++) {
-			fpos[dim] = distance(pos[dim], other_pos[dim]);
+			fpos[dim] = -distance(pos[dim], other_pos[dim]);
 		}
 		flops += 6;
 		if (etype == DIRECT) {
@@ -125,9 +125,9 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 			}
 			for (int j = tid; j < part_index; j += warpSize) {
 				array<float, NDIM> dx;
-				dx[0] = distance(pos[0], sources[0][j]);
-				dx[1] = distance(pos[1], sources[1][j]);
-				dx[2] = distance(pos[2], sources[2][j]);
+				dx[0] = -distance(pos[0], sources[0][j]);
+				dx[1] = -distance(pos[1], sources[1][j]);
+				dx[2] = -distance(pos[2], sources[2][j]);
 				expansion<float> D;
 				flops += 3;
 				flops += green_direct(D, dx);
@@ -375,9 +375,9 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 			}
 			for (int i = 0; i < nsrc; i++) {
 				const auto &source = msrcs[i].pos;
-				dx0 = distance(sinks[0][k], source[0]);
-				dx1 = distance(sinks[1][k], source[1]);
-				dx2 = distance(sinks[2][k], source[2]);
+				dx0 = -distance(sinks[0][k], source[0]);
+				dx1 = -distance(sinks[1][k], source[1]);
+				dx2 = -distance(sinks[2][k], source[2]);
 				flops += 6;
 				flops += green_direct(D, dx);
 				flops += multipole_interaction(Lforce, msrcs[i].multi, D, constant.full_eval);
