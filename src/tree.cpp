@@ -307,7 +307,6 @@ sort_return tree::sort(sort_params params) {
 			self.set_pos(pos);
 			self.set_radius(radius);
 			self.set_multi(M);
-			printf( "%e\n", M(0,0).real());
 		}
 		self.set_leaf(false);
 		self.set_children(children);
