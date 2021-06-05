@@ -25,6 +25,12 @@ struct sphericalYconstants;
 
 template<class T, int P>
 struct sphericalY: public array<complex<T>, P * (P + 1) / 2> {
+/*	CUDA_EXPORT
+	sphericalY() {
+		for (int i = 0; i < P * (P + 1) / 2; i++) {
+			(*this)[i] = complex<T>(T(1e99), T(1e99));
+		}
+	}*/
 	CUDA_EXPORT
 	inline complex<T> operator()(int l, int m) const {
 		assert(l >= 0);
@@ -305,9 +311,9 @@ CUDA_EXPORT inline void translate_expansion(sphericalY<T, P>& L, const spherical
 
 template<class T, int P, int Q>
 CUDA_EXPORT inline void complete_multipole_interaction(sphericalY<T, P>& L, const sphericalY<T, Q>& M, T x, T y, T z) {
-	constexpr int R = cmax(P,Q);
+	constexpr int R = cmax(P, Q);
 	sphericalY<T, R> I0;
-	irregular_harmonic(I0,x,y,z);
+	irregular_harmonic(I0, x, y, z);
 	const auto I = I0;
 	for (int j = 0; j < P; j++) {
 		for (int k = 0; k <= j; k++) {
@@ -319,10 +325,10 @@ CUDA_EXPORT inline void complete_multipole_interaction(sphericalY<T, P>& L, cons
 					if (abs(m - k) > j + n) {
 						continue;
 					}
-					const complex<float> c0 = ipow(abs(k - m) - abs(k) - abs(m)) * bigA(n, m) * bigA(j, k)
-									* n1pow(n) * bigAinv(j + n, m - k);
+					const complex<float> c0 = ipow(abs(k - m) - abs(k) - abs(m)) * bigA(n, m) * bigA(j, k) * n1pow(n)
+							* bigAinv(j + n, m - k);
 					L(j, k) += M(n, m) * c0 * I(j + n, m - k);
-				//	printf( "%e %e \n", first(c0.real()), first(c0.imag()));
+					//	printf( "%e %e \n", first(c0.real()), first(c0.imag()));
 				}
 			}
 		}
@@ -343,8 +349,8 @@ CUDA_EXPORT inline void sph_multipole_interaction(sphericalY<T, P>& L, const sph
 					if (abs(m - k) > j + n) {
 						continue;
 					}
-					const complex<float> c0 = ipow(abs(k - m) - abs(k) - abs(m)) * (bigA(n, m) * bigA(j, k)
-									* n1pow(n) * bigAinv(j + n, m - k));
+					const complex<float> c0 = ipow(abs(k - m) - abs(k) - abs(m))
+							* (bigA(n, m) * bigA(j, k) * n1pow(n) * bigAinv(j + n, m - k));
 					L(j, k) += M(n, m) * c0 * I(j + n, m - k);
 //					printf( "%e\n", first(c0.real()));
 				}

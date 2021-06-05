@@ -260,8 +260,8 @@ sort_return tree::sort(sort_params params) {
 		}
 		if (!params.group_sort) {
 			std::array<double, NDIM> com = { 0, 0, 0 };
-			auto &MR = Mc[RIGHT];
-			auto &ML = Mc[LEFT];
+			auto MR = Mc[RIGHT];
+			auto ML = Mc[LEFT];
 			double ml = ML(0).real();
 			double mr = MR(0).real();
 		//	printf( "%e %e\n", mr, ml);
@@ -614,15 +614,15 @@ void tree::kick(kick_params_type * params_ptr) {
 		} else {
 			switch (type) {
 			case CC_CP_DIRECT:
-				cpu_cc_direct(params_ptr);
-				cpu_cp_direct(params_ptr);
+		//		cpu_cc_direct(params_ptr);
+		//		cpu_cp_direct(params_ptr);
 				break;
 			case CC_CP_EWALD:
-				cpu_cc_ewald(params_ptr);
+		//		cpu_cc_ewald(params_ptr);
 				break;
 			case PC_PP_DIRECT:
-				cpu_pc_direct(params_ptr);
-				cpu_pp_direct(params_ptr);
+		//		cpu_pc_direct(params_ptr);
+		//		cpu_pp_direct(params_ptr);
 				break;
 			case PC_PP_EWALD:
 				break;

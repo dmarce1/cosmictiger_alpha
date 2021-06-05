@@ -8,8 +8,6 @@
 #include <cosmictiger/expansion.hpp>
 #include <cosmictiger/array.hpp>
 
-__device__ expansion<float> Lfactor_gpu;
-expansion<float> Lfactor_cpu;
 
 __device__ void expansion_init() {
 }
@@ -25,7 +23,7 @@ CUDA_DEVICE expansion<float>& cuda_shift_expansion(expansion<float> &L, const ar
 }
 
 expansion<float>& shift_expansion(expansion<float> &L, const array<float, NDIM> &dX, bool do_phi) {
-//	translate_expansion(L, L, dX[0], dX[1], dX[2]);
+	//translate_expansion(L, L, dX[0], dX[1], dX[2]);
 	return L;
 }
 

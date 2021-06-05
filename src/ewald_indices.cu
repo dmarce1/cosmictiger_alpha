@@ -6,11 +6,10 @@
 
 static array<array<float, NDIM>, NREAL> real_indices;
 static array<array<float, NDIM>, NFOUR> four_indices;
-static array<expansion<float>, NFOUR> four_expanse;
 
 static __constant__ array<array<float, NDIM>, NREAL> real_indices_dev;
 static __constant__ array<array<float, NDIM>, NFOUR> four_indices_dev;
-static __constant__ array<expansion<float>, NFOUR> four_expanse_dev;
+
 
 void ewald_const::init_gpu() {
 /*	int n2max = 10;
@@ -102,15 +101,6 @@ CUDA_EXPORT const array<float, NDIM>& ewald_const::four_index(int i) {
 	return four_indices[i];
 #endif
 }
-
-CUDA_EXPORT const expansion<float>& ewald_const::four_expansion(int i) {
-#ifdef __CUDA_ARCH__
-	return four_expanse_dev[i];
-#else
-	return four_expanse[i];
-#endif
-}
-
 
 
 /*
