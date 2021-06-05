@@ -25,8 +25,8 @@ CUDA_EXPORT int multipole_interaction(array<T, NDIM + 1> &F, const multipole_typ
 	L = 0.0;
 	sph_multipole_interaction(L,M,D);
 	F[0] -= L(0).real();
-	F[1] -= L(1,1).real() / 0.707106781;
-	F[2] += L(1,1).imag() / 0.707106781;
+	F[1] -= L(1,1).real();
+	F[2] += L(1,1).imag();
 	F[3] += L(1,0).real();
 	return 0;
 }
