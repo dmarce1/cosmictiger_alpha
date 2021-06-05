@@ -227,7 +227,6 @@ sort_return tree::sort(sort_params params) {
 		std::array<multipole, NCHILD> Mc;
 		std::array<array<fixed32, NDIM>, NCHILD> Xc;
 		std::array<float, NCHILD> Rc;
-		multipole M;
 		if (!params.group_sort) {
 			rc.active_nodes = 1;
 			rc.active_parts = 0;
@@ -308,6 +307,7 @@ sort_return tree::sort(sort_params params) {
 			self.set_pos(pos);
 			self.set_radius(radius);
 			self.set_multi(M);
+			printf( "%e\n", M(0,0).real());
 		}
 		self.set_leaf(false);
 		self.set_children(children);
@@ -342,12 +342,11 @@ sort_return tree::sort(sort_params params) {
 				const double x = com[0] - particles->pos(0, i).to_double();
 				const double y = com[1] - particles->pos(1, i).to_double();
 				const double z = com[2] - particles->pos(2, i).to_double();
-				const double this_radius = sqrt(sqr(x - com[0]) + sqr(y - com[1]) + sqr(z - com[2]));
+				const double this_radius = sqrt(sqr(x) + sqr(y) + sqr(z));
 				translate_multipole<float,MORDER>(Mtmp, point, x, y, z);
 				M = M + Mtmp;
 				radius = std::max(radius, (float) (this_radius));
 			}
-//			printf( "%e\n", M(1,0).real());
 			rc.active_parts = 0;
 			rc.active_nodes = 0;
 			for (part_int k = parts.first; k < parts.second; k++) {
