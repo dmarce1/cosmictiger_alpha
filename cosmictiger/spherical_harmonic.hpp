@@ -37,7 +37,11 @@ struct sphericalY: public array<complex<T>, P * (P + 1) / 2> {
 		assert(l < P);
 		assert(m >= -l);
 		assert(m <= l);
-		return m < 0 ? (*this)[((l * (l + 1)) >> 1) - m].conj() : (*this)[((l * (l + 1)) >> 1) + m];
+		if( m < 0 ) {
+			return (*this)[((l * (l + 1)) >> 1) - m].conj();
+		} else {
+			return (*this)[((l * (l + 1)) >> 1) + m];
+		}
 	}
 	CUDA_EXPORT
 	inline complex<T>& operator()(int l, int m) {
