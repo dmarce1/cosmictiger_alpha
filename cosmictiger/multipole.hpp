@@ -16,7 +16,6 @@
 #include <cosmictiger/spherical_harmonic.hpp>
 
 
-#define MORDER (ORDER-1)
 
 constexpr int MP = (MORDER*(MORDER+1)/2);
 

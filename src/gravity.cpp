@@ -71,7 +71,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 			}
 			interacts += n;
 			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = distance(Y[dim], X[dim]);
+				dX[dim] = distance(X[dim], Y[dim]);
 			}
 			flops += n * 6;
 			flops += n * green_direct(D, dX);
@@ -149,7 +149,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 			}
 		}
 		for (int dim = 0; dim < NDIM; dim++) {
-			dX[dim] = distance(Y[dim], X[dim]);
+			dX[dim] = distance(X[dim], Y[dim]);
 		}
 		flops += n * 6;
 		flops += n * green_direct(D, dX);
@@ -329,7 +329,7 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 					}
 				}
 				for (int dim = 0; dim < NDIM; dim++) {
-					dX[dim] = distance(Y[dim], X[dim]);
+					dX[dim] = distance(X[dim], Y[dim]);
 				}
 				flops += n * 6;
 				flops += n * green_direct(D, dX);
@@ -398,7 +398,7 @@ void tree::cpu_cc_ewald(kick_params_type *params_ptr) {
 			}
 			interacts += n;
 			for (int dim = 0; dim < NDIM; dim++) {
-				dX[dim] = distance(Y[dim], X[dim]);
+				dX[dim] = distance(X[dim], Y[dim]);
 			}
 			flops += n * 6;
 			flops += n * green_ewald(D, dX);

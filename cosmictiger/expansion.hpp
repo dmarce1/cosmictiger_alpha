@@ -33,8 +33,7 @@ struct force {
 	}
 };
 
-#define LORDER ORDER
-#define LP (ORDER*(ORDER+1)/2)
+#define LP (LORDER*(LORDER+1)/2)
 
 
 template<class T>

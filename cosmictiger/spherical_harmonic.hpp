@@ -25,19 +25,19 @@ struct sphericalYconstants;
 
 template<class T, int P>
 struct sphericalY: public array<complex<T>, P * (P + 1) / 2> {
-/*	CUDA_EXPORT
-	sphericalY() {
-		for (int i = 0; i < P * (P + 1) / 2; i++) {
-			(*this)[i] = complex<T>(T(1e99), T(1e99));
-		}
-	}*/
+	/*	CUDA_EXPORT
+	 sphericalY() {
+	 for (int i = 0; i < P * (P + 1) / 2; i++) {
+	 (*this)[i] = complex<T>(T(1e99), T(1e99));
+	 }
+	 }*/
 	CUDA_EXPORT
 	inline complex<T> operator()(int l, int m) const {
 		assert(l >= 0);
 		assert(l < P);
 		assert(m >= -l);
 		assert(m <= l);
-		if( m < 0 ) {
+		if (m < 0) {
 			return (*this)[((l * (l + 1)) >> 1) - m].conj();
 		} else {
 			return (*this)[((l * (l + 1)) >> 1) + m];
@@ -95,10 +95,18 @@ struct sphericalY: public array<complex<T>, P * (P + 1) / 2> {
 		}
 		return result;
 	}
+	template<int Q>
 	CUDA_EXPORT
-	inline sphericalY<T, P>& operator=(const sphericalY<T, P>& other) {
-		for (int i = 0; i < P * (P + 1) / 2; i++) {
-			(*this)[i] = other[i];
+	inline sphericalY<T, P>& operator=(const sphericalY<T, Q>& other) {
+		for (int l = 0; l < min(P, Q); l++) {
+			for (int m = 0; m <= l; m++) {
+				(*this)(l, m) = other(l, m);
+			}
+		}
+		for (int l = min(P, Q); l < P; l++) {
+			for (int m = 0; m <= l; m++) {
+				(*this)(l, m) = complex<T>(T(0), T(0));
+			}
 		}
 		return *this;
 	}
@@ -186,7 +194,7 @@ CUDA_EXPORT inline float n1pow(int n) {
 template<class TYPE, int P>
 CUDA_EXPORT inline void spherical_harmonic_helper(sphericalY<TYPE, P>& Y, TYPE x, TYPE y, TYPE z, TYPE& r, TYPE& rinv) {
 	const TYPE R2 = fmaf(x, x, sqr(y));
-	const TYPE r2 = R2 + sqr(z);
+	const TYPE r2 = fmaf(z, z, R2);
 	r = sqrt(r2);
 	const TYPE R = sqrt(R2);
 	const TYPE eps(1.0e-10);
@@ -235,27 +243,70 @@ CUDA_EXPORT inline void spherical_harmonic(sphericalY<T, P>& Y, T x, T y, T z) {
 
 template<class T, int P>
 CUDA_EXPORT inline void regular_harmonic(sphericalY<T, P>& Y, T x, T y, T z) {
-	T r, rinv;
-	spherical_harmonic_helper(Y, x, y, z, r, rinv);
-	T rpow = T(1);
-	for (int l = 0; l < P; l++) {
-		for (int m = 0; m <= l; m++) {
-			Y(l, m) *= rpow;
+	T R2 = x * x + y * y;
+	T r2 = x * x + y * y + z * z;
+	T r = sqrt(r2);
+	T Rinv = T(1) / (max(sqrt(R2), T(1.0e-20)));
+	T cos0 = z / r;
+	T sin0 = sqrt(T(1) - cos0 * cos0);
+	T fact = 1;
+	T pn = 1;
+	T rm = 1;
+	complex<T> ei = complex<T>(x * Rinv, y * Rinv);
+	complex<T> eim = 1.0;
+	for (int m = 0; m < P; m++) {
+		T p = pn;
+		Y(m, m) = rm * p * eim;
+		T p1 = p;
+		p = cos0 * (2 * m + 1) * p1;
+		rm *= r;
+		T rn = rm;
+		for (int n = m + 1; n < P; n++) {
+			rn /= -(n + m);
+			Y(n, m) = rn * p * eim;
+			T p2 = p1;
+			p1 = p;
+			p = (cos0 * (2 * n + 1) * p1 - (n + m) * p2) / (n - m + 1);
+			rn *= r;
 		}
-		rpow *= r;
+		rm /= -(2 * m + 2) * (2 * m + 1);
+		pn = -pn * fact * sin0;
+		fact += 2;
+		eim *= ei;
 	}
-
 }
+
 template<class T, int P>
 CUDA_EXPORT inline void irregular_harmonic(sphericalY<T, P>& Y, T x, T y, T z) {
-	T r, rinv;
-	spherical_harmonic_helper(Y, x, y, z, r, rinv);
-	T rpow = T(rinv);
-	for (int l = 0; l < P; l++) {
-		for (int m = 0; m <= l; m++) {
-			Y(l, m) *= rpow;
+	T R2 = x * x + y * y;
+	T r2 = x * x + y * y + z * z;
+	T r = sqrt(r2);
+	T Rinv = T(1) / (max(sqrt(R2), 1.0e-20));
+	T fact = 1;
+	T pn = 1;
+	T invR = -1.0 / r;
+	T rm = -invR;
+	T cos0 = z / r;
+	T sin0 = sqrt(T(1) - cos0 * cos0);
+	complex<T> ei = complex<T>(x * Rinv, y * Rinv);
+	complex<T> eim = T(1);
+	for (int m = 0; m < P; m++) {
+		T p = pn;
+		Y(m, m) = rm * p * eim;
+		T p1 = p;
+		p = cos0 * (2 * m + 1) * p1;
+		rm *= invR;
+		T rhon = rm;
+		for (int n = m + 1; n < P; n++) {
+			Y(n, m) = rhon * p * eim;
+			T p2 = p1;
+			p1 = p;
+			p = (cos0 * (2 * n + 1) * p1 - (n + m) * p2) / (n - m + 1);
+			rhon *= invR * (n - m + 1);
 		}
-		rpow *= rinv;
+		pn = -pn * fact * sin0;
+		fact += 2;
+		eim *= ei;
 	}
 }
 
@@ -272,24 +323,29 @@ CUDA_EXPORT inline void translate_multipole(sphericalY<T, P>& M, const spherical
 	sphericalY<T, cmax(P, Q)> R0;
 	regular_harmonic(R0, x, y, z);
 	const auto R = R0;
+
 	for (int j = 0; j < P; j++) {
 		for (int k = 0; k <= j; k++) {
-			M(j, k) = 0.0;
+			M(j, k) = T(0);
 			for (int n = 0; n <= j; n++) {
-				if (j - n >= Q) {
-					continue;
-				}
-				for (int m = -n; m <= n; m++) {
-					if (abs(k - m) > j - n) {
+				for (int n = 0; n <= j; n++) {
+					if (j - n >= Q) {
 						continue;
 					}
-					M(j, k) += O(j - n, k - m) * ipow(abs(k) - abs(m) - abs(k - m)) * bigA(n, m) * bigA(j - n, k - m)
-							* bigAinv(j, k) * R(n, -m);
+					for (int m = std::max(-n, -j + k + n); m <= std::min(k - 1, n); m++) {
+						int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
+						int nm = n * n + n - m;
+						M(j, k) += O(j - n, k - m) * R(n, -m) * ipow(m) * n1pow(n);
+					}
+					for (int m = k; m <= std::min(n, j + k - n); m++) {
+						int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
+						int nm = n * n + n - m;
+						M(j, k) += O(j - n, k - m) * R(n, -m) * n1pow(k + n + m);
+					}
 				}
 			}
 		}
 	}
-
 }
 
 template<class T, int P, int Q>
@@ -299,64 +355,37 @@ CUDA_EXPORT inline void translate_expansion(sphericalY<T, P>& L, const spherical
 	const auto R = R0;
 	for (int j = 0; j < P; j++) {
 		for (int k = 0; k <= j; k++) {
-			L(j, k) = 0.0;
+			L(j, k) = 0;
 			for (int n = j; n < Q; n++) {
-				for (int m = -n; m <= n; m++) {
-					if (abs(k - m) > n - j) {
-						continue;
+				for (int m = j + k - n; m < 0; m++) {
+					L(j, k) += O(n, m) * R(n - j, m - k) * n1pow(k);
+				}
+				for (int m = 0; m <= n; m++) {
+					if (n - j >= abs(m - k)) {
+						L(j, k) += O(n, m) * R(n - j, m - k) * n1pow((m - k) * (m < k));
 					}
-					L(j, k) += O(n, m) * ipow(abs(m) - abs(k) - abs(k - m)) * bigA(n - j, m - k) * bigA(j, k) * bigAinv(n, m)
-							* R(n - j, m - k) * n1pow(n + j);
 				}
 			}
 		}
 	}
-}
-
-template<class T, int P, int Q>
-CUDA_EXPORT inline void complete_multipole_interaction(sphericalY<T, P>& L, const sphericalY<T, Q>& M, T x, T y, T z) {
-	constexpr int R = cmax(P, Q);
-	sphericalY<T, R> I0;
-	irregular_harmonic(I0, x, y, z);
-	const auto I = I0;
-	for (int j = 0; j < P; j++) {
-		for (int k = 0; k <= j; k++) {
-			for (int n = 0; n < Q; n++) {
-				if (n + j >= R) {
-					continue;
-				}
-				for (int m = -n; m <= n; m++) {
-					if (abs(m - k) > j + n) {
-						continue;
-					}
-					const complex<float> c0 = ipow(abs(k - m) - abs(k) - abs(m)) * bigA(n, m) * bigA(j, k) * n1pow(n)
-							* bigAinv(j + n, m - k);
-					L(j, k) += M(n, m) * c0 * I(j + n, m - k);
-					//	printf( "%e %e \n", first(c0.real()), first(c0.imag()));
-				}
-			}
-		}
-	}
-	//printf( "%e\n", first(-L(1,1).real()) / 0.707106781 /( first(M(0).real())*first(x) * pow(sqr(first(x))+sqr(first(y))+sqr(first(z)),(-1.5))));
 }
 
 template<class T, int P, int Q, int R>
 CUDA_EXPORT inline void sph_multipole_interaction(sphericalY<T, P>& L, const sphericalY<T, Q>& M,
 		const sphericalY<T, R>& I) {
 	for (int j = 0; j < P; j++) {
+		T Cnm = n1pow(j);
 		for (int k = 0; k <= j; k++) {
 			for (int n = 0; n < Q; n++) {
-				if (n + j >= R) {
+				if (j + n >= R) {
 					continue;
 				}
-				for (int m = -n; m <= n; m++) {
-					if (abs(m - k) > j + n) {
-						continue;
-					}
-					const complex<float> c0 = ipow(abs(k - m) - abs(k) - abs(m))
-							* (bigA(n, m) * bigA(j, k) * n1pow(n) * bigAinv(j + n, m - k));
-					L(j, k) += M(n, m) * c0 * I(j + n, m - k);
-//					printf( "%e\n", first(c0.real()));
+				for (int m = -n; m < 0; m++) {
+					L(j, k) += M(n, m) * Cnm * I(j + n, m - k);
+				}
+				for (int m = 0; m <= n; m++) {
+					T Cnm2 = Cnm * n1pow((k - m) * (k < m) + m);
+					L(j, k) += M(n, m) * Cnm2 * I(j + n, m - k);
 				}
 			}
 		}
