@@ -13,6 +13,10 @@
 
 //#define PERIODIC_OFF
 
+#define ORDER 2
+#define LORDER ORDER
+#define MORDER (LORDER-1)
+
 template<class ...Args>
 #ifdef __CUDA_ARCH__
 __device__

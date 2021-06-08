@@ -261,26 +261,26 @@ sort_return tree::sort(sort_params params) {
 			std::array<double, NDIM> com = { 0, 0, 0 };
 			const auto &MR = Mc[RIGHT];
 			const auto &ML = Mc[LEFT];
-			M() = ML() + MR();
+			const auto ml = ML(0, 0, 0);
+			const auto mr = MR(0, 0, 0);
+			const auto m = ml + mr;
 			double rleft = 0.0;
 			double rright = 0.0;
 			array<fixed32, NDIM> pos;
-			std::array<double, NDIM> xl, xr;
+			array<float, NDIM> xl, xr;
 			for (int dim = 0; dim < NDIM; dim++) {
-				xl[dim] = Xc[LEFT][dim].to_double();
-				xr[dim] = Xc[RIGHT][dim].to_double();
-			}
-			for (int dim = 0; dim < NDIM; dim++) {
-				auto& Xl = xl[dim];
-				auto& Xr = xr[dim];
-				com[dim] = (ML() * Xl + MR() * Xr) / (ML() + MR());
+				auto Xl = Xc[LEFT][dim].to_double();
+				auto Xr = Xc[RIGHT][dim].to_double();
+				com[dim] = (ml * Xl + mr * Xr) / m;
 				Xl -= com[dim];
 				Xr -= com[dim];
+				xl[dim] = Xl;
+				xr[dim] = Xr;
 				rleft += sqr(Xl);
 				rright += sqr(Xr);
 				pos[dim] = com[dim];
 			}
-			M = (ML >> xl) + (MR >> xr);
+			M = multipole_translate<float,MORDER>(MR, xr) + multipole_translate<float,MORDER>(ML, xl);
 			rleft = std::sqrt(rleft) + Rc[LEFT];
 			rright = std::sqrt(rright) + Rc[RIGHT];
 			float radius = std::max(rleft, rright);
@@ -328,21 +328,15 @@ sort_return tree::sort(sort_params params) {
 			multipole M;
 			M = 0.0;
 			float radius = 0.0;
+			tensor_trless_sym<float, 1> point;
+			point = 0.0f;
 			for (auto i = parts.first; i < parts.second; i++) {
 				double this_radius = 0.0;
-				M() += 1.0;
-				for (int n = 0; n < NDIM; n++) {
-					const auto xn = particles->pos(n, i).to_double() - com[n];
-					this_radius += xn * xn;
-					for (int m = n; m < NDIM; m++) {
-						const auto xm = particles->pos(m, i).to_double() - com[m];
-						const auto xnm = xn * xm;
-						M(n, m) += xnm;
-						for (int l = m; l > NDIM; l++) {
-							const auto xl = particles->pos(l, i).to_double() - com[l];
-							M(n, m, l) -= xnm * xl;
-						}
-					}
+				array<float, NDIM> X;
+				for (int dim = 0; dim < NDIM; dim++) {
+					X[dim] = particles->pos(dim, i).to_double() - com[dim];
+					M = M + multipole_translate<float,MORDER,1>(point, X);
+					this_radius += X[dim] * X[dim];
 				}
 				this_radius = std::sqrt(this_radius);
 				radius = std::max(radius, (float) (this_radius));

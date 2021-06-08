@@ -48,7 +48,15 @@ public:
 	}
 
 	CUDA_EXPORT
-	inline array<T, N> operator+(const array<T, N>& other) {
+	inline array<T, N>& operator=(const T& other) {
+		for (int i = 0; i < N; i++) {
+			(*this)[i] = other;
+		}
+		return *this;
+	}
+
+	CUDA_EXPORT
+	inline array<T, N> operator+(const array<T, N>& other) const {
 		array<T, N> result;
 		for (int i = 0; i < N; i++) {
 			result[i] = (*this)[i] + other[i];
@@ -57,7 +65,7 @@ public:
 	}
 
 	CUDA_EXPORT
-	inline array<T, N> operator-(const array<T, N>& other) {
+	inline array<T, N> operator-(const array<T, N>& other) const {
 		array<T, N> result;
 		for (int i = 0; i < N; i++) {
 			result[i] = (*this)[i] - other[i];
@@ -66,7 +74,7 @@ public:
 	}
 
 	CUDA_EXPORT
-	inline array<T, N> operator*(const T& other) {
+	inline array<T, N> operator*(const T& other) const {
 		array<T, N> result;
 		for (int i = 0; i < N; i++) {
 			result[i] = (*this)[i] * other;
@@ -91,7 +99,5 @@ public:
 	}
 
 };
-
-
 
 #endif /* COSMICTIGER_ARRAY_HPP_ */

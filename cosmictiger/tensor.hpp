@@ -47,6 +47,23 @@ public:
 	static constexpr int N = P * P;
 
 	CUDA_EXPORT
+	inline tensor_trless_sym& operator=(const T& other) {
+		for (int i = 0; i < N; i++) {
+			(*this)[i] = other;
+		}
+		return *this;
+	}
+
+	CUDA_EXPORT
+	inline tensor_trless_sym& operator+(const tensor_trless_sym& other) const {
+		tensor_trless_sym<T, P> result;
+		for (int i = 0; i < N; i++) {
+			result[i] = other[i] + (*this)[i];
+		}
+		return result;
+	}
+
+	CUDA_EXPORT
 	inline T& operator()(int l, int m, int n) {
 		l += m;
 		assert(l >= 0);
@@ -87,13 +104,13 @@ public:
 };
 
 template<class T, int P>
-class tensor_sym: public array<T, P * (P + 1) * (P + 2) / 6> {
+class tensor_sym: public array<T, (P * (P + 1) * (P + 2)) / 6> {
 
 private:
 
 public:
 
-	static constexpr int N = P * (P + 1) * (P + 1) / 6;
+	static constexpr int N = (P * (P + 1) * (P + 2)) / 6;
 
 	CUDA_EXPORT
 	inline T operator()(int l, int m, int n) const {
@@ -173,9 +190,8 @@ public:
 
 	CUDA_EXPORT
 	inline tensor_trless_sym<T, P> detraceD() const {
-		tensor_trless_sym<T, P> A = detraceF;
-		const T factor = T(1) / dfactorial;
-		array<int, N> n;
+		tensor_trless_sym<T, P> A = detraceF();
+		array<int, NDIM> n;
 		for (n[0] = 0; n[0] < P; n[0]++) {
 			for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 				for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
@@ -214,13 +230,13 @@ inline int intmin(int a, int b) {
 	return a < b ? a : b;
 }
 
-template<class T, int P, int Q>
+template<class T, int P, int Q = P>
 CUDA_EXPORT
 tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, Q>& M1, const array<T, NDIM>& x) {
 	tensor_sym<T, P> M2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	const auto delta_x = vector_to_sym_tensor<P>(-x);
+	const auto delta_x = vector_to_sym_tensor<T, P>(-x);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
@@ -244,7 +260,7 @@ tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, Q>& M1, c
 template<class T, int P>
 CUDA_EXPORT
 tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
-	auto D = vector_to_sym_tensor(x).detraceF();
+	auto D = vector_to_sym_tensor<T, P>(x).detraceF();
 	array<int, NDIM> k;
 	array<T, P> rinv_pow;
 	const auto r2 = sqr(x[0], x[1], x[2]);
@@ -290,13 +306,13 @@ tensor_trless_sym<T, P> interaction(const tensor_trless_sym<T, Q>& M, const tens
 	return L;
 }
 
-template<class T, int P, int Q>
+template<class T, int P, int Q = P>
 CUDA_EXPORT
 tensor_trless_sym<T, P> expansion_translate(const tensor_trless_sym<T, Q>& L1, const array<T, NDIM>& x) {
 	tensor_trless_sym<T, P> L2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	const auto delta_x = vector_to_sym_tensor<P>(x);
+	const auto delta_x = vector_to_sym_tensor<T, P>(x);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1] && n[2] <= 1; n[2]++) {
