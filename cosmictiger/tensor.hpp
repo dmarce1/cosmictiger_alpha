@@ -259,7 +259,7 @@ tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 		for (k[1] = 0; k[1] < P - k[0]; k[1]++) {
 			for (k[2] = 0; k[2] < P - k[0] - k[1] && k[2] <= 1; k[2]++) {
 				const int k0 = k[0] + k[1] + k[2];
-				D(k) *= T(n1pow(k0)) * rinv_pow[k0];
+				D(k) *= T(n1pow(k0 + 1)) * rinv_pow[k0];
 			}
 		}
 	}
