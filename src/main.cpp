@@ -19,15 +19,6 @@ int hpx_main(int argc, char *argv[]) {
 	//  PRINT( "%li\n", sizeof(std::shared_ptr<int>));
 	//  PRINT( "%li\n", sizeof(sort_params));
 
-	constexpr int N = 4;
-	tensor_sym<float, N> test;
-	for (int i = 0; i < N * (N + 1) * (N + 2) / 6; i++) {
-		test[i] = 2.0 * float(rand()) / float(RAND_MAX) - 1.0;
-	}
-	const auto test2 = test.detraceF();
-	printf("%e %e %e \n", test2(0, 0, 3) , test2(0, 2, 1) , test2(2, 0, 1));
-
-	return hpx::finalize();
 
 	PRINT("Size of cuda_kick_shmem is %li\n", sizeof(cuda_kick_shmem));
 	PRINT("cuda kick occupancy = %i\n", cuda_kick_occupancy());

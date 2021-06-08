@@ -329,7 +329,7 @@ sort_return tree::sort(sort_params params) {
 			M = 0.0;
 			float radius = 0.0;
 			tensor_trless_sym<float, 1> point;
-			point = 0.0f;
+			point = 1.0f;
 			for (auto i = parts.first; i < parts.second; i++) {
 				double this_radius = 0.0;
 				array<float, NDIM> X;
