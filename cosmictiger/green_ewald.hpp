@@ -28,6 +28,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 	tensor_sym<T, LORDER> Dsym;
 	Dsym = 0.0;
 	const auto realsz = econst.nreal();
+	const T zero_mask = (sqr(X[0], X[1], X[2]) > T(0));
 	for (int i = 0; i < realsz; i++) {
 		const auto n = econst.real_index(i);
 		array<T, NDIM> dx;
@@ -118,22 +119,21 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 		}
 	}
 	//printf("%e %e\n", abs(first(Dsym(2, 0, 1))) + abs(first(Dsym(0, 2, 1))) + abs(first(Dsym(0, 0, 3))), first(Dsym(2, 0, 1)) + first(Dsym(0, 2, 1)) + first(Dsym(0, 0, 3)));
-	D = Dsym.detraceD();
+	const T Tr = Dsym(2, 0, 0) + Dsym(0, 2, 0) + Dsym(0, 0, 2);
+	/*Dsym(2,0,0) -= Tr / T(3.0);
+	Dsym(0,2,0) -= Tr / T(3.0);
+	Dsym(0,0,2) -= Tr / T(3.0);*/
+	D = Dsym;                           //.detraceD();
 	expansion<T> D1;
 	green_direct(D1, X);
 	D(0, 0, 0) = T(M_PI / 4.0) + D(0, 0, 0);                          // 1
 	for (int i = 0; i < LP; i++) {                     // 70
 		D[i] -= D1[i];
 	}
-	/*D[0] = 2.837291e+00 * zero_mask + D[0] * (T(1) - zero_mask);
-	 D[4] = -4.188790e+00 * zero_mask + D[4] * (T(1) - zero_mask);
-	 D[7] = -4.188790e+00 * zero_mask + D[7] * (T(1) - zero_mask);
-	 D[9] = -4.188790e+00 * zero_mask + D[9] * (T(1) - zero_mask);
-	 D[20] = -7.42e+01 * zero_mask + D[20] * (T(1) - zero_mask);
-	 D[23] = 3.73e+01 * zero_mask + D[23] * (T(1) - zero_mask);
-	 D[25] = 3.73e+01 * zero_mask + D[25] * (T(1) - zero_mask);
-	 D[30] = -7.42e+01 * zero_mask + D[30] * (T(1) - zero_mask);
-	 D[32] = 3.73e+01 * zero_mask + D[32] * (T(1) - zero_mask);
-	 D[34] = -7.42e+01 * zero_mask + D[34] * (T(1) - zero_mask);*/
+
+	D[0] = 2.837291e+00 * (T(1) - zero_mask) + zero_mask*D[0];
+	for( int i = 1; i < LP; i++) {
+		D[i] = zero_mask*D[i];
+	}
 	return 0;
 }

@@ -2,6 +2,7 @@
 
 #include <cosmictiger/array.hpp>
 #include <cosmictiger/math.hpp>
+#include <cosmictiger/global.hpp>
 
 CUDA_EXPORT
 inline
@@ -128,7 +129,6 @@ public:
 		}
 		return result;
 	}
-
 
 	CUDA_EXPORT
 	inline T operator()(int l, int m, int n) const {
@@ -271,7 +271,7 @@ tensor_sym<T, P> multipole_translate(const tensor_sym<T, Q>& M1, const array<T, 
 			}
 		}
 	}
-	return M2.detraceD();
+	return M2;
 }
 
 template<class T, int P>
@@ -326,7 +326,7 @@ tensor_sym<T, P> interaction(const tensor_sym<T, Q>& M, const tensor_sym<T, Q + 
 
 template<class T, int P, int Q = P>
 CUDA_EXPORT
-tensor_sym<T, P> expansion_translate(const tensor_sym<T, Q>& L1, const array<T, NDIM>& x) {
+tensor_sym<T, P> expansion_translate(tensor_sym<T, Q> L1, const array<T, NDIM>& x) {
 	tensor_sym<T, P> L2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
@@ -340,7 +340,9 @@ tensor_sym<T, P> expansion_translate(const tensor_sym<T, Q>& L1, const array<T, 
 					for (k[1] = 0; k[1] < Q - n0 - k[0]; k[1]++) {
 						for (k[2] = 0; k[2] < Q - n0 - k[0] - k[1]; k[2]++) {
 							const auto factor = T(1) / T(vfactorial(k));
-							L2(n) += factor * delta_x(k) * L1(n + k);
+							const auto p = n + k;
+							const int p0 = p[0] + p[1] + p[2];
+							L2(n) += factor * delta_x(k) * L1(p);
 						}
 					}
 				}

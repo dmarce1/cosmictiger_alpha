@@ -11,7 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-#define PERIODIC_OFF
+//#define PERIODIC_OFF
 
 #define ORDER 6
 #define LORDER ORDER
