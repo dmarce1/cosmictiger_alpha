@@ -50,31 +50,26 @@ void ewald_const::init_gpu() {
 		}
 	}
 	PRINT("nfour = %i\n", count);
-	/*count = 0;
+	count = 0;
 	for (int i = 0; i < NFOUR; i++) {
 		array<float, NDIM> h = four_indices[i];
+		auto D0 = vector_to_sym_tensor<float,LORDER>(h);
 		const float h2 = sqr(h[0]) + sqr(h[1]) + sqr(h[2]);                     // 5 OP
-		expansion<float> D;
-		D = 0.0;
-		const float c0 = 1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0);
-		D() = -(1.0 / M_PI) * c0;
-		for (int a = 0; a < NDIM; a++) {
-			D(a) = 2.0 * h[a] * c0;
-			for (int b = 0; b <= a; b++) {
-				D(a, b) = 4.0 * M_PI * h[a] * h[b] * c0;
-				for (int c = 0; c <= b; c++) {
-					D(a, b, c) = -8.0 * M_PI * M_PI * h[a] * h[b] * h[c] * c0;
-					for (int d = 0; d <= c; d++) {
-						D(a, b, c, d) = -16.0 * M_PI * M_PI * M_PI * h[a] * h[b] * h[c] * h[d] * c0;
-					}
+		const float c0 = -1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0) / M_PI;
+		array<int, NDIM> n;
+		for (n[0] = 0; n[0] < LORDER; n[0]++) {
+			for (n[1] = 0; n[1] < LORDER - n[0]; n[1]++) {
+				for (n[2] = 0; n[2] < LORDER - n[0] - n[1]; n[2]++) {
+					const int n0 = n[0] + n[1] + n[2];
+					D0(n) *= pow(-2.0*M_PI,n0) * c0;
 				}
 			}
 		}
-		four_expanse[count++] = D;
-	}*/
+		four_expanse[count++] = D0.detraceD();
+	}
 	cuda_set_device();
-	CUDA_CHECK(cudaMemcpyToSymbol(real_indices_dev,&real_indices,sizeof(real_indices)));
-	CUDA_CHECK(cudaMemcpyToSymbol(four_indices_dev,&four_indices,sizeof(four_indices)));
+	CUDA_CHECK(cudaMemcpyToSymbol(real_indices_dev, &real_indices, sizeof(real_indices)));
+	CUDA_CHECK(cudaMemcpyToSymbol(four_indices_dev, &four_indices, sizeof(four_indices)));
 	//CUDA_CHECK(cudaMemcpyToSymbol(four_expanse_dev,&four_expanse,sizeof(four_expanse)));
 
 }
@@ -111,18 +106,16 @@ CUDA_EXPORT const expansion<float>& ewald_const::four_expansion(int i) {
 #endif
 }
 
-
-
 /*
 
-D[0] = 2.837291e+00
-D[4] = -4.188790e+00
-D[7]= -4.188790e+00+
-D[9] = -4.188790e+00
-D[20] = -7.42e+01
-D[23] = 3.73e+01
-D[25] = 3.73e+01
-D[30] = -7.42e+01
-D[32] = 3.73e+01
-D[34] = -7.42e+01
-*/
+ D[0] = 2.837291e+00
+ D[4] = -4.188790e+00
+ D[7]= -4.188790e+00+
+ D[9] = -4.188790e+00
+ D[20] = -7.42e+01
+ D[23] = 3.73e+01
+ D[25] = 3.73e+01
+ D[30] = -7.42e+01
+ D[32] = 3.73e+01
+ D[34] = -7.42e+01
+ */

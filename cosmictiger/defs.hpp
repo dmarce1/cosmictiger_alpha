@@ -11,9 +11,9 @@
 #include <cstdio>
 #include <cstdlib>
 
-#define PERIODIC_OFF
+//#define PERIODIC_OFF
 
-#define ORDER 6
+#define ORDER 3
 #define LORDER ORDER
 #define MORDER (LORDER-1)
 
