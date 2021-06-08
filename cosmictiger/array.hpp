@@ -74,6 +74,15 @@ public:
 		return result;
 	}
 
+	CUDA_EXPORT
+	inline array<T, N> operator-() const {
+		array<T, N> result;
+		for (int i = 0; i < N; i++) {
+			result[i] = -(*this)[i];
+		}
+		return result;
+	}
+
 	template<class A>
 	void serialize(A&& arc, unsigned) {
 		for (int i = 0; i < N; i++) {
