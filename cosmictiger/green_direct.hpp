@@ -4,7 +4,6 @@
 #include <cosmictiger/math.hpp>
 #include <cosmictiger/expansion.hpp>
 
-
 #define DSCALE 1e4
 #define DSCALE2 1e8
 #define DSCALE3 1e12
@@ -23,5 +22,6 @@ inline bool any_true(simd_float a) {
 
 template<class T>
 CUDA_EXPORT int green_direct(expansion<T> &D, array<T, NDIM> dX, T rmin = 0.f) {
-		return 0;
+	D = direct_greens_function<T, LORDER>(dX);
+	return 0;
 }

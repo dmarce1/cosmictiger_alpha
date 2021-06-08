@@ -170,7 +170,6 @@ public:
 								for (k[0] = 0; k[0] <= m0; k[0]++) {
 									for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
 										k[2] = m0 - k[0] - k[1];
-										const int k0 = m0;
 										const auto p = n - (m) * 2 + (k) * 2;
 										num = factorial(m0);
 										den = vfactorial(k);
@@ -194,7 +193,7 @@ public:
 		array<int, NDIM> n;
 		for (n[0] = 0; n[0] < P; n[0]++) {
 			for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-				for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
+				for (n[2] = 0; n[2] < P - n[0] - n[1] && n[2] <= 1; n[2]++) {
 					const int n0 = n[0] + n[1] + n[2];
 					A(n) /= T(dfactorial(2 * n0 - 1));
 				}
@@ -243,9 +242,9 @@ tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, Q>& M1, c
 				M2(n) = T(0);
 				const int n0 = n[0] + n[1] + n[2];
 				const int m0 = intmin(n0, Q - 1);
-				for (k[0] = 0; k[0] <= m0; k[0]++) {
-					for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
-						for (k[2] = 0; k[2] <= m0 - k[0] - k[1]; k[2]++) {
+				for (k[0] = 0; k[0] <= intmin(m0, n[0]); k[0]++) {
+					for (k[1] = 0; k[1] <= intmin(m0 - k[0], n[1]); k[1]++) {
+						for (k[2] = 0; k[2] <= intmin(m0 - k[0] - k[1], n[2]); k[2]++) {
 							const auto factor = T(vfactorial(n)) / T(vfactorial(k) * vfactorial(n - k));
 							M2(n) += factor * delta_x(n - k) * M1(k);
 						}
@@ -267,15 +266,15 @@ tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 	const auto r = sqrt(r2);
 	const auto rinv = T(1) / r;
 	const auto rinv2 = rinv * rinv;
-	rinv_pow[0] = rinv;
+	rinv_pow[0] = -rinv;
 	for (int i = 1; i < P; i++) {
-		rinv_pow[i] = rinv2 * rinv_pow[i - 1];
+		rinv_pow[i] = -rinv2 * rinv_pow[i - 1];
 	}
 	for (k[0] = 0; k[0] < P; k[0]++) {
 		for (k[1] = 0; k[1] < P - k[0]; k[1]++) {
 			for (k[2] = 0; k[2] < P - k[0] - k[1] && k[2] <= 1; k[2]++) {
 				const int k0 = k[0] + k[1] + k[2];
-				D(k) *= T(n1pow(k0 + 1)) * rinv_pow[k0];
+				D(k) *= rinv_pow[k0];
 			}
 		}
 	}
@@ -283,7 +282,8 @@ tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 }
 
 template<class T, int P, int Q>
-tensor_trless_sym<T, P> interaction(const tensor_trless_sym<T, Q>& M, const tensor_trless_sym<T, P>& D) {
+CUDA_EXPORT
+tensor_trless_sym<T, P> interaction(const tensor_trless_sym<T, Q>& M, const tensor_trless_sym<T, Q + 1>& D) {
 	tensor_trless_sym<T, P> L;
 	array<int, NDIM> n;
 	array<int, NDIM> m;
@@ -292,7 +292,7 @@ tensor_trless_sym<T, P> interaction(const tensor_trless_sym<T, Q>& M, const tens
 			for (n[2] = 0; n[2] < P - n[0] - n[1] && n[2] <= 1; n[2]++) {
 				L(n) = T(0);
 				const int n0 = n[0] + n[1] + n[2];
-				const int q0 = intmin(P - n0, Q);
+				const int q0 = intmin(Q + 1 - n0, Q);
 				for (m[0] = 0; m[0] < q0; m[0]++) {
 					for (m[1] = 0; m[1] < q0 - m[0]; m[1]++) {
 						for (m[2] = 0; m[2] < q0 - m[0] - m[1]; m[2]++) {
@@ -312,7 +312,7 @@ tensor_trless_sym<T, P> expansion_translate(const tensor_trless_sym<T, Q>& L1, c
 	tensor_trless_sym<T, P> L2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	const auto delta_x = vector_to_sym_tensor<T, P>(x);
+	const auto delta_x = vector_to_sym_tensor<T, Q>(x);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1] && n[2] <= 1; n[2]++) {
