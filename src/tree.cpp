@@ -335,9 +335,9 @@ sort_return tree::sort(sort_params params) {
 				array<float, NDIM> X;
 				for (int dim = 0; dim < NDIM; dim++) {
 					X[dim] = particles->pos(dim, i).to_double() - com[dim];
-					M = M + multipole_translate<float,MORDER,1>(point, X);
 					this_radius += X[dim] * X[dim];
 				}
+				M = M + multipole_translate<float,MORDER,1>(point, X);
 				this_radius = std::sqrt(this_radius);
 				radius = std::max(radius, (float) (this_radius));
 			}
