@@ -8,9 +8,9 @@ static array<array<float, NDIM>, NREAL> real_indices;
 static array<array<float, NDIM>, NFOUR> four_indices;
 static array<expansion<float>, NFOUR> four_expanse;
 
-static __constant__ array<array<float, NDIM>, NREAL> real_indices_dev;
-static __constant__ array<array<float, NDIM>, NFOUR> four_indices_dev;
-static __constant__ array<expansion<float>, NFOUR> four_expanse_dev;
+static __managed__ array<array<float, NDIM>, NREAL> real_indices_dev;
+static __managed__ array<array<float, NDIM>, NFOUR> four_indices_dev;
+static __managed__ array<expansion<float>, NFOUR> four_expanse_dev;
 
 void ewald_const::init_gpu() {
 	int n2max = 10;
@@ -53,24 +53,25 @@ void ewald_const::init_gpu() {
 	count = 0;
 	for (int i = 0; i < NFOUR; i++) {
 		array<float, NDIM> h = four_indices[i];
-		auto D0 = vector_to_sym_tensor<float,LORDER>(h);
+		auto D0 = vector_to_sym_tensor<float, LORDER>(h);
 		const float h2 = sqr(h[0]) + sqr(h[1]) + sqr(h[2]);                     // 5 OP
 		const float c0 = -1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0) / M_PI;
 		array<int, NDIM> n;
+		const int signs[4] = { 1, -1, -1, 1 };
 		for (n[0] = 0; n[0] < LORDER; n[0]++) {
 			for (n[1] = 0; n[1] < LORDER - n[0]; n[1]++) {
 				for (n[2] = 0; n[2] < LORDER - n[0] - n[1]; n[2]++) {
 					const int n0 = n[0] + n[1] + n[2];
-					D0(n) *= pow(-2.0*M_PI,n0) * c0;
+					D0(n) *= signs[n0 % 4] * pow(2.0 * M_PI, n0) * c0;
 				}
 			}
 		}
 		four_expanse[count++] = D0.detraceD();
 	}
 	cuda_set_device();
-	CUDA_CHECK(cudaMemcpyToSymbol(real_indices_dev, &real_indices, sizeof(real_indices)));
-	CUDA_CHECK(cudaMemcpyToSymbol(four_indices_dev, &four_indices, sizeof(four_indices)));
-	//CUDA_CHECK(cudaMemcpyToSymbol(four_expanse_dev,&four_expanse,sizeof(four_expanse)));
+	real_indices_dev = real_indices;
+	four_indices_dev = four_indices;
+	four_expanse_dev = four_expanse;
 
 }
 

@@ -43,7 +43,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 			d[0] = -erfc0 * rinv;                                                   // 2
 			for (int l = 1; l < LORDER; l++) {
 				d[l] = FMA(T(-2 * l + 1) * d[l - 1], r2inv, e1);
-				e1 *= T(8);
+				e1 *= T(-8);
 			}
 			array<int, NDIM> k;
 			auto D0 = vector_to_sym_tensor<T, LORDER>(dx).detraceF();
