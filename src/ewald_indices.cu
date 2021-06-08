@@ -6,11 +6,11 @@
 
 static array<array<float, NDIM>, NREAL> real_indices;
 static array<array<float, NDIM>, NFOUR> four_indices;
-static array<expansion<float>, NFOUR> four_expanse;
+static array<tensor_sym<float,LORDER>, NFOUR> four_expanse;
 
 static __managed__ array<array<float, NDIM>, NREAL> real_indices_dev;
 static __managed__ array<array<float, NDIM>, NFOUR> four_indices_dev;
-static __managed__ array<expansion<float>, NFOUR> four_expanse_dev;
+static __managed__ array<tensor_sym<float,LORDER>, NFOUR> four_expanse_dev;
 
 void ewald_const::init_gpu() {
 	int n2max = 10;
@@ -66,7 +66,7 @@ void ewald_const::init_gpu() {
 				}
 			}
 		}
-		four_expanse[count++] = D0.detraceD();
+		four_expanse[count++] = D0;
 	}
 	cuda_set_device();
 	real_indices_dev = real_indices;
@@ -99,7 +99,7 @@ CUDA_EXPORT const array<float, NDIM>& ewald_const::four_index(int i) {
 #endif
 }
 
-CUDA_EXPORT const expansion<float>& ewald_const::four_expansion(int i) {
+CUDA_EXPORT const tensor_sym<float,LORDER>& ewald_const::four_expansion(int i) {
 #ifdef __CUDA_ARCH__
 	return four_expanse_dev[i];
 #else

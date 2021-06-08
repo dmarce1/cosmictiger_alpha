@@ -113,6 +113,24 @@ public:
 	static constexpr int N = (P * (P + 1) * (P + 2)) / 6;
 
 	CUDA_EXPORT
+	inline tensor_sym& operator=(const T& other) {
+		for (int i = 0; i < N; i++) {
+			(*this)[i] = other;
+		}
+		return *this;
+	}
+
+	CUDA_EXPORT
+	inline tensor_sym operator+(const tensor_sym& other) const {
+		tensor_sym<T, P> result;
+		for (int i = 0; i < N; i++) {
+			result[i] = other[i] + (*this)[i];
+		}
+		return result;
+	}
+
+
+	CUDA_EXPORT
 	inline T operator()(int l, int m, int n) const {
 		m += n;
 		l += m;

@@ -11,5 +11,5 @@ struct ewald_const {
 	static void init_gpu();
 	CUDA_EXPORT static const array<float,NDIM>& real_index(int i);
 	CUDA_EXPORT static const array<float,NDIM>& four_index(int i);
-	CUDA_EXPORT static const expansion<float>& four_expansion(int i);
+	CUDA_EXPORT static const tensor_sym<float,LORDER>& four_expansion(int i);
 };
