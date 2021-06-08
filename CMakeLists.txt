@@ -48,7 +48,7 @@ set(cosmictiger_source_files
     src/particle_server.cpp
     src/power.cpp
     src/rand.cpp
-    src/spherical_harmonic.cpp
+    src/tensor.cpp
     src/tests.cpp
     src/tree.cpp
     src/tree_database.cpp
@@ -66,7 +66,6 @@ set(cosmictiger_source_files
     src/math.cu
     src/particle.cu
     src/power.cu
-    src/spherical_harmonic.cu
     src/tree.cu
     src/tree_database.cu
     src/zeldovich.cu
@@ -118,7 +117,6 @@ set(cosmictiger_header_files
 	cosmictiger/tree_database.hpp
 	cosmictiger/tree.hpp
 	cosmictiger/zeldovich.hpp
-	cosmictiger/spherical_harmonic.hpp
 )
 
 
