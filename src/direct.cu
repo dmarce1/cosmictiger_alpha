@@ -81,13 +81,14 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 			}
 			for (int i = 0; i < econst.nfour(); i++) {
 				const auto &h = econst.four_index(i);
-				const auto &hpart = econst.four_expansion(i);
 				const float hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];
+				const float h2 = sqr(h[0], h[1], h[2]);
+				const float c0 = 1.0 / h2 * exp(-M_PI * M_PI * h2 / 4.0);
 				float co = cosf(2.0 * M_PI * hdotx);
 				float so = sinf(2.0 * M_PI * hdotx);
-				phi[tid] += hpart() * co;
+				phi[tid] += -(1.0 / M_PI) * c0 * co;
 				for (int dim = 0; dim < NDIM; dim++) {
-					f[dim][tid] -= hpart(dim) * so;
+					f[dim][tid] -= 2.0 * h[dim] * c0 * so;
 				}
 			}
 			phi[tid] += float(M_PI / 4.f);

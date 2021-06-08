@@ -50,7 +50,7 @@ void ewald_const::init_gpu() {
 		}
 	}
 	PRINT("nfour = %i\n", count);
-	count = 0;
+	/*count = 0;
 	for (int i = 0; i < NFOUR; i++) {
 		array<float, NDIM> h = four_indices[i];
 		const float h2 = sqr(h[0]) + sqr(h[1]) + sqr(h[2]);                     // 5 OP
@@ -71,11 +71,11 @@ void ewald_const::init_gpu() {
 			}
 		}
 		four_expanse[count++] = D;
-	}
+	}*/
 	cuda_set_device();
 	CUDA_CHECK(cudaMemcpyToSymbol(real_indices_dev,&real_indices,sizeof(real_indices)));
 	CUDA_CHECK(cudaMemcpyToSymbol(four_indices_dev,&four_indices,sizeof(four_indices)));
-	CUDA_CHECK(cudaMemcpyToSymbol(four_expanse_dev,&four_expanse,sizeof(four_expanse)));
+	//CUDA_CHECK(cudaMemcpyToSymbol(four_expanse_dev,&four_expanse,sizeof(four_expanse)));
 
 }
 
