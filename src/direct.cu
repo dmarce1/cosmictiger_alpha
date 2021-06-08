@@ -2,8 +2,6 @@
 #include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/gravity.hpp>
 
-
-
 CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y, fixed32* z, gforce *forces, float GM,
 		float h) {
 	const int &tid = threadIdx.x;
@@ -29,18 +27,30 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 			X[dim] = distance(a, b);
 		}
 		const auto r2 = fmaf(X[0], X[0], fmaf(X[1], X[1], sqr(X[2])));
-		if (r2 < h2) {
-			const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
-			const float r2oh2 = r1oh1 * r1oh1;              // 1
-			float r3inv = +15.0f / 8.0f;
-			r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
-			r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
-			r3inv *= h3inv;
-			float r1inv = -5.0f / 16.0f;
-			r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
-			r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
-			r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
-			r1inv *= hinv;
+
+#ifdef	PERIODIC_OFF
+		constexpr bool periodic_off = true;
+#else
+		constexpr bool periodic_off = false;
+#endif
+		if (r2 < h2 || periodic_off) {
+			float r3inv, r1inv;
+			if (r2 >= h2) {
+				r1inv = rsqrt(r2);
+				r3inv = r1inv * r1inv * r1inv;
+			} else {
+				const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
+				const float r2oh2 = r1oh1 * r1oh1;              // 1
+				r3inv = +15.0f / 8.0f;
+				r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
+				r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
+				r3inv *= h3inv;
+				r1inv = -5.0f / 16.0f;
+				r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
+				r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
+				r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
+				r1inv *= hinv;
+			}
 			phi[tid] -= r1inv;
 			for (int dim = 0; dim < NDIM; dim++) {
 				f[dim][tid] -= X[dim] * r3inv;
@@ -76,10 +86,10 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 				const float hdotx = h[0] * X[0] + h[1] * X[1] + h[2] * X[2];
 				float co = cosf(2.0 * M_PI * hdotx);
 				float so = sinf(2.0 * M_PI * hdotx);
-				phi[tid] += hpart(0,0,0) * co;
-				f[0][tid] -= hpart(1,0,0) * so;
-				f[1][tid] -= hpart(0,1,0) * so;
-				f[2][tid] -= hpart(0,0,1) * so;
+				phi[tid] += hpart(0, 0, 0) * co;
+				f[0][tid] -= hpart(1, 0, 0) * so;
+				f[1][tid] -= hpart(0, 1, 0) * so;
+				f[2][tid] -= hpart(0, 0, 1) * so;
 			}
 			phi[tid] += float(M_PI / 4.f);
 		}
