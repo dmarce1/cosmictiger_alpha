@@ -264,7 +264,7 @@ tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 	array<T, P> rinv_pow;
 	const auto r2 = sqr(x[0], x[1], x[2]);
 	const auto r = sqrt(r2);
-	const auto rinv = (r > T(0)) * T(1) / max(r, 1e-20);
+	const auto rinv = (r > T(0)) / max(r, 1e-20);
 	const auto rinv2 = rinv * rinv;
 	rinv_pow[0] = -rinv;
 	for (int i = 1; i < P; i++) {
