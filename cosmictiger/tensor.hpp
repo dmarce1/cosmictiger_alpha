@@ -207,7 +207,16 @@ public:
 
 	CUDA_EXPORT
 	inline tensor_sym<T, P> detraceD() const {
+		T tii;
+		if (P >= 2) {
+			tii = (*this)(2, 0, 0) + (*this)(0, 2, 0) + (*this)(0, 0, 2);
+		}
 		tensor_sym<T, P> A = detraceF();
+		if (P >= 2) {
+			A(2, 0, 0) += tii;
+			A(0, 2, 0) += tii;
+			A(0, 0, 2) += tii;
+		}
 		array<int, NDIM> n;
 		for (n[0] = 0; n[0] < P; n[0]++) {
 			for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
@@ -271,7 +280,7 @@ tensor_sym<T, P> multipole_translate(const tensor_sym<T, Q>& M1, const array<T, 
 			}
 		}
 	}
-	return M2;
+	return M2.detraceD();
 }
 
 template<class T, int P>
@@ -321,7 +330,7 @@ tensor_sym<T, P> interaction(const tensor_sym<T, Q>& M, const tensor_sym<T, Q + 
 			}
 		}
 	}
-	return L;
+	return L.detraceD();
 }
 
 template<class T, int P, int Q = P>
@@ -349,5 +358,5 @@ tensor_sym<T, P> expansion_translate(tensor_sym<T, Q> L1, const array<T, NDIM>& 
 			}
 		}
 	}
-	return L2;
+	return L2.detraceD();
 }

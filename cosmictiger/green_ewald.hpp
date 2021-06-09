@@ -119,11 +119,11 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 		}
 	}
 	//printf("%e %e\n", abs(first(Dsym(2, 0, 1))) + abs(first(Dsym(0, 2, 1))) + abs(first(Dsym(0, 0, 3))), first(Dsym(2, 0, 1)) + first(Dsym(0, 2, 1)) + first(Dsym(0, 0, 3)));
-	const T Tr = Dsym(2, 0, 0) + Dsym(0, 2, 0) + Dsym(0, 0, 2);
+	//const T Tr = Dsym(2, 0, 0) + Dsym(0, 2, 0) + Dsym(0, 0, 2);
 	/*Dsym(2,0,0) -= Tr / T(3.0);
 	Dsym(0,2,0) -= Tr / T(3.0);
 	Dsym(0,0,2) -= Tr / T(3.0);*/
-	D = Dsym;                           //.detraceD();
+	D = Dsym.detraceD();                           //.detraceD();
 	expansion<T> D1;
 	green_direct(D1, X);
 	D(0, 0, 0) = T(M_PI / 4.0) + D(0, 0, 0);                          // 1
