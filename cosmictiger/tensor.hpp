@@ -70,6 +70,15 @@ public:
 	}
 
 	CUDA_EXPORT
+	inline tensor_trless_sym operator-(const tensor_trless_sym& other) const {
+		tensor_trless_sym<T, P> result;
+		for (int i = 0; i < N; i++) {
+			result[i] = other[i] - (*this)[i];
+		}
+		return result;
+	}
+
+	CUDA_EXPORT
 	inline T& operator()(int l, int m, int n) {
 		l += m;
 		assert(l >= 0);

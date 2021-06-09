@@ -39,7 +39,7 @@ CUDA_EXPORT inline T sqr(T a, T b, T c) {
 __global__
 void generate_random_vectors(fixed32* x, fixed32* y, fixed32* z, size_t N, int seed);
 
-CUDA_DEVICE inline float erfcexp(const float &x, float *e) {				// 18 + FLOP_DIV + FLOP_EXP
+CUDA_DEVICE inline float erfcexp(float x, float *e) {				// 18 + FLOP_DIV + FLOP_EXP
 	const float p(0.3275911f);
 	const float a1(0.254829592f);
 	const float a2(-0.284496736f);
@@ -78,7 +78,7 @@ CUDA_DEVICE inline float erfcexp(const float &x, float *e) {				// 18 + FLOP_DIV
 #define SIN(a) sinf(a)
 //#define SINCOS(a,b,c) sincosf(a,b,c)
 
-template<class T=float>
+template<class T = float>
 class complex {
 	T x, y;
 public:
@@ -283,7 +283,6 @@ CUDA_EXPORT inline float pow2(float r) {
 	return r * r;
 }
 
-
 #endif
 
 template<class T>
@@ -293,6 +292,23 @@ CUDA_EXPORT inline T round_up(T num, T mod) {
 
 __global__
 void generate_random_vectors(fixed32* x, fixed32* y, fixed32* z, size_t N, int seed);
+
+
+#ifndef __CUDA_ARCH__
+inline double erfcexp(double x, double* exp) {
+	double y = std::erfc(x);
+	*exp = std::exp(-x * x);
+	return y;
+}
+
+inline void sincos(double x, double* s, double *c ) {
+	*s = sin(x);
+	*c = cos(x);
+}
+#else
+CUDA_EXPORT
+double erfcexp(double x, double* exp);
+#endif
 
 using cmplx = complex<float>;
 #endif /* GPUTIGER_MATH_HPP_ */

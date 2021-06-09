@@ -1,16 +1,17 @@
 #include <cosmictiger/ewald_indices.hpp>
 #include <cosmictiger/interactions.hpp>
+#include <algorithm>
 
 #define NREAL 147
 #define NFOUR 92
 
 static array<array<float, NDIM>, NREAL> real_indices;
 static array<array<float, NDIM>, NFOUR> four_indices;
-static array<tensor_trless_sym<float,LORDER>, NFOUR> four_expanse;
+static array<tensor_trless_sym<float, LORDER>, NFOUR> four_expanse;
 
 static __managed__ array<array<float, NDIM>, NREAL> real_indices_dev;
 static __managed__ array<array<float, NDIM>, NFOUR> four_indices_dev;
-static __managed__ array<tensor_trless_sym<float,LORDER>, NFOUR> four_expanse_dev;
+static __managed__ array<tensor_trless_sym<float, LORDER>, NFOUR> four_expanse_dev;
 
 void ewald_const::init_gpu() {
 	int n2max = 10;
@@ -30,6 +31,12 @@ void ewald_const::init_gpu() {
 			}
 		}
 	}
+	const auto sort_func = [](const array<float,NDIM>& a, const array<float,NDIM>& b) {
+		const auto a2 = sqr(a[0],a[1],a[2]);
+		const auto b2 = sqr(b[0],b[1],b[2]);
+		return a2 > b2;
+	};
+	std::sort(real_indices.begin(), real_indices.end(), sort_func);
 	PRINT("nreal = %i\n", count);
 	n2max = 8;
 	nmax = std::sqrt(n2max) + 1;
@@ -49,6 +56,7 @@ void ewald_const::init_gpu() {
 			}
 		}
 	}
+	std::sort(four_indices.begin(), four_indices.end(), sort_func);
 	PRINT("nfour = %i\n", count);
 	count = 0;
 	for (int i = 0; i < NFOUR; i++) {
@@ -72,7 +80,6 @@ void ewald_const::init_gpu() {
 	real_indices_dev = real_indices;
 	four_indices_dev = four_indices;
 	four_expanse_dev = four_expanse;
-
 }
 
 CUDA_EXPORT int ewald_const::nfour() {
@@ -99,7 +106,7 @@ CUDA_EXPORT const array<float, NDIM>& ewald_const::four_index(int i) {
 #endif
 }
 
-CUDA_EXPORT const tensor_trless_sym<float,LORDER>& ewald_const::four_expansion(int i) {
+CUDA_EXPORT const tensor_trless_sym<float, LORDER>& ewald_const::four_expansion(int i) {
 #ifdef __CUDA_ARCH__
 	return four_expanse_dev[i];
 #else

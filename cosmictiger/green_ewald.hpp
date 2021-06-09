@@ -14,22 +14,27 @@ inline float first(float a) {
 	return a;
 }
 
+inline bool anytrue(simd_float b) {
+	return b.sum() != 0.0;
+}
+
+CUDA_EXPORT
+inline bool anytrue(float b) {
+	return b != 0.0;
+}
+
 template<class T>
 CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 	ewald_const econst;
 	T r = SQRT(FMA(X[0], X[0], FMA(X[1], X[1], sqr(X[2]))));                   // 5
-#ifdef __CUDA_ARCH__
-			constexpr T fouroversqrtpi = 2.256758334f;
-#else
-	const T fouroversqrtpi = 2.256758334f;
-#endif
+	const T fouroversqrtpi = T(4.0 / sqrt(M_PI));
 	int flops = 6;
-	tensor_sym<T,LORDER> Dreal;
+	tensor_sym<T, LORDER> Dreal;
 	expansion<T> Dfour;
 	Dreal = 0.0f;
 	Dfour = 0.0f;
 	D = 0.0f;
-		const auto realsz = econst.nreal();
+	const auto realsz = econst.nreal();
 	const T zero_mask = (sqr(X[0], X[1], X[2]) > T(0));
 	for (int i = 0; i < realsz; i++) {
 		const auto n = econst.real_index(i);
@@ -39,11 +44,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 		}
 		T r2 = FMA(dx[0], dx[0], FMA(dx[1], dx[1], sqr(dx[2])));                // 5
 		flops += 9;
-#ifdef __CUDA_ARCH__
-		if (r2 < (EWALD_REAL_CUTOFF2)) {                                        // 1
-#else
-		if ((r2 < (EWALD_REAL_CUTOFF2)).sum()) {
-#endif
+		if (anytrue(r2 < (EWALD_REAL_CUTOFF2))) {
 			const T r = SQRT(r2);                                                         // FLOP_SQRT
 			const T rinv = (r > T(0)) / max(r, 1.0e-20);                                           // 1 + FLOP_DIV
 			NAN_TEST(rinv);
@@ -62,7 +63,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 			array<T, LORDER> rinv2pow;
 			rinv2pow[0] = T(1);                                               // 2
 			for (int l = 1; l < LORDER; l++) {
-				rinv2pow[l] = -rinv2pow[l - 1] * rinv * rinv;
+				rinv2pow[l] = rinv2pow[l - 1] * rinv * rinv;
 			}
 			const auto D0 = vector_to_sym_tensor<T, LORDER>(dx);
 			array<int, NDIM> m;
@@ -76,7 +77,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 							for (m[1] = 0; m[1] <= n[1] / 2; m[1]++) {
 								for (m[2] = 0; m[2] <= n[2] / 2; m[2]++) {
 									const int m0 = m[0] + m[1] + m[2];
-									T num = T(n1pow(m0) * dfactorial(2 * n0 - 2 * m0 - 1) * vfactorial(n));
+									T num = T(vfactorial(n));
 									T den = T((1 << m0) * vfactorial(m) * vfactorial(n - (m) * 2));
 									const T fnm = num / den;
 									for (k[0] = 0; k[0] <= m0; k[0]++) {
@@ -86,7 +87,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 											num = factorial(m0);
 											den = vfactorial(k);
 											const T number = fnm * num / den;
-											Dreal(n) += number * D0(p) * d[n0 - m0] / T(dfactorial(2 * (n0 - m0) - 1)) * rinv2pow[m0];
+											Dreal(n) += number * D0(p) * d[n0 - m0] * rinv2pow[m0];
 										}
 									}
 								}
@@ -105,7 +106,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 		const T hdotx = FMA(h[0], X[0], FMA(h[1], X[1], h[2] * X[2]));                           // 5
 		T co;
 		T so;
-		SINCOS(T(2.0f * M_PI) * hdotx, &so, &co);
+		sincos(T(2.0 * M_PI) * hdotx, &so, &co);
 		T soco[2] = { co, so };
 		array<int, NDIM> k;
 		for (k[0] = 0; k[0] < LORDER; k[0]++) {
@@ -124,7 +125,14 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 	D(0, 0, 0) = T(M_PI / 4.0) + D(0, 0, 0);                          // 1
 	for (int i = 0; i < LP; i++) {                     // 70
 		D[i] -= D1[i];
+		D[i] *= zero_mask;
 	}
-	D[0] = 2.837291e+00 * (T(1) - zero_mask) + zero_mask*D[0];
+	D[0] += 2.837291e+00 * (T(1) - zero_mask);
+	if ( LORDER > 2) {
+		D[3] += -4.188790e+00 * (T(1) - zero_mask);
+		D[5] += -4.188790e+00 * (T(1) - zero_mask);
+		D[LP - 1] += -4.188790e+00 * (T(1) - zero_mask);
+	}
+
 	return 0;
 }

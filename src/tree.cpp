@@ -258,7 +258,7 @@ sort_return tree::sort(sort_params params) {
 			rc.active_nodes = 0;
 		}
 		if (!params.group_sort) {
-			std::array<double, NDIM> com = { 0, 0, 0 };
+			std::array<double, NDIM> center = { 0, 0, 0 };
 			const auto &MR = Mc[RIGHT];
 			const auto &ML = Mc[LEFT];
 			const auto ml = ML(0, 0, 0);
@@ -268,17 +268,27 @@ sort_return tree::sort(sort_params params) {
 			double rright = 0.0;
 			array<fixed32, NDIM> pos;
 			array<float, NDIM> xl, xr;
+			array<float,NDIM> norm;
+			for( int dim = 0; dim < NDIM; dim++) {
+				norm[dim] = Xc[LEFT][dim].to_double() - Xc[RIGHT][dim].to_double();
+			}
+			const float n2 = sqr(norm[0], norm[1], norm[2]);
+			const float ninv = 1.0 / std::sqrt(n2);
+			for( int dim = 0; dim < NDIM; dim++) {
+				norm[dim] *= ninv;
+			}
 			for (int dim = 0; dim < NDIM; dim++) {
 				auto Xl = Xc[LEFT][dim].to_double();
 				auto Xr = Xc[RIGHT][dim].to_double();
-				com[dim] = (ml * Xl + mr * Xr) / m;
-				Xl -= com[dim];
-				Xr -= com[dim];
+				center[dim] = (Xl + Rc[LEFT] * norm[dim] + Xr - Rc[RIGHT] * norm[dim])*0.5;
+				//				center[dim] = (ml * Xl + mr * Xr) / m;
+				Xl -= center[dim];
+				Xr -= center[dim];
 				xl[dim] = Xl;
 				xr[dim] = Xr;
 				rleft += sqr(Xl);
 				rright += sqr(Xr);
-				pos[dim] = com[dim];
+				pos[dim] = center[dim];
 			}
 			M = multipole_translate<float,MORDER>(MR, xr) + multipole_translate<float,MORDER>(ML, xl);
 			rleft = std::sqrt(rleft) + Rc[LEFT];
@@ -289,7 +299,7 @@ sort_return tree::sort(sort_params params) {
 			for (int ci = 0; ci < NCORNERS; ci++) {
 				double d = 0.0;
 				for (int dim = 0; dim < NDIM; dim++) {
-					d += sqr(com[dim] - corners[ci][dim].to_double());
+					d += sqr(center[dim] - corners[ci][dim].to_double());
 				}
 				rmax = std::max((float) std::sqrt(d), rmax);
 			}
@@ -307,22 +317,25 @@ sort_return tree::sort(sort_params params) {
 		self.set_children(children);
 	} else {
 		if (!params.group_sort) {
-			std::array<double, NDIM> com = { 0, 0, 0 };
+			std::array<double, NDIM> center = { 0, 0, 0 };
 			array<fixed32, NDIM> pos;
+			std::array<double,NDIM> maxes = {0,0,0};
+			std::array<double,NDIM> mins = {1,1,1};
 			if (parts.second - parts.first != 0) {
 				for (auto i = parts.first; i < parts.second; i++) {
 					for (int dim = 0; dim < NDIM; dim++) {
-						com[dim] += particles->pos(dim, i).to_double();
+						const auto x = particles->pos(dim, i).to_double();
+						maxes[dim] = std::max(maxes[dim], x);
+						mins[dim] = std::min(mins[dim], x);
 					}
 				}
 				for (int dim = 0; dim < NDIM; dim++) {
-					com[dim] /= (parts.second - parts.first);
-					pos[dim] = com[dim];
-
+					center[dim] = (maxes[dim] + mins[dim]) * 0.5;
+					pos[dim] = center[dim];
 				}
 			} else {
 				for (int dim = 0; dim < NDIM; dim++) {
-					com[dim] = (box.begin[dim] + box.end[dim]) * 0.5;
+					center[dim] = (box.begin[dim] + box.end[dim]) * 0.5;
 				}
 			}
 			multipole M;
@@ -334,7 +347,7 @@ sort_return tree::sort(sort_params params) {
 				double this_radius = 0.0;
 				array<float, NDIM> X;
 				for (int dim = 0; dim < NDIM; dim++) {
-					X[dim] = particles->pos(dim, i).to_double() - com[dim];
+					X[dim] = particles->pos(dim, i).to_double() - center[dim];
 					this_radius += X[dim] * X[dim];
 				}
 				M = M + multipole_translate<float,MORDER,1>(point, X);
