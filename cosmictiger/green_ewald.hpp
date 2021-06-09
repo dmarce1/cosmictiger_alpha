@@ -24,7 +24,11 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 	const T fouroversqrtpi = 2.256758334f;
 #endif
 	int flops = 6;
-	D = 0.0;
+	tensor_sym<T,LORDER> Dreal;
+	expansion<T> Dfour;
+	Dreal = 0.0f;
+	Dfour = 0.0f;
+	D = 0.0f;
 		const auto realsz = econst.nreal();
 	const T zero_mask = (sqr(X[0], X[1], X[2]) > T(0));
 	for (int i = 0; i < realsz; i++) {
@@ -61,14 +65,12 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 				rinv2pow[l] = -rinv2pow[l - 1] * rinv * rinv;
 			}
 			const auto D0 = vector_to_sym_tensor<T, LORDER>(dx);
-			tensor_sym<T, LORDER> D1;
 			array<int, NDIM> m;
 			array<int, NDIM> k;
 			array<int, NDIM> n;
 			for (n[0] = 0; n[0] < LORDER; n[0]++) {
 				for (n[1] = 0; n[1] < LORDER - n[0]; n[1]++) {
 					for (n[2] = 0; n[2] < LORDER - n[0] - n[1]; n[2]++) {
-						D1(n) = T(0);
 						const int n0 = n[0] + n[1] + n[2];
 						for (m[0] = 0; m[0] <= n[0] / 2; m[0]++) {
 							for (m[1] = 0; m[1] <= n[1] / 2; m[1]++) {
@@ -84,7 +86,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 											num = factorial(m0);
 											den = vfactorial(k);
 											const T number = fnm * num / den;
-											D1(n) += number * D0(p) * d[n0 - m0] / T(dfactorial(2 * (n0 - m0) - 1)) * rinv2pow[m0];
+											Dreal(n) += number * D0(p) * d[n0 - m0] / T(dfactorial(2 * (n0 - m0) - 1)) * rinv2pow[m0];
 										}
 									}
 								}
@@ -93,7 +95,6 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 					}
 				}
 			}
-			D = D + D1.detraceD();
 		}
 	}
 
@@ -112,11 +113,12 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 				const int zmax = (k[0] == 0 && k[1] == 0) ? intmin(3, LORDER) : intmin(LORDER - k[0] - k[1], 2);
 				for (k[2] = 0; k[2] < zmax; k[2]++) {
 					const int k0 = k[0] + k[1] + k[2];
-					D(k) += soco[k0 % 2] * D0(k);
+					Dfour(k) += soco[k0 % 2] * D0(k);
 				}
 			}
 		}
 	}
+	D = Dreal.detraceD() + Dfour;
 	expansion<T> D1;
 	green_direct(D1, X);
 	D(0, 0, 0) = T(M_PI / 4.0) + D(0, 0, 0);                          // 1
