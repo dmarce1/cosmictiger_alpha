@@ -16,6 +16,11 @@ int factorial(int n) {
 }
 
 CUDA_EXPORT
+inline int intmin(int a, int b) {
+	return a < b ? a : b;
+}
+
+CUDA_EXPORT
 inline
 int dfactorial(int n) {
 	assert(n >= -1);
@@ -39,13 +44,13 @@ int n1pow(int n) {
 }
 
 template<class T, int P>
-class tensor_trless_sym: public array<T, P * P> {
+class tensor_trless_sym: public array<T, P * P + 1> {
 
 private:
 
 public:
 
-	static constexpr int N = P * P;
+	static constexpr int N = P * P + 1;
 
 	CUDA_EXPORT
 	inline tensor_trless_sym& operator=(const T& other) {
@@ -72,14 +77,18 @@ public:
 		assert(n >= 0);
 		assert(l < P);
 		assert(m <= l);
-		assert(n <= 1);
-		return (*this)[l * (l + 1) / 2 + m + (P * (P + 1) / 2) * n];
+		assert(n <= 1 || (n == 2 && l == 0 && m == 0));
+		return (*this)[l * (l + 1) / 2 + m + (P * (P + 1) / 2) * (n == 1) + (N - 1) * (n == 2)];
 	}
 
 	CUDA_EXPORT
 	inline T operator()(int l, int m, int n) const {
 		if (n > 1) {
-			return -((*this)(l + 2, m, n - 2) + (*this)(l, m + 2, n - 2));
+			if (l == 0 && m == 0 && n == 2) {
+				return (*this)[N - 1];
+			} else {
+				return -((*this)(l + 2, m, n - 2) + (*this)(l, m + 2, n - 2));
+			}
 		} else {
 			l += m;
 			assert(l >= 0);
@@ -167,15 +176,16 @@ public:
 	}
 
 	CUDA_EXPORT
-	tensor_sym<T, P> detraceF() const {
-		tensor_sym<T, P> A;
+	tensor_trless_sym<T, P> detraceF() const {
+		tensor_trless_sym<T, P> A;
 		const tensor_sym<T, P>& B = *this;
 		array<int, NDIM> m;
 		array<int, NDIM> k;
 		array<int, NDIM> n;
 		for (n[0] = 0; n[0] < P; n[0]++) {
 			for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-				for (n[2] = 0; n[2] < P - n[0] - n[1] /*&& n[2] <= 1*/; n[2]++) {
+				const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
+				for (n[2] = 0; n[2] < nzmax; n[2]++) {
 					A(n) = T(0);
 					const int n0 = n[0] + n[1] + n[2];
 					for (m[0] = 0; m[0] <= n[0] / 2; m[0]++) {
@@ -192,7 +202,6 @@ public:
 										num = factorial(m0);
 										den = vfactorial(k);
 										const T number = fnm * num / den;
-										//		printf( "%i %i %i %i %i %i %e %e\n", n[0], n[1], n[2], p[0], p[1], p[2], (float) dfactorial(2 * n0 - 2 * m0 - 1) , (float) (2 * n0 - 2 * m0 - 1) );
 										A(n) += number * B(p);
 									}
 								}
@@ -206,12 +215,12 @@ public:
 	}
 
 	CUDA_EXPORT
-	inline tensor_sym<T, P> detraceD() const {
+	inline tensor_trless_sym<T, P> detraceD() const {
 		T tii;
 		if (P >= 2) {
 			tii = (*this)(2, 0, 0) + (*this)(0, 2, 0) + (*this)(0, 0, 2);
 		}
-		tensor_sym<T, P> A = detraceF();
+		tensor_trless_sym<T, P> A = detraceF();
 		if (P >= 2) {
 			A(2, 0, 0) += tii;
 			A(0, 2, 0) += tii;
@@ -220,7 +229,8 @@ public:
 		array<int, NDIM> n;
 		for (n[0] = 0; n[0] < P; n[0]++) {
 			for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-				for (n[2] = 0; n[2] < P - n[0] - n[1] /*&& n[2] <= 1*/; n[2]++) {
+				const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
+				for (n[2] = 0; n[2] < nzmax; n[2]++) {
 					const int n0 = n[0] + n[1] + n[2];
 					A(n) /= T(dfactorial(2 * n0 - 1));
 				}
@@ -251,14 +261,9 @@ tensor_sym<T, P> vector_to_sym_tensor(const array<T, NDIM>& vec) {
 	return X;
 }
 
-CUDA_EXPORT
-inline int intmin(int a, int b) {
-	return a < b ? a : b;
-}
-
 template<class T, int P, int Q = P>
 CUDA_EXPORT
-tensor_sym<T, P> multipole_translate(const tensor_sym<T, Q>& M1, const array<T, NDIM>& x) {
+tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, Q>& M1, const array<T, NDIM>& x) {
 	tensor_sym<T, P> M2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
@@ -285,7 +290,7 @@ tensor_sym<T, P> multipole_translate(const tensor_sym<T, Q>& M1, const array<T, 
 
 template<class T, int P>
 CUDA_EXPORT
-tensor_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
+tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 	auto D = vector_to_sym_tensor<T, P>(x).detraceF();
 	array<int, NDIM> k;
 	array<T, P> rinv_pow;
@@ -299,7 +304,8 @@ tensor_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 	}
 	for (k[0] = 0; k[0] < P; k[0]++) {
 		for (k[1] = 0; k[1] < P - k[0]; k[1]++) {
-			for (k[2] = 0; k[2] < P - k[0] - k[1]/* && k[2] <= 1*/; k[2]++) {
+			const int zmax = (k[0] == 0 && k[1] == 0) ? intmin(3, P) : intmin(P - k[0] - k[1], 2);
+			for (k[2] = 0; k[2] < zmax; k[2]++) {
 				const int k0 = k[0] + k[1] + k[2];
 				D(k) *= rinv_pow[k0];
 			}
@@ -310,13 +316,14 @@ tensor_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 
 template<class T, int P, int Q>
 CUDA_EXPORT
-tensor_sym<T, P> interaction(const tensor_sym<T, Q>& M, const tensor_sym<T, Q + 1>& D) {
-	tensor_sym<T, P> L;
+tensor_trless_sym<T, P> interaction(const tensor_trless_sym<T, Q>& M, const tensor_trless_sym<T, Q + 1>& D) {
+	tensor_trless_sym<T, P> L;
 	array<int, NDIM> n;
 	array<int, NDIM> m;
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-			for (n[2] = 0; n[2] < P - n[0] - n[1] /*&& n[2] <= 1*/; n[2]++) {
+			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
+			for (n[2] = 0; n[2] < nzmax; n[2]++) {
 				L(n) = T(0);
 				const int n0 = n[0] + n[1] + n[2];
 				const int q0 = intmin(Q + 1 - n0, Q);
@@ -330,19 +337,20 @@ tensor_sym<T, P> interaction(const tensor_sym<T, Q>& M, const tensor_sym<T, Q + 
 			}
 		}
 	}
-	return L.detraceD();
+	return L;
 }
 
 template<class T, int P, int Q = P>
 CUDA_EXPORT
-tensor_sym<T, P> expansion_translate(tensor_sym<T, Q> L1, const array<T, NDIM>& x) {
-	tensor_sym<T, P> L2;
+tensor_trless_sym<T, P> expansion_translate(const tensor_trless_sym<T, Q> L1, const array<T, NDIM>& x) {
+	tensor_trless_sym<T, P> L2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
 	const auto delta_x = vector_to_sym_tensor<T, Q>(x);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-			for (n[2] = 0; n[2] < P - n[0] - n[1] /*&& n[2] <= 1*/; n[2]++) {
+			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
+			for (n[2] = 0; n[2] < nzmax; n[2]++) {
 				L2(n) = T(0);
 				const int n0 = n[0] + n[1] + n[2];
 				for (k[0] = 0; k[0] < Q - n0; k[0]++) {
@@ -358,5 +366,5 @@ tensor_sym<T, P> expansion_translate(tensor_sym<T, Q> L1, const array<T, NDIM>& 
 			}
 		}
 	}
-	return L2.detraceD();
+	return L2;
 }

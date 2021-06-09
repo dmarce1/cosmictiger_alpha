@@ -14,10 +14,10 @@
 #include <cosmictiger/tensor.hpp>
 #include <array>
 
-constexpr int MP = (MORDER*(MORDER+1)*(MORDER+2)/6);
+constexpr int MP = (MORDER*MORDER+1);
 
 template<class T>
-using multipole_type = tensor_sym<T,MORDER>;
+using multipole_type = tensor_trless_sym<T,MORDER>;
 using multipole = multipole_type<float>;
 
 struct multi_source {

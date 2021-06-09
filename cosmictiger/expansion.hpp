@@ -21,7 +21,7 @@
 #include <cosmictiger/array.hpp>
 #include <cosmictiger/multipole.hpp>
 #include <cosmictiger/cuda.hpp>
-constexpr int LP = (LORDER*(LORDER+1)*(LORDER+2)/6);
+constexpr int LP = (LORDER*LORDER+1);
 
 struct force {
 	float phi;
@@ -35,7 +35,7 @@ struct force {
 };
 
 template<class T>
-using expansion = tensor_sym<T,LORDER>;
+using expansion = tensor_trless_sym<T,LORDER>;
 
 expansion<float>& shift_expansion(expansion<float>& L, const array<float, NDIM> &dX, bool do_phi);
 CUDA_DEVICE expansion<float>& cuda_shift_expansion(expansion<float>& L, const array<float, NDIM> &dX, bool do_phi);

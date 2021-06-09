@@ -25,9 +25,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 #endif
 	int flops = 6;
 	D = 0.0;
-	tensor_sym<T, LORDER> Dsym;
-	Dsym = 0.0;
-	const auto realsz = econst.nreal();
+		const auto realsz = econst.nreal();
 	const T zero_mask = (sqr(X[0], X[1], X[2]) > T(0));
 	for (int i = 0; i < realsz; i++) {
 		const auto n = econst.real_index(i);
@@ -95,7 +93,7 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 					}
 				}
 			}
-			Dsym = Dsym + D1;
+			D = D + D1.detraceD();
 		}
 	}
 
@@ -111,29 +109,20 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 		array<int, NDIM> k;
 		for (k[0] = 0; k[0] < LORDER; k[0]++) {
 			for (k[1] = 0; k[1] < LORDER - k[0]; k[1]++) {
-				for (k[2] = 0; k[2] < LORDER - k[0] - k[1]; k[2]++) {
+				const int zmax = (k[0] == 0 && k[1] == 0) ? intmin(3, LORDER) : intmin(LORDER - k[0] - k[1], 2);
+				for (k[2] = 0; k[2] < zmax; k[2]++) {
 					const int k0 = k[0] + k[1] + k[2];
-					Dsym(k) += soco[k0 % 2] * D0(k);
+					D(k) += soco[k0 % 2] * D0(k);
 				}
 			}
 		}
 	}
-	//printf("%e %e\n", abs(first(Dsym(2, 0, 1))) + abs(first(Dsym(0, 2, 1))) + abs(first(Dsym(0, 0, 3))), first(Dsym(2, 0, 1)) + first(Dsym(0, 2, 1)) + first(Dsym(0, 0, 3)));
-	//const T Tr = Dsym(2, 0, 0) + Dsym(0, 2, 0) + Dsym(0, 0, 2);
-	/*Dsym(2,0,0) -= Tr / T(3.0);
-	Dsym(0,2,0) -= Tr / T(3.0);
-	Dsym(0,0,2) -= Tr / T(3.0);*/
-	D = Dsym.detraceD();                           //.detraceD();
 	expansion<T> D1;
 	green_direct(D1, X);
 	D(0, 0, 0) = T(M_PI / 4.0) + D(0, 0, 0);                          // 1
 	for (int i = 0; i < LP; i++) {                     // 70
 		D[i] -= D1[i];
 	}
-
 	D[0] = 2.837291e+00 * (T(1) - zero_mask) + zero_mask*D[0];
-	for( int i = 1; i < LP; i++) {
-		D[i] = zero_mask*D[i];
-	}
 	return 0;
 }
