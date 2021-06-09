@@ -216,22 +216,40 @@ public:
 
 	CUDA_EXPORT
 	inline tensor_trless_sym<T, P> detraceD() const {
-		T tii;
-		if (P >= 2) {
-			tii = (*this)(2, 0, 0) + (*this)(0, 2, 0) + (*this)(0, 0, 2);
-		}
-		tensor_trless_sym<T, P> A = detraceF();
-		if (P >= 2) {
-			A(2, 0, 0) += tii;
-			A(0, 2, 0) += tii;
-			A(0, 0, 2) += tii;
-		}
+		tensor_trless_sym<T, P> A;
+		const tensor_sym<T, P>& B = *this;
+		array<int, NDIM> m;
+		array<int, NDIM> k;
 		array<int, NDIM> n;
 		for (n[0] = 0; n[0] < P; n[0]++) {
 			for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 				const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
 				for (n[2] = 0; n[2] < nzmax; n[2]++) {
+					A(n) = T(0);
 					const int n0 = n[0] + n[1] + n[2];
+					for (m[0] = 0; m[0] <= n[0] / 2; m[0]++) {
+						for (m[1] = 0; m[1] <= n[1] / 2; m[1]++) {
+							for (m[2] = 0; m[2] <= n[2] / 2; m[2]++) {
+								const int m0 = m[0] + m[1] + m[2];
+								T num = T(n1pow(m0) * dfactorial(2 * n0 - 2 * m0 - 1) * vfactorial(n));
+								T den = T((1 << m0) * vfactorial(m) * vfactorial(n - (m) * 2));
+								const T fnm = num / den;
+								if ((n0 == 2 && (n[0] == 2 || n[1] == 2 || n[2] == 2)) && m0 == 1) {
+									continue;
+								}
+								for (k[0] = 0; k[0] <= m0; k[0]++) {
+									for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
+										k[2] = m0 - k[0] - k[1];
+										const auto p = n - (m) * 2 + (k) * 2;
+										num = factorial(m0);
+										den = vfactorial(k);
+										const T number = fnm * num / den;
+										A(n) += number * B(p);
+									}
+								}
+							}
+						}
+					}
 					A(n) /= T(dfactorial(2 * n0 - 1));
 				}
 			}
