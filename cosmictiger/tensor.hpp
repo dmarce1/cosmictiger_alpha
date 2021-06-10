@@ -459,8 +459,9 @@ tensor_trless_sym<T, P> interaction(tensor_trless_sym<T, Q> M0, const tensor_trl
 	tensor_trless_sym<T, P> L;
 	array<int, NDIM> n;
 	array<int, NDIM> m;
-	M0 = rotate(M0, T(1.0), true);
-	const auto M = rotate(M0, T(-1.0), true);
+//	M0 = rotate(M0, T(1.0), true);
+//	const auto M = rotate(M0, T(-1.0), true);
+	const auto M = M0;
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
