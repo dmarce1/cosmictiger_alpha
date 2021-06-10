@@ -129,9 +129,9 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 	}
 	D[0] += 2.837291e+00 * (T(1) - zero_mask);
 	if ( LORDER > 2) {
-		D[3] += -4.188790e+00 * (T(1) - zero_mask);
-		D[5] += -4.188790e+00 * (T(1) - zero_mask);
-		D[LP - 1] += -4.188790e+00 * (T(1) - zero_mask);
+		D[3] += -4.0 / 3.0 * M_PI * (T(1) - zero_mask);
+		D[5] += -4.0 / 3.0 * M_PI * (T(1) - zero_mask);
+		D[LP - 1] += -4.0 / 3.0 * M_PI * (T(1) - zero_mask);
 	}
 
 	return 0;

@@ -336,6 +336,7 @@ sort_return tree::sort(sort_params params) {
 			} else {
 				for (int dim = 0; dim < NDIM; dim++) {
 					center[dim] = (box.begin[dim] + box.end[dim]) * 0.5;
+					pos[dim] = center[dim];
 				}
 			}
 			multipole M;

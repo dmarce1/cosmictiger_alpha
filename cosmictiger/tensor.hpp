@@ -122,6 +122,55 @@ public:
 
 };
 
+CUDA_EXPORT
+inline vector<int> indices_begin(int P) {
+	vector<int> v;
+	v.reserve(P);
+	for (int i = 0; i < P; i++) {
+		v.push_back(0);
+	}
+	return v;
+}
+
+CUDA_EXPORT
+inline bool indices_inc(vector<int>& i) {
+	if (i.size() == 0) {
+		return false;
+	}
+	int j = 0;
+	while (i[j] == NDIM - 1) {
+		i[j] = 0;
+		j++;
+		if (j == i.size()) {
+			return false;
+		}
+	}
+	i[j]++;
+	return true;
+}
+
+CUDA_EXPORT
+inline array<int, NDIM> indices_to_sym(const vector<int>& indices) {
+	array<int, NDIM> j;
+	j[0] = j[1] = j[2] = 0;
+	for (int i = 0; i < indices.size(); i++) {
+		j[indices[i]]++;
+	}
+	return j;
+}
+
+CUDA_EXPORT
+inline vector<int> sym_to_indices(const array<int, NDIM>& i) {
+	vector<int> indices;
+	indices.reserve(i[0] + i[1] + i[2]);
+	for (int dim = 0; dim < NDIM; dim++) {
+		for (int j = 0; j < i[dim]; j++) {
+			indices.push_back(dim);
+		}
+	}
+	return indices;
+}
+
 template<class T, int P>
 class tensor_sym: public array<T, (P * (P + 1) * (P + 2)) / 6> {
 
@@ -269,6 +318,55 @@ public:
 
 template<class T, int P>
 CUDA_EXPORT
+inline tensor_trless_sym<T, P> rotate(const tensor_trless_sym<T, P> & B, T theta, bool pitch) {
+	tensor_trless_sym<T, P> A;
+	array<int, NDIM> n;
+	array<array<T, NDIM>, NDIM> R;
+	const T cos0 = cos(theta);
+	const T sin0 = sin(theta);
+	if (!pitch) {
+		R[0][0] = cos0;
+		R[1][0] = -sin0;
+		R[2][0] = T(0);
+		R[0][1] = sin0;
+		R[1][1] = cos0;
+		R[2][1] = T(0);
+		R[0][2] = T(0);
+		R[1][2] = T(0);
+		R[2][2] = T(1);
+	} else {
+		R[0][0] = cos0;
+		R[1][0] = T(0);
+		R[2][0] = -sin0;
+		R[0][1] = T(0);
+		R[1][1] = T(1);
+		R[2][1] = T(0);
+		R[0][2] = sin0;
+		R[1][2] = T(0);
+		R[2][2] = cos0;
+	}
+	for (n[0] = 0; n[0] < P; n[0]++) {
+		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
+			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
+			for (n[2] = 0; n[2] < nzmax; n[2]++) {
+				A(n) = T(0);
+				const int n0 = n[0] + n[1] + n[2];
+				const auto even_indices = sym_to_indices(n);
+				for (auto odd_indices = indices_begin(n0); indices_inc(odd_indices);) {
+					T factor = T(1);
+					for (int l = 0; l < n0; l++) {
+						factor *= R[odd_indices[l]][even_indices[l]];
+					}
+					A(n) += factor * B(indices_to_sym(odd_indices));
+				}
+			}
+		}
+	}
+	return A;
+}
+
+template<class T, int P>
+CUDA_EXPORT
 tensor_sym<T, P> vector_to_sym_tensor(const array<T, NDIM>& vec) {
 	tensor_sym<T, P> X;
 	array<int, NDIM> n;
@@ -357,10 +455,12 @@ tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 
 template<class T, int P, int Q>
 CUDA_EXPORT
-tensor_trless_sym<T, P> interaction(const tensor_trless_sym<T, Q>& M, const tensor_trless_sym<T, Q + 1>& D) {
+tensor_trless_sym<T, P> interaction(tensor_trless_sym<T, Q> M0, const tensor_trless_sym<T, Q + 1>& D) {
 	tensor_trless_sym<T, P> L;
 	array<int, NDIM> n;
 	array<int, NDIM> m;
+	M0 = rotate(M0, T(1.0), true);
+	const auto M = rotate(M0, T(-1.0), true);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
@@ -408,7 +508,7 @@ tensor_trless_sym<T, P> expansion_translate(const tensor_trless_sym<T, Q> L1, co
 								const auto factor = T(1) / T(vfactorial(k));
 								const auto p = n + k;
 								const int p0 = p[0] + p[1] + p[2];
-								if( n != p ) {
+								if (n != p) {
 									L2(n) += factor * delta_x(k) * L1(p);
 								}
 							}

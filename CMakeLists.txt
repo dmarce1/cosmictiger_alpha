@@ -135,6 +135,17 @@ add_hpx_executable(
  	src/hpx2mw.cpp
  )
  
+add_hpx_executable(
+  code_gen
+  DEPENDENCIES
+  SOURCES
+    src/code_gen.cpp
+  HEADERS
+    ${cosmictiger_header_files}
+ )
+target_compile_options(code_gen PUBLIC "-DUSE_HPX")
+target_include_directories(code_gen PUBLIC ${PROJECT_SOURCE_DIR})
+ 
 #add_library(hpx_lite 
 #	hpx_lite/src/hpx.cpp
 #	hpx_lite/src/id_type.cpp
