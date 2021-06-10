@@ -290,7 +290,13 @@ tensor_sym<T, P> vector_to_sym_tensor(const array<T, NDIM>& vec) {
 
 template<class T, int P, int Q = P>
 CUDA_EXPORT
-tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, Q>& M1, const array<T, NDIM>& x) {
+tensor_trless_sym<T, P> monopole_translate(const array<T, NDIM>& x) {
+	return vector_to_sym_tensor<T, P>(-x).detraceD();
+}
+
+template<class T, int P>
+CUDA_EXPORT
+tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, P>& M1, const array<T, NDIM>& x) {
 	tensor_sym<T, P> M2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
@@ -298,14 +304,22 @@ tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, Q>& M1, c
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
-				M2(n) = T(0);
 				const int n0 = n[0] + n[1] + n[2];
-				const int m0 = intmin(n0, Q - 1);
-				for (k[0] = 0; k[0] <= intmin(m0, n[0]); k[0]++) {
-					for (k[1] = 0; k[1] <= intmin(m0 - k[0], n[1]); k[1]++) {
-						for (k[2] = 0; k[2] <= intmin(m0 - k[0] - k[1], n[2]); k[2]++) {
+				M2(n) = M1(n);
+			}
+		}
+	}
+	for (int n0 = P - 1; n0 >= 0; n0--) {
+		for (n[0] = 0; n[0] <= n0; n[0]++) {
+			for (n[1] = 0; n[1] <= n0 - n[0]; n[1]++) {
+				n[2] = n0 - n[0] - n[1];
+				for (k[0] = 0; k[0] <= intmin(n0, n[0]); k[0]++) {
+					for (k[1] = 0; k[1] <= intmin(n0 - k[0], n[1]); k[1]++) {
+						for (k[2] = 0; k[2] <= intmin(n0 - k[0] - k[1], n[2]); k[2]++) {
 							const auto factor = T(vfactorial(n)) / T(vfactorial(k) * vfactorial(n - k));
-							M2(n) += factor * delta_x(n - k) * M1(k);
+							if (n != k) {
+								M2(n) += factor * delta_x(n - k) * M2(k);
+							}
 						}
 					}
 				}
@@ -378,15 +392,26 @@ tensor_trless_sym<T, P> expansion_translate(const tensor_trless_sym<T, Q> L1, co
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
 			for (n[2] = 0; n[2] < nzmax; n[2]++) {
-				L2(n) = T(0);
-				const int n0 = n[0] + n[1] + n[2];
-				for (k[0] = 0; k[0] < Q - n0; k[0]++) {
-					for (k[1] = 0; k[1] < Q - n0 - k[0]; k[1]++) {
-						for (k[2] = 0; k[2] < Q - n0 - k[0] - k[1]; k[2]++) {
-							const auto factor = T(1) / T(vfactorial(k));
-							const auto p = n + k;
-							const int p0 = p[0] + p[1] + p[2];
-							L2(n) += factor * delta_x(k) * L1(p);
+				L2(n) = L1(n);
+			}
+		}
+	}
+	for (int n0 = 0; n0 < P; n0++) {
+		for (n[0] = 0; n[0] <= n0; n[0]++) {
+			for (n[1] = 0; n[1] <= n0 - n[0]; n[1]++) {
+				n[2] = n0 - n[1] - n[0];
+				if (n[2] <= 1 || (n[0] == 0 && n[1] == 0 && n[2] == 2)) {
+					const int n0 = n[0] + n[1] + n[2];
+					for (k[0] = 0; k[0] < Q - n0; k[0]++) {
+						for (k[1] = 0; k[1] < Q - n0 - k[0]; k[1]++) {
+							for (k[2] = 0; k[2] < Q - n0 - k[0] - k[1]; k[2]++) {
+								const auto factor = T(1) / T(vfactorial(k));
+								const auto p = n + k;
+								const int p0 = p[0] + p[1] + p[2];
+								if( n != p ) {
+									L2(n) += factor * delta_x(k) * L1(p);
+								}
+							}
 						}
 					}
 				}

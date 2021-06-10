@@ -268,12 +268,12 @@ sort_return tree::sort(sort_params params) {
 			double rright = 0.0;
 			array<fixed32, NDIM> pos;
 			array<float, NDIM> xl, xr;
-			array<float,NDIM> norm;
+			array<double,NDIM> norm;
 			for( int dim = 0; dim < NDIM; dim++) {
 				norm[dim] = Xc[LEFT][dim].to_double() - Xc[RIGHT][dim].to_double();
 			}
-			const float n2 = sqr(norm[0], norm[1], norm[2]);
-			const float ninv = 1.0 / std::sqrt(n2);
+			const double n2 = sqr(norm[0], norm[1], norm[2]);
+			const double ninv = 1.0 / std::sqrt(n2);
 			for( int dim = 0; dim < NDIM; dim++) {
 				norm[dim] *= ninv;
 			}
@@ -342,7 +342,6 @@ sort_return tree::sort(sort_params params) {
 			M = 0.0;
 			float radius = 0.0;
 			tensor_trless_sym<float, 1> point;
-			point = 1.0f;
 			for (auto i = parts.first; i < parts.second; i++) {
 				double this_radius = 0.0;
 				array<float, NDIM> X;
@@ -350,7 +349,7 @@ sort_return tree::sort(sort_params params) {
 					X[dim] = particles->pos(dim, i).to_double() - center[dim];
 					this_radius += X[dim] * X[dim];
 				}
-				M = M + multipole_translate<float,MORDER,1>(point, X);
+				M = M + monopole_translate<float,MORDER>(X);
 				this_radius = std::sqrt(this_radius);
 				radius = std::max(radius, (float) (this_radius));
 			}

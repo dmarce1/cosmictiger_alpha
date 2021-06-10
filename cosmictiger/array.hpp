@@ -17,6 +17,21 @@ class array {
 	T ptr[N];
 public:
 	CUDA_EXPORT
+	bool operator!=(const array<T,N>& other ) const {
+		return !(*this == other);
+	}
+	CUDA_EXPORT
+	bool operator==(const array<T,N>& other ) const {
+		bool eq = true;
+		for( int dim = 0; dim < NDIM; dim++) {
+			if( (*this)[dim] != other[dim]) {
+				eq = false;
+				break;
+			}
+		}
+		return eq;
+	}
+	CUDA_EXPORT
 	const T& operator[](int i) const {
 		BOUNDS_CHECK1(i, 0, N);
 		return ptr[i];
