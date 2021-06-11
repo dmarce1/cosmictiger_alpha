@@ -4,6 +4,18 @@
 #include <cosmictiger/math.hpp>
 #include <cosmictiger/global.hpp>
 
+#include <cosmictiger/simd.hpp>
+
+inline float first(simd_float a) {
+	return a[0];
+}
+
+CUDA_EXPORT
+inline float first(float a) {
+	return a;
+}
+
+
 CUDA_EXPORT
 inline
 int factorial(int n) {
@@ -331,12 +343,10 @@ public:
 
 template<class T, int P>
 CUDA_EXPORT
-inline tensor_trless_sym<T, P> rotate(const tensor_trless_sym<T, P> & B, T theta, bool pitch) {
+inline tensor_trless_sym<T, P> rotate(const tensor_trless_sym<T, P> & B, T cos0, T sin0, bool pitch) {
 	tensor_trless_sym<T, P> A;
 	array<int, NDIM> n;
 	array<array<T, NDIM>, NDIM> R;
-	const T cos0 = cos(theta);
-	const T sin0 = sin(theta);
 	if (!pitch) {
 		R[0][0] = cos0;
 		R[1][0] = -sin0;
@@ -368,12 +378,12 @@ inline tensor_trless_sym<T, P> rotate(const tensor_trless_sym<T, P> & B, T theta
 				if (n0 == 0) {
 					A(n) = B(n);
 				} else {
-		//			printf("\n");
+					//			printf("\n");
 					for (auto odd_indices = indices_begin(n0); odd_indices[0] != -1; indices_inc(odd_indices)) {
 						T factor = T(1);
 						for (int l = 0; l < n0; l++) {
 							factor *= R[odd_indices[l]][even_indices[l]];
-		//					printf("%i %i %i %i %i\n", n[0], n[1], n[2], odd_indices[l], even_indices[l]);
+							//					printf("%i %i %i %i %i\n", n[0], n[1], n[2], odd_indices[l], even_indices[l]);
 						}
 						A(n) += factor * B(indices_to_sym(odd_indices));
 					}
@@ -382,6 +392,98 @@ inline tensor_trless_sym<T, P> rotate(const tensor_trless_sym<T, P> & B, T theta
 		}
 	}
 	return A;
+}
+
+
+template<class T, int P>
+CUDA_EXPORT
+inline tensor_sym<T, P> rotate(const tensor_sym<T, P> & B, T cos0, T sin0, bool pitch) {
+	tensor_sym<T, P> A;
+	array<int, NDIM> n;
+	array<array<T, NDIM>, NDIM> R;
+	if (!pitch) {
+		R[0][0] = cos0;
+		R[1][0] = -sin0;
+		R[2][0] = T(0);
+		R[0][1] = sin0;
+		R[1][1] = cos0;
+		R[2][1] = T(0);
+		R[0][2] = T(0);
+		R[1][2] = T(0);
+		R[2][2] = T(1);
+	} else {
+		R[0][0] = cos0;
+		R[1][0] = T(0);
+		R[2][0] = -sin0;
+		R[0][1] = T(0);
+		R[1][1] = T(1);
+		R[2][1] = T(0);
+		R[0][2] = sin0;
+		R[1][2] = T(0);
+		R[2][2] = cos0;
+	}
+	for (n[0] = 0; n[0] < P; n[0]++) {
+		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
+			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
+				A(n) = T(0);
+				const int n0 = n[0] + n[1] + n[2];
+				const auto even_indices = sym_to_indices(n);
+				if (n0 == 0) {
+					A(n) = B(n);
+				} else {
+					//			printf("\n");
+					for (auto odd_indices = indices_begin(n0); odd_indices[0] != -1; indices_inc(odd_indices)) {
+						T factor = T(1);
+						for (int l = 0; l < n0; l++) {
+							factor *= R[odd_indices[l]][even_indices[l]];
+							//					printf("%i %i %i %i %i\n", n[0], n[1], n[2], odd_indices[l], even_indices[l]);
+						}
+						A(n) += factor * B(indices_to_sym(odd_indices));
+					}
+				}
+			}
+		}
+	}
+	return A;
+}
+
+
+template<class T, int P>
+CUDA_EXPORT
+inline tensor_trless_sym<T, P> rotate2x(tensor_trless_sym<T, P> B, T x, T y, T z) {
+	const T R2 = x * x + y * y;
+	const T r2 = R2 + z * z;
+	const T R = std::sqrt(R2);
+	const T r = std::sqrt(r2);
+	T costheta, sintheta, cosphi, sinphi;
+	const T Rinv = T(R > T(0.0)) / R;
+	const T rinv = T(r > T(0.0)) / r;
+	cosphi = x * Rinv + (T(1) - (R > T(0)));
+	sinphi = -y * Rinv;
+	sintheta = -z * rinv;
+	costheta = R * rinv + (T(1) - (r > T(0)));
+	B = rotate(B,cosphi,sinphi,false);
+	B = rotate(B,costheta,sintheta,true);
+	return B;
+}
+
+template<class T, int P>
+CUDA_EXPORT
+inline tensor_sym<T, P> rotate2x(tensor_sym<T, P> B, T x, T y, T z) {
+	const T R2 = x * x + y * y;
+	const T r2 = R2 + z * z;
+	const T R = std::sqrt(R2);
+	const T r = std::sqrt(r2);
+	T costheta, sintheta, cosphi, sinphi;
+	const T Rinv = T(R > T(0.0)) / R;
+	const T rinv = T(r > T(0.0)) / r;
+	cosphi = x * Rinv + (T(1) - (R > T(0)));
+	sinphi = -y * Rinv;
+	sintheta = -z * rinv;
+	costheta = R * rinv + (T(1) - (r > T(0)));
+	B = rotate(B,cosphi,sinphi,false);
+	B = rotate(B,costheta,sintheta,true);
+	return B;
 }
 
 template<class T, int P>
@@ -417,10 +519,12 @@ tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, P>& M1, c
 	tensor_sym<T, P> M2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	const auto delta_x = vector_to_sym_tensor<T, P>(-x);
+	auto delta_x = vector_to_sym_tensor<T, P>(-x);
+	auto delta_x2 = rotate2x(delta_x, x[0], x[1], x[2]);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
+				printf( "%i %i %i %e %e\n", n[0], n[1], n[2], first(delta_x(n)), first(delta_x2(n)));
 				const int n0 = n[0] + n[1] + n[2];
 				M2(n) = M1(n);
 			}
@@ -471,27 +575,12 @@ tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 	}
 	return D;
 }
-
-#include <cosmictiger/simd.hpp>
-
-inline float first(simd_float a) {
-	return a[0];
-}
-
-CUDA_EXPORT
-inline float first(float a) {
-	return a;
-}
-
 template<class T, int P, int Q>
 CUDA_EXPORT
-tensor_trless_sym<T, P> interaction(tensor_trless_sym<T, Q> M0, const tensor_trless_sym<T, Q + 1>& D) {
+tensor_trless_sym<T, P> interaction(tensor_trless_sym<T, Q> M, const tensor_trless_sym<T, Q + 1>& D) {
 	tensor_trless_sym<T, P> L;
 	array<int, NDIM> n;
 	array<int, NDIM> m;
-	M0 = rotate(M0, T(1.0), true);
-	const auto M = rotate(M0, T(-1.0), true);
-//	const auto M = M0;
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
