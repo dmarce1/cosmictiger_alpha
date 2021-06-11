@@ -5,14 +5,6 @@
 #include <cosmictiger/ewald_indices.hpp>
 #include <cosmictiger/expansion.hpp>
 
-inline float first(simd_float a) {
-	return a[0];
-}
-
-CUDA_EXPORT
-inline float first(float a) {
-	return a;
-}
 
 inline bool anytrue(simd_float b) {
 	return b.sum() != 0.0;

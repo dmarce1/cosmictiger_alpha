@@ -52,13 +52,30 @@ class vector {
 		}
 	}
 public:
+	CUDA_EXPORT
+	bool operator==(const vector<T>& other) const {
+		if (size() != other.size()) {
+			return false;
+		} else {
+			for (int i = 0; i < size(); i++) {
+				if (other[i] != (*this)[i]) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+	CUDA_EXPORT
+	bool operator!=(const vector<T>& other) const {
+		return !operator==(other);
+	}
 #ifndef __CUDA_ARCH__
 	template<class A>
 	void serialize(A&& arc, unsigned) {
 		auto this_sz = sz;
 		arc & this_sz;
 		resize(this_sz);
-		for( unsigned i = 0; i < sz; i++) {
+		for (unsigned i = 0; i < sz; i++) {
 			arc & (*this)[i];
 		}
 	}
@@ -210,7 +227,7 @@ public:
 				i *= 2;
 			}
 			new_cap = (i) / sizeof(T);
-	//		       PRINT( "INcreasing capacity from %i to %i\n", cap, new_cap);
+			//		       PRINT( "INcreasing capacity from %i to %i\n", cap, new_cap);
 			if (tid == 0) {
 #ifndef __CUDA_ARCH__
 				unified_allocator alloc;

@@ -142,11 +142,24 @@ inline bool indices_inc(vector<int>& i) {
 		i[j] = 0;
 		j++;
 		if (j == i.size()) {
+			i[0] = -1;
 			return false;
 		}
 	}
 	i[j]++;
 	return true;
+}
+
+CUDA_EXPORT
+inline vector<int> indices_end(int P) {
+	vector<int> v;
+	v.reserve(P);
+	v.push_back(-1);
+	for (int i = 1; i < P; i++) {
+		v.push_back(0);
+	}
+	return v;
+
 }
 
 CUDA_EXPORT
@@ -352,12 +365,18 @@ inline tensor_trless_sym<T, P> rotate(const tensor_trless_sym<T, P> & B, T theta
 				A(n) = T(0);
 				const int n0 = n[0] + n[1] + n[2];
 				const auto even_indices = sym_to_indices(n);
-				for (auto odd_indices = indices_begin(n0); indices_inc(odd_indices);) {
-					T factor = T(1);
-					for (int l = 0; l < n0; l++) {
-						factor *= R[odd_indices[l]][even_indices[l]];
+				if (n0 == 0) {
+					A(n) = B(n);
+				} else {
+		//			printf("\n");
+					for (auto odd_indices = indices_begin(n0); odd_indices[0] != -1; indices_inc(odd_indices)) {
+						T factor = T(1);
+						for (int l = 0; l < n0; l++) {
+							factor *= R[odd_indices[l]][even_indices[l]];
+		//					printf("%i %i %i %i %i\n", n[0], n[1], n[2], odd_indices[l], even_indices[l]);
+						}
+						A(n) += factor * B(indices_to_sym(odd_indices));
 					}
-					A(n) += factor * B(indices_to_sym(odd_indices));
 				}
 			}
 		}
@@ -453,15 +472,26 @@ tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 	return D;
 }
 
+#include <cosmictiger/simd.hpp>
+
+inline float first(simd_float a) {
+	return a[0];
+}
+
+CUDA_EXPORT
+inline float first(float a) {
+	return a;
+}
+
 template<class T, int P, int Q>
 CUDA_EXPORT
 tensor_trless_sym<T, P> interaction(tensor_trless_sym<T, Q> M0, const tensor_trless_sym<T, Q + 1>& D) {
 	tensor_trless_sym<T, P> L;
 	array<int, NDIM> n;
 	array<int, NDIM> m;
-//	M0 = rotate(M0, T(1.0), true);
-//	const auto M = rotate(M0, T(-1.0), true);
-	const auto M = M0;
+	M0 = rotate(M0, T(1.0), true);
+	const auto M = rotate(M0, T(-1.0), true);
+//	const auto M = M0;
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);

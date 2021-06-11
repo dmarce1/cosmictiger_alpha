@@ -123,7 +123,7 @@ set(cosmictiger_header_files
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    Boost::boost silo mpi tbbmalloc cufft
+    Boost::boost siloh5 mpi cufft
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
