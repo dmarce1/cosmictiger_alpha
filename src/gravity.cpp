@@ -72,8 +72,7 @@ void tree::cpu_cc_direct(kick_params_type *params_ptr) {
 				dX[dim] = distance(X[dim], Y[dim]);
 			}
 			flops += n * 6;
-			flops += n * green_direct(D, dX);
-			flops += n * multipole_interaction(Lacc, M, D, params.full_eval);
+			Lacc = Lacc + direct_interaction<simd_float, LORDER, MORDER, LORDER>(M, dX);
 		}
 		for (int k = 0; k < simd_float::size(); k++) {
 			for (int i = 0; i < LP; i++) {
@@ -115,7 +114,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 	array<simd_int, NDIM> Y;
 	array<simd_float, NDIM> dX;
 	expansion<simd_float> D;
-	simd_float M;
+	tensor_trless_sym<simd_float, 1> M;
 	expansion<simd_float> Lacc;
 	const auto pos = params.tptr.get_pos();
 	for (int dim = 0; dim < NDIM; dim++) {
@@ -133,7 +132,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 					Y[dim][k] = sources[dim][j + k].raw();
 				}
 				for (int i = 0; i < MP; i++) {
-					M[k] = 1.f;
+					M(0, 0, 0)[k] = 1.f;
 				}
 				n++;
 			} else {
@@ -141,7 +140,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 					Y[dim][k] = sources[dim][cnt1 - 1].raw();
 				}
 				for (int i = 0; i < MP; i++) {
-					M[k] = 0.f;
+					M(0, 0, 0)[k] = 0.f;
 				}
 			}
 		}
@@ -149,8 +148,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 			dX[dim] = distance(X[dim], Y[dim]);
 		}
 		flops += n * 6;
-		flops += n * green_direct(D, dX);
-		flops += n * multipole_interaction(Lacc, M, D);
+		Lacc = Lacc + direct_interaction<simd_float, LORDER, 1, LORDER>(M, dX);
 	}
 	for (int k = 0; k < simd_float::size(); k++) {
 		for (int i = 0; i < LP; i++) {
@@ -294,11 +292,9 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 		}
 		if (particles->rung(i + parts.first) >= params.rung || params.full_eval) {
 			array<simd_float, NDIM> f;
-			array<simd_float, NDIM + 1> Lacc;
+			tensor_trless_sym<simd_float,2> Lacc;
 			const auto cnt1 = multis.size();
-			for (int j = 0; j < NDIM + 1; j++) {
-				Lacc[j] = 0.f;
-			}
+			Lacc = 0.0;
 			for (int j = 0; j < cnt1; j += simd_float::size()) {
 				n = 0;
 				for (int k = 0; k < simd_float::size(); k++) {
@@ -326,13 +322,12 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 					dX[dim] = distance(X[dim], Y[dim]);
 				}
 				flops += n * 6;
-				flops += n * green_direct(D, dX);
-				flops += n * multipole_interaction(Lacc, M, D, params.full_eval);
+				Lacc = Lacc + direct_interaction<simd_float, 2, MORDER, LORDER>(M, dX);
 			}
-			Phi[i] += Lacc[0].sum();                                                                           // * DSCALE;
-			for (int dim = 0; dim < NDIM; dim++) {
-				F[dim][i] -= Lacc[1 + dim].sum();                                                    // * (DSCALE * DSCALE);
-			}
+			Phi[i] += Lacc(0,0,0).sum();                                                                           // * DSCALE;
+			F[0][i] -= Lacc(1,0,0).sum();                                                    // * (DSCALE * DSCALE);
+			F[1][i] -= Lacc(0,1,0).sum();                                                    // * (DSCALE * DSCALE);
+			F[2][i] -= Lacc(0,0,1).sum();                                                    // * (DSCALE * DSCALE);
 		}
 	}
 	if (params.full_eval) {

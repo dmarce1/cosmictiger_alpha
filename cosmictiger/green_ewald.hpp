@@ -41,7 +41,6 @@ CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
 			const T rinv = (r > T(0)) / max(r, 1.0e-20);                                           // 1 + FLOP_DIV
 			NAN_TEST(rinv);
 			const T r2inv = rinv * rinv;                                                  // 1
-			const T r3inv = r2inv * rinv;                                                 // 1
 			T exp0;
 			T erfc0 = erfcexp(2.f * r, &exp0);                                            // 18 + FLOP_DIV + FLOP_EXP
 			const T expfactor = fouroversqrtpi * exp0;                                // 2

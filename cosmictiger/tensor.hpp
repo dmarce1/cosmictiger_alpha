@@ -15,7 +15,6 @@ inline float first(float a) {
 	return a;
 }
 
-
 CUDA_EXPORT
 inline
 int factorial(int n) {
@@ -394,7 +393,6 @@ inline tensor_trless_sym<T, P> rotate(const tensor_trless_sym<T, P> & B, T cos0,
 	return A;
 }
 
-
 template<class T, int P>
 CUDA_EXPORT
 inline tensor_sym<T, P> rotate(const tensor_sym<T, P> & B, T cos0, T sin0, bool pitch) {
@@ -447,14 +445,13 @@ inline tensor_sym<T, P> rotate(const tensor_sym<T, P> & B, T cos0, T sin0, bool 
 	return A;
 }
 
-
 template<class T, int P>
 CUDA_EXPORT
 inline tensor_trless_sym<T, P> rotate2x(tensor_trless_sym<T, P> B, T x, T y, T z) {
 	const T R2 = x * x + y * y;
 	const T r2 = R2 + z * z;
-	const T R = std::sqrt(R2);
-	const T r = std::sqrt(r2);
+	const T R = sqrt(R2);
+	const T r = sqrt(r2);
 	T costheta, sintheta, cosphi, sinphi;
 	const T Rinv = T(R > T(0.0)) / R;
 	const T rinv = T(r > T(0.0)) / r;
@@ -462,8 +459,27 @@ inline tensor_trless_sym<T, P> rotate2x(tensor_trless_sym<T, P> B, T x, T y, T z
 	sinphi = -y * Rinv;
 	sintheta = -z * rinv;
 	costheta = R * rinv + (T(1) - (r > T(0)));
-	B = rotate(B,cosphi,sinphi,false);
-	B = rotate(B,costheta,sintheta,true);
+	B = rotate(B, cosphi, sinphi, false);
+	B = rotate(B, costheta, sintheta, true);
+	return B;
+}
+
+template<class T, int P>
+CUDA_EXPORT
+inline tensor_trless_sym<T, P> rotate2xinv(tensor_trless_sym<T, P> B, T x, T y, T z) {
+	const T R2 = x * x + y * y;
+	const T r2 = R2 + z * z;
+	const T R = sqrt(R2);
+	const T r = sqrt(r2);
+	T costheta, sintheta, cosphi, sinphi;
+	const T Rinv = T(R > T(0.0)) / R;
+	const T rinv = T(r > T(0.0)) / r;
+	cosphi = x * Rinv + (T(1) - (R > T(0)));
+	sinphi = y * Rinv;
+	sintheta = z * rinv;
+	costheta = R * rinv + (T(1) - (r > T(0)));
+	B = rotate(B, costheta, sintheta, true);
+	B = rotate(B, cosphi, sinphi, false);
 	return B;
 }
 
@@ -481,8 +497,8 @@ inline tensor_sym<T, P> rotate2x(tensor_sym<T, P> B, T x, T y, T z) {
 	sinphi = -y * Rinv;
 	sintheta = -z * rinv;
 	costheta = R * rinv + (T(1) - (r > T(0)));
-	B = rotate(B,cosphi,sinphi,false);
-	B = rotate(B,costheta,sintheta,true);
+	B = rotate(B, cosphi, sinphi, false);
+	B = rotate(B, costheta, sintheta, true);
 	return B;
 }
 
@@ -520,11 +536,9 @@ tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, P>& M1, c
 	array<int, NDIM> k;
 	array<int, NDIM> n;
 	auto delta_x = vector_to_sym_tensor<T, P>(-x);
-	auto delta_x2 = rotate2x(delta_x, x[0], x[1], x[2]);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
-				printf( "%i %i %i %e %e\n", n[0], n[1], n[2], first(delta_x(n)), first(delta_x2(n)));
 				const int n0 = n[0] + n[1] + n[2];
 				M2(n) = M1(n);
 			}
@@ -575,9 +589,10 @@ tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 	}
 	return D;
 }
+
 template<class T, int P, int Q>
 CUDA_EXPORT
-tensor_trless_sym<T, P> interaction(tensor_trless_sym<T, Q> M, const tensor_trless_sym<T, Q + 1>& D) {
+tensor_trless_sym<T, P> interaction(const tensor_trless_sym<T, Q>& M, const tensor_trless_sym<T, Q + 1>& D) {
 	tensor_trless_sym<T, P> L;
 	array<int, NDIM> n;
 	array<int, NDIM> m;
@@ -598,6 +613,37 @@ tensor_trless_sym<T, P> interaction(tensor_trless_sym<T, Q> M, const tensor_trle
 			}
 		}
 	}
+	return L;
+}
+
+template<class T, int P, int Q, int R>
+CUDA_EXPORT
+tensor_trless_sym<T, P> direct_interaction(const tensor_trless_sym<T, Q>& M0, const array<T, NDIM> x) {
+	tensor_trless_sym<T, P> L;
+	const auto D0 = direct_greens_function<T, R>(x);
+	array<int, NDIM> n;
+	array<int, NDIM> m;
+	const auto M = rotate2x<T, Q>(M0, x[0], x[1], x[2]);
+	const auto D = rotate2x<T, R>(D0, x[0], x[1], x[2]);
+	for (n[0] = 0; n[0] < P; n[0]++) {
+		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
+			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
+			for (n[2] = 0; n[2] < nzmax; n[2]++) {
+				L(n) = T(0);
+				const int n0 = n[0] + n[1] + n[2];
+				const int q0 = intmin(R - n0, Q);
+				for (m[0] = 0; m[0] < q0; m[0]++) {
+					for (m[1] = 0; m[1] < q0 - m[0]; m[1]++) {
+						for (m[2] = 0; m[2] < q0 - m[0] - m[1]; m[2]++) {
+							L(n) += M(m) * D(n + m) / T(vfactorial(m));
+						}
+					}
+				}
+			}
+		}
+	}
+
+	L = rotate2xinv<T, P>(L, x[0], x[1], x[2]);
 	return L;
 }
 
