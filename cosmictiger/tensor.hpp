@@ -447,14 +447,33 @@ inline tensor_sym<T, P> rotate(const tensor_sym<T, P> & B, T cos0, T sin0, bool 
 
 template<class T, int P>
 CUDA_EXPORT
+inline tensor_trless_sym<T, P> rotate2xinv(tensor_trless_sym<T, P> B, T x, T y, T z) {
+	const T R2 = x * x + y * y;
+	const T r2 = R2 + z * z;
+	const T R = sqrt(R2);
+	const T r = sqrt(r2);
+	T costheta, sintheta, cosphi, sinphi;
+	const T Rinv = T(R > T(0.0)) / (R+T(1e-30));
+	const T rinv = T(r > T(0.0)) / (r+T(1e-30));
+	cosphi = x * Rinv + (T(1) - (R > T(0)));
+	sinphi = y * Rinv;
+	sintheta = z * rinv;
+	costheta = R * rinv + (T(1) - (r > T(0)));
+	B = rotate(B, costheta, sintheta, true);
+	B = rotate(B, cosphi, sinphi, false);
+	return B;
+}
+
+template<class T, int P>
+CUDA_EXPORT
 inline tensor_trless_sym<T, P> rotate2x(tensor_trless_sym<T, P> B, T x, T y, T z) {
 	const T R2 = x * x + y * y;
 	const T r2 = R2 + z * z;
 	const T R = sqrt(R2);
 	const T r = sqrt(r2);
 	T costheta, sintheta, cosphi, sinphi;
-	const T Rinv = T(R > T(0.0)) / R;
-	const T rinv = T(r > T(0.0)) / r;
+	const T Rinv = T(R > T(0.0)) / (R+T(1e-30));
+	const T rinv = T(r > T(0.0)) / (r+T(1e-30));
 	cosphi = x * Rinv + (T(1) - (R > T(0)));
 	sinphi = -y * Rinv;
 	sintheta = -z * rinv;
@@ -466,14 +485,14 @@ inline tensor_trless_sym<T, P> rotate2x(tensor_trless_sym<T, P> B, T x, T y, T z
 
 template<class T, int P>
 CUDA_EXPORT
-inline tensor_trless_sym<T, P> rotate2xinv(tensor_trless_sym<T, P> B, T x, T y, T z) {
+inline tensor_sym<T, P> rotate2xinv(tensor_sym<T, P> B, T x, T y, T z) {
 	const T R2 = x * x + y * y;
 	const T r2 = R2 + z * z;
 	const T R = sqrt(R2);
 	const T r = sqrt(r2);
 	T costheta, sintheta, cosphi, sinphi;
-	const T Rinv = T(R > T(0.0)) / R;
-	const T rinv = T(r > T(0.0)) / r;
+	const T Rinv = T(R > T(0.0)) / (R+T(1e-30));
+	const T rinv = T(r > T(0.0)) / (r+T(1e-30));
 	cosphi = x * Rinv + (T(1) - (R > T(0)));
 	sinphi = y * Rinv;
 	sintheta = z * rinv;
@@ -491,8 +510,8 @@ inline tensor_sym<T, P> rotate2x(tensor_sym<T, P> B, T x, T y, T z) {
 	const T R = std::sqrt(R2);
 	const T r = std::sqrt(r2);
 	T costheta, sintheta, cosphi, sinphi;
-	const T Rinv = T(R > T(0.0)) / R;
-	const T rinv = T(r > T(0.0)) / r;
+	const T Rinv = T(R > T(0.0)) / (R+T(1e-30));
+	const T rinv = T(r > T(0.0)) / (r+T(1e-30));
 	cosphi = x * Rinv + (T(1) - (R > T(0)));
 	sinphi = -y * Rinv;
 	sintheta = -z * rinv;
@@ -531,16 +550,18 @@ tensor_trless_sym<T, P> monopole_translate(const array<T, NDIM>& x) {
 
 template<class T, int P>
 CUDA_EXPORT
-tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, P>& M1, const array<T, NDIM>& x) {
+tensor_trless_sym<T, P> multipole_translate(tensor_trless_sym<T, P> M1, const array<T, NDIM>& x) {
 	tensor_sym<T, P> M2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	auto delta_x = vector_to_sym_tensor<T, P>(-x);
+	auto delta_x0 = vector_to_sym_tensor<T, P>(-x);
+	M1 = rotate2x(M1,x[0],x[1],x[2]);
+	const auto delta_x = rotate2x(delta_x0,x[0],x[1],x[2]);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
 				const int n0 = n[0] + n[1] + n[2];
-				M2(n) = M1(n);
+				M2(n) = ((const tensor_trless_sym<T, P>)(M1))(n);
 			}
 		}
 	}
@@ -561,7 +582,7 @@ tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, P>& M1, c
 			}
 		}
 	}
-	return M2.detraceD();
+	return rotate2xinv(M2.detraceD(),x[0],x[1],x[2]);
 }
 
 template<class T, int P>
@@ -649,11 +670,13 @@ tensor_trless_sym<T, P> direct_interaction(const tensor_trless_sym<T, Q>& M0, co
 
 template<class T, int P, int Q = P>
 CUDA_EXPORT
-tensor_trless_sym<T, P> expansion_translate(const tensor_trless_sym<T, Q> L1, const array<T, NDIM>& x) {
+tensor_trless_sym<T, P> expansion_translate(const tensor_trless_sym<T, Q>& L0, const array<T, NDIM>& x) {
 	tensor_trless_sym<T, P> L2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	const auto delta_x = vector_to_sym_tensor<T, Q>(x);
+	const auto delta_x0 = vector_to_sym_tensor<T, Q>(x);
+	auto delta_x = rotate2x(delta_x0,x[0],x[1],x[2]);
+	const auto L1 = rotate2x(L0,x[0],x[1],x[2]);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
@@ -684,5 +707,5 @@ tensor_trless_sym<T, P> expansion_translate(const tensor_trless_sym<T, Q> L1, co
 			}
 		}
 	}
-	return L2;
+	return rotate2xinv(L2,x[0],x[1],x[2]);
 }
