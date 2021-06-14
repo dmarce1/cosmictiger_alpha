@@ -44,11 +44,11 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 		}
 		flops += 6;
 		if (etype == DIRECT) {
-			L = L + direct_interaction<float,LORDER,MORDER,LORDER>(mpole,fpos);
+			flops += green_direct(D, fpos);
 		} else {
 			flops += green_ewald(D, fpos);
-			flops += multipole_interaction(L, mpole, D, constant.full_eval);
 		}
+		flops += multipole_interaction(L, mpole, D, constant.full_eval);
 		interacts++;
 	}
 
@@ -127,10 +127,10 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 				dx[0] = distance(pos[0], sources[0][j]);
 				dx[1] = distance(pos[1], sources[1][j]);
 				dx[2] = distance(pos[2], sources[2][j]);
+				expansion<float> D;
 				flops += 3;
-				tensor_trless_sym<float,1> M;
-				M(0,0,0) = 1.0;
-				L = L + direct_interaction<float,LORDER,1,LORDER>(M,dx);
+				flops += green_direct(D, dx);
+				flops += multipole_interaction(L, D);
 				interacts++;
 			}
 		}
@@ -349,7 +349,8 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	int interacts = 0;
 	int flops = 0;
 	array<float, NDIM> dx;
-	tensor_trless_sym<float,2> L;
+	array<float, NDIM + 1> Lforce;
+	expansion<float> D;
 	auto& dx0 = dx[0];
 	auto& dx1 = dx[1];
 	auto& dx2 = dx[2];
@@ -367,23 +368,25 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 		}
 		__syncwarp();
 		for (int k = tid; k < nactive; k += warpSize) {
-			L = 0.0;
-			array<float,NDIM> dx;
+			for (int i = 0; i < NDIM + 1; i++) {
+				Lforce[i] = 0.f;
+			}
 			for (int i = 0; i < nsrc; i++) {
 				const auto &source = msrcs[i].pos;
-				dx[0] = distance(sinks[0][k], source[0]);
-				dx[1] = distance(sinks[1][k], source[1]);
-				dx[2] = distance(sinks[2][k], source[2]);
+				dx0 = distance(sinks[0][k], source[0]);
+				dx1 = distance(sinks[1][k], source[1]);
+				dx2 = distance(sinks[2][k], source[2]);
 				flops += 6;
-				L = L + direct_interaction<float,2,MORDER,LORDER>(msrcs[i].multi, dx);
+				flops += green_direct(D, dx);
+				flops += multipole_interaction(Lforce, msrcs[i].multi, D, constant.full_eval);
 				interacts++;
 			}
 			const int l = act_map[k];
-			F[0][l] -= L(1,0,0);
-			F[1][l] -= L(0,1,0);
-			F[2][l] -= L(0,0,1);
+			F[0][l] -= Lforce[1];
+			F[1][l] -= Lforce[2];
+			F[2][l] -= Lforce[3];
 			if (constant.full_eval) {
-				Phi[l] += L(0,0,0);
+				Phi[l] += Lforce[0];
 			}
 		}
 		__syncwarp();

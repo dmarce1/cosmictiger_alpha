@@ -550,13 +550,13 @@ tensor_trless_sym<T, P> monopole_translate(const array<T, NDIM>& x) {
 
 template<class T, int P>
 CUDA_EXPORT
-tensor_trless_sym<T, P> multipole_translate(tensor_trless_sym<T, P> M1, const array<T, NDIM>& x) {
+tensor_trless_sym<T, P> multipole_translate(const tensor_trless_sym<T, P> M1, const array<T, NDIM>& x) {
 	tensor_sym<T, P> M2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	auto delta_x0 = vector_to_sym_tensor<T, P>(-x);
-	M1 = rotate2x(M1,x[0],x[1],x[2]);
-	const auto delta_x = rotate2x(delta_x0,x[0],x[1],x[2]);
+	auto delta_x = vector_to_sym_tensor<T, P>(-x);
+	//M1 = rotate2x(M1,x[0],x[1],x[2]);
+//	const auto delta_x = rotate2x(delta_x0,x[0],x[1],x[2]);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
@@ -582,7 +582,7 @@ tensor_trless_sym<T, P> multipole_translate(tensor_trless_sym<T, P> M1, const ar
 			}
 		}
 	}
-	return rotate2xinv(M2.detraceD(),x[0],x[1],x[2]);
+	return M2.detraceD();
 }
 
 template<class T, int P>
@@ -611,6 +611,11 @@ tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 	return D;
 }
 
+
+
+#ifndef CODE_GEN_CPP
+#include <cosmictiger/code_gen.hpp>
+
 template<class T, int P, int Q>
 CUDA_EXPORT
 tensor_trless_sym<T, P> interaction(const tensor_trless_sym<T, Q>& M, const tensor_trless_sym<T, Q + 1>& D) {
@@ -637,46 +642,15 @@ tensor_trless_sym<T, P> interaction(const tensor_trless_sym<T, Q>& M, const tens
 	return L;
 }
 
-template<class T, int P, int Q, int R>
-CUDA_EXPORT
-tensor_trless_sym<T, P> direct_interaction(const tensor_trless_sym<T, Q>& M0, const array<T, NDIM> x) {
-	tensor_trless_sym<T, P> L;
-	const auto D0 = direct_greens_function<T, R>(x);
-	array<int, NDIM> n;
-	array<int, NDIM> m;
-	const auto M = rotate2x<T, Q>(M0, x[0], x[1], x[2]);
-	const auto D = rotate2x<T, R>(D0, x[0], x[1], x[2]);
-	for (n[0] = 0; n[0] < P; n[0]++) {
-		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
-			for (n[2] = 0; n[2] < nzmax; n[2]++) {
-				L(n) = T(0);
-				const int n0 = n[0] + n[1] + n[2];
-				const int q0 = intmin(R - n0, Q);
-				for (m[0] = 0; m[0] < q0; m[0]++) {
-					for (m[1] = 0; m[1] < q0 - m[0]; m[1]++) {
-						for (m[2] = 0; m[2] < q0 - m[0] - m[1]; m[2]++) {
-							L(n) += M(m) * D(n + m) / T(vfactorial(m));
-						}
-					}
-				}
-			}
-		}
-	}
-
-	L = rotate2xinv<T, P>(L, x[0], x[1], x[2]);
-	return L;
-}
+#endif
 
 template<class T, int P, int Q = P>
 CUDA_EXPORT
-tensor_trless_sym<T, P> expansion_translate(const tensor_trless_sym<T, Q>& L0, const array<T, NDIM>& x) {
+tensor_trless_sym<T, P> expansion_translate(const tensor_trless_sym<T, Q>& L1, const array<T, NDIM>& x) {
 	tensor_trless_sym<T, P> L2;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	const auto delta_x0 = vector_to_sym_tensor<T, Q>(x);
-	auto delta_x = rotate2x(delta_x0,x[0],x[1],x[2]);
-	const auto L1 = rotate2x(L0,x[0],x[1],x[2]);
+	const auto delta_x = vector_to_sym_tensor<T, Q>(x);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
@@ -707,5 +681,5 @@ tensor_trless_sym<T, P> expansion_translate(const tensor_trless_sym<T, Q>& L0, c
 			}
 		}
 	}
-	return rotate2xinv(L2,x[0],x[1],x[2]);
+	return L2;
 }

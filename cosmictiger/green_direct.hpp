@@ -22,6 +22,6 @@ inline bool any_true(simd_float a) {
 
 template<class T>
 CUDA_EXPORT int green_direct(expansion<T> &D, array<T, NDIM> dX, T rmin = 0.f) {
-	D = direct_greens_function<T, LORDER>(dX);
+	D = direct_greens_function<T>(dX);
 	return 0;
 }
