@@ -115,7 +115,7 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 										num = factorial(m0);
 										den = vfactorial(k);
 										double number = fnm * num / den;
-										if( type == 'd') {
+										if (type == 'd') {
 											number *= 1.0 / dfactorial(2 * n0 - 1);
 										}
 										if ((number < 0 && pass == 0) || (number > 0 && pass == 1)) {
@@ -162,9 +162,7 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 	return flops;
 }
 
-
 #define P ORDER
-
 
 int trless_index(int l, int m, int n, int Q) {
 	return (l + m) * ((l + m) + 1) / 2 + (m) + (Q * (Q + 1) / 2) * (n == 1) + (Q * Q) * (n == 2);
@@ -344,13 +342,23 @@ int interaction_code() {
 	return flops;
 }
 
+
+void reference_sym(std::string name, int Q) {
+	for (int l = 0; l < Q; l++) {
+		for (int m = 0; m < Q - l; m++) {
+			for (int n = 0; n < Q - l - m; n++) {
+				const int index = sym_index(l, m, n);
+				tprint("const T& %s%i%i%i = %s[%i];\n", name.c_str(), l, m, n, name.c_str(), index);
+			}
+		}
+	}
+}
+
 int main() {
 
 	int flops = 0;
 
-
 	tprint("#pragma once\n");
-
 
 	tprint("\n\ntemplate<class T>\n");
 	tprint("CUDA_EXPORT\n");
@@ -429,26 +437,79 @@ int main() {
 	deindent();
 	tprint("}\n");
 
-
-
-
 	tprint("\n\ntemplate<class T>\n");
 	tprint("CUDA_EXPORT\n");
 	tprint("tensor_trless_sym<T, %i> monopole_translate(array<T, NDIM>& X) {\n", P - 1);
 	flops = 0;
 	indent();
 	tprint("tensor_trless_sym<T, %i> M;\n", P - 1);
-	tprint( "X[0] = -X[0];\n");
-	tprint( "X[1] = -X[1];\n");
-	tprint( "X[2] = -X[2];\n");
+	tprint("X[0] = -X[0];\n");
+	tprint("X[1] = -X[1];\n");
+	tprint("X[2] = -X[2];\n");
 	reference_trless("M", P - 1);
 	flops += 3;
-	flops += compute_dx(P-1);
-	flops += compute_detrace<P-1>("x", "M", 'd');
+	flops += compute_dx(P - 1);
+	flops += compute_detrace<P - 1>("x", "M", 'd');
 	tprint("return M;\n");
 	printf("/* FLOPS = %i*/\n", flops);
 	deindent();
 	tprint("}\n");
 
+	tprint("\n\ntemplate<class T>\n");
+	tprint("CUDA_EXPORT\n");
+	tprint("tensor_trless_sym<T, %i> multipole_translate(const tensor_trless_sym<T,%i>& Ma, array<T, NDIM>& X) {\n",
+	P - 1, P - 1);
+	flops = 0;
+	indent();
+	tprint("tensor_sym<T, %i> Mb;\n", P - 1);
+	tprint("tensor_trless_sym<T, %i> Mc;\n", P - 1);
+	tprint("X[0] = -X[0];\n");
+	tprint("X[1] = -X[1];\n");
+	tprint("X[2] = -X[2];\n");
+	flops += const_reference_trless<P - 1>("Ma");
+	reference_sym("Mb", P - 1);
+	reference_trless("Mc", P - 1);
+	flops += compute_dx(P - 1);
+
+	for (n[0] = 0; n[0] < P; n[0]++) {
+		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
+			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
+				const int n0 = n[0] + n[1] + n[2];
+				tprint("Mb[%i] = Ma%i%i%i;\n", trless_index(n[0], n[1], n[2], P - 1), n[0], n[1], n[2]);
+			}
+		}
+	}
+	for (int n0 = P - 1; n0 >= 0; n0--) {
+		for (n[0] = 0; n[0] <= n0; n[0]++) {
+			for (n[1] = 0; n[1] <= n0 - n[0]; n[1]++) {
+				n[2] = n0 - n[0] - n[1];
+				for (k[0] = 0; k[0] <= intmin(n0, n[0]); k[0]++) {
+					for (k[1] = 0; k[1] <= intmin(n0 - k[0], n[1]); k[1]++) {
+						for (k[2] = 0; k[2] <= intmin(n0 - k[0] - k[1], n[2]); k[2]++) {
+							const auto factor = (vfactorial(n)) / double(vfactorial(k) * vfactorial(n - k));
+							if (n != k) {
+								if (close21(factor)) {
+									tprint("Mb[%i] += x%ix%ix%i *  Mb[%i];\n", sym_index(n[0], n[1], n[2]), n[0] - k[0],
+											n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]));
+									flops += 2;
+								} else {
+									tprint("Mb[%i] += fmaf(T(%e) * x%ix%ix%i,  Mb[%i]);\n", sym_index(n[0], n[1], n[2]), factor,
+											n[0] - k[0], n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]));
+									flops += 3;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	flops += compute_detrace<P - 1>("Mb", "Mc", 'd');
+
+	tprint("return Mc;\n");
+	printf("/* FLOPS = %i*/\n", flops);
+	deindent();
+	tprint("}\n");
 
 }

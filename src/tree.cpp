@@ -290,7 +290,7 @@ sort_return tree::sort(sort_params params) {
 				rright += sqr(Xr);
 				pos[dim] = center[dim];
 			}
-			M = multipole_translate<float,MORDER>(MR, xr) + multipole_translate<float,MORDER>(ML, xl);
+			M = multipole_translate<float>(MR, xr) + multipole_translate<float>(ML, xl);
 			rleft = std::sqrt(rleft) + Rc[LEFT];
 			rright = std::sqrt(rright) + Rc[RIGHT];
 			float radius = std::max(rleft, rright);
