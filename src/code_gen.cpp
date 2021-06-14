@@ -73,12 +73,12 @@ int eqn(std::string a, array<int, NDIM> n, std::string c, array<int, NDIM> j) {
 }
 
 int mul(std::string a, array<int, NDIM> n, double b, std::string c, array<int, NDIM> j) {
-	tprint("%s%i%i%i = %e * %s%i%i%i;\n", a.c_str(), n[0], n[1], n[2], b, c.c_str(), j[0], j[1], j[2]);
+	tprint("%s%i%i%i = %.8e * %s%i%i%i;\n", a.c_str(), n[0], n[1], n[2], b, c.c_str(), j[0], j[1], j[2]);
 	return 1;
 }
 
 int fma(std::string a, array<int, NDIM> n, double b, std::string c, array<int, NDIM> j) {
-	tprint("%s%i%i%i = fmaf(%e, %s%i%i%i, %s%i%i%i);\n", a.c_str(), n[0], n[1], n[2], b, c.c_str(), j[0], j[1], j[2],
+	tprint("%s%i%i%i = fmaf(%.8e, %s%i%i%i, %s%i%i%i);\n", a.c_str(), n[0], n[1], n[2], b, c.c_str(), j[0], j[1], j[2],
 			a.c_str(), n[0], n[1], n[2]);
 	return 2;
 }
@@ -471,15 +471,15 @@ int main() {
 	reference_trless("Mc", P - 1);
 	flops += compute_dx(P - 1);
 
-	for (n[0] = 0; n[0] < P; n[0]++) {
-		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
+	for (n[0] = 0; n[0] < P - 1; n[0]++) {
+		for (n[1] = 0; n[1] < P - n[0] - 1; n[1]++) {
+			for (n[2] = 0; n[2] < P - n[0] - n[1] - 1; n[2]++) {
 				const int n0 = n[0] + n[1] + n[2];
-				tprint("Mb[%i] = Ma%i%i%i;\n", trless_index(n[0], n[1], n[2], P - 1), n[0], n[1], n[2]);
+				tprint("Mb[%i] = Ma%i%i%i;\n", sym_index(n[0], n[1], n[2]), n[0], n[1], n[2]);
 			}
 		}
 	}
-	for (int n0 = P - 1; n0 >= 0; n0--) {
+	for (int n0 = P - 2; n0 >= 0; n0--) {
 		for (n[0] = 0; n[0] <= n0; n[0]++) {
 			for (n[1] = 0; n[1] <= n0 - n[0]; n[1]++) {
 				n[2] = n0 - n[0] - n[1];
@@ -489,12 +489,12 @@ int main() {
 							const auto factor = (vfactorial(n)) / double(vfactorial(k) * vfactorial(n - k));
 							if (n != k) {
 								if (close21(factor)) {
-									tprint("Mb[%i] += x%ix%ix%i *  Mb[%i];\n", sym_index(n[0], n[1], n[2]), n[0] - k[0],
-											n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]));
+									tprint("Mb[%i] = fmaf( x%i%i%i, Mb[%i], Mb[%i]);\n", sym_index(n[0], n[1], n[2]), n[0] - k[0],
+											n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]), sym_index(n[0], n[1], n[2]));
 									flops += 2;
 								} else {
-									tprint("Mb[%i] += fmaf(T(%e) * x%ix%ix%i,  Mb[%i]);\n", sym_index(n[0], n[1], n[2]), factor,
-											n[0] - k[0], n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]));
+									tprint("Mb[%i] = fmaf(T(%.8e) * x%i%i%i, Mb[%i], Mb[%i]);\n", sym_index(n[0], n[1], n[2]), factor,
+											n[0] - k[0], n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]), sym_index(n[0], n[1], n[2]));
 									flops += 3;
 								}
 							}
