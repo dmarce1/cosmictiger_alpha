@@ -349,7 +349,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	int interacts = 0;
 	int flops = 0;
 	array<float, NDIM> dx;
-	array<float, NDIM + 1> Lforce;
+	tensor_trless_sym<float,2> Lforce;
 	expansion<float> D;
 	auto& dx0 = dx[0];
 	auto& dx1 = dx[1];
@@ -368,9 +368,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 		}
 		__syncwarp();
 		for (int k = tid; k < nactive; k += warpSize) {
-			for (int i = 0; i < NDIM + 1; i++) {
-				Lforce[i] = 0.f;
-			}
+			Lforce = 0.0;
 			for (int i = 0; i < nsrc; i++) {
 				const auto &source = msrcs[i].pos;
 				dx0 = distance(sinks[0][k], source[0]);
@@ -382,11 +380,11 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 				interacts++;
 			}
 			const int l = act_map[k];
-			F[0][l] -= Lforce[1];
-			F[1][l] -= Lforce[2];
-			F[2][l] -= Lforce[3];
+			F[0][l] -= Lforce(1,0,0);
+			F[1][l] -= Lforce(0,1,0);
+			F[2][l] -= Lforce(0,0,1);
 			if (constant.full_eval) {
-				Phi[l] += Lforce[0];
+				Phi[l] += Lforce(0,0,0);
 			}
 		}
 		__syncwarp();

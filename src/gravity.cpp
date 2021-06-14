@@ -294,11 +294,9 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 		}
 		if (particles->rung(i + parts.first) >= params.rung || params.full_eval) {
 			array<simd_float, NDIM> f;
-			array<simd_float, NDIM + 1> Lacc;
+			tensor_trless_sym<simd_float, 2> Lacc;
+			Lacc = 0.0;
 			const auto cnt1 = multis.size();
-			for (int j = 0; j < NDIM + 1; j++) {
-				Lacc[j] = 0.f;
-			}
 			for (int j = 0; j < cnt1; j += simd_float::size()) {
 				n = 0;
 				for (int k = 0; k < simd_float::size(); k++) {
@@ -329,10 +327,10 @@ void tree::cpu_pc_direct(kick_params_type *params_ptr) {
 				flops += n * green_direct(D, dX);
 				flops += n * multipole_interaction(Lacc, M, D, params.full_eval);
 			}
-			Phi[i] += Lacc[0].sum();                                                                           // * DSCALE;
-			for (int dim = 0; dim < NDIM; dim++) {
-				F[dim][i] -= Lacc[1 + dim].sum();                                                    // * (DSCALE * DSCALE);
-			}
+			Phi[i] += Lacc(0, 0, 0).sum();                                                                     // * DSCALE;
+			F[0][i] -= Lacc(1, 0, 0).sum();                                                    // * (DSCALE * DSCALE);
+			F[1][i] -= Lacc(0, 1, 0).sum();                                                    // * (DSCALE * DSCALE);
+			F[2][i] -= Lacc(0, 0, 1).sum();                                                    // * (DSCALE * DSCALE);
 		}
 	}
 	if (params.full_eval) {

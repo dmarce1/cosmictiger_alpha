@@ -15,19 +15,15 @@
 template<class T>
 CUDA_EXPORT int multipole_interaction(expansion<T> &L, const multipole_type<T> &M, const expansion<T>& D, bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
 	//L = L + interaction<T, LORDER, MORDER>(M, D);
-	direct_interaction<T>(L,M,D);
+	interaction<T>(L,M,D);
 	return 0;
 }
 
 // 516 / 251466
 template<class T>
-CUDA_EXPORT int multipole_interaction(array<T, NDIM + 1> &L, const multipole_type<T> &M, const expansion<T>& D,
+CUDA_EXPORT int multipole_interaction(tensor_trless_sym<T,2> &L, const multipole_type<T> &M, const expansion<T>& D,
 		bool do_phi) { // 517 / 47428
-	const auto L0 = interaction<T, 2, MORDER>(M, D);
-	L[0] += L0(0, 0, 0);
-	L[1] += L0(1, 0, 0);
-	L[2] += L0(0, 1, 0);
-	L[3] += L0(0, 0, 1);
+	interaction<T>(L, M, D);
 	return 0;
 
 }

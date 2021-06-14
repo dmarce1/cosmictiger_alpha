@@ -399,7 +399,7 @@ int main() {
 	tprint("\n\ntemplate<class T>\n");
 	tprint("CUDA_EXPORT\n");
 	tprint(
-			"inline void direct_interaction(tensor_trless_sym<T, %i>& L, const tensor_trless_sym<T, %i>& M, const tensor_trless_sym<T, %i>& D) {\n",
+			"inline void interaction(tensor_trless_sym<T, %i>& L, const tensor_trless_sym<T, %i>& M, const tensor_trless_sym<T, %i>& D) {\n",
 			P, P - 1, P);
 	indent();
 	flops += const_reference_trless<P - 1>("M");
@@ -410,6 +410,47 @@ int main() {
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
+			for (n[2] = 0; n[2] < nzmax; n[2]++) {
+				const int n0 = n[0] + n[1] + n[2];
+				const int q0 = intmin(P - n0, P - 1);
+				for (m[0] = 0; m[0] < q0; m[0]++) {
+					for (m[1] = 0; m[1] < q0 - m[0]; m[1]++) {
+						for (m[2] = 0; m[2] < q0 - m[0] - m[1]; m[2]++) {
+							const double coeff = 1.0 / vfactorial(m);
+							if (close21(coeff)) {
+								tprint("L%i%i%i = fmaf(M%i%i%i, D%i%i%i, L%i%i%i);\n", n[0], n[1], n[2], m[0], m[1], m[2],
+										n[0] + m[0], n[1] + m[1], n[2] + m[2], n[0], n[1], n[2]);
+								flops += 2;
+							} else {
+								flops += 3;
+								tprint("L%i%i%i = fmaf(T(%.8e) * M%i%i%i, D%i%i%i, L%i%i%i);\n", n[0], n[1], n[2], coeff, m[0],
+										m[1], m[2], n[0] + m[0], n[1] + m[1], n[2] + m[2], n[0], n[1], n[2]);
+							}
+							//			L(n) += M(m) * D(n + m);
+						}
+					}
+				}
+			}
+		}
+	}
+	printf("/* FLOPS = %i*/\n", flops);
+	deindent();
+	tprint("}\n");
+
+
+	flops = 0;
+	tprint("\n\ntemplate<class T>\n");
+	tprint("CUDA_EXPORT\n");
+	tprint(
+			"inline void interaction(tensor_trless_sym<T, 2>& L, const tensor_trless_sym<T, %i>& M, const tensor_trless_sym<T, %i>& D) {\n",
+			P - 1, P);
+	indent();
+	flops += const_reference_trless<P - 1>("M");
+	flops += const_reference_trless<P>("D");
+	reference_trless("L", 2);
+	for (n[0] = 0; n[0] < 2; n[0]++) {
+		for (n[1] = 0; n[1] < 2 - n[0]; n[1]++) {
+			const int nzmax = (n[0] == 0 && n[1] == 0) ? 2 : intmin(2 - n[0] - n[1], 2);
 			for (n[2] = 0; n[2] < nzmax; n[2]++) {
 				const int n0 = n[0] + n[1] + n[2];
 				const int q0 = intmin(P - n0, P - 1);
