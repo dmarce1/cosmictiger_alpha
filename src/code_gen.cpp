@@ -342,7 +342,6 @@ int interaction_code() {
 	return flops;
 }
 
-
 void reference_sym(std::string name, int Q) {
 	for (int l = 0; l < Q; l++) {
 		for (int m = 0; m < Q - l; m++) {
@@ -352,6 +351,68 @@ void reference_sym(std::string name, int Q) {
 			}
 		}
 	}
+}
+
+template<int Q>
+void do_expansion() {
+	int flops = 0;
+	tprint("template<class T>\n");
+	tprint("CUDA_EXPORT\n");
+	if( Q == 2 ) {
+		tprint(
+				"tensor_trless_sym<T, %i> expansion_translate2(const tensor_trless_sym<T, %i>& La, const array<T, NDIM>& X) {\n",
+				Q, P);
+	} else {
+		tprint(
+				"tensor_trless_sym<T, %i> expansion_translate(const tensor_trless_sym<T, %i>& La, const array<T, NDIM>& X) {\n",
+				Q, P);
+
+	}
+	indent();
+	tprint("tensor_trless_sym<T, %i> Lb;\n", Q);
+	flops += compute_dx(P);
+	array<int, NDIM> n;
+	array<int, NDIM> k;
+	flops += const_reference_trless<P>("La");
+	tprint("Lb = La;\n");
+	for (int n0 = 0; n0 < Q; n0++) {
+		for (n[0] = 0; n[0] <= n0; n[0]++) {
+			for (n[1] = 0; n[1] <= n0 - n[0]; n[1]++) {
+				n[2] = n0 - n[1] - n[0];
+				if (n[2] <= 1 || (n[0] == 0 && n[1] == 0 && n[2] == 2)) {
+					const int n0 = n[0] + n[1] + n[2];
+					for (k[0] = 0; k[0] < P - n0; k[0]++) {
+						for (k[1] = 0; k[1] < P - n0 - k[0]; k[1]++) {
+							for (k[2] = 0; k[2] < P - n0 - k[0] - k[1]; k[2]++) {
+								const auto factor = double(1) / double(vfactorial(k));
+								const auto p = n + k;
+								const int p0 = p[0] + p[1] + p[2];
+								if (n != p) {
+									if (close21(factor)) {
+										tprint("Lb[%i] = fmaf( x%i%i%i, La%i%i%i, Lb[%i]);\n", trless_index(n[0], n[1], n[2], Q),
+												k[0], k[1],  k[2], p[0], p[1], p[2],
+												trless_index(n[0], n[1], n[2], Q));
+										flops += 2;
+									} else {
+										tprint("Lb[%i] = fmaf(T(%.8e) * x%i%i%i, La%i%i%i, Lb[%i]);\n", trless_index(n[0], n[1], n[2], Q),
+												factor, k[0], k[1],  k[2], p[0], p[1], p[2],
+												trless_index(n[0], n[1], n[2], Q));
+										flops += 3;
+									}
+
+									//			L2(n) += factor * delta_x(k) * L1(p);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	tprint("return Lb;\n");
+	printf("/* FLOPS = %i*/\n", flops);
+	deindent();
+	tprint("}\n");
 }
 
 int main() {
@@ -436,7 +497,6 @@ int main() {
 	printf("/* FLOPS = %i*/\n", flops);
 	deindent();
 	tprint("}\n");
-
 
 	flops = 0;
 	tprint("\n\ntemplate<class T>\n");
@@ -530,12 +590,14 @@ int main() {
 							const auto factor = (vfactorial(n)) / double(vfactorial(k) * vfactorial(n - k));
 							if (n != k) {
 								if (close21(factor)) {
-									tprint("Mb[%i] = fmaf( x%i%i%i, Mb[%i], Mb[%i]);\n", sym_index(n[0], n[1], n[2]), n[0] - k[0],
-											n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]), sym_index(n[0], n[1], n[2]));
+									tprint("Mb[%i] = fmaf( x%i%i%i, Mb[%i], Mb[%i]);\n", sym_index(n[0], n[1], n[2]),
+											n[0] - k[0], n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]),
+											sym_index(n[0], n[1], n[2]));
 									flops += 2;
 								} else {
-									tprint("Mb[%i] = fmaf(T(%.8e) * x%i%i%i, Mb[%i], Mb[%i]);\n", sym_index(n[0], n[1], n[2]), factor,
-											n[0] - k[0], n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]), sym_index(n[0], n[1], n[2]));
+									tprint("Mb[%i] = fmaf(T(%.8e) * x%i%i%i, Mb[%i], Mb[%i]);\n", sym_index(n[0], n[1], n[2]),
+											factor, n[0] - k[0], n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]),
+											sym_index(n[0], n[1], n[2]));
 									flops += 3;
 								}
 							}
@@ -552,5 +614,9 @@ int main() {
 	printf("/* FLOPS = %i*/\n", flops);
 	deindent();
 	tprint("}\n");
+
+	do_expansion<P>();
+
+	do_expansion<2>();
 
 }
