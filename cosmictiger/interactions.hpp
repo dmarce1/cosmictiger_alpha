@@ -14,7 +14,8 @@
 // 986 // 251936
 template<class T>
 CUDA_EXPORT int multipole_interaction(expansion<T> &L, const multipole_type<T> &M, const expansion<T>& D, bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
-	L = L + interaction<T, LORDER, MORDER>(M, D);
+	//L = L + interaction<T, LORDER, MORDER>(M, D);
+	direct_interaction<T>(L,M,D);
 	return 0;
 }
 
