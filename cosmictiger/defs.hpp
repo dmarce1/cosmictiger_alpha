@@ -13,7 +13,7 @@
 
 #define PERIODIC_OFF
 
-#define ORDER 6
+#define ORDER 5
 #define LORDER ORDER
 #define MORDER (LORDER-1)
 

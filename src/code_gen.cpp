@@ -88,7 +88,7 @@ bool close21(double a) {
 }
 
 template<int P>
-int compute_detraceF(std::string iname, std::string oname) {
+int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 	array<int, NDIM> m;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
@@ -115,6 +115,9 @@ int compute_detraceF(std::string iname, std::string oname) {
 										num = factorial(m0);
 										den = vfactorial(k);
 										double number = fnm * num / den;
+										if( type == 'd') {
+											number *= 1.0 / dfactorial(2 * n0 - 1);
+										}
 										if ((number < 0 && pass == 0) || (number > 0 && pass == 1)) {
 											number = std::abs(number);
 											if (first_use(n)) {
@@ -159,10 +162,12 @@ int compute_detraceF(std::string iname, std::string oname) {
 	return flops;
 }
 
+
 #define P ORDER
 
-int trless_index(int l, int m, int n) {
-	return (l + m) * ((l + m) + 1) / 2 + (m) + (P * (P + 1) / 2) * (n == 1) + (P * P) * (n == 2);
+
+int trless_index(int l, int m, int n, int Q) {
+	return (l + m) * ((l + m) + 1) / 2 + (m) + (Q * (Q + 1) / 2) * (n == 1) + (Q * Q) * (n == 2);
 }
 
 int sym_index(int l, int m, int n) {
@@ -285,14 +290,14 @@ int const_reference_trless(std::string name) {
 	return flops;
 }
 
-void reference_trless(std::string name) {
-	for (int l = 0; l < P; l++) {
-		for (int m = 0; m < P - l; m++) {
-			for (int n = 0; n < P - l - m; n++) {
+void reference_trless(std::string name, int Q) {
+	for (int l = 0; l < Q; l++) {
+		for (int m = 0; m < Q - l; m++) {
+			for (int n = 0; n < Q - l - m; n++) {
 				if (n > 1 && !(l == 0 && m == 0 && n == 2)) {
 					continue;
 				}
-				const int index = trless_index(l, m, n);
+				const int index = trless_index(l, m, n, Q);
 				tprint("T& %s%i%i%i = %s[%i];\n", name.c_str(), l, m, n, name.c_str(), index);
 			}
 		}
@@ -346,6 +351,7 @@ int main() {
 
 	tprint("#pragma once\n");
 
+
 	tprint("\n\ntemplate<class T>\n");
 	tprint("CUDA_EXPORT\n");
 	tprint("inline tensor_trless_sym<T, %i> direct_greens_function(const array<T, NDIM> X) {\n", P);
@@ -353,8 +359,8 @@ int main() {
 	indent();
 	tprint("tensor_trless_sym<T, %i> D;\n", P);
 	flops += compute_dx(P);
-	reference_trless("D");
-	flops += compute_detraceF<P>("x", "D");
+	reference_trless("D", P);
+	flops += compute_detrace<P>("x", "D");
 	tprint("array<T, %i> rinv_pow;\n", P);
 	tprint("const auto r2 = sqr(X[0], X[1], X[2]);\n");
 	tprint("const auto r = sqrt(r2);\n");
@@ -390,7 +396,7 @@ int main() {
 	indent();
 	flops += const_reference_trless<P - 1>("M");
 	flops += const_reference_trless<P>("D");
-	reference_trless("L");
+	reference_trless("L", P);
 	array<int, NDIM> n;
 	array<int, NDIM> m;
 	for (n[0] = 0; n[0] < P; n[0]++) {
@@ -422,5 +428,27 @@ int main() {
 	printf("/* FLOPS = %i*/\n", flops);
 	deindent();
 	tprint("}\n");
+
+
+
+
+	tprint("\n\ntemplate<class T>\n");
+	tprint("CUDA_EXPORT\n");
+	tprint("tensor_trless_sym<T, %i> monopole_translate(array<T, NDIM>& X) {\n", P - 1);
+	flops = 0;
+	indent();
+	tprint("tensor_trless_sym<T, %i> M;\n", P - 1);
+	tprint( "X[0] = -X[0];\n");
+	tprint( "X[1] = -X[1];\n");
+	tprint( "X[2] = -X[2];\n");
+	reference_trless("M", P - 1);
+	flops += 3;
+	flops += compute_dx(P-1);
+	flops += compute_detrace<P-1>("x", "M", 'd');
+	tprint("return M;\n");
+	printf("/* FLOPS = %i*/\n", flops);
+	deindent();
+	tprint("}\n");
+
 
 }

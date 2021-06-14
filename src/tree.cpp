@@ -350,7 +350,7 @@ sort_return tree::sort(sort_params params) {
 					X[dim] = particles->pos(dim, i).to_double() - center[dim];
 					this_radius += X[dim] * X[dim];
 				}
-				M = M + monopole_translate<float,MORDER>(X);
+				M = M + monopole_translate<float>(X);
 				this_radius = std::sqrt(this_radius);
 				radius = std::max(radius, (float) (this_radius));
 			}
