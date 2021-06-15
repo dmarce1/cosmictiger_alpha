@@ -8,9 +8,12 @@
 #ifndef COSMICTIGER_INTERACTIONS_HPP_
 #define COSMICTIGER_INTERACTIONS_HPP_
 
+#include <cosmictiger/expansion.hpp>
+#include <cosmictiger/ewald_indices.hpp>
 #include <cosmictiger/simd.hpp>
 #include <cosmictiger/green_direct.hpp>
 #include <cosmictiger/green_ewald.hpp>
+#include <cosmictiger/code_gen.hpp>
 // 986 // 251936
 template<class T>
 CUDA_EXPORT int multipole_interaction(expansion<T> &L, const multipole_type<T> &M, const expansion<T>& D, bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
@@ -19,6 +22,7 @@ CUDA_EXPORT int multipole_interaction(expansion<T> &L, const multipole_type<T> &
 	return 0;
 }
 
+#if( LORDER != 2)
 // 516 / 251466
 template<class T>
 CUDA_EXPORT int multipole_interaction(tensor_trless_sym<T,2> &L, const multipole_type<T> &M, const expansion<T>& D,
@@ -27,6 +31,7 @@ CUDA_EXPORT int multipole_interaction(tensor_trless_sym<T,2> &L, const multipole
 	return 0;
 
 }
+#endif
 
 template<class T>
 CUDA_EXPORT int multipole_interaction(expansion<T> &L, const expansion<T>& D) { // 390 / 47301

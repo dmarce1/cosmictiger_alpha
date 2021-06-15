@@ -17,6 +17,8 @@ inline bool anytrue(float b) {
 
 template<class T>
 CUDA_EXPORT int green_ewald(expansion<T> &D, array<T, NDIM> X) {
+	ewald_greens_function(D, X);
+	return 0;
 	ewald_const econst;
 	T r = SQRT(FMA(X[0], X[0], FMA(X[1], X[1], sqr(X[2]))));                   // 5
 	const T fouroversqrtpi = T(4.0 / sqrt(M_PI));

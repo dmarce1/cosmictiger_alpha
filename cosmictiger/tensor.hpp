@@ -614,7 +614,6 @@ tensor_trless_sym<T, P> direct_greens_function(const array<T, NDIM> x) {
 
 
 #ifndef CODE_GEN_CPP
-#include <cosmictiger/code_gen.hpp>
 
 template<class T, int P, int Q>
 CUDA_EXPORT
