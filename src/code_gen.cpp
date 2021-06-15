@@ -95,7 +95,7 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 	tensor_sym<int, P> first_use;
 	first_use = 1;
 	int flops = 0;
-	for (int pass = 0; pass < 2; pass++) {
+	for (int pass = 0; pass < 3; pass++) {
 		for (n[0] = 0; n[0] < P; n[0]++) {
 			for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 				const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
@@ -113,7 +113,6 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 								const double fnm = num / den;
 								for (k[0] = 0; k[0] <= m0; k[0]++) {
 									for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
-
 										k[2] = m0 - k[0] - k[1];
 										const auto p = n - (m) * 2 + (k) * 2;
 										num = factorial(m0);
@@ -564,15 +563,21 @@ int main() {
 
 	tprint("\n\ntemplate<class T>\n");
 	tprint("CUDA_EXPORT\n");
-	tprint("inline tensor_trless_sym<T, %i> direct_greens_function(const array<T, NDIM> X) {\n", P);
+	tprint("inline tensor_trless_sym<T, %i> direct_greens_function(array<T, NDIM> X) {\n", P);
 	flops = 0;
 	indent();
+	tprint("auto r2 = sqr(X[0], X[1], X[2]);\n");
+	tprint("const auto scale = max(sqrt(sqrt(r2)),1e-8);\n");
+	tprint("X[0] *= scale;\n");
+	tprint("X[1] *= scale;\n");
+	tprint("X[2] *= scale;\n");
+	flops += 12;
 	tprint("tensor_trless_sym<T, %i> D;\n", P);
 	flops += compute_dx(P);
 	reference_trless("D", P);
 	flops += compute_detrace<P>("x", "D");
 	tprint("array<T, %i> rinv_pow;\n", P);
-	tprint("const auto r2 = sqr(X[0], X[1], X[2]);\n");
+	tprint("r2 = sqr(X[0], X[1], X[2]);\n");
 	tprint("const auto r = sqrt(r2);\n");
 	tprint("const auto rinv = (r > T(0)) / max(r, 1e-20);\n");
 	tprint("const auto rinv2 = rinv * rinv;\n");
@@ -582,12 +587,21 @@ int main() {
 	tprint("}\n");
 	flops += 11 + (P - 1) * 2;
 	array<int, NDIM> k;
+	tprint("auto scale0 = scale;\n");
+	for (int l = 1; l < P; l++) {
+		tprint("auto scale%i = scale%i * scale;\n", l, l - 1);
+	}
+	flops += P - 1;
+	for (int l = 0; l < P; l++) {
+		tprint("scale%i *= rinv_pow[%i];\n", l, l);
+	}
+	flops += P;
 	for (k[0] = 0; k[0] < P; k[0]++) {
 		for (k[1] = 0; k[1] < P - k[0]; k[1]++) {
 			const int zmax = (k[0] == 0 && k[1] == 0) ? intmin(3, P) : intmin(P - k[0] - k[1], 2);
 			for (k[2] = 0; k[2] < zmax; k[2]++) {
 				const int k0 = k[0] + k[1] + k[2];
-				tprint("D%i%i%i *= rinv_pow[%i];\n", k[0], k[1], k[2], k0);
+				tprint("D%i%i%i *= scale%i;\n", k[0], k[1], k[2], k0);
 				flops++;
 			}
 		}

@@ -95,9 +95,9 @@ bool process_options(int argc, char *argv[], options &opts) {
 	}
 	opts.omega_m = opts.omega_b + opts.omega_c;
 	// pkdgrav3 run dims
-//	opts.code_to_cm = 7.108e26 * opts.parts_dim / 1024.0 / opts.hubble;
+	opts.code_to_cm = 7.108e26 * opts.parts_dim / 1024.0 / opts.hubble;
 	// millenial run dims
-	opts.code_to_cm = 1.8921460945e+27 * opts.parts_dim / 2160.0 / opts.hubble;
+	//opts.code_to_cm = 1.8921460945e+27 * opts.parts_dim / 2160.0 / opts.hubble;
 	//opts.code_to_cm = constants::mpc_to_cm * 1000.0;
 
 	const auto Gcgs = constants::G;
