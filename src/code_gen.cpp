@@ -423,7 +423,7 @@ void ewald() {
 	indent();
 	tprint("ewald_const econst;\n");
 	tprint("T r = SQRT(FMA(X[0], X[0], FMA(X[1], X[1], sqr(X[2]))));\n");
-	tprint("const T fouroversqrtpi = T(4.0 / sqrt(M_PI));\n");
+	tprint("const T fouroversqrtpi = T(4.0 / SQRT(M_PI));\n");
 	tprint("tensor_sym<T, %i> Dreal;\n", P);
 	tprint("tensor_trless_sym<T,%i> Dfour;\n", P);
 	tprint("Dreal = 0.0f;\n");
@@ -567,7 +567,7 @@ int main() {
 	flops = 0;
 	indent();
 	tprint("auto r2 = sqr(X[0], X[1], X[2]);\n");
-	tprint("const auto scale = max(sqrt(sqrt(r2)),1e-8);\n");
+	tprint("const T scale = max(SQRT(SQRT(r2)),T(1e-8));\n");
 	tprint("X[0] *= scale;\n");
 	tprint("X[1] *= scale;\n");
 	tprint("X[2] *= scale;\n");
@@ -578,18 +578,18 @@ int main() {
 	flops += compute_detrace<P>("x", "D");
 	tprint("array<T, %i> rinv_pow;\n", P);
 	tprint("r2 = sqr(X[0], X[1], X[2]);\n");
-	tprint("const auto r = sqrt(r2);\n");
-	tprint("const auto rinv = (r > T(0)) / max(r, 1e-20);\n");
-	tprint("const auto rinv2 = rinv * rinv;\n");
+	tprint("const T r = SQRT(r2);\n");
+	tprint("const T rinv = (r > T(0)) / max(r, T(1e-20));\n");
+	tprint("const T rinv2 = rinv * rinv;\n");
 	tprint("rinv_pow[0] = -rinv;\n");
 	tprint("for (int i = 1; i < %i; i++) {\n", P);
 	tprint("\trinv_pow[i] = -rinv2 * rinv_pow[i - 1];\n");
 	tprint("}\n");
 	flops += 11 + (P - 1) * 2;
 	array<int, NDIM> k;
-	tprint("auto scale0 = scale;\n");
+	tprint("T scale0 = scale;\n");
 	for (int l = 1; l < P; l++) {
-		tprint("auto scale%i = scale%i * scale;\n", l, l - 1);
+		tprint("T scale%i = scale%i * scale;\n", l, l - 1);
 	}
 	flops += P - 1;
 	for (int l = 0; l < P; l++) {
