@@ -49,18 +49,10 @@ void _2lpt_kernel(cmplx* Y, int xbegin, const interp_functor<float> den_k, int N
 	const int bsz = blockDim.x;
 	const float factor = powf(box_size, -1.5);
 	int i = xbegin + bid;
-	int i0;
-	bool invert;
-	if (i < N / 2) {
-		i0 = i;
-		invert = false;
-	} else {
-		i0 = i - N;
-		invert = true;
-	}
-	const unsigned sequence = abs(i0) * bsz + tid;
+	const unsigned sequence = abs(i) * bsz + tid;
 	curandState_t rand;
-	curand_init(42, sequence, 0, &rand);
+	curand_init(1234, sequence, 0, &rand);
+	int i0 = i < N / 2 ? i : i - N;
 	float kx = 2.f * (float) M_PI / box_size * float(i0);
 	for (int j = tid; j < N; j += bsz) {
 		int j0 = j < N / 2 ? j : j - N;
@@ -69,11 +61,7 @@ void _2lpt_kernel(cmplx* Y, int xbegin, const interp_functor<float> den_k, int N
 			int l0 = l < N / 2 ? l : l - N;
 			int i2 = i0 * i0 + j0 * j0 + l0 * l0;
 			int index0;
-			if (invert) {
-				index0 = N * (N * (i - xbegin) + ((N - j) % N)) + ((N - l) % N);
-			} else {
-				index0 = N * (N * (i - xbegin) + j) + l;
-			}
+			index0 = N * (N * (i - xbegin) + j) + l;
 			if (i2 > 0 && i2 < N * N / 4) {
 				float kz = 2.f * (float) M_PI / box_size * float(l0);
 				float k2 = kx * kx + ky * ky + kz * kz;
@@ -85,19 +73,6 @@ void _2lpt_kernel(cmplx* Y, int xbegin, const interp_functor<float> den_k, int N
 				Y[index0] = spec * sqrtf(-logf(fabsf(x))) * expc(cmplx(0, 1) * 2.f * float(M_PI) * y);
 			} else {
 				Y[index0].real() = Y[index0].imag() = 0.0;
-			}
-			if (invert) {
-				Y[index0] = -Y[index0].conj();
-			}
-		}
-	}
-	__syncthreads();
-	if (i == 0) {
-		for (int j = tid; j < N; j += bsz) {
-			for (int l = 0; l < N; l++) {
-				int index0 = N * (N * (i - xbegin) + ((N - j) % N)) + ((N - l) % N);
-				int index1 = N * (N * (i - xbegin) + j) + l;
-				Y[index0] = -Y[index1].conj();
 			}
 		}
 	}
