@@ -349,7 +349,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	int interacts = 0;
 	int flops = 0;
 	array<float, NDIM> dx;
-	tensor_trless_sym<float,2> Lforce;
+	tensor_trless_sym<float, 2> Lforce;
 	expansion<float> D;
 	auto& dx0 = dx[0];
 	auto& dx1 = dx[1];
@@ -380,11 +380,12 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 				interacts++;
 			}
 			const int l = act_map[k];
-			F[0][l] -= Lforce(1,0,0);
-			F[1][l] -= Lforce(0,1,0);
-			F[2][l] -= Lforce(0,0,1);
+			NAN_TEST(Lforce(0,0,0)); NAN_TEST(Lforce(1,0,0)); NAN_TEST(Lforce(0,1,0)); NAN_TEST(Lforce(0,0,1));
+			F[0][l] -= Lforce(1, 0, 0);
+			F[1][l] -= Lforce(0, 1, 0);
+			F[2][l] -= Lforce(0, 0, 1);
 			if (constant.full_eval) {
-				Phi[l] += Lforce(0,0,0);
+				Phi[l] += Lforce(0, 0, 0);
 			}
 		}
 		__syncwarp();

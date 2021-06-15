@@ -10,8 +10,9 @@ HPX_PLAIN_ACTION (drift);
 
 int drift_particles(particle_set parts, double dt, double a0, double* ekin, double* momx, double* momy, double* momz,
 		double tau, double tau_max) {
+	//PRINT( "Drifting\n");
 	*ekin = *momx = *momy = *momz = 0.0;
-	const int gsz = 2 * hpx::thread::hardware_concurrency();
+	const int gsz = hpx::thread::hardware_concurrency();
 	static mutex_type mtx;
 	std::vector<hpx::future<void>> futs;
 	static std::atomic<int> rc(0);
@@ -66,24 +67,30 @@ int drift_particles(particle_set parts, double dt, double a0, double* ekin, doub
 				if( map ) {
 					myrc +=map_add_part(x0, x1, tau, dt,dtinv, tau_max, map_ws);
 				}
-				while (x >= 1.0) {
+				if (x >= 1.0) {
 					x -= 1.0;
 				}
-				while (y >= 1.0) {
+				assert( x < 1.0);
+				if (y >= 1.0) {
 					y -= 1.0;
 				}
-				while (z >= 1.0) {
+				assert( y < 1.0);
+				if(z >= 1.0) {
 					z -= 1.0;
 				}
-				while (x < 0.0) {
+				assert( z < 1.0);
+				if (x < 0.0) {
 					x += 1.0;
 				}
-				while (y < 0.0) {
+				assert( x >= 0.0);
+				if (y < 0.0) {
 					y += 1.0;
 				}
-				while (z < 0.0) {
+				assert( y >= 0.0);
+				if (z < 0.0) {
 					z += 1.0;
 				}
+				assert( z >= 0.0);
 				parts.pos(0, i) = x;
 				parts.pos(1, i) = y;
 				parts.pos(2, i) = z;
@@ -95,10 +102,12 @@ int drift_particles(particle_set parts, double dt, double a0, double* ekin, doub
 			*momy += mymomy;
 			*momz += mymomz;
 			rc += myrc;
-		};
+			};
 		futs.push_back(hpx::async(func));
 	}
+//	PRINT( "Waiting\n");
 	hpx::wait_all(futs.begin(), futs.end());
+//	PRINT( "Done drifting\n");
 	return int(rc);
 }
 

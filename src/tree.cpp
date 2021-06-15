@@ -268,19 +268,19 @@ sort_return tree::sort(sort_params params) {
 			double rright = 0.0;
 			array<fixed32, NDIM> pos;
 			array<float, NDIM> xl, xr;
-			array<double,NDIM> norm;
-			for( int dim = 0; dim < NDIM; dim++) {
+			array<double, NDIM> norm;
+			for (int dim = 0; dim < NDIM; dim++) {
 				norm[dim] = Xc[LEFT][dim].to_double() - Xc[RIGHT][dim].to_double();
 			}
 			const double n2 = sqr(norm[0], norm[1], norm[2]);
 			const double ninv = 1.0 / std::sqrt(n2);
-			for( int dim = 0; dim < NDIM; dim++) {
+			for (int dim = 0; dim < NDIM; dim++) {
 				norm[dim] *= ninv;
 			}
 			for (int dim = 0; dim < NDIM; dim++) {
 				auto Xl = Xc[LEFT][dim].to_double();
 				auto Xr = Xc[RIGHT][dim].to_double();
-				center[dim] = (Xl + Rc[LEFT] * norm[dim] + Xr - Rc[RIGHT] * norm[dim])*0.5;
+				center[dim] = (Xl + Rc[LEFT] * norm[dim] + Xr - Rc[RIGHT] * norm[dim]) * 0.5;
 				//				center[dim] = (ml * Xl + mr * Xr) / m;
 				Xl -= center[dim];
 				Xr -= center[dim];
@@ -319,8 +319,8 @@ sort_return tree::sort(sort_params params) {
 		if (!params.group_sort) {
 			std::array<double, NDIM> center = { 0, 0, 0 };
 			array<fixed32, NDIM> pos;
-			std::array<double,NDIM> maxes = {0,0,0};
-			std::array<double,NDIM> mins = {1,1,1};
+			std::array<double, NDIM> maxes = { 0, 0, 0 };
+			std::array<double, NDIM> mins = { 1, 1, 1 };
 			if (parts.second - parts.first != 0) {
 				for (auto i = parts.first; i < parts.second; i++) {
 					for (int dim = 0; dim < NDIM; dim++) {
@@ -339,20 +339,36 @@ sort_return tree::sort(sort_params params) {
 					pos[dim] = center[dim];
 				}
 			}
-			multipole M;
-			M = 0.0;
+			multipole_type<simd_float> Msimd;
+			Msimd = 0.0;
 			float radius = 0.0;
 			tensor_trless_sym<float, 1> point;
-			for (auto i = parts.first; i < parts.second; i++) {
-				double this_radius = 0.0;
-				array<float, NDIM> X;
-				for (int dim = 0; dim < NDIM; dim++) {
-					X[dim] = particles->pos(dim, i).to_double() - center[dim];
-					this_radius += X[dim] * X[dim];
+			for (auto i = parts.first; i < parts.second; i += simd_float::size()) {
+				array<simd_float, NDIM> X;
+				const auto jmax = std::min((unsigned) (i + simd_float::size()), (unsigned) parts.second);
+				for (int j = i; j < jmax; j++) {
+					double this_radius = 0.0;
+					for (int dim = 0; dim < NDIM; dim++) {
+						const auto jmi = j - i;
+						X[dim][jmi] = particles->pos(dim, j).to_double() - center[dim];
+						this_radius += X[dim][jmi] * X[dim][jmi];
+					}
+					this_radius = std::sqrt(this_radius);
+					radius = std::max(radius, (float) (this_radius));
 				}
-				M = M + monopole_translate<float>(X);
-				this_radius = std::sqrt(this_radius);
-				radius = std::max(radius, (float) (this_radius));
+				for (int j = jmax; j < i + simd_float::size(); j++) {
+					const auto jmi = j - i;
+					X[0][jmi] = X[1][jmi] = X[2][jmi] = 0.0;
+				}
+				auto Mtmp = monopole_translate<simd_float>(X);
+				for (int j = jmax; j < i + simd_float::size(); j++) {
+					Mtmp(0, 0, 0)[j - i] = 0.0f;
+				}
+				Msimd = Msimd + Mtmp;
+			}
+			multipole M;
+			for (int i = 0; i < MP; i++) {
+				M[i] = Msimd[i].sum();
 			}
 			rc.active_parts = 0;
 			rc.active_nodes = 0;

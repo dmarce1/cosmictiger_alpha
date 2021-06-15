@@ -567,12 +567,13 @@ int main() {
 	flops = 0;
 	indent();
 	tprint("auto r2 = sqr(X[0], X[1], X[2]);\n");
-//	tprint("const T scale = max(SQRT(SQRT(r2)),T(1e-8));\n");
-	tprint("const T scale = 1.0e-4;\n");
+//	tprint("const T scale = T(1) / max(SQRT(SQRT(r2)),T(1e-4));\n");
+//	tprint("const T sw = (r2 < T(25e-8));\n");
+	tprint("constexpr float scale = 837.0f;\n", 38.0 / (2*LORDER-1));
 	tprint("X[0] *= scale;\n");
 	tprint("X[1] *= scale;\n");
 	tprint("X[2] *= scale;\n");
-	flops += 12;
+	flops += 13;
 	tprint("tensor_trless_sym<T, %i> D;\n", P);
 	flops += compute_dx(P);
 	reference_trless("D", P);
@@ -584,17 +585,19 @@ int main() {
 	tprint("const T rinv2 = rinv * rinv;\n");
 	tprint("rinv_pow[0] = -rinv;\n");
 	tprint("for (int i = 1; i < %i; i++) {\n", P);
-	tprint("\trinv_pow[i] = -rinv2 * rinv_pow[i - 1];\n");
+	indent();
+	tprint("rinv_pow[i] = -rinv2 * rinv_pow[i - 1];\n");
+	tprint("NAN_TEST(rinv_pow[i]);\n");
+	deindent();
 	tprint("}\n");
 	flops += 11 + (P - 1) * 2;
 	array<int, NDIM> k;
-	tprint("T scale0 = scale;\n");
+	tprint("constexpr float scale0 = scale;\n");
 	for (int l = 1; l < P; l++) {
-		tprint("T scale%i = scale%i * scale;\n", l, l - 1);
+		tprint("constexpr float scale%i = scale%i * scale;\n", l, l - 1);
 	}
-	flops += P - 1;
 	for (int l = 0; l < P; l++) {
-		tprint("scale%i *= rinv_pow[%i];\n", l, l);
+		tprint("rinv_pow[%i] *= scale%i;\n", l, l);
 	}
 	flops += P;
 	for (k[0] = 0; k[0] < P; k[0]++) {
@@ -602,7 +605,7 @@ int main() {
 			const int zmax = (k[0] == 0 && k[1] == 0) ? intmin(3, P) : intmin(P - k[0] - k[1], 2);
 			for (k[2] = 0; k[2] < zmax; k[2]++) {
 				const int k0 = k[0] + k[1] + k[2];
-				tprint("D%i%i%i *= scale%i;\n", k[0], k[1], k[2], k0);
+				tprint("D%i%i%i *= rinv_pow[%i];\n", k[0], k[1], k[2], k0);
 				flops++;
 			}
 		}
