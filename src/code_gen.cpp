@@ -52,6 +52,48 @@ int compute_dx(int P, const char* name = "X") {
 	return flops;
 }
 
+int trless_index(int l, int m, int n, int Q) {
+	return (l + m) * ((l + m) + 1) / 2 + (m) + (Q * (Q + 1) / 2) * (n == 1) + (Q * Q) * (n == 2);
+}
+
+int sym_index(int l, int m, int n) {
+	return (l + m + n) * (l + m + n + 1) * ((l + m + n) + 2) / 6 + (m + n) * ((m + n) + 1) / 2 + n;
+}
+
+int compute_dx_tensor(int P, const char* name = "X") {
+	array<int, NDIM> n;
+	tprint("tensor_sym<T,%i> dx;\n", P);
+	tprint("dx[0] = T(1);\n");
+	tprint("dx[%i] = %s[0];\n", sym_index(1, 0, 0), name);
+	tprint("dx[%i] = %s[1];\n", sym_index(0, 1, 0), name);
+	tprint("dx[%i] = %s[2];\n", sym_index(0, 0, 1), name);
+	int flops = 0;
+	for (int n0 = 2; n0 < P; n0++) {
+		for (n[0] = 0; n[0] <= n0; n[0]++) {
+			for (n[1] = 0; n[1] <= n0 - n[0]; n[1]++) {
+				n[2] = n0 - n[0] - n[1];
+				array<int, NDIM> j = n;
+				int j0 = n0;
+				const int jmin = std::max(1, n0 / 2);
+				while (j0 > jmin) {
+					for (int dim = 0; dim < NDIM && j0 > jmin; dim++) {
+						if (j[dim] > 0) {
+							j[dim]--;
+							j0--;
+						}
+					}
+				}
+				array<int, NDIM> k;
+				k = n - j;
+				tprint("dx[%i]= dx[%i] * dx[%i];\n", sym_index(n[0], n[1], n[2]), sym_index(k[0], k[1], k[2]),
+						sym_index(j[0], j[1], j[2]));
+				flops++;
+			}
+		}
+	}
+	return flops;
+}
+
 int acc(std::string a, array<int, NDIM> n, std::string c, array<int, NDIM> j) {
 	tprint("%s%i%i%i += %s%i%i%i;\n", a.c_str(), n[0], n[1], n[2], c.c_str(), j[0], j[1], j[2]);
 	return 1;
@@ -166,15 +208,6 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 }
 
 #define P ORDER
-
-int trless_index(int l, int m, int n, int Q) {
-	return (l + m) * ((l + m) + 1) / 2 + (m) + (Q * (Q + 1) / 2) * (n == 1) + (Q * Q) * (n == 2);
-}
-
-int sym_index(int l, int m, int n) {
-	return (l + m + n) * (l + m + n + 1) * ((l + m + n) + 2) / 6 + (m + n) * ((m + n) + 1) / 2 + n;
-}
-
 template<int Q>
 void const_ref_compute(int sign, tensor_trless_sym<int, Q>& counts, tensor_trless_sym<int, Q>& signs,
 		array<int, NDIM> n) {
@@ -273,6 +306,32 @@ int const_reference_trless(std::string name) {
 				} else {
 					tprint("const T %s%i%i%i = ", name.c_str(), n[0], n[1], n[2]);
 				}
+				tensor_trless_sym<int, Q> counts;
+				tensor_trless_sym<int, Q> signs;
+				counts = 0;
+				signs = 1;
+				const_ref_compute(+1, counts, signs, n);
+				std::string cmd;
+				flops += print_const_ref(name, cmd, counts, signs, n);
+				if (cmd[0] == '+') {
+					flops--;
+					cmd[0] = ' ';
+				}
+				printf("%s;\n", cmd.c_str());
+			}
+		}
+	}
+	return flops;
+}
+
+template<int Q>
+int const_reference_trless_tensor(std::string name, std::string oname) {
+	array<int, NDIM> n;
+	int flops = 0;
+	for (n[0] = 0; n[0] < Q; n[0]++) {
+		for (n[1] = 0; n[1] < Q - n[0]; n[1]++) {
+			for (n[2] = 0; n[2] < Q - n[0] - n[1]; n[2]++) {
+				tprint("%s[%i] = ", oname.c_str(), sym_index(n[0], n[1], n[2]));
 				tensor_trless_sym<int, Q> counts;
 				tensor_trless_sym<int, Q> signs;
 				counts = 0;
@@ -417,6 +476,120 @@ void do_expansion(bool two) {
 	tprint("}\n");
 }
 
+template<int Q>
+void do_expansion_cuda() {
+	int flops = 0;
+	tprint("#ifdef __CUDA_ARCH__\n");
+	tprint("template<class T>\n");
+	tprint("__device__\n");
+	tprint(
+			"tensor_trless_sym<T, %i> expansion_translate_cuda(const tensor_trless_sym<T, %i>& La, const array<T, NDIM>& X) {\n",
+			Q, P);
+
+	indent();
+	tprint("const int tid = threadIdx.x;\n");
+	tprint("tensor_trless_sym<T, %i> Lb;\n", Q);
+	tprint("tensor_sym<T, %i> Lc;\n", Q);
+	tprint("Lb = 0.0f;\n");
+	tprint("for( int i = tid; i < LP; i += KICK_BLOCK_SIZE ) {\n");
+	indent();
+	tprint("Lb[i] = La[i];\n");
+	deindent();
+	tprint("}\n");
+	flops += compute_dx_tensor(P);
+	array<int, NDIM> n;
+	array<int, NDIM> k;
+	flops += const_reference_trless_tensor<P>("La", "Lc");
+	struct entry {
+		int Lsource;
+		int Ldest;
+		int xsource;
+		float factor;
+	};
+	std::vector<entry> entries;
+	for (int n0 = 0; n0 < Q; n0++) {
+		for (n[0] = 0; n[0] <= n0; n[0]++) {
+			for (n[1] = 0; n[1] <= n0 - n[0]; n[1]++) {
+				n[2] = n0 - n[1] - n[0];
+				if (n[2] <= 1 || (n[0] == 0 && n[1] == 0 && n[2] == 2)) {
+					const int n0 = n[0] + n[1] + n[2];
+					for (k[0] = 0; k[0] < P - n0; k[0]++) {
+						for (k[1] = 0; k[1] < P - n0 - k[0]; k[1]++) {
+							for (k[2] = 0; k[2] < P - n0 - k[0] - k[1]; k[2]++) {
+								const auto factor = double(1) / double(vfactorial(k));
+								const auto p = n + k;
+								const int p0 = p[0] + p[1] + p[2];
+								if (n != p) {
+									entry e;
+									e.Ldest = trless_index(n[0], n[1], n[2], P);
+									e.xsource = sym_index(k[0], k[1], k[2]);
+									e.Lsource = sym_index(p[0], p[1], p[2]);
+									e.factor = factor;
+									entries.push_back(e);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	tprint("constexpr int Ldest[%i] = { ", entries.size());
+	for (int i = 0; i < entries.size(); i++) {
+		printf("%i", entries[i].Ldest);
+		if (i != entries.size() - 1) {
+			printf(",");
+		}
+	}
+	printf("};\n");
+	tprint("constexpr float factor[%i] = { ", entries.size());
+	for (int i = 0; i < entries.size(); i++) {
+		printf("%.8e", entries[i].factor);
+		if (i != entries.size() - 1) {
+			printf(",");
+		}
+	}
+	printf("};\n");
+	tprint("constexpr int xsrc[%i] = { ", entries.size());
+	for (int i = 0; i < entries.size(); i++) {
+		printf("%i", entries[i].xsource);
+		if (i != entries.size() - 1) {
+			printf(",");
+		}
+	}
+	printf("};\n");
+	tprint("constexpr int Lsrc[%i] = { ", entries.size());
+	for (int i = 0; i < entries.size(); i++) {
+		printf("%i", entries[i].Lsource);
+		if (i != entries.size() - 1) {
+			printf(",");
+		}
+	}
+	flops += 4 * entries.size();
+	printf("};\n");
+	tprint("for( int i = tid; i < %i; i+=KICK_BLOCK_SIZE) {\n", entries.size());
+	indent();
+	tprint("Lb[Ldest[i]] = fmaf(factor[i] * dx[xsrc[i]], Lc[Lsrc[i]], Lb[Ldest[i]]);\n");
+	deindent();
+	printf("}\n");
+
+	tprint("for (int P = warpSize / 2; P >= 1; P /= 2) {\n");
+	indent();
+	tprint("for (int i = 0; i < LP; i++) {\n");
+	indent();
+	tprint("Lb[i] += __shfl_xor_sync(0xffffffff, Lb[i], P);\n");
+	deindent();
+	printf("}\n");
+	deindent();
+	printf("}\n");
+
+	tprint("return Lb;\n");
+	printf("/* FLOPS = %i*/\n", flops);
+	deindent();
+	tprint("}\n");
+	tprint("#endif\n");
+}
+
 void ewald(int direct_flops) {
 	tprint("template<class T>\n");
 	tprint("CUDA_EXPORT int ewald_greens_function(tensor_trless_sym<T,%i> &D, array<T, NDIM> X) {\n", P);
@@ -538,10 +711,10 @@ void ewald(int direct_flops) {
 	}
 	deindent();
 	printf("}\n");
-	printf("flops += %i * foursz;\n", these_flops);
 	reference_sym("Dreal", P);
 	reference_trless("D", P);
-	compute_detrace<P>("Dreal", "D", 'd');
+	int those_flops = compute_detrace<P>("Dreal", "D", 'd');
+	printf("flops += %i * foursz + %i;\n", these_flops, those_flops);
 	tprint("D = D + Dfour;\n");                                    // P*P+1
 	tprint("expansion<T> D1;\n");
 	tprint("direct_greens_function(D1,X);\n");
@@ -623,7 +796,6 @@ int main() {
 	tprint("return %i;\n", flops);
 	deindent();
 	tprint("}\n");
-
 
 	ewald(flops);
 
@@ -792,5 +964,7 @@ int main() {
 	do_expansion<P>(false);
 
 	do_expansion<2>(true);
+
+	do_expansion_cuda<P>();
 
 }

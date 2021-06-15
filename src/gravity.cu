@@ -355,16 +355,19 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	auto& dx1 = dx[1];
 	auto& dx2 = dx[2];
 	int nsrc = 0;
-//	const int msize = sizeof(multipole_pos) / sizeof(float);
+	const int msize = sizeof(multipole_pos) / sizeof(float);
 	const auto mmax = (((multis.size() - 1) / KICK_PC_MAX) + 1) * KICK_PC_MAX;
 	for (int m = 0; m < mmax; m += KICK_PC_MAX) {
 		nsrc = 0;
-		for (int z = tid; z < KICK_PC_MAX; z += KICK_BLOCK_SIZE) {
+		for (int z = 0; z < KICK_PC_MAX; z++) {
 			if (m + z < multis.size()) {
-				msrcs[nsrc + tid].multi = multis[m + z].get_multi();
-				msrcs[nsrc + tid].pos = multis[m + z].get_pos();
+				const float* src = multis[m + z].get_multi_ptr();
+				float* dst = (float*) &(msrcs[nsrc]);
+				nsrc++;
+				for (int k = tid; k < msize; k += KICK_BLOCK_SIZE) {
+					dst[tid] = __ldg(src + tid);
+				}
 			}
-			nsrc += min(KICK_BLOCK_SIZE, (int) (multis.size() - m - (z / KICK_BLOCK_SIZE) * KICK_BLOCK_SIZE));
 		}
 		__syncwarp();
 		for (int k = tid; k < nactive; k += warpSize) {
@@ -380,7 +383,6 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 				interacts++;
 			}
 			const int l = act_map[k];
-			NAN_TEST(Lforce(0,0,0)); NAN_TEST(Lforce(1,0,0)); NAN_TEST(Lforce(0,1,0)); NAN_TEST(Lforce(0,0,1));
 			F[0][l] -= Lforce(1, 0, 0);
 			F[1][l] -= Lforce(0, 1, 0);
 			F[2][l] -= Lforce(0, 0, 1);
