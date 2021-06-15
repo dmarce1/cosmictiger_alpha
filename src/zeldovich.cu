@@ -60,7 +60,7 @@ void _2lpt_kernel(cmplx* Y, int xbegin, const interp_functor<float> den_k, int N
 	}
 	const unsigned sequence = abs(i0) * bsz + tid;
 	curandState_t rand;
-	curand_init(1234, sequence, 0, &rand);
+	curand_init(42, sequence, 0, &rand);
 	float kx = 2.f * (float) M_PI / box_size * float(i0);
 	for (int j = tid; j < N; j += bsz) {
 		int j0 = j < N / 2 ? j : j - N;

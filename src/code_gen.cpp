@@ -417,59 +417,63 @@ void do_expansion(bool two) {
 	tprint("}\n");
 }
 
-void ewald() {
+void ewald(int direct_flops) {
 	tprint("template<class T>\n");
 	tprint("CUDA_EXPORT int ewald_greens_function(tensor_trless_sym<T,%i> &D, array<T, NDIM> X) {\n", P);
 	indent();
 	tprint("ewald_const econst;\n");
-	tprint("T r = SQRT(FMA(X[0], X[0], FMA(X[1], X[1], sqr(X[2]))));\n");
-	tprint("const T fouroversqrtpi = T(4.0 / SQRT(M_PI));\n");
+	tprint("int flops = %i;\n", 56 + (P - 1) * 6 + direct_flops + 3 * (P * P + 1));
+	tprint("T r = SQRT(FMA(X[0], X[0], FMA(X[1], X[1], sqr(X[2]))));\n"); // 6
+	tprint("const T fouroversqrtpi = T(%.8e);\n", 4.0 / sqrt(M_PI));
 	tprint("tensor_sym<T, %i> Dreal;\n", P);
 	tprint("tensor_trless_sym<T,%i> Dfour;\n", P);
 	tprint("Dreal = 0.0f;\n");
 	tprint("Dfour = 0.0f;\n");
 	tprint("D = 0.0f;\n");
 	tprint("const auto realsz = econst.nreal();\n");
-	tprint("const T zero_mask = (sqr(X[0], X[1], X[2]) > T(0));\n");
+	tprint("const T zero_mask = r > T(0);\n");                            // 1
 	tprint("T tmp;\n");
+	tprint("int icnt = 0;\n");
 	tprint("for (int i = 0; i < realsz; i++) {\n");
 	indent();
 	tprint("const auto n = econst.real_index(i);\n");
 	tprint("array<T, NDIM> dx;\n");
 	tprint("for (int dim = 0; dim < NDIM; dim++) {\n");
 	indent();
-	tprint("dx[dim] = X[dim] - n[dim];\n");
+	tprint("dx[dim] = X[dim] - n[dim];\n");                                // 3
 	deindent();
-	tprint("}");
-	tprint("T r2 = FMA(dx[0], dx[0], FMA(dx[1], dx[1], sqr(dx[2])));\n");
-	tprint("if (anytrue(r2 < (EWALD_REAL_CUTOFF2))) {\n");
+	tprint("}\n");
+	tprint("T r2 = FMA(dx[0], dx[0], FMA(dx[1], dx[1], sqr(dx[2])));\n");    // 5
+	tprint("if (anytrue(r2 < (EWALD_REAL_CUTOFF2))) {\n");                   // 1
 	indent();
-	tprint("const T r = SQRT(r2);\n");                                                         // FLOP_SQRT
-	tprint("const T rinv = (r > T(0)) / max(r, 1.0e-20);\n");
-	tprint("const T r2inv = rinv * rinv;\n");
+	tprint("icnt++;\n");                                       // 1
+	tprint("const T r = SQRT(r2);\n");                                       // 1
+	tprint("const T rinv = (r > T(0)) / max(r, 1.0e-20);\n");                // 2
+	tprint("const T r2inv = rinv * rinv;\n");                                // 1
 	tprint("T exp0;\n");
-	tprint("T erfc0 = erfcexp(2.f * r, &exp0);\n");                                           // 18 + FLOP_DIV + FLOP_EXP
-	tprint("const T expfactor = fouroversqrtpi * exp0;\n");                                // 2
-	tprint("T e1 = expfactor * r2inv;\n");                                               // 1
+	tprint("T erfc0 = erfcexp(2.f * r, &exp0);\n");                          // 20
+	tprint("const T expfactor = fouroversqrtpi * exp0;\n");                  // 1
+	tprint("T e1 = expfactor * r2inv;\n");                                   // 1
 	tprint("array<T, LORDER> d;\n");
-	tprint("d[0] = -erfc0 * rinv;\n");
+	tprint("d[0] = -erfc0 * rinv;\n");                                       // 2
 	tprint("for (int l = 1; l < LORDER; l++) {\n");
 	indent();
-	tprint("d[l] = FMA(T(-2 * l + 1) * d[l - 1], r2inv, e1);\n");
-	tprint("e1 *= T(-8);\n");
+	tprint("d[l] = FMA(T(-2 * l + 1) * d[l - 1], r2inv, e1);\n");            // (P-1)*4
+	tprint("e1 *= T(-8);\n");                                                // (P-1)
 	deindent();
 	tprint("}\n");
 	tprint("array<T, LORDER> rinv2pow;\n");
-	tprint("rinv2pow[0] = T(1);\n");                                               // 2
+	tprint("rinv2pow[0] = T(1);\n");                                           // 2
 	tprint("for (int l = 1; l < LORDER; l++) {\n");
 	indent();
-	tprint("	rinv2pow[l] = rinv2pow[l - 1] * rinv * rinv;\n");
+	tprint("	rinv2pow[l] = rinv2pow[l - 1] * r2inv;\n");                      // (P-1)
 	deindent();
 	tprint("}\n");
 	compute_dx(P, "dx");
 	array<int, NDIM> m;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
+	int these_flops = 0;
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
@@ -492,9 +496,11 @@ void ewald() {
 									if (close21(number)) {
 										tprint("Dreal[%i] = fmaf(x%i%i%i, tmp, Dreal[%i]);\n", sym_index(n[0], n[1], n[2]), p[0],
 												p[1], p[2], sym_index(n[0], n[1], n[2]));
+										these_flops += 2;
 									} else {
 										tprint("Dreal[%i] = fmaf(%.8e * x%i%i%i, tmp, Dreal[%i]);\n", sym_index(n[0], n[1], n[2]),
 												number, p[0], p[1], p[2], sym_index(n[0], n[1], n[2]));
+										these_flops += 3;
 									}
 								}
 							}
@@ -508,6 +514,7 @@ void ewald() {
 	tprint("}\n");
 	deindent();
 	tprint("}\n");
+	tprint("flops += icnt * %i;\n", these_flops);
 
 	tprint("const auto foursz = econst.nfour();\n");
 	tprint("for (int i = 0; i < foursz; i++) {\n");
@@ -517,6 +524,7 @@ void ewald() {
 	tprint("const T hdotx = FMA(h[0], X[0], FMA(h[1], X[1], h[2] * X[2]));\n");
 	tprint("T co, so;\n");
 	tprint("sincos(T(2.0 * M_PI) * hdotx, &so, &co);\n");
+	these_flops = 0;
 	for (k[0] = 0; k[0] < P; k[0]++) {
 		for (k[1] = 0; k[1] < P - k[0]; k[1]++) {
 			const int zmax = (k[0] == 0 && k[1] == 0) ? intmin(3, P) : intmin(P - k[0] - k[1], 2);
@@ -524,32 +532,35 @@ void ewald() {
 				const int k0 = k[0] + k[1] + k[2];
 				tprint("Dfour[%i] = fmaf(%co, D0[%i], Dfour[%i]);\n", trless_index(k[0], k[1], k[2], P), k0 % 2 ? 's' : 'c',
 						trless_index(k[0], k[1], k[2], P), trless_index(k[0], k[1], k[2], P));
+				these_flops += 2;
 			}
 		}
 	}
 	deindent();
 	printf("}\n");
+	printf("flops += %i * foursz;\n", these_flops);
 	reference_sym("Dreal", P);
 	reference_trless("D", P);
 	compute_detrace<P>("Dreal", "D", 'd');
-	tprint("D = D + Dfour;\n");
-	tprint("expansion<T> D1 = direct_greens_function(X);\n");
-	tprint("D(0, 0, 0) = T(M_PI / 4.0) + D(0, 0, 0); \n");
+	tprint("D = D + Dfour;\n");                                    // P*P+1
+	tprint("expansion<T> D1;\n");
+	tprint("direct_greens_function(D1,X);\n");
+	tprint("D(0, 0, 0) = T(%.8e) + D(0, 0, 0); \n", M_PI / 4.0);   // 1
 	tprint("for (int i = 0; i < LP; i++) {\n");
-	tprint("D[i] -= D1[i];\n");
+	tprint("D[i] -= D1[i];\n");                                    // 2*(P*P+1)
 	indent();
 	tprint("D[i] *= zero_mask;\n");
 	deindent();
 	tprint("}\n");
-	tprint("D[0] += 2.837291e+00 * (T(1) - zero_mask);\n");
+	tprint("D[0] += 2.837291e+00 * (T(1) - zero_mask);\n");        // 3
 	tprint("if ( LORDER > 2) {\n");
 	indent();
-	tprint("D[3] += -4.0 / 3.0 * M_PI * (T(1) - zero_mask);\n");
-	tprint("D[5] += -4.0 / 3.0 * M_PI * (T(1) - zero_mask);\n");
-	tprint("D[LP - 1] += -4.0 / 3.0 * M_PI * (T(1) - zero_mask);\n");
+	tprint("D[3] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 2
+	tprint("D[5] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 2
+	tprint("D[LP - 1] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 2
 	deindent();
 	tprint("}\n");
-	tprint("return 0;\n");
+	tprint("return flops;\n");
 	deindent();
 	tprint("}\n");
 
@@ -563,18 +574,17 @@ int main() {
 
 	tprint("\n\ntemplate<class T>\n");
 	tprint("CUDA_EXPORT\n");
-	tprint("inline tensor_trless_sym<T, %i> direct_greens_function(array<T, NDIM> X) {\n", P);
+	tprint("inline int direct_greens_function(tensor_trless_sym<T, %i>& D, array<T, NDIM> X) {\n", P);
 	flops = 0;
 	indent();
 	tprint("auto r2 = sqr(X[0], X[1], X[2]);\n");
 //	tprint("const T scale = T(1) / max(SQRT(SQRT(r2)),T(1e-4));\n");
 //	tprint("const T sw = (r2 < T(25e-8));\n");
-	tprint("constexpr float scale = 837.0f;\n", 38.0 / (2*LORDER-1));
+	tprint("constexpr float scale = 837.0f;\n", 38.0 / (2 * LORDER - 1));
 	tprint("X[0] *= scale;\n");
 	tprint("X[1] *= scale;\n");
 	tprint("X[2] *= scale;\n");
 	flops += 13;
-	tprint("tensor_trless_sym<T, %i> D;\n", P);
 	flops += compute_dx(P);
 	reference_trless("D", P);
 	flops += compute_detrace<P>("x", "D");
@@ -610,16 +620,18 @@ int main() {
 			}
 		}
 	}
-	tprint("return D;\n");
-	printf("/* FLOPS = %i*/\n", flops);
+	tprint("return %i;\n", flops);
 	deindent();
 	tprint("}\n");
+
+
+	ewald(flops);
 
 	flops = 0;
 	tprint("\n\ntemplate<class T>\n");
 	tprint("CUDA_EXPORT\n");
 	tprint(
-			"inline void interaction(tensor_trless_sym<T, %i>& L, const tensor_trless_sym<T, %i>& M, const tensor_trless_sym<T, %i>& D) {\n",
+			"inline int interaction(tensor_trless_sym<T, %i>& L, const tensor_trless_sym<T, %i>& M, const tensor_trless_sym<T, %i>& D) {\n",
 			P, P - 1, P);
 	indent();
 	flops += const_reference_trless<P - 1>("M");
@@ -653,7 +665,8 @@ int main() {
 			}
 		}
 	}
-	printf("/* FLOPS = %i*/\n", flops);
+	tprint("return %i;\n", flops);
+
 	deindent();
 	tprint("}\n");
 	if ( P > 2) {
@@ -661,7 +674,7 @@ int main() {
 		tprint("\n\ntemplate<class T>\n");
 		tprint("CUDA_EXPORT\n");
 		tprint(
-				"inline void interaction(tensor_trless_sym<T, 2>& L, const tensor_trless_sym<T, %i>& M, const tensor_trless_sym<T, %i>& D) {\n",
+				"inline int interaction(tensor_trless_sym<T, 2>& L, const tensor_trless_sym<T, %i>& M, const tensor_trless_sym<T, %i>& D) {\n",
 				P - 1, P);
 		indent();
 		flops += const_reference_trless<P - 1>("M");
@@ -693,10 +706,12 @@ int main() {
 				}
 			}
 		}
-		printf("/* FLOPS = %i*/\n", flops);
+		tprint("return %i;\n", flops);
+
 		deindent();
 		tprint("}\n");
 	}
+
 	tprint("\n\ntemplate<class T>\n");
 	tprint("CUDA_EXPORT\n");
 	tprint("tensor_trless_sym<T, %i> monopole_translate(array<T, NDIM>& X) {\n", P - 1);
@@ -777,7 +792,5 @@ int main() {
 	do_expansion<P>(false);
 
 	do_expansion<2>(true);
-
-	ewald();
 
 }

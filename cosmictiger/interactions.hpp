@@ -18,8 +18,7 @@
 template<class T>
 CUDA_EXPORT int multipole_interaction(expansion<T> &L, const multipole_type<T> &M, const expansion<T>& D, bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
 	//L = L + interaction<T, LORDER, MORDER>(M, D);
-	interaction<T>(L,M,D);
-	return 0;
+	return interaction<T>(L,M,D);
 }
 
 #if( LORDER != 2)
@@ -27,9 +26,7 @@ CUDA_EXPORT int multipole_interaction(expansion<T> &L, const multipole_type<T> &
 template<class T>
 CUDA_EXPORT int multipole_interaction(tensor_trless_sym<T,2> &L, const multipole_type<T> &M, const expansion<T>& D,
 		bool do_phi) { // 517 / 47428
-	interaction<T>(L, M, D);
-	return 0;
-
+	return interaction<T>(L, M, D);
 }
 #endif
 
@@ -38,7 +35,7 @@ CUDA_EXPORT int multipole_interaction(expansion<T> &L, const expansion<T>& D) { 
 	for (int i = 0; i < LP; i++) {
 		L[i] += D[i];
 	}
-	return 35;
+	return LP;
 }
 
 template<class T>
@@ -47,7 +44,7 @@ CUDA_EXPORT int multipole_interaction(expansion<T> &L, const T& M, const expansi
 		L[i] = FMA(M, D[i], L[i]);
 		;
 	}
-	return 70;
+	return 2 * LP;
 }
 
 #endif /* COSMICTIGER_INTERACTIONS_HPP_ */
