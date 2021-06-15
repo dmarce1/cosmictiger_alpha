@@ -567,7 +567,8 @@ int main() {
 	flops = 0;
 	indent();
 	tprint("auto r2 = sqr(X[0], X[1], X[2]);\n");
-	tprint("const T scale = max(SQRT(SQRT(r2)),T(1e-8));\n");
+//	tprint("const T scale = max(SQRT(SQRT(r2)),T(1e-8));\n");
+	tprint("const T scale = 1.0e-4;\n");
 	tprint("X[0] *= scale;\n");
 	tprint("X[1] *= scale;\n");
 	tprint("X[2] *= scale;\n");
