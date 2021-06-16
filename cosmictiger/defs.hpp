@@ -96,9 +96,7 @@ inline void print(const char* fmt, Args ...args) {
 //#define HIPRECISION
 
 #define SINK_BIAS 1.5f
-
-#define MIN_PC_PARTS 38
-#define MIN_CP_PARTS 19
+#define MIN_PC_PARTS 17
 
 #define NCHILD 2
 //#define PARALLEL_RADIX
