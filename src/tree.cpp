@@ -268,6 +268,7 @@ sort_return tree::sort(sort_params params) {
 			double rright = 0.0;
 			array<fixed32, NDIM> pos;
 			array<float, NDIM> xl, xr;
+#ifndef NO_DIPOLE
 			array<double, NDIM> norm;
 			for (int dim = 0; dim < NDIM; dim++) {
 				norm[dim] = Xc[LEFT][dim].to_double() - Xc[RIGHT][dim].to_double();
@@ -277,11 +278,15 @@ sort_return tree::sort(sort_params params) {
 			for (int dim = 0; dim < NDIM; dim++) {
 				norm[dim] *= ninv;
 			}
+#endif
 			for (int dim = 0; dim < NDIM; dim++) {
 				auto Xl = Xc[LEFT][dim].to_double();
 				auto Xr = Xc[RIGHT][dim].to_double();
+#ifdef NO_DIPOLE
+				center[dim] = (ml * Xl + mr * Xr) / m;
+#else
 				center[dim] = (Xl + Rc[LEFT] * norm[dim] + Xr - Rc[RIGHT] * norm[dim]) * 0.5;
-				//				center[dim] = (ml * Xl + mr * Xr) / m;
+#endif
 				Xl -= center[dim];
 				Xr -= center[dim];
 				xl[dim] = Xl;
@@ -305,10 +310,10 @@ sort_return tree::sort(sort_params params) {
 			}
 			radius = std::min(radius, rmax);
 
-			//    PRINT("x      = %e\n", pos[0].to_float());
-			//   PRINT("y      = %e\n", pos[1].to_float());
-			//  PRINT("z      = %e\n", pos[2].to_float());
-			// PRINT("radius = %e\n", radius);
+//    PRINT("x      = %e\n", pos[0].to_float());
+//   PRINT("y      = %e\n", pos[1].to_float());
+//  PRINT("z      = %e\n", pos[2].to_float());
+// PRINT("radius = %e\n", radius);
 			self.set_pos(pos);
 			self.set_radius(radius);
 			self.set_multi(M);
@@ -319,18 +324,28 @@ sort_return tree::sort(sort_params params) {
 		if (!params.group_sort) {
 			std::array<double, NDIM> center = { 0, 0, 0 };
 			array<fixed32, NDIM> pos;
+#ifndef NO_DIPOLE
 			std::array<double, NDIM> maxes = { 0, 0, 0 };
 			std::array<double, NDIM> mins = { 1, 1, 1 };
+#endif
 			if (parts.second - parts.first != 0) {
 				for (auto i = parts.first; i < parts.second; i++) {
 					for (int dim = 0; dim < NDIM; dim++) {
 						const auto x = particles->pos(dim, i).to_double();
+#ifdef NO_DIPOLE
+						center[dim] += x;
+#else
 						maxes[dim] = std::max(maxes[dim], x);
 						mins[dim] = std::min(mins[dim], x);
+#endif
 					}
 				}
 				for (int dim = 0; dim < NDIM; dim++) {
+#ifdef NO_DIPOLE
+					center[dim] /= parts.second - parts.first;
+#else
 					center[dim] = (maxes[dim] + mins[dim]) * 0.5;
+#endif
 					pos[dim] = center[dim];
 				}
 			} else {
@@ -462,8 +477,8 @@ hpx::future<void> tree_ptr::kick(kick_params_type *params_ptr, bool thread) {
 		if (params.tptr.rank != hpx_rank()) {
 			return hpx::async<tree_kick_remote_action>(hpx_localities()[params.tptr.rank], params);
 		} else {
-			//	thread = thread
-			//				&& ((proc_range.second - proc_range.first > 1) || (parts.second - parts.first > min_parts2thread));
+//	thread = thread
+//				&& ((proc_range.second - proc_range.first > 1) || (parts.second - parts.first > min_parts2thread));
 			if (thread) {
 				static std::atomic<int> counter(0);
 //				printf( "Threading %i\n", (int) ++counter);

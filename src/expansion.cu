@@ -5,6 +5,8 @@
  *      Author: dmarce1
  */
 
+#define EXPANSION_CU
+
 #include <cosmictiger/expansion.hpp>
 #include <cosmictiger/ewald_indices.hpp>
 #include <cosmictiger/array.hpp>

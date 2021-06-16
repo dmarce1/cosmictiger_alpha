@@ -479,33 +479,14 @@ void do_expansion(bool two) {
 template<int Q>
 void do_expansion_cuda() {
 	int flops = 0;
-	tprint("#ifdef __CUDA_ARCH__\n");
-	tprint("template<class T>\n");
-	tprint("__device__\n");
-	tprint(
-			"tensor_trless_sym<T, %i> expansion_translate_cuda(const tensor_trless_sym<T, %i>& La, const array<T, NDIM>& X) {\n",
-			Q, P);
-
-	indent();
-	tprint("const int tid = threadIdx.x;\n");
-	tprint("tensor_trless_sym<T, %i> Lb;\n", Q);
-	tprint("tensor_sym<T, %i> Lc;\n", Q);
-	tprint("Lb = 0.0f;\n");
-	tprint("for( int i = tid; i < LP; i += KICK_BLOCK_SIZE ) {\n");
-	indent();
-	tprint("Lb[i] = La[i];\n");
-	deindent();
-	tprint("}\n");
-	flops += compute_dx_tensor(P);
-	array<int, NDIM> n;
-	array<int, NDIM> k;
-	flops += const_reference_trless_tensor<P>("La", "Lc");
 	struct entry {
 		int Lsource;
 		int Ldest;
 		int xsource;
 		float factor;
 	};
+	array<int, NDIM> n;
+	array<int, NDIM> k;
 	std::vector<entry> entries;
 	for (int n0 = 0; n0 < Q; n0++) {
 		for (n[0] = 0; n[0] <= n0; n[0]++) {
@@ -534,7 +515,9 @@ void do_expansion_cuda() {
 			}
 		}
 	}
-	tprint("constexpr int Ldest[%i] = { ", entries.size());
+	tprint("#ifdef EXPANSION_CU\n");
+
+	tprint("__managed__ int Ldest[%i] = { ", entries.size());
 	for (int i = 0; i < entries.size(); i++) {
 		printf("%i", entries[i].Ldest);
 		if (i != entries.size() - 1) {
@@ -542,7 +525,7 @@ void do_expansion_cuda() {
 		}
 	}
 	printf("};\n");
-	tprint("constexpr float factor[%i] = { ", entries.size());
+	tprint("__managed__ float factor[%i] = { ", entries.size());
 	for (int i = 0; i < entries.size(); i++) {
 		printf("%.8e", entries[i].factor);
 		if (i != entries.size() - 1) {
@@ -550,7 +533,7 @@ void do_expansion_cuda() {
 		}
 	}
 	printf("};\n");
-	tprint("constexpr int xsrc[%i] = { ", entries.size());
+	tprint("__managed__ int xsrc[%i] = { ", entries.size());
 	for (int i = 0; i < entries.size(); i++) {
 		printf("%i", entries[i].xsource);
 		if (i != entries.size() - 1) {
@@ -558,15 +541,36 @@ void do_expansion_cuda() {
 		}
 	}
 	printf("};\n");
-	tprint("constexpr int Lsrc[%i] = { ", entries.size());
+	tprint("__managed__ int Lsrc[%i] = { ", entries.size());
 	for (int i = 0; i < entries.size(); i++) {
 		printf("%i", entries[i].Lsource);
 		if (i != entries.size() - 1) {
 			printf(",");
 		}
 	}
-	flops += 4 * entries.size();
 	printf("};\n");
+
+
+	tprint("#ifdef __CUDA_ARCH__\n");
+	tprint("template<class T>\n");
+	tprint("__device__\n");
+	tprint(
+			"tensor_trless_sym<T, %i> expansion_translate_cuda(const tensor_trless_sym<T, %i>& La, const array<T, NDIM>& X) {\n",
+			Q, P);
+
+	indent();
+	tprint("const int tid = threadIdx.x;\n");
+	tprint("tensor_trless_sym<T, %i> Lb;\n", Q);
+	tprint("tensor_sym<T, %i> Lc;\n", Q);
+	tprint("Lb = 0.0f;\n");
+	tprint("for( int i = tid; i < LP; i += KICK_BLOCK_SIZE ) {\n");
+	indent();
+	tprint("Lb[i] = La[i];\n");
+	deindent();
+	tprint("}\n");
+	flops += compute_dx_tensor(P);
+	flops += const_reference_trless_tensor<P>("La", "Lc");
+	flops += 4 * entries.size();
 	tprint("for( int i = tid; i < %i; i+=KICK_BLOCK_SIZE) {\n", entries.size());
 	indent();
 	tprint("Lb[Ldest[i]] = fmaf(factor[i] * dx[xsrc[i]], Lc[Lsrc[i]], Lb[Ldest[i]]);\n");
@@ -587,6 +591,7 @@ void do_expansion_cuda() {
 	printf("/* FLOPS = %i*/\n", flops);
 	deindent();
 	tprint("}\n");
+	tprint("#endif\n");
 	tprint("#endif\n");
 }
 
