@@ -358,8 +358,10 @@ void drive_cosmos() {
 		bool groups = z < 20.0 && global().opts.groups;
 		bool power = global().opts.power;
 		unified_allocator alloc;
-		if (full_eval && (power || groups)) {
+		if (full_eval) {
 			alloc.reset();
+		}
+		if (full_eval && (power || groups)) {
 			if (power) {
 				;
 				tree_data_free_all();
