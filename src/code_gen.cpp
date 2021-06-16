@@ -115,12 +115,12 @@ int eqn(std::string a, array<int, NDIM> n, std::string c, array<int, NDIM> j) {
 }
 
 int mul(std::string a, array<int, NDIM> n, double b, std::string c, array<int, NDIM> j) {
-	tprint("%s%i%i%i = %.8e * %s%i%i%i;\n", a.c_str(), n[0], n[1], n[2], b, c.c_str(), j[0], j[1], j[2]);
+	tprint("%s%i%i%i = T(%.8e) * %s%i%i%i;\n", a.c_str(), n[0], n[1], n[2], b, c.c_str(), j[0], j[1], j[2]);
 	return 1;
 }
 
 int fma(std::string a, array<int, NDIM> n, double b, std::string c, array<int, NDIM> j) {
-	tprint("%s%i%i%i = fmaf(%.8e, %s%i%i%i, %s%i%i%i);\n", a.c_str(), n[0], n[1], n[2], b, c.c_str(), j[0], j[1], j[2],
+	tprint("%s%i%i%i = fmaf(T(%.8e), %s%i%i%i, %s%i%i%i);\n", a.c_str(), n[0], n[1], n[2], b, c.c_str(), j[0], j[1], j[2],
 			a.c_str(), n[0], n[1], n[2]);
 	return 2;
 }
@@ -134,53 +134,47 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 	array<int, NDIM> m;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
+
+	struct entry_type {
+		array<int,NDIM> src;
+		array<int,NDIM> dest;
+		double factor;
+	};
+	std::vector<entry_type> entries;
+
 	tensor_sym<int, P> first_use;
 	first_use = 1;
 	int flops = 0;
-	for (int pass = 0; pass < 3; pass++) {
-		for (n[0] = 0; n[0] < P; n[0]++) {
-			for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-				const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
-				for (n[2] = 0; n[2] < nzmax; n[2]++) {
-					const int n0 = n[0] + n[1] + n[2];
-					for (m[0] = 0; m[0] <= n[0] / 2; m[0]++) {
-						for (m[1] = 0; m[1] <= n[1] / 2; m[1]++) {
-							for (m[2] = 0; m[2] <= n[2] / 2; m[2]++) {
-								const int m0 = m[0] + m[1] + m[2];
-								if (type == 'd' && ((n0 == 2 && (n[0] == 2 || n[1] == 2 || n[2] == 2)) && m0 == 1)) {
-									continue;
-								}
-								double num = double(n1pow(m0) * dfactorial(2 * n0 - 2 * m0 - 1) * vfactorial(n));
-								double den = double((1 << m0) * vfactorial(m) * vfactorial(n - (m) * 2));
-								const double fnm = num / den;
-								for (k[0] = 0; k[0] <= m0; k[0]++) {
-									for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
-										k[2] = m0 - k[0] - k[1];
-										const auto p = n - (m) * 2 + (k) * 2;
-										num = factorial(m0);
-										den = vfactorial(k);
-										double number = fnm * num / den;
-										if (type == 'd') {
-											number *= 1.0 / dfactorial(2 * n0 - 1);
-										}
-										if ((number < 0 && pass == 0) || (number > 0 && pass == 1)) {
-											number = std::abs(number);
-											if (first_use(n)) {
-												if (close21(number)) {
-													flops += eqp(oname, n, iname, p);
-												} else {
-													flops += mul(oname, n, number, iname, p);
-												}
-												first_use(n) = 0;
-											} else {
-												if (close21(number)) {
-													flops += acc(oname, n, iname, p);
-												} else {
-													flops += fma(oname, n, number, iname, p);
-												}
-											}
-										}
+	for (n[0] = 0; n[0] < P; n[0]++) {
+		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
+			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
+			for (n[2] = 0; n[2] < nzmax; n[2]++) {
+				const int n0 = n[0] + n[1] + n[2];
+				for (m[0] = 0; m[0] <= n[0] / 2; m[0]++) {
+					for (m[1] = 0; m[1] <= n[1] / 2; m[1]++) {
+						for (m[2] = 0; m[2] <= n[2] / 2; m[2]++) {
+							const int m0 = m[0] + m[1] + m[2];
+							if (type == 'd' && ((n0 == 2 && (n[0] == 2 || n[1] == 2 || n[2] == 2)) && m0 == 1)) {
+								continue;
+							}
+							double num = double(n1pow(m0) * dfactorial(2 * n0 - 2 * m0 - 1) * vfactorial(n));
+							double den = double((1 << m0) * vfactorial(m) * vfactorial(n - (m) * 2));
+							const double fnm = num / den;
+							for (k[0] = 0; k[0] <= m0; k[0]++) {
+								for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
+									k[2] = m0 - k[0] - k[1];
+									const auto p = n - (m) * 2 + (k) * 2;
+									num = factorial(m0);
+									den = vfactorial(k);
+									double number = fnm * num / den;
+									if (type == 'd') {
+										number *= 1.0 / dfactorial(2 * n0 - 1);
 									}
+									entry_type e;
+									e.dest = n;
+									e.src = p;
+									e.factor = number;
+									entries.push_back(e);
 								}
 							}
 						}
@@ -188,21 +182,51 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 				}
 			}
 		}
-		if (pass == 0) {
-			for (n[0] = 0; n[0] < P; n[0]++) {
-				for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-					const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
-					for (n[2] = 0; n[2] < nzmax; n[2]++) {
-						const int n0 = n[0] + n[1] + n[2];
-						if (!first_use(n)) {
-							tprint("%s%i%i%i = -%s%i%i%i;\n", oname.c_str(), n[0], n[1], n[2], oname.c_str(), n[0], n[1],
-									n[2]);
-							flops++;
-						}
-					}
-				}
+	}
+	std::sort(entries.begin(),entries.end(),[](entry_type a, entry_type b) {
+		if( a.dest < b.dest) {
+			return true;
+		} else if( a.dest > b.dest ) {
+			return false;
+		} else {
+			if( a.src < b.src) {
+				return true;
+			} else {
+				return false;
 			}
 		}
+	});
+	for( int i = 0; i < entries.size(); i++) {
+		int j = i + 1;
+		while( j < entries.size()) {
+			if( entries[i].src == entries[j].src && entries[i].dest == entries[j].dest) {
+				entries[i].factor += entries[j].factor;
+				entries[j] = entries.back();
+				entries.pop_back();
+			} else {
+				j++;
+			}
+		}
+	}
+	for( int i = 0; i < entries.size(); i++) {
+		const auto n = entries[i].dest;
+		const auto p = entries[i].src;
+		const auto number = entries[i].factor;
+		if (first_use(n)) {
+			if (close21(number)) {
+				flops += eqp(oname, n, iname, p);
+			} else {
+				flops += mul(oname, n, number, iname, p);
+			}
+			first_use(n) = 0;
+		} else {
+			if (close21(number)) {
+				flops += acc(oname, n, iname, p);
+			} else {
+				flops += fma(oname, n, number, iname, p);
+			}
+		}
+
 	}
 	return flops;
 }
@@ -549,7 +573,6 @@ void do_expansion_cuda() {
 		}
 	}
 	printf("};\n");
-
 
 	tprint("#ifdef __CUDA_ARCH__\n");
 	tprint("template<class T>\n");

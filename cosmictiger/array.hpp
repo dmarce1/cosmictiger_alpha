@@ -17,6 +17,27 @@ class array {
 	T ptr[N];
 public:
 	CUDA_EXPORT
+	bool operator<(const array<T,N>& other) const {
+		for( int i = 0; i < N; i++) {
+			if( ptr[i] < other.ptr[i]) {
+				return true;
+			} else if( ptr[i] > other.ptr[i]) {
+				return false;
+			}
+		}
+		return false;
+	}
+	bool operator>(const array<T,N>& other) const {
+		for( int i = 0; i < N; i++) {
+			if( ptr[i] > other.ptr[i]) {
+				return true;
+			} else if( ptr[i] > other.ptr[i]) {
+				return false;
+			}
+		}
+		return false;
+	}
+	CUDA_EXPORT
 	bool operator!=(const array<T,N>& other ) const {
 		return !(*this == other);
 	}
