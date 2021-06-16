@@ -112,6 +112,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 	const float& myradius1 = myradius; // + h;
 	const float myradius2 = SINK_BIAS * myradius1;
 	int ninteractions = iamleaf ? 3 : 2;
+	int nactive;
 	for (int type = 0; type < ninteractions; type++) {
 		const bool ewald_dist = type == PC_PP_EWALD || type == CC_CP_EWALD;
 		auto& checks = ewald_dist ? params.echecks : shmem.dchecks;
@@ -242,20 +243,20 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 //					if (other_nparts < MIN_PC_PARTS) {
 //						res = true;
 //					} else {
-						for (int k = 0; k < sz; k++) {
-							const auto this_rung = parts.rung(k + myparts.first);
-							if (this_rung >= constant.rung || constant.full_eval) {
-								float dx0 = distance(other_pos[0], sinks[0][k]);
-								float dy0 = distance(other_pos[1], sinks[1][k]);
-								float dz0 = distance(other_pos[2], sinks[2][k]);
-								float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-								res = sqr(other_radius + th) > d2 * theta2;
-								flops += 15;
-								if (res) {
-									break;
-								}
+					for (int k = 0; k < sz; k++) {
+						const auto this_rung = parts.rung(k + myparts.first);
+						if (this_rung >= constant.rung || constant.full_eval) {
+							float dx0 = distance(other_pos[0], sinks[0][k]);
+							float dy0 = distance(other_pos[1], sinks[1][k]);
+							float dz0 = distance(other_pos[2], sinks[2][k]);
+							float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
+							res = sqr(other_radius + th) > d2 * theta2;
+							flops += 15;
+							if (res) {
+								break;
 							}
 						}
+					}
 //					}
 					list_index = res ? PI : MI;
 					my_index[list_index] = 1;
@@ -289,7 +290,6 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 			parti.swap(tmp_parti);
 			__syncwarp();
 		}
-		int nactive;
 		switch (type) {
 		case PC_PP_DIRECT:
 			nactive = compress_sinks(params_ptr);
@@ -350,83 +350,76 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 		}
 		//   PRINT( "%li\n", rc.flops);
 	} else {
+		auto& act_map = shmem.act_map;
 		const float& invlog2 = constant.invlog2;
 		const float& GM = constant.GM;
 		const float& tfactor = constant.tfactor;
 		const float& logt0 = constant.logt0;
 		const float& halft0 = constant.halft0;
 		const auto& minrung = constant.minrung;
-		const int nparts = myparts.second - myparts.first;
-		const int part_max = round_up(nparts, KICK_BLOCK_SIZE);
-		for (int k = tid; k < part_max; k += KICK_BLOCK_SIZE) {
-			if (k < nparts) {
+		const int part_max = round_up(nactive, KICK_BLOCK_SIZE);
+		for (int l = tid; l < part_max; l += KICK_BLOCK_SIZE) {
+			const int k = l < nactive ? act_map[l] : 0;
+			if (l < nactive) {
 				const auto index = k + myparts.first;
 				const auto this_rung = parts.rung(index);
-				if (this_rung >= constant.rung || constant.full_eval) {
-					array<float, NDIM> g;
-					float this_phi;
-					for (int dim = 0; dim < NDIM; dim++) {
-						const auto x2 = mypos[dim];
-						const auto x1 = parts.pos(dim, k + myparts.first);
-						dx[dim] = distance(x1, x2);
-					}
-					shift_expansion(L, g, this_phi, dx, constant.full_eval);
-					for (int dim = 0; dim < NDIM; dim++) {
-						F[dim][k] += g[dim];
-					}
-					phi[k] += this_phi;
-					for (int dim = 0; dim < NDIM; dim++) {
-						F[dim][k] *= GM;
-					}
-					phi[k] *= GM;
-					if (constant.groups) {
-						const int id = parts.group(index);
-						gpu_groups_kick_update(id, phi[k]);
-					}
+				array<float, NDIM> g;
+				float this_phi;
+				for (int dim = 0; dim < NDIM; dim++) {
+					const auto x2 = mypos[dim];
+					const auto x1 = parts.pos(dim, k + myparts.first);
+					dx[dim] = distance(x1, x2);
+				}
+				shift_expansion(L, g, this_phi, dx, constant.full_eval);
+				for (int dim = 0; dim < NDIM; dim++) {
+					F[dim][k] += g[dim];
+				}
+				phi[k] += this_phi;
+				for (int dim = 0; dim < NDIM; dim++) {
+					F[dim][k] *= GM;
+				}
+				phi[k] *= GM;
+				if (constant.groups) {
+					const int id = parts.group(index);
+					gpu_groups_kick_update(id, phi[k]);
+				}
 #ifdef TEST_FORCE
-					for (int dim = 0; dim < NDIM; dim++) {
-						parts.force(dim, k + myparts.first) = F[dim][k];
-					}
-					parts.pot(k + myparts.first) = phi[k];
+				for (int dim = 0; dim < NDIM; dim++) {
+					parts.force(dim, k + myparts.first) = F[dim][k];
+				}
+				parts.pot(k + myparts.first) = phi[k];
 #endif
-					if (this_rung >= constant.rung) {
-						float dt = halft0 * rung_dt[this_rung];
-						auto& vx = parts.vel(0, index);
-						auto& vy = parts.vel(1, index);
-						auto& vz = parts.vel(2, index);
-#ifndef CONFORMAL_TIME
-						dt *= constant.ainv;
-#endif
-						if (!constant.first) {
-							vx = fmaf(dt, F[0][k], vx);
-							vy = fmaf(dt, F[1][k], vy);
-							vz = fmaf(dt, F[2][k], vz);
-						}
-						const float fmag2 = fmaf(F[0][k], F[0][k], fmaf(F[1][k], F[1][k], sqr(F[2][k])));
-						if (fmag2 != 0.f) {
-							dt = fminf(tfactor * rsqrt(sqrtf(fmag2)), params.t0);
-						} else {
-							dt = 1.0e+30;
-						}
-						const int new_rung = fmaxf(fmaxf(ceilf((logt0 - logf(dt)) * invlog2), this_rung - 1), minrung);
-						dt = halft0 * rung_dt[new_rung];
-#ifndef CONFORMAL_TIME
-						dt *= constant.ainv;
-#endif
+				if (this_rung >= constant.rung) {
+					float dt = halft0 * rung_dt[this_rung];
+					auto& vx = parts.vel(0, index);
+					auto& vy = parts.vel(1, index);
+					auto& vz = parts.vel(2, index);
+					if (!constant.first) {
 						vx = fmaf(dt, F[0][k], vx);
 						vy = fmaf(dt, F[1][k], vy);
 						vz = fmaf(dt, F[2][k], vz);
-						parts.set_rung(new_rung, index);
 					}
+					const float fmag2 = fmaf(F[0][k], F[0][k], fmaf(F[1][k], F[1][k], sqr(F[2][k])));
+					if (fmag2 != 0.f) {
+						dt = fminf(tfactor * rsqrt(sqrtf(fmag2)), params.t0);
+					} else {
+						dt = 1.0e+30;
+					}
+					const int new_rung = fmaxf(fmaxf(ceilf((logt0 - logf(dt)) * invlog2), this_rung - 1), minrung);
+					dt = halft0 * rung_dt[new_rung];
+					vx = fmaf(dt, F[0][k], vx);
+					vy = fmaf(dt, F[1][k], vy);
+					vz = fmaf(dt, F[2][k], vz);
+					parts.set_rung(new_rung, index);
 				}
 			}
 			if (constant.full_eval) {
-				if (k >= nparts) {
+				if (k >= nactive) {
 					phi[k] = F[0][k] = F[1][k] = F[2][k] = 0.0f;
 				}
 				kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
 			}
-			if (k < nparts) {
+			if (k < nactive) {
 				kick_return_update_rung_gpu(parts.rung(k + myparts.first));
 			}
 		}
