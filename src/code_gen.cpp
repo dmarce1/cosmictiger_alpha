@@ -515,7 +515,7 @@ void do_expansion_cuda() {
 			}
 		}
 	}
-	tprint("static __device__ int Ldest[%i] = { ", entries.size());
+	tprint("static const __device__ int Ldest[%i] = { ", entries.size());
 	for (int i = 0; i < entries.size(); i++) {
 		printf("%i", entries[i].Ldest);
 		if (i != entries.size() - 1) {
@@ -523,7 +523,7 @@ void do_expansion_cuda() {
 		}
 	}
 	printf("};\n");
-	tprint("static __device__ float factor[%i] = { ", entries.size());
+	tprint("static const __device__ float factor[%i] = { ", entries.size());
 	for (int i = 0; i < entries.size(); i++) {
 		printf("%.8e", entries[i].factor);
 		if (i != entries.size() - 1) {
@@ -531,7 +531,7 @@ void do_expansion_cuda() {
 		}
 	}
 	printf("};\n");
-	tprint("static __device__ int xsrc[%i] = { ", entries.size());
+	tprint("static const __device__ int xsrc[%i] = { ", entries.size());
 	for (int i = 0; i < entries.size(); i++) {
 		printf("%i", entries[i].xsource);
 		if (i != entries.size() - 1) {
@@ -539,7 +539,7 @@ void do_expansion_cuda() {
 		}
 	}
 	printf("};\n");
-	tprint("static __device__ int Lsrc[%i] = { ", entries.size());
+	tprint("static const __device__ int Lsrc[%i] = { ", entries.size());
 	for (int i = 0; i < entries.size(); i++) {
 		printf("%i", entries[i].Lsource);
 		if (i != entries.size() - 1) {

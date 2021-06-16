@@ -33,8 +33,8 @@ void global_init(options opts, cuda_properties cuda) {
    if (right.valid()) {
       right.get();
    }
-  // feenableexcept (FE_INVALID);
-  // feenableexcept (FE_OVERFLOW);
+   feenableexcept (FE_INVALID);
+   feenableexcept (FE_OVERFLOW);
 }
 
 void global_set_options(options opts) {
