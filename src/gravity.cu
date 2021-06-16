@@ -365,7 +365,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 				float* dst = (float*) &(msrcs[nsrc]);
 				nsrc++;
 				for (int k = tid; k < msize; k += KICK_BLOCK_SIZE) {
-					dst[tid] = __ldg(src + tid);
+					dst[k] = __ldg(src + k);
 				}
 			}
 		}
