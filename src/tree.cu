@@ -140,6 +140,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const auto other_pos = check.get_pos();
 						const float other_radius = check.get_radius();
 						const int isleaf = check.is_leaf();
+						bool nopc = false;
+						bool nocp = shmem.self.get_active_parts() < MIN_CP_PARTS;
+						if (isleaf) {
+							const auto other_parts = check.get_parts();
+							const auto other_nparts = other_parts.second - other_parts.first;
+							nopc = other_nparts < MIN_PC_PARTS;
+						}
 						for (int dim = 0; dim < NDIM; dim++) {                         // 3
 							dx[dim] = distance(other_pos[dim], mypos[dim]);
 						}
@@ -156,8 +163,8 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						const int far3 = R3 < theta2d2;                 // 1
 						interacts++;
 						flops += 27;
-						const bool mi = far1 || (direct && far3);
-						const bool pi = (far2 || direct) && isleaf;
+						const bool mi = far1 || (direct && far3 && !nopc);
+						const bool pi = (!nocp && (far2 || direct)) && isleaf;
 						list_index = (1 - mi) * (pi * PI + (1 - pi) * (isleaf * OI + (1 - isleaf) * CI));
 						my_index[list_index] = 1;
 					}
@@ -237,27 +244,28 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 					const auto other_pos = parti[j].get_pos();
 					const auto other_radius = parti[j].get_radius();
 					const auto parti_parts = parti[j].get_parts();
-					const auto other_nparts = parti_parts.second - parti_parts.first;
 					bool res = false;
 					const int sz = myparts.second - myparts.first;
-//					if (other_nparts < MIN_PC_PARTS) {
-//						res = true;
-//					} else {
-					for (int k = 0; k < sz; k++) {
-						const auto this_rung = parts.rung(k + myparts.first);
-						if (this_rung >= constant.rung || constant.full_eval) {
-							float dx0 = distance(other_pos[0], sinks[0][k]);
-							float dy0 = distance(other_pos[1], sinks[1][k]);
-							float dz0 = distance(other_pos[2], sinks[2][k]);
-							float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
-							res = sqr(other_radius + th) > d2 * theta2;
-							flops += 15;
-							if (res) {
-								break;
+					const auto other_parts = parti[j].get_parts();
+					const auto other_nparts = other_parts.second - other_parts.first;
+					if (other_nparts < MIN_PC_PARTS) {
+						res = true;
+					} else {
+						for (int k = 0; k < sz; k++) {
+							const auto this_rung = parts.rung(k + myparts.first);
+							if (this_rung >= constant.rung || constant.full_eval) {
+								float dx0 = distance(other_pos[0], sinks[0][k]);
+								float dy0 = distance(other_pos[1], sinks[1][k]);
+								float dz0 = distance(other_pos[2], sinks[2][k]);
+								float d2 = fma(dx0, dx0, fma(dy0, dy0, sqr(dz0)));
+								res = sqr(other_radius + th) > d2 * theta2;
+								flops += 15;
+								if (res) {
+									break;
+								}
 							}
 						}
 					}
-//					}
 					list_index = res ? PI : MI;
 					my_index[list_index] = 1;
 				}
