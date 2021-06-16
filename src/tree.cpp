@@ -595,6 +595,14 @@ void tree::kick(kick_params_type * params_ptr) {
 			for (int ci = 0; ci < checks.size(); ci++) {
 				const auto other_radius = checks[ci].get_radius();
 				const auto other_pos = checks[ci].get_pos();
+				const bool isleaf = checks[ci].is_leaf();
+				bool nopc = false;
+				bool nocp = self.get_active_parts() < MIN_CP_PARTS;
+				if (isleaf) {
+					const auto other_parts = checks[ci].get_parts();
+					const auto other_nparts = other_parts.second - other_parts.first;
+					nopc = other_nparts < MIN_PC_PARTS;
+				}
 				float d2 = 0.f;
 				for (int dim = 0; dim < NDIM; dim++) {
 					d2 += sqr(distance(other_pos[dim], pos[dim]));
@@ -614,10 +622,9 @@ void tree::kick(kick_params_type * params_ptr) {
 				const bool far1 = R1 < theta2 * d2;
 				const bool far2 = R2 < theta2 * d2;
 				const bool far3 = R3 < theta2 * d2;
-				const bool isleaf = checks[ci].is_leaf();
-				if (far1 || (direct && far3 && !params.dry_run)) {
+				if (far1 || (direct && far3 && !params.dry_run && !nopc)) {
 					multis.push_back(checks[ci]);
-				} else if ((far2 || direct) && isleaf) {
+				} else if ((!nocp && (far2 || direct)) && isleaf) {
 					parti.push_back(checks[ci]);
 				} else if (isleaf) {
 					next_checks.push_back(checks[ci]);
