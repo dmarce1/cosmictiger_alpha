@@ -164,7 +164,7 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 						interacts++;
 						flops += 27;
 						const bool mi = far1 || (direct && far3 && !nopc);
-						const bool pi = (!nocp && (far2 || direct)) && isleaf;
+						const bool pi = ( (!nocp && far2) || direct) && isleaf;
 						list_index = (1 - mi) * (pi * PI + (1 - pi) * (isleaf * OI + (1 - isleaf) * CI));
 						my_index[list_index] = 1;
 					}

@@ -624,7 +624,7 @@ void tree::kick(kick_params_type * params_ptr) {
 				const bool far3 = R3 < theta2 * d2;
 				if (far1 || (direct && far3 && !params.dry_run && !nopc)) {
 					multis.push_back(checks[ci]);
-				} else if ((!nocp && (far2 || direct)) && isleaf) {
+				} else if (((!nocp && far2) || direct) && isleaf) {
 					parti.push_back(checks[ci]);
 				} else if (isleaf) {
 					next_checks.push_back(checks[ci]);
