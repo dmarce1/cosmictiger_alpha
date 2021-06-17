@@ -224,7 +224,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	auto &sinks = shmem.sink;
 	auto& act_map = shmem.act_map;
 	const auto& h2 = constant.h2;
-	const auto h3inv = constant.h3;
+	const auto h3inv = constant.h3inv;
 	const auto& hinv = constant.hinv;
 	int flops = 0;
 	int interacts = 0;
@@ -287,7 +287,6 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 				if (r2 >= h2) {
 					r1inv = rsqrt(r2);                                    // FLOP_RSQRT
 					r3inv = r1inv * r1inv * r1inv;                        // 2
-					flops += 2 + FLOP_RSQRT;
 				} else {
 					const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
 					const float r2oh2 = r1oh1 * r1oh1;           // 1
@@ -299,17 +298,17 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 						r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
 						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
 						r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
+						r1inv *= hinv;
+						flops += 7;
 					}
-					r1inv *= hinv;
 					r3inv *= h3inv;
-					flops += FLOP_SQRT + 18;
+					flops += 5;
 				}
 				fx = fmaf(dx0, r3inv, fx); // 2
 				fy = fmaf(dx1, r3inv, fy); // 2
 				fz = fmaf(dx2, r3inv, fz); // 2
 				NAN_TEST(fx);NAN_TEST(fy);NAN_TEST(fz);
 				phi -= r1inv; // 1
-				flops += 15;
 				interacts++;
 			}
 			const auto l = act_map[k];
@@ -321,6 +320,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 			}
 		}
 	}
+	flops += interacts * 19;
 	__syncwarp();
 	if (constant.full_eval) {
 		kick_return_update_interactions_gpu(KR_PP, interacts, flops);

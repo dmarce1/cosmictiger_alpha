@@ -170,8 +170,9 @@ void tree::cpu_pp_direct(kick_params_type *params_ptr) {
 	auto &L = params.L[params.depth];
 	auto& F = params.F;
 	auto& Phi = params.Phi;
-	const simd_float h2(params.hsoft * params.hsoft);
-	const simd_float hinv(1.f / params.hsoft);
+	const float h = 2.0 * params.hsoft;
+	const simd_float h2(h*h);
+	const simd_float hinv(1.f / h);
 	const simd_float h3inv = hinv * hinv * hinv;
 	const simd_float tiny(1.0e-20);
 	int flops = 0;

@@ -265,7 +265,7 @@ struct kick_params_type {
 		groups = false;
 		depth = 0;
 		theta = 0.4;
-		eta = 0.2 / std::sqrt(2);
+		eta = 0.2;
 		scale = 1.0;
 		t0 = 1.0;
 			first = true;
@@ -359,7 +359,7 @@ struct kick_constants {
 	float ainv;
 	float halft0;
 	float h2;
-	float h3;
+	float h3inv;
 	float hinv;
 	float th;
 	int rung;
