@@ -705,7 +705,7 @@ void ewald(int direct_flops) {
 		tprint("const T rinv2pow%i = rinv2pow%i * r2inv;\n", l, l - 1);                      // (P-2)
 	}
 	for (int l = 0; l < P; l++) {
-		for (int m = 0; m < P; m++) {
+		for (int m = 0; m <= l; m++) {
 			tprint("const T Drinvpow_%i_%i = d%i * rinv2pow%i;\n", l, m, l, m);
 		}
 	}
@@ -713,7 +713,21 @@ void ewald(int direct_flops) {
 	array<int, NDIM> m;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	int these_flops = 38 + 6 * (P - 1);
+	int these_flops = 38 + 6 * (P - 1) + P * (P+1)/2;
+
+	for (n[0] = 0; n[0] < P; n[0]++) {
+		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
+			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
+				const int n0 = n[0] + n[1] + n[2];
+				for (int m = 0; 2 * m <= n0; m++) {
+					tprint("const T x%i%i%iDrinvpow_%i_%i = x%i%i%i * Drinvpow_%i_%i;\n", n[0], n[1], n[2], n0 - m, m, n[0],
+							n[1], n[2], n0 - m, m);
+					these_flops++;
+				}
+			}
+		}
+	}
+
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
@@ -733,15 +747,14 @@ void ewald(int direct_flops) {
 									den = vfactorial(k);
 									const double number = fnm * num / den;
 									if (close21(number)) {
-										tprint("Dreal[%i] = fmaf(x%i%i%i, Drinvpow_%i_%i, Dreal[%i]);\n",
-												sym_index(n[0], n[1], n[2]), p[0], p[1], p[2], n0 - m0, m0,
-												sym_index(n[0], n[1], n[2]));
-										these_flops += 2;
+										tprint("Dreal[%i] += x%i%i%iDrinvpow_%i_%i;\n", sym_index(n[0], n[1], n[2]), p[0], p[1],
+												p[2], n0 - m0, m0);
+										these_flops += 1;
 									} else {
-										tprint("Dreal[%i] = fmaf(%.8e * x%i%i%i, Drinvpow_%i_%i, Dreal[%i]);\n",
+										tprint("Dreal[%i] = fmaf(%.8e,  x%i%i%iDrinvpow_%i_%i, Dreal[%i]);\n",
 												sym_index(n[0], n[1], n[2]), number, p[0], p[1], p[2], n0 - m0, m0,
 												sym_index(n[0], n[1], n[2]));
-										these_flops += 3;
+										these_flops += 2;
 									}
 								}
 							}
