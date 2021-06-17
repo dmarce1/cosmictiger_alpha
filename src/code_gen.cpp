@@ -462,8 +462,8 @@ void do_expansion(bool two) {
 	flops += const_reference_trless<P>("La");
 	tprint("Lb = La;\n");
 	for (int n0 = 0; n0 < Q; n0++) {
-		if( n0 == 0 ) {
-			tprint( "if( do_phi ) {\n");
+		if (n0 == 0) {
+			tprint("if( do_phi ) {\n");
 			indent();
 		}
 		for (n[0] = 0; n[0] <= n0; n[0]++) {
@@ -497,9 +497,9 @@ void do_expansion(bool two) {
 				}
 			}
 		}
-		if( n0 == 0 ) {
+		if (n0 == 0) {
 			deindent();
-			tprint( "}\n");
+			tprint("}\n");
 		}
 	}
 	tprint("return Lb;\n");
@@ -539,9 +539,9 @@ void do_expansion_cuda() {
 									e.xsource = sym_index(k[0], k[1], k[2]);
 									e.Lsource = sym_index(p[0], p[1], p[2]);
 									e.factor = factor;
-									if( n0 == 0 ) {
+									if (n0 == 0) {
 										phi_entries.push_back(e);
-									}else {
+									} else {
 										entries.push_back(e);
 									}
 								}
@@ -628,7 +628,7 @@ void do_expansion_cuda() {
 	tprint("Lb[Ldest[i]] = fmaf(factor[i] * dx[xsrc[i]], Lc[Lsrc[i]], Lb[Ldest[i]]);\n");
 	deindent();
 	tprint("}\n");
-	tprint( "if( do_phi ) {\n");
+	tprint("if( do_phi ) {\n");
 	indent();
 	tprint("for( int i = tid; i < %i; i+=KICK_BLOCK_SIZE) {\n", phi_entries.size());
 	indent();
@@ -649,7 +649,7 @@ void do_expansion_cuda() {
 	printf("}\n");
 
 	tprint("return Lb;\n");
-	printf("/* FLOPS = %i + do_phi * %i*/\n", flops, (int)(4 * phi_entries.size()));
+	printf("/* FLOPS = %i + do_phi * %i*/\n", flops, (int) (4 * phi_entries.size()));
 	deindent();
 	tprint("}\n");
 	tprint("#endif\n");
@@ -661,7 +661,7 @@ void ewald(int direct_flops) {
 	tprint("CUDA_EXPORT int ewald_greens_function(tensor_trless_sym<T,%i> &D, array<T, NDIM> X) {\n", P);
 	indent();
 	tprint("ewald_const econst;\n");
-	tprint("int flops = %i;\n", 56 + (P - 1) * 6 + direct_flops + 3 * (P * P + 1));
+	tprint("int flops = %i;\n", 7);
 	tprint("T r = SQRT(FMA(X[0], X[0], FMA(X[1], X[1], sqr(X[2]))));\n"); // 6
 	tprint("const T fouroversqrtpi = T(%.8e);\n", 4.0 / sqrt(M_PI));
 	tprint("tensor_sym<T, %i> Dreal;\n", P);
@@ -671,7 +671,6 @@ void ewald(int direct_flops) {
 	tprint("D = 0.0f;\n");
 	tprint("const auto realsz = econst.nreal();\n");
 	tprint("const T zero_mask = r > T(0);\n");                            // 1
-	tprint("T tmp;\n");
 	tprint("int icnt = 0;\n");
 	tprint("for (int i = 0; i < realsz; i++) {\n");
 	indent();
@@ -692,27 +691,29 @@ void ewald(int direct_flops) {
 	tprint("T exp0;\n");
 	tprint("T erfc0 = erfcexp(2.f * r, &exp0);\n");                          // 20
 	tprint("const T expfactor = fouroversqrtpi * exp0;\n");                  // 1
-	tprint("T e1 = expfactor * r2inv;\n");                                   // 1
-	tprint("array<T, LORDER> d;\n");
-	tprint("d[0] = -erfc0 * rinv;\n");                                       // 2
-	tprint("for (int l = 1; l < LORDER; l++) {\n");
-	indent();
-	tprint("d[l] = FMA(T(-2 * l + 1) * d[l - 1], r2inv, e1);\n");            // (P-1)*4
-	tprint("e1 *= T(-8);\n");                                                // (P-1)
-	deindent();
-	tprint("}\n");
-	tprint("array<T, LORDER> rinv2pow;\n");
-	tprint("rinv2pow[0] = T(1);\n");                                           // 2
-	tprint("for (int l = 1; l < LORDER; l++) {\n");
-	indent();
-	tprint("	rinv2pow[l] = rinv2pow[l - 1] * r2inv;\n");                      // (P-1)
-	deindent();
-	tprint("}\n");
+	tprint("T e0 = expfactor * r2inv;\n");                                   // 1
+	tprint("const T d0 = -erfc0 * rinv;\n");                                       // 2
+	for (int l = 1; l < P; l++) {
+		tprint("const T d%i = FMA(T(%i) * d%i, r2inv, e0);\n", l, -2 * l + 1, l - 1);            // (P-1)*4
+		if (l != P - 1) {
+			tprint("e0 *= T(-8);\n");                                                // (P-1)
+		}
+	}
+	tprint("const T rinv2pow0 = T(1);\n");                                           // 2
+	tprint("const T rinv2pow1 = r2inv;\n");                                           // 2
+	for (int l = 2; l < P; l++) {
+		tprint("const T rinv2pow%i = rinv2pow%i * r2inv;\n", l, l - 1);                      // (P-2)
+	}
+	for (int l = 0; l < P; l++) {
+		for (int m = 0; m < P; m++) {
+			tprint("const T Drinvpow_%i_%i = d%i * rinv2pow%i;\n", l, m, l, m);
+		}
+	}
 	compute_dx(P, "dx");
 	array<int, NDIM> m;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	int these_flops = 0;
+	int these_flops = 38 + 6 * (P - 1);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
@@ -724,7 +725,6 @@ void ewald(int direct_flops) {
 							double num = double(vfactorial(n));
 							double den = double((1 << m0) * vfactorial(m) * vfactorial(n - (m) * 2));
 							const double fnm = num / den;
-							tprint("tmp =  d[%i] * rinv2pow[%i];\n", n0 - m0, m0);
 							for (k[0] = 0; k[0] <= m0; k[0]++) {
 								for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
 									k[2] = m0 - k[0] - k[1];
@@ -733,12 +733,14 @@ void ewald(int direct_flops) {
 									den = vfactorial(k);
 									const double number = fnm * num / den;
 									if (close21(number)) {
-										tprint("Dreal[%i] = fmaf(x%i%i%i, tmp, Dreal[%i]);\n", sym_index(n[0], n[1], n[2]), p[0],
-												p[1], p[2], sym_index(n[0], n[1], n[2]));
+										tprint("Dreal[%i] = fmaf(x%i%i%i, Drinvpow_%i_%i, Dreal[%i]);\n",
+												sym_index(n[0], n[1], n[2]), p[0], p[1], p[2], n0 - m0, m0,
+												sym_index(n[0], n[1], n[2]));
 										these_flops += 2;
 									} else {
-										tprint("Dreal[%i] = fmaf(%.8e * x%i%i%i, tmp, Dreal[%i]);\n", sym_index(n[0], n[1], n[2]),
-												number, p[0], p[1], p[2], sym_index(n[0], n[1], n[2]));
+										tprint("Dreal[%i] = fmaf(%.8e * x%i%i%i, Drinvpow_%i_%i, Dreal[%i]);\n",
+												sym_index(n[0], n[1], n[2]), number, p[0], p[1], p[2], n0 - m0, m0,
+												sym_index(n[0], n[1], n[2]));
 										these_flops += 3;
 									}
 								}
@@ -780,6 +782,7 @@ void ewald(int direct_flops) {
 	reference_sym("Dreal", P);
 	reference_trless("D", P);
 	int those_flops = compute_detrace<P>("Dreal", "D", 'd');
+	those_flops += 16 + 3 * (P * P + 1);
 	printf("flops += %i * foursz + %i;\n", these_flops, those_flops);
 	tprint("D = D + Dfour;\n");                                    // P*P+1
 	tprint("expansion<T> D1;\n");
@@ -794,9 +797,9 @@ void ewald(int direct_flops) {
 	tprint("D[0] += 2.837291e+00 * (T(1) - zero_mask);\n");        // 3
 	tprint("if ( LORDER > 2) {\n");
 	indent();
-	tprint("D[3] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 2
-	tprint("D[5] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 2
-	tprint("D[LP - 1] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 2
+	tprint("D[3] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 3
+	tprint("D[5] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 3
+	tprint("D[LP - 1] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 3
 	deindent();
 	tprint("}\n");
 	tprint("return flops;\n");
@@ -881,7 +884,7 @@ int main() {
 	n[0] = n[1] = n[2] = 0;
 	const int n0 = 0;
 	const int q0 = intmin(P - n0, P - 1);
-	tprint( "if( do_phi ) {\n");
+	tprint("if( do_phi ) {\n");
 	indent();
 	for (m[0] = 0; m[0] < q0; m[0]++) {
 		for (m[1] = 0; m[1] < q0 - m[0]; m[1]++) {
@@ -901,7 +904,7 @@ int main() {
 		}
 	}
 	deindent();
-	tprint( "}\n");
+	tprint("}\n");
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
@@ -950,7 +953,7 @@ int main() {
 		n[0] = n[1] = n[2] = 0;
 		const int q0 = intmin(P - n0, P - 1);
 		const int n0 = 0;
-		tprint( "if( do_phi ) {\n");
+		tprint("if( do_phi ) {\n");
 		indent();
 		for (m[0] = 0; m[0] < q0; m[0]++) {
 			for (m[1] = 0; m[1] < q0 - m[0]; m[1]++) {
@@ -970,13 +973,13 @@ int main() {
 			}
 		}
 		deindent();
-		tprint( "}\n");
+		tprint("}\n");
 		for (n[0] = 0; n[0] < 2; n[0]++) {
 			for (n[1] = 0; n[1] < 2 - n[0]; n[1]++) {
 				const int nzmax = (n[0] == 0 && n[1] == 0) ? 2 : intmin(2 - n[0] - n[1], 2);
 				for (n[2] = 0; n[2] < nzmax; n[2]++) {
 					const int n0 = n[0] + n[1] + n[2];
-					if( n0 == 0 ) {
+					if (n0 == 0) {
 						continue;
 					}
 					const int q0 = intmin(P - n0, P - 1);

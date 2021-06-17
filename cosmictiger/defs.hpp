@@ -55,7 +55,7 @@ inline void print(const char* fmt, Args ...args) {
 
 //#define USE_READMOSTLY
 //#define USE_NAN_TEST
-//#define TEST_FORCE
+#define TEST_FORCE
 //#define TEST_STACK
 #define CONFORMAL_TIME
 #define N_TEST_PARTS (100)
