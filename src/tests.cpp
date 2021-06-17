@@ -17,6 +17,7 @@
 #include <cosmictiger/time.hpp>
 #include <cosmictiger/direct.hpp>
 #include <cosmictiger/fourier.hpp>
+#include <cosmictiger/initial.hpp>
 #include <cmath>
 
 
@@ -362,7 +363,7 @@ void force_test() {
 	PRINT("Generating particles\n");
 	particle_server pserv;
 	pserv.init();
-	pserv.generate_random();
+	initial_conditions(pserv.get_particle_set());
 	tree root;
 	sort_params params;
 	params.theta = global().opts.theta;

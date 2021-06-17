@@ -18,7 +18,7 @@
 template<class T>
 CUDA_EXPORT int multipole_interaction(expansion<T> &L, const multipole_type<T> &M, const expansion<T>& D, bool do_phi) { // 670/700 + 418 * NT + 50 * NFOUR
 	//L = L + interaction<T, LORDER, MORDER>(M, D);
-	return interaction<T>(L,M,D);
+	return interaction<T>(L,M,D, do_phi);
 }
 
 #if( LORDER != 2)
@@ -26,7 +26,7 @@ CUDA_EXPORT int multipole_interaction(expansion<T> &L, const multipole_type<T> &
 template<class T>
 CUDA_EXPORT int multipole_interaction(tensor_trless_sym<T,2> &L, const multipole_type<T> &M, const expansion<T>& D,
 		bool do_phi) { // 517 / 47428
-	return interaction<T>(L, M, D);
+	return interaction<T>(L, M, D, do_phi);
 }
 #endif
 

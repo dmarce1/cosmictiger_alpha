@@ -85,7 +85,6 @@ void direct_force_test() {
 	}
 	double gerr = 0.0, phierr = 0.0;
 	double gerr_max = 0.0, phierr_max = 0.0;
-	double gnorm = 0.0, phinorm = 0.0;
 	for (int i = 0; i < pts.size(); i++) {
 		double gnum = 0.0, gdir = 0.0;
 		double phinum, phidir;
@@ -97,20 +96,16 @@ void direct_force_test() {
 		gnum = std::sqrt(gnum);
 		phinum = test_parts[i].f.phi;
 		phidir = total[i].phi - PHI0/global().opts.hsoft * global().opts.G * global().opts.M;
-		gnorm += gdir;
-		phinorm += std::abs(phidir);
-		gerr += std::abs(gdir - gnum);
-		phierr += std::abs(phidir - phinum);
-		gerr_max = std::max(gerr_max, std::abs(gdir-gnum));
-		phierr_max = std::max(phierr_max,std::abs(phidir-phinum));
+		gerr += std::pow((gdir - gnum)/gdir, 2);
+		phierr += std::pow((phidir - phinum)/phidir, 2);
+		gerr_max = std::max(gerr_max, std::abs((gdir-gnum)/gdir));
+		phierr_max = std::max(phierr_max,std::abs((phidir-phinum)/phidir));
 	//	PRINT( "%e %e %e %e\n", gdir, gnum, phidir, phinum);
 	}
-	gerr /= gnorm;
-	phierr /= phinorm;
-	gerr_max /= gnorm;
-	phierr_max /= phinorm;
-	gerr_max *= pts.size();
-	phierr_max *= pts.size();
+	gerr /= pts.size();
+	phierr /= pts.size();
+	gerr = std::sqrt(gerr);
+	phierr = std::sqrt(phierr);
 	PRINT("gerr = %e\n", gerr);
 	PRINT("gerr_max = %e\n\n", gerr_max);
 	PRINT("phierr = %e\n", phierr);

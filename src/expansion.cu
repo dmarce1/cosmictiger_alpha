@@ -28,7 +28,7 @@ __constant__ int offsets10[10] = { 0, 1, 1, 2, 2, 2, 3, 3, 3, 3 };
 #ifdef __CUDA_ARCH__
 CUDA_DEVICE expansion<float>& cuda_shift_expansion(expansion<float> &L, const array<float, NDIM> &dX, bool do_phi) {
 	const int& tid = threadIdx.x;
-	const expansion<float> tmp = expansion_translate_cuda<float>(L, dX);
+	const expansion<float> tmp = expansion_translate_cuda<float>(L, dX, do_phi);
 	if( tid == 0 ) {
 		L = tmp;
 	}
@@ -38,13 +38,13 @@ CUDA_DEVICE expansion<float>& cuda_shift_expansion(expansion<float> &L, const ar
 #endif
 
 expansion<float>& shift_expansion(expansion<float> &L, const array<float, NDIM> &dX, bool do_phi) {
-	L = expansion_translate<float>(L, dX);
+	L = expansion_translate<float>(L, dX, do_phi);
 	return L;
 }
 
 CUDA_EXPORT void shift_expansion(const expansion<float> &L0, array<float, NDIM> &g, float &phi,
 		const array<float, NDIM> &dX, bool do_phi) {
-	const auto L = expansion_translate<float>(L0, dX);
+	const auto L = expansion_translate<float>(L0, dX, do_phi);
 	phi = L(0, 0, 0);
 	g[0] = -L(1, 0, 0);
 	g[1] = -L(0, 1, 0);
