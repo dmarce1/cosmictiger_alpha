@@ -423,12 +423,13 @@ CUDA_DEVICE void cuda_kick(kick_params_type * params_ptr) {
 				}
 			}
 			if (constant.full_eval) {
-				if (k >= nactive) {
-					phi[k] = F[0][k] = F[1][k] = F[2][k] = 0.0f;
-				}
-				kick_return_update_pot_gpu(phi[k], F[0][k], F[1][k], F[2][k]);
+				const auto this_phi = l < nactive ? phi[k] : 0.0f;
+				const auto this_fx = l < nactive ? F[0][k] : 0.0f;
+				const auto this_fy = l < nactive ? F[1][k] : 0.0f;
+				const auto this_fz = l < nactive ? F[2][k] : 0.0f;
+				kick_return_update_pot_gpu(this_phi, this_fx, this_fy, this_fz);
 			}
-			if (k < nactive) {
+			if (l < nactive) {
 				kick_return_update_rung_gpu(parts.rung(k + myparts.first));
 			}
 		}
