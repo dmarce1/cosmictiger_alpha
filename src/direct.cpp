@@ -95,7 +95,7 @@ void direct_force_test() {
 		gdir = std::sqrt(gdir);
 		gnum = std::sqrt(gnum);
 		phinum = test_parts[i].f.phi;
-		phidir = total[i].phi - PHI0/global().opts.hsoft * global().opts.G * global().opts.M;
+		phidir = total[i].phi - PHI0/(2.0*global().opts.hsoft) * global().opts.G * global().opts.M;
 		gerr += std::pow((gdir - gnum)/gdir, 2);
 		phierr += std::pow((phidir - phinum)/phidir, 2);
 		gerr_max = std::max(gerr_max, std::abs((gdir-gnum)/gdir));
