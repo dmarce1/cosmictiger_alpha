@@ -59,4 +59,44 @@ int kick_return_max_rung();
 void kick_return_show();
 int kick_return_pp_interactions();
 
+#ifdef __CUDACC__
+#ifndef KICK_RETURN_CU
+extern __managed__ kick_return gpu_return;
+#else
+__managed__ kick_return gpu_return;
+#endif
+
+inline __device__ void kick_return_update_interactions_gpu(int itype, int count, int flops) {
+	for (int P = KICK_BLOCK_SIZE / 2; P >= 1; P /= 2) {
+		flops += __shfl_down_sync(0xFFFFFFFF, flops, P);
+		count += __shfl_down_sync(0xFFFFFFFF, count, P);
+	}
+	if (threadIdx.x == 0) {
+		atomicAdd(&gpu_return.flop[itype], flops);
+		atomicAdd(&gpu_return.count[itype], count);
+	}
+}
+
+inline __device__ void kick_return_update_rung_gpu(int rung) {
+	atomicAdd(&gpu_return.rung_cnt[rung], 1);
+}
+
+inline __device__ void kick_return_update_pot_gpu(float phi, float fx, float fy, float fz) {
+	for (int P = warpSize / 2; P >= 1; P /= 2) {
+		phi += __shfl_xor_sync(FULL_MASK, phi, P);
+		fx += __shfl_xor_sync(FULL_MASK, fx, P);
+		fy += __shfl_xor_sync(FULL_MASK, fy, P);
+		fz += __shfl_xor_sync(FULL_MASK, fz, P);
+	}
+	if (threadIdx.x == 0) {
+		atomicAdd(&gpu_return.phis, phi);
+		atomicAdd(&gpu_return.forces[0], fx);
+		atomicAdd(&gpu_return.forces[1], fy);
+		atomicAdd(&gpu_return.forces[2], fz);
+	}
+
+}
+
+#endif
+
 #endif /* KICK_RETURN_HPP_ */

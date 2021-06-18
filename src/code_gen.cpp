@@ -129,6 +129,8 @@ bool close21(double a) {
 	return std::abs(1.0 - a) < 1.0e-20;
 }
 
+#define ASPRINTF(...) if( asprintf(__VA_ARGS__) == 0 ) printf( "asprintf failed\n")
+
 template<int P>
 int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 	array<int, NDIM> m;
@@ -141,15 +143,81 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 		double factor;
 	};
 	std::vector<entry_type> entries;
-
-	tensor_sym<int, P> first_use;
-	first_use = 1;
 	int flops = 0;
+
+	std::vector<std::string> asn;
+	std::vector<std::string> op;
+	for (int m0 = 1; m0 <= P / 2; m0++) {
+		array<int, NDIM> j;
+		const int Q = P - 2 * m0;
+		for (j[0] = 0; j[0] < Q; j[0]++) {
+			for (j[1] = 0; j[1] < Q - j[0]; j[1]++) {
+				for (j[2] = 0; j[2] < Q - j[0] - j[1]; j[2]++) {
+					const int j0 = j[0] + j[1] + j[2];
+					int n0 = j0 + 2 * m0;
+					bool first = true;
+					array<int, NDIM> k;
+					for (k[0] = 0; k[0] <= m0; k[0]++) {
+						for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
+							k[2] = m0 - k[0] - k[1];
+							const double num = factorial(m0);
+							const double den = vfactorial(k);
+							const double factor = num / den;
+							const auto p = j + k * 2;
+							char* str;
+							if (first) {
+								if (close21(factor)) {
+									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1], j[2],
+											iname.c_str(), p[0], p[1], p[2]);
+								} else if (close21(-factor)) {
+									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = -%s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1], j[2],
+											iname.c_str(), p[0], p[1], p[2]);
+								} else {
+									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = %.8e * %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1],
+											j[2], factor, iname.c_str(), p[0], p[1], p[2]);
+								}
+								asn.push_back(str);
+								first = false;
+								free(str);
+							} else {
+								if (close21(factor)) {
+									ASPRINTF(&str, "%s_%i_%i_%i%i%i += %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1], j[2],
+											iname.c_str(), p[0], p[1], p[2]);
+								} else if (close21(-factor)) {
+									ASPRINTF(&str, "%s_%i_%i_%i%i%i -= %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1], j[2],
+											iname.c_str(), p[0], p[1], p[2]);
+								} else {
+									ASPRINTF(&str, "%s_%i_%i_%i%i%i = fmaf(%.8e, %s%i%i%i, %s_%i_%i_%i%i%i);\n", iname.c_str(),
+											n0, m0, j[0], j[1], j[2], factor, iname.c_str(), p[0], p[1], p[2], iname.c_str(), n0,
+											m0, j[0], j[1], j[2]);
+								}
+								op.push_back(str);
+								free(str);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	int maxop = (op.size() + 1) / 2;
+	for (int i = 0; i < asn.size(); i++) {
+		tprint("%s", asn[i].c_str());
+	}
+	for (int i = 0; i < maxop; i++) {
+		tprint("%s", op[i].c_str());
+		if (i + maxop < op.size()) {
+			tprint("%s", op[i + maxop].c_str());
+		}
+	}
+	op.resize(0);
+	asn.resize(0);
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
 			for (n[2] = 0; n[2] < nzmax; n[2]++) {
 				const int n0 = n[0] + n[1] + n[2];
+				bool first = true;
 				for (m[0] = 0; m[0] <= n[0] / 2; m[0]++) {
 					for (m[1] = 0; m[1] <= n[1] / 2; m[1]++) {
 						for (m[2] = 0; m[2] <= n[2] / 2; m[2]++) {
@@ -159,23 +227,78 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 							}
 							double num = double(n1pow(m0) * dfactorial(2 * n0 - 2 * m0 - 1) * vfactorial(n));
 							double den = double((1 << m0) * vfactorial(m) * vfactorial(n - (m) * 2));
-							const double fnm = num / den;
-							for (k[0] = 0; k[0] <= m0; k[0]++) {
-								for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
-									k[2] = m0 - k[0] - k[1];
-									const auto p = n - (m) * 2 + (k) * 2;
-									num = factorial(m0);
-									den = vfactorial(k);
-									double number = fnm * num / den;
-									if (type == 'd') {
-										number *= 1.0 / dfactorial(2 * n0 - 1);
+							double factor = num / den;
+							if (type == 'd') {
+								factor *= 1.0 / dfactorial(2 * n0 - 1);
+							}
+							const auto p = n - m * 2;
+							char* str;
+							if (first) {
+								if (m0 > 0) {
+									if (close21(factor)) {
+										ASPRINTF(&str, "%s%i%i%i = %s_%i_%i_%i%i%i;\n", oname.c_str(), n[0], n[1], n[2],
+												iname.c_str(), n0, m0, p[0], p[1], p[2]);
+									} else if (close21(-factor)) {
+										ASPRINTF(&str, "%s%i%i%i = -%s_%i_%i_%i%i%i;\n", oname.c_str(), n[0], n[1], n[2],
+												iname.c_str(), n0, m0, p[0], p[1], p[2]);
+										flops++;
+									} else {
+										ASPRINTF(&str, "%s%i%i%i = %.8e * %s_%i_%i_%i%i%i;\n", oname.c_str(), n[0], n[1], n[2],
+												factor, iname.c_str(), n0, m0, p[0], p[1], p[2]);
+										flops++;
 									}
-									entry_type e;
-									e.dest = n;
-									e.src = p;
-									e.factor = number;
-									entries.push_back(e);
+								} else {
+									if (close21(factor)) {
+										ASPRINTF(&str, "%s%i%i%i = %s%i%i%i;\n", oname.c_str(), n[0], n[1], n[2], iname.c_str(),
+												p[0], p[1], p[2]);
+									} else if (close21(-factor)) {
+										ASPRINTF(&str, "%s%i%i%i = -%s%i%i%i;\n", oname.c_str(), n[0], n[1], n[2], iname.c_str(),
+												p[0], p[1], p[2]);
+										flops++;
+									} else {
+										ASPRINTF(&str, "%s%i%i%i = %.8e * %s%i%i%i;\n", oname.c_str(), n[0], n[1], n[2], factor,
+												iname.c_str(), p[0], p[1], p[2]);
+										flops++;
+									}
 								}
+								asn.push_back(str);
+								free(str);
+								first = false;
+							} else {
+								if (close21(factor)) {
+									if (m0 > 0) {
+										ASPRINTF(&str, "%s%i%i%i += %s_%i_%i_%i%i%i;\n", oname.c_str(), n[0], n[1], n[2],
+												iname.c_str(), n0, m0, p[0], p[1], p[2]);
+										flops++;
+									} else {
+										ASPRINTF(&str, "%s%i%i%i += %s%i%i%i;\n", oname.c_str(), n[0], n[1], n[2], iname.c_str(),
+												p[0], p[1], p[2]);
+										flops++;
+									}
+								} else if (close21(-factor)) {
+									if (m0 > 0) {
+										ASPRINTF(&str, "%s%i%i%i -= %s_%i_%i_%i%i%i;\n", oname.c_str(), n[0], n[1], n[2],
+												iname.c_str(), n0, m0, p[0], p[1], p[2]);
+										flops++;
+									} else {
+										ASPRINTF(&str, "%s%i%i%i -= %s%i%i%i;\n", oname.c_str(), n[0], n[1], n[2], iname.c_str(),
+												p[0], p[1], p[2]);
+										flops++;
+									}
+								} else {
+									if (m0 > 0) {
+										ASPRINTF(&str, "%s%i%i%i = fmaf(%.8e, %s_%i_%i_%i%i%i, %s%i%i%i);\n", oname.c_str(), n[0],
+												n[1], n[2], factor, iname.c_str(), n0, m0, p[0], p[1], p[2], oname.c_str(), n[0],
+												n[1], n[2]);
+										flops += 2;
+									} else {
+										ASPRINTF(&str, "%s%i%i%i = fmaf(%.8e, %s%i%i%i, %s%i%i%i);\n", oname.c_str(), n[0], n[1],
+												n[2], factor, iname.c_str(), p[0], p[1], p[2], oname.c_str(), n[0], n[1], n[2]);
+										flops += 2;
+									}
+								}
+								op.push_back(str);
+								free(str);
 							}
 						}
 					}
@@ -183,83 +306,142 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 			}
 		}
 	}
-	const auto sort_func = [](entry_type a, entry_type b) {
-		if( trless_index(a.dest[0], a.dest[1], a.dest[2], P) < trless_index(b.dest[0], b.dest[1], b.dest[2], P)) {
-			return true;
-		} else if( trless_index(a.dest[0], a.dest[1], a.dest[2], P) > trless_index(b.dest[0], b.dest[1], b.dest[2], P) ) {
-			return false;
-		} else {
-			if( a.src < b.src) {
-				return true;
-			} else {
-				return false;
-			}
-		}
-	};
-	std::sort(entries.begin(), entries.end(), sort_func);
-	for (int i = 0; i < entries.size(); i++) {
-		int j = i + 1;
-		while (j < entries.size()) {
-			if (entries[i].src == entries[j].src && entries[i].dest == entries[j].dest) {
-				entries[i].factor += entries[j].factor;
-				for (int k = j; k < entries.size() - 1; k++) {
-					entries[k] = entries[k + 1];
-				}
-				entries.pop_back();
-			} else {
-				j++;
-			}
+	maxop = (op.size() + 1) / 2;
+	for (int i = 0; i < asn.size(); i++) {
+		tprint("%s", asn[i].c_str());
+	}
+	for (int i = 0; i < maxop; i++) {
+		tprint("%s", op[i].c_str());
+		if (i + maxop < op.size()) {
+			tprint("%s", op[i + maxop].c_str());
 		}
 	}
-	std::vector<entry_type> entries1, entries2;
-	for (int i = 0; i < entries.size(); i++) {
-		if (i < (entries.size() + 1) / 2) {
-			entries1.push_back(entries[i]);
-		} else {
-			entries2.push_back(entries[i]);
-		}
-	}
-	for (int i = 0; i < entries1.size(); i++) {
-		{
-			const auto n = entries1[i].dest;
-			const auto p = entries1[i].src;
-			const auto number = entries1[i].factor;
-			if (first_use(n)) {
-				if (close21(number)) {
-					flops += eqp(oname, n, iname, p);
-				} else {
-					flops += mul(oname, n, number, iname, p);
-				}
-				first_use(n) = 0;
-			} else {
-				if (close21(number)) {
-					flops += acc(oname, n, iname, p);
-				} else {
-					flops += fma(oname, n, number, iname, p);
-				}
 
-			}
-		}
-		if (entries2.size() > i) {
-			const auto n = entries2[i].dest;
-			const auto p = entries2[i].src;
-			const auto number = entries2[i].factor;
-			if (first_use(n)) {
-				if (close21(number)) {
-					flops += eqp(oname, n, iname, p);
-				} else {
-					flops += mul(oname, n, number, iname, p);
-				}
-				first_use(n) = 0;
-			} else {
-				if (close21(number)) {
-					flops += acc(oname, n, iname, p);
-				} else {
-					flops += fma(oname, n, number, iname, p);
+	return flops;
+}
+
+template<int P>
+int compute_detrace_ewald(std::string iname, std::string oname) {
+	array<int, NDIM> m;
+	array<int, NDIM> k;
+	array<int, NDIM> n;
+
+	struct entry_type {
+		array<int, NDIM> src;
+		array<int, NDIM> dest;
+		double factor;
+	};
+	std::vector<entry_type> entries;
+	int flops = 0;
+
+	std::vector<std::string> asn;
+	std::vector<std::string> op;
+	for (int m0 = 1; m0 <= P / 2; m0++) {
+		array<int, NDIM> j;
+		const int Q = P - 2 * m0;
+		for (j[0] = 0; j[0] < Q; j[0]++) {
+			for (j[1] = 0; j[1] < Q - j[0]; j[1]++) {
+				for (j[2] = 0; j[2] < Q - j[0] - j[1]; j[2]++) {
+					const int j0 = j[0] + j[1] + j[2];
+					int n0 = j0 + 2 * m0;
+					bool first = true;
+					array<int, NDIM> k;
+					for (k[0] = 0; k[0] <= m0; k[0]++) {
+						for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
+							k[2] = m0 - k[0] - k[1];
+							const double num = factorial(m0);
+							const double den = vfactorial(k);
+							const double factor = num / den;
+							const auto p = j + k * 2;
+							char* str;
+							if (first) {
+								if (close21(factor)) {
+									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1], j[2],
+											iname.c_str(), p[0], p[1], p[2]);
+								} else if (close21(-factor)) {
+									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = -%s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1], j[2],
+											iname.c_str(), p[0], p[1], p[2]);
+								} else {
+									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = %.8e * %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1],
+											j[2], factor, iname.c_str(), p[0], p[1], p[2]);
+								}
+								asn.push_back(str);
+								first = false;
+								free(str);
+							} else {
+								if (close21(factor)) {
+									ASPRINTF(&str, "%s_%i_%i_%i%i%i += %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1], j[2],
+											iname.c_str(), p[0], p[1], p[2]);
+								} else if (close21(-factor)) {
+									ASPRINTF(&str, "%s_%i_%i_%i%i%i -= %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1], j[2],
+											iname.c_str(), p[0], p[1], p[2]);
+								} else {
+									ASPRINTF(&str, "%s_%i_%i_%i%i%i = fmaf(%.8e, %s%i%i%i, %s_%i_%i_%i%i%i);\n", iname.c_str(),
+											n0, m0, j[0], j[1], j[2], factor, iname.c_str(), p[0], p[1], p[2], iname.c_str(), n0,
+											m0, j[0], j[1], j[2]);
+								}
+								op.push_back(str);
+								free(str);
+							}
+						}
+					}
 				}
 			}
 		}
 	}
+	int maxop = (op.size() + 1) / 2;
+	for (int i = 0; i < asn.size(); i++) {
+		tprint("%s", asn[i].c_str());
+	}
+	for (int i = 0; i < maxop; i++) {
+		tprint("%s", op[i].c_str());
+		if (i + maxop < op.size()) {
+			tprint("%s", op[i + maxop].c_str());
+		}
+	}
+	op.resize(0);
+	asn.resize(0);
+	for (n[0] = 0; n[0] < P; n[0]++) {
+		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
+			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
+				const int n0 = n[0] + n[1] + n[2];
+				bool first = true;
+				for (m[0] = 0; m[0] <= n[0] / 2; m[0]++) {
+					for (m[1] = 0; m[1] <= n[1] / 2; m[1]++) {
+						for (m[2] = 0; m[2] <= n[2] / 2; m[2]++) {
+							const int m0 = m[0] + m[1] + m[2];
+							double num = double(vfactorial(n));
+							double den = double((1 << m0) * vfactorial(m) * vfactorial(n - (m) * 2));
+							double factor = num / den;
+							const auto p = n - m * 2;
+							char* str;
+							if (m0 > 0) {
+								ASPRINTF(&str, "%s[%i] = fmaf(%.8e * %s_%i_%i_%i%i%i, Drinvpow_%i_%i, %s[%i]);\n",
+										oname.c_str(), sym_index(n[0], n[1], n[2]), factor, iname.c_str(), n0, m0, p[0], p[1],
+										p[2], n0 - m0, m0, oname.c_str(), sym_index(n[0], n[1], n[2]));
+								flops += 3;
+							} else {
+								ASPRINTF(&str, "%s[%i] = fmaf(%.8e * %s%i%i%i, Drinvpow_%i_%i, %s[%i]);\n", oname.c_str(),
+										sym_index(n[0], n[1], n[2]), factor, iname.c_str(), p[0], p[1], p[2], n0 - m0, m0,
+										oname.c_str(), sym_index(n[0], n[1], n[2]));
+								flops += 3;
+							}
+							op.push_back(str);
+							free(str);
+						}
+					}
+				}
+			}
+		}
+	}
+	maxop = (op.size() + 1) / 2;
+	for (int i = 0; i < maxop; i++) {
+		tprint("%s", op[i].c_str());
+		if (i + maxop < op.size()) {
+			tprint("%s", op[i + maxop].c_str());
+		}
+	}
+
 	return flops;
 }
 
@@ -832,108 +1014,109 @@ void ewald(int direct_flops) {
 	tprint("dxrinv[0] = dx[0] * rinv;\n");
 	tprint("dxrinv[1] = dx[1] * rinv;\n");
 	tprint("dxrinv[2] = dx[2] * rinv;\n");
-	compute_dx(P, "dxrinv");
+	int these_flops = compute_dx(P, "dxrinv");
 	array<int, NDIM> m;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	int these_flops = 37 + 7 * (P - 1) + P * (P + 1) / 2 + P - 2;
+	these_flops += 37 + 7 * (P - 1) + P * (P + 1) / 2 + P - 2;
 
-	for (n[0] = 0; n[0] < P; n[0]++) {
-		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
-				const int n0 = n[0] + n[1] + n[2];
-				for (int m = 0; 2 * m <= n0; m++) {
-					tprint("const T x%i%i%iDrinvpow_%i_%i = x%i%i%i * Drinvpow_%i_%i;\n", n[0], n[1], n[2], n0 - m, m, n[0],
-							n[1], n[2], n0 - m, m);
-					these_flops++;
-				}
-			}
-		}
-	}
-	struct entry {
-		array<int, NDIM> n;
-		array<int, NDIM> p;
-		int n0;
-		int m0;
-		double factor;
-	};
-	std::vector<entry> entries;
-	for (n[0] = 0; n[0] < P; n[0]++) {
-		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
-				const int n0 = n[0] + n[1] + n[2];
-				for (m[0] = 0; m[0] <= n[0] / 2; m[0]++) {
-					for (m[1] = 0; m[1] <= n[1] / 2; m[1]++) {
-						for (m[2] = 0; m[2] <= n[2] / 2; m[2]++) {
-							const int m0 = m[0] + m[1] + m[2];
-							double num = double(vfactorial(n));
-							double den = double((1 << m0) * vfactorial(m) * vfactorial(n - (m) * 2));
-							const double fnm = num / den;
-							for (k[0] = 0; k[0] <= m0; k[0]++) {
-								for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
-									k[2] = m0 - k[0] - k[1];
-									const auto p = n - (m) * 2 + (k) * 2;
-									num = factorial(m0);
-									den = vfactorial(k);
-									const double number = fnm * num / den;
-									entry e;
-									e.n = n;
-									e.p = p;
-									e.n0 = n0;
-									e.m0 = m0;
-									e.factor = number;
-									entries.push_back(e);
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	std::sort(entries.begin(), entries.end(), [](entry a, entry b) {
-		return sym_index(a.n[0], a.n[1], a.n[2]) < sym_index(b.n[0], b.n[1], b.n[2]);
-	});
-	std::vector<entry> entries1, entries2;
-	for (int i = 0; i < entries.size(); i++) {
-		if (i < (entries.size() + 1) / 2) {
-			entries1.push_back(entries[i]);
-		} else {
-			entries2.push_back(entries[i]);
-		}
-	}
-	for (int i = 0; i < entries1.size(); i++) {
-		{
-			const double number = entries1[i].factor;
-			const auto n = entries1[i].n;
-			const auto p = entries1[i].p;
-			const int n0 = entries1[i].n0;
-			const int m0 = entries1[i].m0;
-			if (close21(number)) {
-				tprint("Dreal[%i] += x%i%i%iDrinvpow_%i_%i;\n", sym_index(n[0], n[1], n[2]), p[0], p[1], p[2], n0 - m0, m0);
-				these_flops += 1;
-			} else {
-				tprint("Dreal[%i] = fmaf(%.8e,  x%i%i%iDrinvpow_%i_%i, Dreal[%i]);\n", sym_index(n[0], n[1], n[2]), number,
-						p[0], p[1], p[2], n0 - m0, m0, sym_index(n[0], n[1], n[2]));
-				these_flops += 2;
-			}
-		}
-		if (entries2.size() > i) {
-			const double number = entries2[i].factor;
-			const auto n = entries2[i].n;
-			const auto p = entries2[i].p;
-			const int n0 = entries2[i].n0;
-			const int m0 = entries2[i].m0;
-			if (close21(number)) {
-				tprint("Dreal[%i] += x%i%i%iDrinvpow_%i_%i;\n", sym_index(n[0], n[1], n[2]), p[0], p[1], p[2], n0 - m0, m0);
-				these_flops += 1;
-			} else {
-				tprint("Dreal[%i] = fmaf(%.8e,  x%i%i%iDrinvpow_%i_%i, Dreal[%i]);\n", sym_index(n[0], n[1], n[2]), number,
-						p[0], p[1], p[2], n0 - m0, m0, sym_index(n[0], n[1], n[2]));
-				these_flops += 2;
-			}
-		}
-	}
+	compute_detrace_ewald<P>("x", "Dreal");
+	/*	for (n[0] = 0; n[0] < P; n[0]++) {
+	 for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
+	 for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
+	 const int n0 = n[0] + n[1] + n[2];
+	 for (int m = 0; 2 * m <= n0; m++) {
+	 tprint("const T x%i%i%iDrinvpow_%i_%i = x%i%i%i * Drinvpow_%i_%i;\n", n[0], n[1], n[2], n0 - m, m, n[0],
+	 n[1], n[2], n0 - m, m);
+	 these_flops++;
+	 }
+	 }
+	 }
+	 }
+	 /*	struct entry {
+	 array<int, NDIM> n;
+	 array<int, NDIM> p;
+	 int n0;
+	 int m0;
+	 double factor;
+	 };
+	 std::vector<entry> entries;
+	 for (n[0] = 0; n[0] < P; n[0]++) {
+	 for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
+	 for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
+	 const int n0 = n[0] + n[1] + n[2];
+	 for (m[0] = 0; m[0] <= n[0] / 2; m[0]++) {
+	 for (m[1] = 0; m[1] <= n[1] / 2; m[1]++) {
+	 for (m[2] = 0; m[2] <= n[2] / 2; m[2]++) {
+	 const int m0 = m[0] + m[1] + m[2];
+	 double num = double(vfactorial(n));
+	 double den = double((1 << m0) * vfactorial(m) * vfactorial(n - (m) * 2));
+	 const double fnm = num / den;
+	 for (k[0] = 0; k[0] <= m0; k[0]++) {
+	 for (k[1] = 0; k[1] <= m0 - k[0]; k[1]++) {
+	 k[2] = m0 - k[0] - k[1];
+	 const auto p = n - (m) * 2 + (k) * 2;
+	 num = factorial(m0);
+	 den = vfactorial(k);
+	 const double number = fnm * num / den;
+	 entry e;
+	 e.n = n;
+	 e.p = p;
+	 e.n0 = n0;
+	 e.m0 = m0;
+	 e.factor = number;
+	 entries.push_back(e);
+	 }
+	 }
+	 }
+	 }
+	 }
+	 }
+	 }
+	 }
+	 std::sort(entries.begin(), entries.end(), [](entry a, entry b) {
+	 return sym_index(a.n[0], a.n[1], a.n[2]) < sym_index(b.n[0], b.n[1], b.n[2]);
+	 });
+	 std::vector<entry> entries1, entries2;
+	 for (int i = 0; i < entries.size(); i++) {
+	 if (i < (entries.size() + 1) / 2) {
+	 entries1.push_back(entries[i]);
+	 } else {
+	 entries2.push_back(entries[i]);
+	 }
+	 }
+	 for (int i = 0; i < entries1.size(); i++) {
+	 {
+	 const double number = entries1[i].factor;
+	 const auto n = entries1[i].n;
+	 const auto p = entries1[i].p;
+	 const int n0 = entries1[i].n0;
+	 const int m0 = entries1[i].m0;
+	 if (close21(number)) {
+	 tprint("Dreal[%i] += x%i%i%iDrinvpow_%i_%i;\n", sym_index(n[0], n[1], n[2]), p[0], p[1], p[2], n0 - m0, m0);
+	 these_flops += 1;
+	 } else {
+	 tprint("Dreal[%i] = fmaf(%.8e,  x%i%i%iDrinvpow_%i_%i, Dreal[%i]);\n", sym_index(n[0], n[1], n[2]), number,
+	 p[0], p[1], p[2], n0 - m0, m0, sym_index(n[0], n[1], n[2]));
+	 these_flops += 2;
+	 }
+	 }
+	 if (entries2.size() > i) {
+	 const double number = entries2[i].factor;
+	 const auto n = entries2[i].n;
+	 const auto p = entries2[i].p;
+	 const int n0 = entries2[i].n0;
+	 const int m0 = entries2[i].m0;
+	 if (close21(number)) {
+	 tprint("Dreal[%i] += x%i%i%iDrinvpow_%i_%i;\n", sym_index(n[0], n[1], n[2]), p[0], p[1], p[2], n0 - m0, m0);
+	 these_flops += 1;
+	 } else {
+	 tprint("Dreal[%i] = fmaf(%.8e,  x%i%i%iDrinvpow_%i_%i, Dreal[%i]);\n", sym_index(n[0], n[1], n[2]), number,
+	 p[0], p[1], p[2], n0 - m0, m0, sym_index(n[0], n[1], n[2]));
+	 these_flops += 2;
+	 }
+	 }
+	 }*/
 	deindent();
 	tprint("}\n");
 	deindent();
