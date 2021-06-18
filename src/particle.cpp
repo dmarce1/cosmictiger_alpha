@@ -236,7 +236,7 @@ void particle_set::load_from_file(FILE* fp) {
 		global_set_options(opts);
 	}
 	part_int count;
-	fread(&count, sizeof(part_int), 1, fp);
+	FREAD(&count, sizeof(part_int), 1, fp);
 	resize(count);
 	for (int dim = 0; dim < NDIM; dim++) {
 		PRINT("%c positions...", 'x' + dim);

@@ -447,7 +447,7 @@ void do_expansion(bool two) {
 
 	}
 	indent();
-	tprint("tensor_trless_sym<T, %i> Lb;\n", Q);
+	tprint("tensor_trless_sym<T, %i> Lb;\n//", Q);
 	flops += compute_dx(P);
 	array<int, NDIM> n;
 	array<int, NDIM> k;

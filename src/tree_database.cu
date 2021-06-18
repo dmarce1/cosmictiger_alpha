@@ -157,7 +157,8 @@ std::pair<int, int> tree_data_allocate() {
 	std::pair<int, int> rc;
 	const int chunk = next_chunk++;
 	if (chunk >= cpu_tree_data_.nchunks) {
-		PRINT("Fatal error - tree arena full!\n");
+		printf("Fatal error - tree arena full!\n");
+		fflush(stdout);
 		abort();
 	}
 	rc.first = chunk * cpu_tree_data_.chunk_size;

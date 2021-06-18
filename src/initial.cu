@@ -37,7 +37,8 @@ interp_functor<float> read_power_spectrum() {
 	const float h3 = h * h * h;
 	FILE* fp = fopen("power.init", "rb");
 	if (fp == nullptr) {
-		PRINT("Cannot read power.init, unable to continue.\n");
+		printf("Cannot read power.init, unable to continue.\n");
+		fflush(stdout);
 		abort();
 	}
 	float kmax = 0.0;
@@ -81,12 +82,12 @@ void initial_conditions(particle_set& parts) {
 		float kmax_min = (float) M_PI / (float) code_to_mpc * (float) N;
 		if (kmin > kmin_max) {
 			PRINT("kmin = %e kmin_max = %e\n", kmin, kmin_max);
-			PRINT("kmin of power.init is too large, unable to continue.\n");
+			PRINT("%s", "kmin of power.init is too large, unable to continue.\n");
 			abort();
 		}
 		if (kmax < kmax_min) {
 			PRINT("kmax = %e kmax_min = %e\n", kmax, kmax_min);
-			PRINT("kmax of power.init is too small, unable to continue\n");
+			PRINT("%s", "kmax of power.init is too small, unable to continue\n");
 			abort();
 		}
 		PRINT("code_to_mpc = %e\n", code_to_mpc);
@@ -98,7 +99,7 @@ void initial_conditions(particle_set& parts) {
 		sigma8_func->littleh = global().opts.hubble;
 		sigma8_func->power = power;
 
-		PRINT("Computing sigma8 normalization...");
+		PRINT("%s", "Computing sigma8 normalization...");
 		integrate<sigma8_integrand, float> <<<1, SIGMA8SIZE>>>(sigma8_func,
 				(float) std::log(kmin*1.001), (float) std::log(kmax/1.001), result_ptr, (float) 1.0e-6);
 		CUDA_CHECK(cudaDeviceSynchronize());
@@ -131,7 +132,7 @@ void initial_conditions(particle_set& parts) {
 		PRINT("f2 = %e\n", f2);
 		PRINT("H*a*f1 = %e\n", prefac1);
 		PRINT("H*a*f2 = %e\n", prefac2);
-		PRINT("\t\tComputing positions\n");
+		PRINT("%s", "\t\tComputing positions\n");
 
 		int seed = 1234;
 		float max_disp = 0.0;
@@ -199,6 +200,6 @@ void initial_conditions(particle_set& parts) {
 	alloc.reset();
 
 
-	PRINT("Done initializing\n");
+	PRINT("%s", "Done initializing\n");
 }
 
