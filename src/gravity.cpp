@@ -151,6 +151,7 @@ void tree::cpu_cp_direct(kick_params_type *params_ptr) {
 		flops += n * 6;
 		flops += n * green_direct(D, dX);
 		flops += n * multipole_interaction(Lacc, M, D);
+		interacts += n;
 	}
 	for (int k = 0; k < simd_float::size(); k++) {
 		for (int i = 0; i < LP; i++) {

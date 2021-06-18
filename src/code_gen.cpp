@@ -678,34 +678,38 @@ void ewald(int direct_flops) {
 	indent();
 	tprint("icnt++;\n");                                       // 1
 	tprint("const T r = SQRT(r2);\n");                                       // 1
+	tprint("const T n8r = T(-8) * r;\n");                                       // 1
 	tprint("const T rinv = (r > T(0)) / max(r, 1.0e-20);\n");                // 2
-	tprint("const T r2inv = rinv * rinv;\n");                                // 1
 	tprint("T exp0;\n");
 	tprint("T erfc0 = erfcexp(2.f * r, &exp0);\n");                          // 20
 	tprint("const T expfactor = fouroversqrtpi * exp0;\n");                  // 1
-	tprint("T e0 = expfactor * r2inv;\n");                                   // 1
+	tprint("T e0 = expfactor * rinv;\n");                                   // 1
+	tprint("const T rinv0 = T(1);\n");                                           // 2
+	tprint("const T rinv1 = rinv;\n");                                           // 2
+	for (int l = 2; l < P; l++) {
+		tprint("const T rinv%i = rinv%i * rinv;\n", l, l - 1);                      // (P-2)
+	}
 	tprint("const T d0 = -erfc0 * rinv;\n");                                       // 2
 	for (int l = 1; l < P; l++) {
-		tprint("const T d%i = FMA(T(%i) * d%i, r2inv, e0);\n", l, -2 * l + 1, l - 1);            // (P-1)*4
+		tprint("const T d%i = FMA(T(%i) * d%i, rinv, e0);\n", l, -2 * l + 1, l - 1);            // (P-1)*4
 		if (l != P - 1) {
-			tprint("e0 *= T(-8);\n");                                                // (P-1)
+			tprint("e0 *= n8r;\n");                                                // (P-1)
 		}
-	}
-	tprint("const T rinv2pow0 = T(1);\n");                                           // 2
-	tprint("const T rinv2pow1 = r2inv;\n");                                           // 2
-	for (int l = 2; l < P; l++) {
-		tprint("const T rinv2pow%i = rinv2pow%i * r2inv;\n", l, l - 1);                      // (P-2)
 	}
 	for (int l = 0; l < P; l++) {
 		for (int m = 0; m <= l; m++) {
-			tprint("const T Drinvpow_%i_%i = d%i * rinv2pow%i;\n", l, m, l, m);
+			tprint("const T Drinvpow_%i_%i = d%i * rinv%i;\n", l, m, l, m);
 		}
 	}
-	compute_dx(P, "dx");
+	tprint("array<T,NDIM> dxrinv;\n");
+	tprint("dxrinv[0] = dx[0] * rinv;\n");
+	tprint("dxrinv[1] = dx[1] * rinv;\n");
+	tprint("dxrinv[2] = dx[2] * rinv;\n");
+	compute_dx(P, "dxrinv");
 	array<int, NDIM> m;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	int these_flops = 38 + 6 * (P - 1) + P * (P + 1) / 2;
+	int these_flops = 37 + 7 * (P - 1) + P * (P + 1) / 2 + P - 2;
 
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
@@ -846,7 +850,7 @@ void ewald(int direct_flops) {
 	reference_trless("D", P);
 	int those_flops = compute_detrace<P>("Dreal", "D", 'd');
 	those_flops += 16 + 3 * (P * P + 1);
-	printf("flops += %i * foursz + %i;\n", these_flops, those_flops);
+	tprint("flops += %i * foursz + %i;\n", these_flops, those_flops);
 	tprint("D = D + Dfour;\n");                                    // P*P+1
 	tprint("expansion<T> D1;\n");
 	tprint("direct_greens_function(D1,X);\n");
