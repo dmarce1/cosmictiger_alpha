@@ -44,6 +44,7 @@ struct options {
 	double theta;
 	double Theta;
 	double z0;
+	double z1;
 
 	size_t nparts;
 	size_t parts_dim;
@@ -85,6 +86,7 @@ struct options {
 		arc & theta;
 		arc & Theta;
 		arc & z0;
+		arc & z1;
 		arc & nparts;
 		arc & parts_dim;
 		arc & checkpt_file;

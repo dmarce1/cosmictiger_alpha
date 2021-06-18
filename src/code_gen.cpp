@@ -833,38 +833,40 @@ int main() {
 	flops = 0;
 	indent();
 	tprint("auto r2 = sqr(X[0], X[1], X[2]);\n");
-//	tprint("const T scale = T(1) / max(SQRT(SQRT(r2)),T(1e-4));\n");
-//	tprint("const T sw = (r2 < T(25e-8));\n");
-	tprint("constexpr float scale = 837.0f;\n", 38.0 / (2 * LORDER - 1));
-	tprint("X[0] *= scale;\n");
-	tprint("X[1] *= scale;\n");
-	tprint("X[2] *= scale;\n");
-	flops += 13;
-	flops += compute_dx(P);
-	reference_trless("D", P);
-	flops += compute_detrace<P>("x", "D");
 	tprint("array<T, %i> rinv_pow;\n", P);
 	tprint("r2 = sqr(X[0], X[1], X[2]);\n");
 	tprint("const T r = SQRT(r2);\n");
 	tprint("const T rinv = (r > T(0)) / max(r, T(1e-20));\n");
-	tprint("const T rinv2 = rinv * rinv;\n");
 	tprint("rinv_pow[0] = -rinv;\n");
 	tprint("for (int i = 1; i < %i; i++) {\n", P);
 	indent();
-	tprint("rinv_pow[i] = -rinv2 * rinv_pow[i - 1];\n");
+	tprint("rinv_pow[i] = -rinv * rinv_pow[i - 1];\n");
 	tprint("NAN_TEST(rinv_pow[i]);\n");
 	deindent();
 	tprint("}\n");
+//	tprint("const T scale = T(1) / max(SQRT(SQRT(r2)),T(1e-4));\n");
+//	tprint("const T sw = (r2 < T(25e-8));\n");
+//	tprint("constexpr float scale = 837.0f;\n", 38.0 / (2 * LORDER - 1));
+//	tprint("X[0] *= scale;\n");
+//	tprint("X[1] *= scale;\n");
+//	tprint("X[2] *= scale;\n");
+	tprint("X[0] *= rinv;\n");
+	tprint("X[1] *= rinv;\n");
+	tprint("X[2] *= rinv;\n");
+	flops += 12;
+	flops += compute_dx(P);
+	reference_trless("D", P);
+	flops += compute_detrace<P>("x", "D");
 	flops += 11 + (P - 1) * 2;
 	array<int, NDIM> k;
-	tprint("constexpr float scale0 = scale;\n");
-	for (int l = 1; l < P; l++) {
-		tprint("constexpr float scale%i = scale%i * scale;\n", l, l - 1);
-	}
-	for (int l = 0; l < P; l++) {
+//	tprint("constexpr float scale0 = scale;\n");
+//	for (int l = 1; l < P; l++) {
+//		tprint("constexpr float scale%i = scale%i * scale;\n", l, l - 1);
+//	}
+/*	for (int l = 0; l < P; l++) {
 		tprint("rinv_pow[%i] *= scale%i;\n", l, l);
 	}
-	flops += P;
+	flops += P;*/
 	for (k[0] = 0; k[0] < P; k[0]++) {
 		for (k[1] = 0; k[1] < P - k[0]; k[1]++) {
 			const int zmax = (k[0] == 0 && k[1] == 0) ? intmin(3, P) : intmin(P - k[0] - k[1], 2);

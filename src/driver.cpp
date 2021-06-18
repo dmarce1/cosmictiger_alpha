@@ -111,19 +111,19 @@ int drift(particle_set& parts, double dt, double a0, double a1, double*ekin, dou
 
 #define EVAL_FREQ 25
 
-void save_to_file(int step, time_type itime, double time, double a, double cosmicK);
+void save_to_file(int step, time_type itime, double time, double a, double cosmicK, double esum0);
 void load_from_file_remote();
 
 HPX_PLAIN_ACTION(save_to_file);
 HPX_PLAIN_ACTION(load_from_file_remote);
 
-void save_to_file(int step, time_type itime, double time, double a, double cosmicK) {
+void save_to_file(int step, time_type itime, double time, double a, double cosmicK, double esum0) {
 	particle_server pserv;
 	auto& parts = pserv.get_particle_set();
 	std::vector<hpx::future<void>> futs;
 	if (hpx_rank() == 0) {
 		for (int i = 1; i < hpx_size(); i++) {
-			futs.push_back(hpx::async<save_to_file_action>(hpx_localities()[i], step, itime, time, a, cosmicK));
+			futs.push_back(hpx::async<save_to_file_action>(hpx_localities()[i], step, itime, time, a, cosmicK, esum0));
 		}
 	}
 
@@ -143,6 +143,7 @@ void save_to_file(int step, time_type itime, double time, double a, double cosmi
 	fwrite(&time, sizeof(double), 1, fp);
 	fwrite(&a, sizeof(double), 1, fp);
 	fwrite(&cosmicK, sizeof(double), 1, fp);
+	fwrite(&esum0, sizeof(double), 1, fp);
 	parts.save_to_file(fp);
 	maps_to_file(fp);
 	fclose(fp);
@@ -166,6 +167,7 @@ void load_from_file_remote() {
 	double time;
 	double a;
 	double cosmicK;
+	double esum0;
 	if (hpx_size() > 1) {
 		filename += std::string(".") + std::to_string(hpx_rank());
 	}
@@ -179,6 +181,7 @@ void load_from_file_remote() {
 	FREAD(&time, sizeof(double), 1, fp);
 	FREAD(&a, sizeof(double), 1, fp);
 	FREAD(&cosmicK, sizeof(double), 1, fp);
+	FREAD(&esum0, sizeof(double), 1, fp);
 	parts.load_from_file(fp);
 	maps_from_file(fp);
 	fclose(fp);
@@ -186,7 +189,7 @@ void load_from_file_remote() {
 
 }
 
-void load_from_file(int& step, time_type& itime, double& time, double& a, double& cosmicK) {
+void load_from_file(int& step, time_type& itime, double& time, double& a, double& cosmicK, double& esum0) {
 	particle_server pserv;
 	auto& parts = pserv.get_particle_set();
 	std::string filename = global().opts.checkpt_file;
@@ -204,6 +207,7 @@ void load_from_file(int& step, time_type& itime, double& time, double& a, double
 	FREAD(&time, sizeof(double), 1, fp);
 	FREAD(&a, sizeof(double), 1, fp);
 	FREAD(&cosmicK, sizeof(double), 1, fp);
+	FREAD(&esum0, sizeof(double), 1, fp);
 	parts.load_from_file(fp);
 	maps_from_file(fp);
 	fclose(fp);
@@ -295,7 +299,7 @@ void drive_cosmos() {
 		a = 1.0 / (z + 1.0);
 		time = 0.0;
 	} else {
-		load_from_file(iter, itime, time, a, cosmicK);
+		load_from_file(iter, itime, time, a, cosmicK, esum0);
 		z = 1.0 / a - 1.0;
 	}
 	parts_total = 0.0;
@@ -315,12 +319,13 @@ void drive_cosmos() {
 	double real_time = 0.0;
 	double tree_use;
 	hpx::future<void> group_fut;
+	bool first_step_from_restart = true;
 	do {
 		checkpt_tm.stop();
 		if (checkpt_tm.read() > global().opts.checkpt_freq) {
 			checkpt_tm.reset();
 			checkpt_tm.start();
-			save_to_file(iter, itime, time, a, cosmicK);
+			save_to_file(iter, itime, time, a, cosmicK, esum0);
 		} else {
 			checkpt_tm.start();
 		}
@@ -333,14 +338,11 @@ void drive_cosmos() {
 		static double last_theta = -1.0;
 		auto opts = global().opts;
 		int bucket_size = global().opts.bucket_size;
-		if (z > 20.0) {
-		//	bucket_size = 70;
+		if (z > 20) {
 			theta = 0.4;
-		} else if (z > 2.0) {
-		//	bucket_size = 105;
+		} else if (z > 2) {
 			theta = 0.55;
 		} else {
-		//	bucket_size = 140;
 			theta = 0.7;
 		}
 		opts.bucket_size = bucket_size;
@@ -352,7 +354,7 @@ void drive_cosmos() {
 		const auto min_r = min_rung(itime);
 		size_t num_active;
 		tree_stats stats;
-		const bool full_eval = min_r <= 0;
+		const bool full_eval = min_r <= 0 || first_step_from_restart;
 		//	const bool full_eval = false;
 		double group_tm;
 		bool groups = z < 20.0 && global().opts.groups;
@@ -420,7 +422,7 @@ void drive_cosmos() {
 		cosmicK += kin * (a - a0);
 		double sum = a * (pot + kin) + cosmicK;
 		//	PRINT( "%e %e %e %e\n", a, pot, kin, cosmicK);
-		if (iter == 0) {
+		if (iter == 0 && !have_checkpoint) {
 			esum0 = sum;
 		}
 		sum = (sum - esum0) / (std::abs(a * kin) + std::abs(a * pot) + std::abs(cosmicK));
@@ -454,7 +456,10 @@ void drive_cosmos() {
 //		}
 		itime = inc(itime, max_rung);
 		iter++;
-	} while (z > 0.0);
+		first_step_from_restart = false;
+	} while (z > global().opts.z1);
+	save_to_file(0, itime, time, a, cosmicK, esum0);
+
 	double total_time = drift_total + sort_total + kick_total;
 	PRINT("Sort  time = %e (%.2f) %%\n", sort_total, sort_total / total_time * 100.0);
 	PRINT("Kick  time = %e (%.2f) %%\n", kick_total, kick_total / total_time * 100.0);

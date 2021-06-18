@@ -52,6 +52,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	("parts_dim", po::value<size_t>(&(opts.parts_dim))->default_value(128), "number of particles = parts_dim^3") //
 	("test", po::value<std::string>(&(opts.test))->default_value(""), "test problem") //
 	("z0", po::value<double>(&(opts.z0))->default_value(49), "starting redshift") //
+	("z1", po::value<double>(&(opts.z1))->default_value(0), "ending redshift") //
 			;
 
 #ifdef USE_HPX
@@ -156,6 +157,7 @@ bool process_options(int argc, char *argv[], options &opts) {
 	PRINT("Cosmological Options\n");
 	SHOW(hubble);
 	SHOW(z0);
+	SHOW(z1);
 	SHOW(sigma8);
 	SHOW(Neff);
 	SHOW(omega_m);
