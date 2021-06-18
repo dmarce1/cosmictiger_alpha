@@ -174,7 +174,7 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 											iname.c_str(), p[0], p[1], p[2]);
 									flops++;
 								} else {
-									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = %.8e * %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1],
+									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = T(%.8e) * %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1],
 											j[2], factor, iname.c_str(), p[0], p[1], p[2]);
 									flops++;
 								}
@@ -191,7 +191,7 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 											iname.c_str(), p[0], p[1], p[2]);
 									flops++;
 								} else {
-									ASPRINTF(&str, "%s_%i_%i_%i%i%i = fmaf(%.8e, %s%i%i%i, %s_%i_%i_%i%i%i);\n", iname.c_str(),
+									ASPRINTF(&str, "%s_%i_%i_%i%i%i = fmaf(T(%.8e), %s%i%i%i, %s_%i_%i_%i%i%i);\n", iname.c_str(),
 											n0, m0, j[0], j[1], j[2], factor, iname.c_str(), p[0], p[1], p[2], iname.c_str(), n0,
 											m0, j[0], j[1], j[2]);
 									flops += 2;
@@ -248,7 +248,7 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 												iname.c_str(), n0, m0, p[0], p[1], p[2]);
 										flops++;
 									} else {
-										ASPRINTF(&str, "%s%i%i%i = %.8e * %s_%i_%i_%i%i%i;\n", oname.c_str(), n[0], n[1], n[2],
+										ASPRINTF(&str, "%s%i%i%i = T(%.8e) * %s_%i_%i_%i%i%i;\n", oname.c_str(), n[0], n[1], n[2],
 												factor, iname.c_str(), n0, m0, p[0], p[1], p[2]);
 										flops++;
 									}
@@ -261,7 +261,7 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 												p[0], p[1], p[2]);
 										flops++;
 									} else {
-										ASPRINTF(&str, "%s%i%i%i = %.8e * %s%i%i%i;\n", oname.c_str(), n[0], n[1], n[2], factor,
+										ASPRINTF(&str, "%s%i%i%i = T(%.8e) * %s%i%i%i;\n", oname.c_str(), n[0], n[1], n[2], factor,
 												iname.c_str(), p[0], p[1], p[2]);
 										flops++;
 									}
@@ -292,12 +292,12 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 									}
 								} else {
 									if (m0 > 0) {
-										ASPRINTF(&str, "%s%i%i%i = fmaf(%.8e, %s_%i_%i_%i%i%i, %s%i%i%i);\n", oname.c_str(), n[0],
+										ASPRINTF(&str, "%s%i%i%i = fmaf(T(%.8e), %s_%i_%i_%i%i%i, %s%i%i%i);\n", oname.c_str(), n[0],
 												n[1], n[2], factor, iname.c_str(), n0, m0, p[0], p[1], p[2], oname.c_str(), n[0],
 												n[1], n[2]);
 										flops += 2;
 									} else {
-										ASPRINTF(&str, "%s%i%i%i = fmaf(%.8e, %s%i%i%i, %s%i%i%i);\n", oname.c_str(), n[0], n[1],
+										ASPRINTF(&str, "%s%i%i%i = fmaf(T(%.8e), %s%i%i%i, %s%i%i%i);\n", oname.c_str(), n[0], n[1],
 												n[2], factor, iname.c_str(), p[0], p[1], p[2], oname.c_str(), n[0], n[1], n[2]);
 										flops += 2;
 									}
@@ -368,7 +368,7 @@ int compute_detrace_ewald(std::string iname, std::string oname) {
 											iname.c_str(), p[0], p[1], p[2]);
 									flops += 1;
 								} else {
-									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = %.8e * %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1],
+									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = T(%.8e) * %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1],
 											j[2], factor, iname.c_str(), p[0], p[1], p[2]);
 									flops++;
 								}
@@ -385,7 +385,7 @@ int compute_detrace_ewald(std::string iname, std::string oname) {
 											iname.c_str(), p[0], p[1], p[2]);
 									flops += 1;
 								} else {
-									ASPRINTF(&str, "%s_%i_%i_%i%i%i = fmaf(%.8e, %s%i%i%i, %s_%i_%i_%i%i%i);\n", iname.c_str(),
+									ASPRINTF(&str, "%s_%i_%i_%i%i%i = fmaf(T(%.8e), %s%i%i%i, %s_%i_%i_%i%i%i);\n", iname.c_str(),
 											n0, m0, j[0], j[1], j[2], factor, iname.c_str(), p[0], p[1], p[2], iname.c_str(), n0,
 											m0, j[0], j[1], j[2]);
 									flops += 2;
@@ -450,7 +450,7 @@ int compute_detrace_ewald(std::string iname, std::string oname) {
 											iname.c_str(), n0, m0, p[0], p[1], p[2]);
 									flops += 1;
 								} else {
-									ASPRINTF(&str, "%s[%i] = fmaf(%.8e, %s_%i_%i_%i%i%i, %s[%i]);\n", oname.c_str(),
+									ASPRINTF(&str, "%s[%i] = fmaf(T(%.8e), %s_%i_%i_%i%i%i, %s[%i]);\n", oname.c_str(),
 											sym_index(n[0], n[1], n[2]), factor, iname.c_str(), n0, m0, p[0], p[1], p[2],
 											oname.c_str(), sym_index(n[0], n[1], n[2]));
 									flops += 2;
@@ -466,7 +466,7 @@ int compute_detrace_ewald(std::string iname, std::string oname) {
 											sym_index(n[0], n[1], n[2]), iname.c_str(), p[0], p[1], p[2], n0 - m0, m0);
 									flops += 2;
 								} else {
-									ASPRINTF(&str, "%s[%i] = fmaf(%.8e, %s%i%i%i*Drinvpow_%i_%i, %s[%i]);\n", oname.c_str(),
+									ASPRINTF(&str, "%s[%i] = fmaf(T(%.8e), %s%i%i%i*Drinvpow_%i_%i, %s[%i]);\n", oname.c_str(),
 											sym_index(n[0], n[1], n[2]), factor, iname.c_str(), p[0], p[1], p[2], n0 - m0, m0,
 											oname.c_str(), sym_index(n[0], n[1], n[2]));
 
