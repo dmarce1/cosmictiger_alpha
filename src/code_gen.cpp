@@ -544,40 +544,91 @@ void do_expansion_cuda() {
 			}
 		}
 	}
+	std::sort(entries.begin(), entries.end(), [](entry a, entry b) {
+		if( a.Ldest < b.Ldest) {
+			return true;
+		} else if( a.Ldest > b.Ldest) {
+			return false;
+		} else {
+			return a.Lsource < b.Lsource;
+		}
+	});
 	tprint("#ifdef EXPANSION_CU\n");
+	std::vector<entry> entries1, entries2;
+	for (int i = 0; i < entries.size(); i++) {
+		if (i < (entries.size() + 1) / 2) {
+			entries1.push_back(entries[i]);
+		} else {
+			entries2.push_back(entries[i]);
+		}
+	}
 
-	tprint("__managed__ int Ldest[%i] = { ", entries.size());
-	for (int i = 0; i < entries.size(); i++) {
-		printf("%i", entries[i].Ldest);
-		if (i != entries.size() - 1) {
+	tprint("__managed__ char Ldest1[%i] = { ", entries1.size());
+	for (int i = 0; i < entries1.size(); i++) {
+		printf("%i", entries1[i].Ldest);
+		if (i != entries1.size() - 1) {
 			printf(",");
 		}
 	}
 	printf("};\n");
-	tprint("__managed__ float factor[%i] = { ", entries.size());
-	for (int i = 0; i < entries.size(); i++) {
-		printf("%.8e", entries[i].factor);
-		if (i != entries.size() - 1) {
+	tprint("__managed__ float factor1[%i] = { ", entries1.size());
+	for (int i = 0; i < entries1.size(); i++) {
+		printf("%.8e", entries1[i].factor);
+		if (i != entries1.size() - 1) {
 			printf(",");
 		}
 	}
 	printf("};\n");
-	tprint("__managed__ int xsrc[%i] = { ", entries.size());
-	for (int i = 0; i < entries.size(); i++) {
-		printf("%i", entries[i].xsource);
-		if (i != entries.size() - 1) {
+	tprint("__managed__ char xsrc1[%i] = { ", entries1.size());
+	for (int i = 0; i < entries1.size(); i++) {
+		printf("%i", entries1[i].xsource);
+		if (i != entries1.size() - 1) {
 			printf(",");
 		}
 	}
 	printf("};\n");
-	tprint("__managed__ int Lsrc[%i] = { ", entries.size());
-	for (int i = 0; i < entries.size(); i++) {
-		printf("%i", entries[i].Lsource);
-		if (i != entries.size() - 1) {
+	tprint("__managed__ char Lsrc1[%i] = { ", entries1.size());
+	for (int i = 0; i < entries1.size(); i++) {
+		printf("%i", entries1[i].Lsource);
+		if (i != entries1.size() - 1) {
 			printf(",");
 		}
 	}
 	printf("};\n");
+
+	tprint("__managed__ char Ldest2[%i] = { ", entries2.size());
+	for (int i = 0; i < entries2.size(); i++) {
+		printf("%i", entries2[i].Ldest);
+		if (i != entries2.size() - 1) {
+			printf(",");
+		}
+	}
+	printf("};\n");
+	tprint("__managed__ float factor2[%i] = { ", entries2.size());
+	for (int i = 0; i < entries2.size(); i++) {
+		printf("%.8e", entries2[i].factor);
+		if (i != entries2.size() - 1) {
+			printf(",");
+		}
+	}
+	printf("};\n");
+	tprint("__managed__ char xsrc2[%i] = { ", entries2.size());
+	for (int i = 0; i < entries2.size(); i++) {
+		printf("%i", entries2[i].xsource);
+		if (i != entries2.size() - 1) {
+			printf(",");
+		}
+	}
+	printf("};\n");
+	tprint("__managed__ char Lsrc2[%i] = { ", entries2.size());
+	for (int i = 0; i < entries2.size(); i++) {
+		printf("%i", entries2[i].Lsource);
+		if (i != entries2.size() - 1) {
+			printf(",");
+		}
+	}
+	printf("};\n");
+
 	tprint("__managed__ float phi_factor[%i] = { ", phi_entries.size());
 	for (int i = 0; i < phi_entries.size(); i++) {
 		printf("%.8e", phi_entries[i].factor);
@@ -586,7 +637,7 @@ void do_expansion_cuda() {
 		}
 	}
 	printf("};\n");
-	tprint("__managed__ int phi_Lsrc[%i] = { ", phi_entries.size());
+	tprint("__managed__ char phi_Lsrc[%i] = { ", phi_entries.size());
 	for (int i = 0; i < phi_entries.size(); i++) {
 		printf("%i", phi_entries[i].Lsource);
 		if (i != phi_entries.size() - 1) {
@@ -615,11 +666,16 @@ void do_expansion_cuda() {
 	flops += compute_dx_tensor(P);
 	flops += const_reference_trless_tensor<P>("La", "Lc");
 	flops += 4 * entries.size();
-	tprint("for( int i = tid; i < %i; i+=KICK_BLOCK_SIZE) {\n", entries.size());
+	tprint("for( int i = tid; i < %i; i+=KICK_BLOCK_SIZE) {\n", entries1.size() - 1 + (entries1.size() == entries2.size() ?  1 : 0));
 	indent();
-	tprint("Lb[Ldest[i]] = fmaf(factor[i] * dx[xsrc[i]], Lc[Lsrc[i]], Lb[Ldest[i]]);\n");
+	tprint("Lb[Ldest1[i]] = fmaf(factor1[i] * dx[xsrc1[i]], Lc[Lsrc1[i]], Lb[Ldest1[i]]);\n");
+	tprint("Lb[Ldest2[i]] = fmaf(factor2[i] * dx[xsrc2[i]], Lc[Lsrc2[i]], Lb[Ldest2[i]]);\n");
 	deindent();
 	tprint("}\n");
+	if (entries1.size() != entries2.size()) {
+		tprint("Lb[Ldest1[%i]] = fmaf(factor1[%i] * dx[xsrc1[%i]], Lc[Lsrc1[%i]], Lb[Ldest1[%i]]);\n", entries1.size(),
+				entries1.size(), entries1.size(), entries1.size(), entries1.size());
+	}
 	tprint("if( do_phi ) {\n");
 	indent();
 	tprint("for( int i = tid; i < %i; i+=KICK_BLOCK_SIZE) {\n", phi_entries.size());
@@ -868,7 +924,7 @@ void ewald(int direct_flops) {
 	indent();
 	tprint("D[3] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI);                                    // 3
 	tprint("D[5] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI);                                    // 3
-	tprint("D[LP - 1] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI);                                    // 3
+	tprint("D[LP - 1] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI);                                 // 3
 	deindent();
 	tprint("}\n");
 	tprint("return flops;\n");
