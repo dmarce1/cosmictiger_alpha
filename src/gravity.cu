@@ -290,19 +290,21 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 				} else {
 					const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
 					const float r2oh2 = r1oh1 * r1oh1;           // 1
-					r3inv = +15.0f / 8.0f;
-					r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
-					r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
-					if (constant.full_eval) {
-						r1inv = -5.0f / 16.0f;
-						r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
-						r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
-						r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
-						r1inv *= hinv;
-						flops += 7;
-					}
+					r3inv = float(-35.0 / 16.0);
+					r3inv = fmaf(r3inv, r2oh2, float(135.0 / 16.0));
+					r3inv = fmaf(r3inv, r2oh2, float(-189.0 / 16.0));
+					r3inv = fmaf(r3inv, r2oh2, float(105.0 / 16.0));
 					r3inv *= h3inv;
-					flops += 5;
+					if (constant.full_eval) {
+						r1inv = float(35.0 / 128.0);
+						r1inv = fmaf(r1inv, r2oh2, float(-45.0 / 32.0));
+						r1inv = fmaf(r1inv, r2oh2, float(189.0 / 64.0));
+						r1inv = fmaf(r1inv, r2oh2, float(-105.0 / 32.0));
+						r1inv = fmaf(r1inv, r2oh2, float(315.0 / 128.0));
+						r1inv *= hinv;
+						flops += 9;
+					}
+					flops += 7;
 				}
 				fx = fmaf(dx0, r3inv, fx); // 2
 				fy = fmaf(dx1, r3inv, fy); // 2

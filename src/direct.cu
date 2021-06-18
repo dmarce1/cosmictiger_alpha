@@ -6,9 +6,9 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 		float h) {
 	const int &tid = threadIdx.x;
 	const int &bid = blockIdx.x;
-	const auto hinv = 1.f / h;
-	const auto h3inv = 1.f / h / h / h;
-	const auto h2 = h * h;
+	const auto hinv = 1.f / h * 0.5;
+	const auto h3inv = 1.f / h / h / h * 0.125;
+	const auto h2 = 4.0 * h * h;
 	array<fixed32, NDIM> sink;
 	sink[0] = x[bid];
 	sink[1] = y[bid];
@@ -40,15 +40,17 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 				r3inv = r1inv * r1inv * r1inv;
 			} else {
 				const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
-				const float r2oh2 = r1oh1 * r1oh1;              // 1
-				r3inv = +15.0f / 8.0f;
-				r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f);
-				r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f);
+				const float r2oh2 = r1oh1 * r1oh1;           // 1
+				r3inv = float(-35.0 / 16.0);
+				r3inv = fmaf(r3inv, r2oh2, float(135.0 / 16.0));
+				r3inv = fmaf(r3inv, r2oh2, float(-189.0 / 16.0));
+				r3inv = fmaf(r3inv, r2oh2, float(105.0 / 16.0));
 				r3inv *= h3inv;
-				r1inv = -5.0f / 16.0f;
-				r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f);
-				r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f);
-				r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f);
+				r1inv = float(35.0 / 128.0);
+				r1inv = fmaf(r1inv, r2oh2, float(-45.0 / 32.0));
+				r1inv = fmaf(r1inv, r2oh2, float(189.0 / 64.0));
+				r1inv = fmaf(r1inv, r2oh2, float(-105.0 / 32.0));
+				r1inv = fmaf(r1inv, r2oh2, float(315.0 / 128.0));
 				r1inv *= hinv;
 			}
 			phi[tid] -= r1inv;

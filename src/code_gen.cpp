@@ -301,6 +301,9 @@ int print_const_ref(std::string name, std::string& cmd, const tensor_trless_sym<
 		}
 	}
 	cmd += signs(last_index) == 1 ? "+" : "-";
+	if (signs(last_index) != 1) {
+		flops++;
+	}
 	int opened = 0;
 	bool fma = false;
 	for (int l = 0; l < Q * Q + 1; l++) {
@@ -543,7 +546,7 @@ void do_expansion(bool two) {
 			}
 
 		}
-		if( entries2.size() > i ){
+		if (entries2.size() > i) {
 			const auto factor = entries2[i].factor;
 			const auto p = entries2[i].p;
 			const auto k = entries2[i].k;
@@ -974,7 +977,7 @@ void ewald(int direct_flops) {
 	reference_trless("D", P);
 	int those_flops = compute_detrace<P>("Dreal", "D", 'd');
 	those_flops += 16 + 3 * (P * P + 1);
-	tprint("flops += %i * foursz + %i;\n", these_flops, those_flops);
+	tprint("flops += %i * foursz + %i;\n", these_flops, those_flops + P * P + 1);
 	tprint("D = D + Dfour;\n");                                    // P*P+1
 	tprint("expansion<T> D1;\n");
 	tprint("direct_greens_function(D1,X);\n");

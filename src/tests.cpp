@@ -120,6 +120,7 @@ void kick_test() {
 	particle_server pserv;
 	pserv.init();
 	pserv.generate_random();
+
 	timer ttime;
 	std::vector<double> timings;
 

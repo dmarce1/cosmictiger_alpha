@@ -542,9 +542,9 @@ void tree::kick(kick_params_type * params_ptr) {
 		size_t active_nodes = self.get_active_nodes();
 		params.block_cutoff = std::max(active_nodes / block_count, (size_t) 1);
 		int min_gpu_nodes = block_count / 8;
-		if (active_nodes < min_gpu_nodes) {
-			params.block_cutoff = 0;
-		}
+//		if (active_nodes < min_gpu_nodes) {
+//			params.block_cutoff = 0;
+//		}
 	}
 	if (self.is_leaf()) {
 		for (int i = 0; i < parts.second - parts.first; i++) {
