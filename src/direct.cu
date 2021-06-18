@@ -35,24 +35,8 @@ CUDA_KERNEL cuda_pp_ewald_interactions(particle_set parts, fixed32*x, fixed32* y
 #endif
 		if (r2 < h2 || periodic_off) {
 			float r3inv, r1inv;
-			if (r2 >= h2) {
-				r1inv = rsqrt(r2);
-				r3inv = r1inv * r1inv * r1inv;
-			} else {
-				const float r1oh1 = sqrtf(r2) * hinv;              // 1 + FLOP_SQRT
-				const float r2oh2 = r1oh1 * r1oh1;           // 1
-				r3inv = float(-35.0 / 16.0);
-				r3inv = fmaf(r3inv, r2oh2, float(135.0 / 16.0));
-				r3inv = fmaf(r3inv, r2oh2, float(-189.0 / 16.0));
-				r3inv = fmaf(r3inv, r2oh2, float(105.0 / 16.0));
-				r3inv *= h3inv;
-				r1inv = float(35.0 / 128.0);
-				r1inv = fmaf(r1inv, r2oh2, float(-45.0 / 32.0));
-				r1inv = fmaf(r1inv, r2oh2, float(189.0 / 64.0));
-				r1inv = fmaf(r1inv, r2oh2, float(-105.0 / 32.0));
-				r1inv = fmaf(r1inv, r2oh2, float(315.0 / 128.0));
-				r1inv *= hinv;
-			}
+			int flops = 0;
+			GFORCE( r2, h2, hinv, h3inv, r1inv, r3inv );
 			phi[tid] -= r1inv;
 			for (int dim = 0; dim < NDIM; dim++) {
 				f[dim][tid] -= X[dim] * r3inv;

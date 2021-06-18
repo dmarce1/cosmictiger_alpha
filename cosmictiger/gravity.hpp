@@ -50,5 +50,26 @@ simd_float inline distance(const simd_int& a, const simd_int& b) {
 #endif
 }
 
-#define PHI0 (-315.0f/128.0f)
+#define GFORCE( r2, h2, hinv, h3inv, r1inv, r3inv ) \
+	if (r2 >= h2) { \
+		r1inv = rsqrt(r2);                                    \
+		r3inv = r1inv * r1inv * r1inv;                        \
+		flops += 3; \
+	} else { \
+		const float r1oh1 = sqrtf(r2) * hinv;             \
+		const float r2oh2 = r1oh1 * r1oh1;           \
+		r3inv = +15.0f / 8.0f; \
+		r1inv = -5.0f / 16.0f; \
+		r3inv = fmaf(r3inv, r2oh2, -21.0f / 4.0f); \
+		r1inv = fmaf(r1inv, r2oh2, 21.0f / 16.0f); \
+		r3inv = fmaf(r3inv, r2oh2, +35.0f / 8.0f); \
+		r1inv = fmaf(r1inv, r2oh2, -35.0f / 16.0f); \
+		r3inv *= h3inv; \
+		r1inv = fmaf(r1inv, r2oh2, 35.0f / 16.0f); \
+		r1inv *= hinv; \
+		flops += 15; \
+	}
+
+
+#define PHI0 (-35.0f/16.0f)
 

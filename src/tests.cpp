@@ -20,30 +20,47 @@
 #include <cosmictiger/initial.hpp>
 #include <cmath>
 
+#ifndef __CUDA_ARCH__
+float rsqrt(float x) {
+	return 1.f / sqrt(x);
+}
+#endif
+
+void gforce_test() {
+	float h = 0.01;
+	int flops = 0;
+	FILE* fp = fopen("gforce.dat", "wt");
+	for (float r = 0.0; r < h; r += 0.01 * h) {
+		float rinv, r3inv;
+		GFORCE(r * r, h * h, 1.0 / h, 1.0 / h / h / h, rinv, r3inv);
+		fprintf(fp, "%e %e %e\n", r, rinv, r3inv);
+	}
+	fclose(fp);
+}
 
 static void fft_test() {
 	std::vector<cmplx> in;
 	int N = 8;
-	in.resize(N*N*N);
-	for( int i = 0; i < N; i++) {
-		for( int j = 0; j < N; j++) {
-			for( int k = 0; k < N; k++) {
+	in.resize(N * N * N);
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < N; j++) {
+			for (int k = 0; k < N; k++) {
 				const float z = float(k) / N;
-				int l = N*N*i+N*j+k;
-				in[l] = cmplx(sin(2.0*M_PI*z), 0.0);
+				int l = N * N * i + N * j + k;
+				in[l] = cmplx(sin(2.0 * M_PI * z), 0.0);
 			}
 		}
 	}
 	fourier3d_initialize(N);
-	fourier3d_accumulate(0,N,0,N,0,N,in);
+	fourier3d_accumulate(0, N, 0, N, 0, N, in);
 	fourier3d_execute();
 	auto out = fourier3d_read(0, N, 0, N, 0, N);
-	for( int i = 0; i < N; i++) {
-		for( int j = 0; j < N; j++) {
-			for( int k = 0; k < N; k++) {
-				int l = N*N*i+N*j+k;
-				if( std::abs(out[l].real())> 1e-6*N*N*N || std::abs(out[l].imag())> 1e-6*N*N*N )
-					printf( "%i %i %i %e %e\n", i, j, k, out[l].real(), out[l].imag());
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < N; j++) {
+			for (int k = 0; k < N; k++) {
+				int l = N * N * i + N * j + k;
+				if (std::abs(out[l].real()) > 1e-6 * N * N * N || std::abs(out[l].imag()) > 1e-6 * N * N * N)
+					printf("%i %i %i %e %e\n", i, j, k, out[l].real(), out[l].imag());
 			}
 		}
 	}
@@ -59,7 +76,7 @@ static void psort_test() {
 	const auto& parts = pserv.get_particle_set();
 	PRINT("Starting\n");
 	tm.start();
-	parts.find_middle(0,parts.size(),0);
+	parts.find_middle(0, parts.size(), 0);
 	tm.stop();
 	PRINT("took %e s\n", tm.read());
 	tm.reset();
@@ -446,6 +463,8 @@ void test_run(const std::string test) {
 		tree_test();
 	} else if (test == "drift") {
 		drift_test();
+	} else if (test == "gforce") {
+		gforce_test();
 	} else if (test == "kick") {
 		kick_test();
 	} else if (test == "psort") {
