@@ -31,7 +31,7 @@ public:
 		for( int i = 0; i < N; i++) {
 			if( ptr[i] > other.ptr[i]) {
 				return true;
-			} else if( ptr[i] > other.ptr[i]) {
+			} else if( ptr[i] < other.ptr[i]) {
 				return false;
 			}
 		}

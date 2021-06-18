@@ -183,10 +183,10 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 			}
 		}
 	}
-	std::sort(entries.begin(), entries.end(), [](entry_type a, entry_type b) {
-		if( a.dest < b.dest) {
+	const auto sort_func = [](entry_type a, entry_type b) {
+		if( trless_index(a.dest[0], a.dest[1], a.dest[2], P) < trless_index(b.dest[0], b.dest[1], b.dest[2], P)) {
 			return true;
-		} else if( a.dest > b.dest ) {
+		} else if( trless_index(a.dest[0], a.dest[1], a.dest[2], P) > trless_index(b.dest[0], b.dest[1], b.dest[2], P) ) {
 			return false;
 		} else {
 			if( a.src < b.src) {
@@ -195,38 +195,70 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 				return false;
 			}
 		}
-	});
+	};
+	std::sort(entries.begin(), entries.end(), sort_func);
 	for (int i = 0; i < entries.size(); i++) {
 		int j = i + 1;
 		while (j < entries.size()) {
 			if (entries[i].src == entries[j].src && entries[i].dest == entries[j].dest) {
 				entries[i].factor += entries[j].factor;
-				entries[j] = entries.back();
+				for (int k = j; k < entries.size() - 1; k++) {
+					entries[k] = entries[k + 1];
+				}
 				entries.pop_back();
 			} else {
 				j++;
 			}
 		}
 	}
+	std::vector<entry_type> entries1, entries2;
 	for (int i = 0; i < entries.size(); i++) {
-		const auto n = entries[i].dest;
-		const auto p = entries[i].src;
-		const auto number = entries[i].factor;
-		if (first_use(n)) {
-			if (close21(number)) {
-				flops += eqp(oname, n, iname, p);
-			} else {
-				flops += mul(oname, n, number, iname, p);
-			}
-			first_use(n) = 0;
+		if (i < (entries.size() + 1) / 2) {
+			entries1.push_back(entries[i]);
 		} else {
-			if (close21(number)) {
-				flops += acc(oname, n, iname, p);
+			entries2.push_back(entries[i]);
+		}
+	}
+	for (int i = 0; i < entries1.size(); i++) {
+		{
+			const auto n = entries1[i].dest;
+			const auto p = entries1[i].src;
+			const auto number = entries1[i].factor;
+			if (first_use(n)) {
+				if (close21(number)) {
+					flops += eqp(oname, n, iname, p);
+				} else {
+					flops += mul(oname, n, number, iname, p);
+				}
+				first_use(n) = 0;
 			} else {
-				flops += fma(oname, n, number, iname, p);
+				if (close21(number)) {
+					flops += acc(oname, n, iname, p);
+				} else {
+					flops += fma(oname, n, number, iname, p);
+				}
+
 			}
 		}
-
+		if (entries2.size() > i) {
+			const auto n = entries2[i].dest;
+			const auto p = entries2[i].src;
+			const auto number = entries2[i].factor;
+			if (first_use(n)) {
+				if (close21(number)) {
+					flops += eqp(oname, n, iname, p);
+				} else {
+					flops += mul(oname, n, number, iname, p);
+				}
+				first_use(n) = 0;
+			} else {
+				if (close21(number)) {
+					flops += acc(oname, n, iname, p);
+				} else {
+					flops += fma(oname, n, number, iname, p);
+				}
+			}
+		}
 	}
 	return flops;
 }
@@ -713,7 +745,7 @@ void ewald(int direct_flops) {
 	array<int, NDIM> m;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	int these_flops = 38 + 6 * (P - 1) + P * (P+1)/2;
+	int these_flops = 38 + 6 * (P - 1) + P * (P + 1) / 2;
 
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
@@ -833,26 +865,23 @@ int main() {
 	flops = 0;
 	indent();
 	tprint("auto r2 = sqr(X[0], X[1], X[2]);\n");
-	tprint("array<T, %i> rinv_pow;\n", P);
 	tprint("r2 = sqr(X[0], X[1], X[2]);\n");
 	tprint("const T r = SQRT(r2);\n");
-	tprint("const T rinv = (r > T(0)) / max(r, T(1e-20));\n");
-	tprint("rinv_pow[0] = -rinv;\n");
-	tprint("for (int i = 1; i < %i; i++) {\n", P);
-	indent();
-	tprint("rinv_pow[i] = -rinv * rinv_pow[i - 1];\n");
-	tprint("NAN_TEST(rinv_pow[i]);\n");
-	deindent();
-	tprint("}\n");
+	tprint("const T rinv1 = -(r > T(0)) / max(r, T(1e-20));\n");
+	for (int i = 1; i < P; i++) {
+		const int j = i / 2;
+		const int k = i - j;
+		tprint("const T rinv%i = -rinv%i * rinv%i;\n", i + 1, j + 1, k);
+	}
 //	tprint("const T scale = T(1) / max(SQRT(SQRT(r2)),T(1e-4));\n");
 //	tprint("const T sw = (r2 < T(25e-8));\n");
 //	tprint("constexpr float scale = 837.0f;\n", 38.0 / (2 * LORDER - 1));
 //	tprint("X[0] *= scale;\n");
 //	tprint("X[1] *= scale;\n");
 //	tprint("X[2] *= scale;\n");
-	tprint("X[0] *= rinv;\n");
-	tprint("X[1] *= rinv;\n");
-	tprint("X[2] *= rinv;\n");
+	tprint("X[0] *= rinv1;\n");
+	tprint("X[1] *= rinv1;\n");
+	tprint("X[2] *= rinv1;\n");
 	flops += 12;
 	flops += compute_dx(P);
 	reference_trless("D", P);
@@ -863,16 +892,16 @@ int main() {
 //	for (int l = 1; l < P; l++) {
 //		tprint("constexpr float scale%i = scale%i * scale;\n", l, l - 1);
 //	}
-/*	for (int l = 0; l < P; l++) {
-		tprint("rinv_pow[%i] *= scale%i;\n", l, l);
-	}
-	flops += P;*/
+	/*	for (int l = 0; l < P; l++) {
+	 tprint("rinv_pow[%i] *= scale%i;\n", l, l);
+	 }
+	 flops += P;*/
 	for (k[0] = 0; k[0] < P; k[0]++) {
 		for (k[1] = 0; k[1] < P - k[0]; k[1]++) {
 			const int zmax = (k[0] == 0 && k[1] == 0) ? intmin(3, P) : intmin(P - k[0] - k[1], 2);
 			for (k[2] = 0; k[2] < zmax; k[2]++) {
 				const int k0 = k[0] + k[1] + k[2];
-				tprint("D%i%i%i *= rinv_pow[%i];\n", k[0], k[1], k[2], k0);
+				tprint("D%i%i%i *= rinv%i;\n", k[0], k[1], k[2], k0 + 1);
 				flops++;
 			}
 		}
