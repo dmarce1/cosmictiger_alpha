@@ -687,7 +687,9 @@ void ewald(int direct_flops) {
 	tprint("const T rinv0 = T(1);\n");                                           // 2
 	tprint("const T rinv1 = rinv;\n");                                           // 2
 	for (int l = 2; l < P; l++) {
-		tprint("const T rinv%i = rinv%i * rinv;\n", l, l - 1);                      // (P-2)
+		const int i = l / 2;
+		const int j = l - i;
+		tprint("const T rinv%i = rinv%i * rinv%i;\n", l, i, j);                      // (P-2)
 	}
 	tprint("const T d0 = -erfc0 * rinv;\n");                                       // 2
 	for (int l = 1; l < P; l++) {
