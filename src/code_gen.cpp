@@ -420,46 +420,6 @@ void reference_trless(std::string name, int Q) {
 	}
 }
 
-int interaction_code() {
-	int flops = 0;
-	tprint("\n\ntemplate<class T>\n");
-	tprint("CUDA_EXPORT\n");
-	tprint(
-			"inline tensor_trless_sym<T, %i> interaction(const tensor_trless_sym<T, %i>& M, const tensor_trless_sym<T, %i>& D ) {\n",
-			P, P - 1, P);
-	indent();
-	tprint("tensor_trless_sym<T, %i> L;\n", P);
-	tensor_sym<int, P> first_use;
-	first_use = 1;
-	array<int, NDIM> n;
-	array<int, NDIM> m;
-	for (n[0] = 0; n[0] < P; n[0]++) {
-		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
-			for (n[2] = 0; n[2] < nzmax; n[2]++) {
-				const int n0 = n[0] + n[1] + n[2];
-				const int q0 = P + 1 - n0;
-				for (m[0] = 0; m[0] < q0; m[0]++) {
-					for (m[1] = 0; m[1] < q0 - m[0]; m[1]++) {
-						for (m[2] = 0; m[2] < q0 - m[0] - m[1]; m[2]++) {
-							const double number = 1.0 / vfactorial(m);
-							if (first_use(n)) {
-								first_use(n) = 0;
-							} else {
-								//		L(n) += M(m) * D(n + m) * number;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	printf("/* FLOPS = %i*/\n", flops);
-	deindent();
-	tprint("}\n");
-	return flops;
-}
-
 void reference_sym(std::string name, int Q) {
 	for (int l = 0; l < Q; l++) {
 		for (int m = 0; m < Q - l; m++) {
@@ -759,7 +719,14 @@ void ewald(int direct_flops) {
 			}
 		}
 	}
-
+	struct entry {
+		array<int, NDIM> n;
+		array<int, NDIM> p;
+		int n0;
+		int m0;
+		double factor;
+	};
+	std::vector<entry> entries;
 	for (n[0] = 0; n[0] < P; n[0]++) {
 		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
 			for (n[2] = 0; n[2] < P - n[0] - n[1]; n[2]++) {
@@ -778,21 +745,61 @@ void ewald(int direct_flops) {
 									num = factorial(m0);
 									den = vfactorial(k);
 									const double number = fnm * num / den;
-									if (close21(number)) {
-										tprint("Dreal[%i] += x%i%i%iDrinvpow_%i_%i;\n", sym_index(n[0], n[1], n[2]), p[0], p[1],
-												p[2], n0 - m0, m0);
-										these_flops += 1;
-									} else {
-										tprint("Dreal[%i] = fmaf(%.8e,  x%i%i%iDrinvpow_%i_%i, Dreal[%i]);\n",
-												sym_index(n[0], n[1], n[2]), number, p[0], p[1], p[2], n0 - m0, m0,
-												sym_index(n[0], n[1], n[2]));
-										these_flops += 2;
-									}
+									entry e;
+									e.n = n;
+									e.p = p;
+									e.n0 = n0;
+									e.m0 = m0;
+									e.factor = number;
+									entries.push_back(e);
 								}
 							}
 						}
 					}
 				}
+			}
+		}
+	}
+	std::sort(entries.begin(), entries.end(), [](entry a, entry b) {
+		return sym_index(a.n[0], a.n[1], a.n[2]) < sym_index(b.n[0], b.n[1], b.n[2]);
+	});
+	std::vector<entry> entries1, entries2;
+	for (int i = 0; i < entries.size(); i++) {
+		if (i < (entries.size() + 1) / 2) {
+			entries1.push_back(entries[i]);
+		} else {
+			entries2.push_back(entries[i]);
+		}
+	}
+	for (int i = 0; i < entries1.size(); i++) {
+		{
+			const double number = entries1[i].factor;
+			const auto n = entries1[i].n;
+			const auto p = entries1[i].p;
+			const int n0 = entries1[i].n0;
+			const int m0 = entries1[i].m0;
+			if (close21(number)) {
+				tprint("Dreal[%i] += x%i%i%iDrinvpow_%i_%i;\n", sym_index(n[0], n[1], n[2]), p[0], p[1], p[2], n0 - m0, m0);
+				these_flops += 1;
+			} else {
+				tprint("Dreal[%i] = fmaf(%.8e,  x%i%i%iDrinvpow_%i_%i, Dreal[%i]);\n", sym_index(n[0], n[1], n[2]), number,
+						p[0], p[1], p[2], n0 - m0, m0, sym_index(n[0], n[1], n[2]));
+				these_flops += 2;
+			}
+		}
+		if (entries2.size() > i) {
+			const double number = entries2[i].factor;
+			const auto n = entries2[i].n;
+			const auto p = entries2[i].p;
+			const int n0 = entries2[i].n0;
+			const int m0 = entries2[i].m0;
+			if (close21(number)) {
+				tprint("Dreal[%i] += x%i%i%iDrinvpow_%i_%i;\n", sym_index(n[0], n[1], n[2]), p[0], p[1], p[2], n0 - m0, m0);
+				these_flops += 1;
+			} else {
+				tprint("Dreal[%i] = fmaf(%.8e,  x%i%i%iDrinvpow_%i_%i, Dreal[%i]);\n", sym_index(n[0], n[1], n[2]), number,
+						p[0], p[1], p[2], n0 - m0, m0, sym_index(n[0], n[1], n[2]));
+				these_flops += 2;
 			}
 		}
 	}
@@ -808,20 +815,31 @@ void ewald(int direct_flops) {
 	tprint("const auto &h = econst.four_index(i);\n");
 	tprint("const auto& D0 = econst.four_expansion(i);\n");
 	tprint("const T hdotx = FMA(h[0], X[0], FMA(h[1], X[1], h[2] * X[2]));\n");
-	tprint("T co, so;\n");
-	tprint("sincos(T(2.0 * M_PI) * hdotx, &so, &co);\n");
+	tprint("T cn, sn;\n");
+	tprint("sincos(T(2.0 * M_PI) * hdotx, &sn, &cn);\n");
 	these_flops = 0;
+	bool iscos[P * P + 1];
 	for (k[0] = 0; k[0] < P; k[0]++) {
 		for (k[1] = 0; k[1] < P - k[0]; k[1]++) {
 			const int zmax = (k[0] == 0 && k[1] == 0) ? intmin(3, P) : intmin(P - k[0] - k[1], 2);
 			for (k[2] = 0; k[2] < zmax; k[2]++) {
 				const int k0 = k[0] + k[1] + k[2];
-				tprint("Dfour[%i] = fmaf(%co, D0[%i], Dfour[%i]);\n", trless_index(k[0], k[1], k[2], P), k0 % 2 ? 's' : 'c',
-						trless_index(k[0], k[1], k[2], P), trless_index(k[0], k[1], k[2], P));
-				these_flops += 2;
+				iscos[trless_index(k[0], k[1], k[2], P)] = (k0 % 2 == 0);
 			}
 		}
 	}
+	int maxi = (P * P + 2) / 2;
+	for (int i = 0; i < maxi; i++) {
+		int j = i + maxi;
+		tprint("Dfour[%i] = fmaf(%cn, D0[%i], Dfour[%i]);\n", i, iscos[i] ? 'c' : 's', i, i);
+		these_flops += 2;
+		if (j < P * P + 1) {
+			tprint("Dfour[%i] = fmaf(%cn, D0[%i], Dfour[%i]);\n", j, iscos[j] ? 'c' : 's', j, j);
+			these_flops += 2;
+		}
+
+	}
+
 	deindent();
 	printf("}\n");
 	reference_sym("Dreal", P);
@@ -832,19 +850,19 @@ void ewald(int direct_flops) {
 	tprint("D = D + Dfour;\n");                                    // P*P+1
 	tprint("expansion<T> D1;\n");
 	tprint("direct_greens_function(D1,X);\n");
-	tprint("D(0, 0, 0) = T(%.8e) + D(0, 0, 0); \n", M_PI / 4.0);   // 1
+	tprint("D(0, 0, 0) = T(%.8e) + D(0, 0, 0); \n", M_PI / 4.0);                                    // 1
 	tprint("for (int i = 0; i < LP; i++) {\n");
 	tprint("D[i] -= D1[i];\n");                                    // 2*(P*P+1)
 	indent();
 	tprint("D[i] *= zero_mask;\n");
 	deindent();
 	tprint("}\n");
-	tprint("D[0] += 2.837291e+00 * (T(1) - zero_mask);\n");        // 3
+	tprint("D[0] += 2.837291e+00 * (T(1) - zero_mask);\n");                                    // 3
 	tprint("if ( LORDER > 2) {\n");
 	indent();
-	tprint("D[3] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 3
-	tprint("D[5] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 3
-	tprint("D[LP - 1] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI); // 3
+	tprint("D[3] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI);                                    // 3
+	tprint("D[5] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI);                                    // 3
+	tprint("D[LP - 1] += T(%.8e) * (T(1) - zero_mask);\n", -4.0 / 3.0 * M_PI);                                    // 3
 	deindent();
 	tprint("}\n");
 	tprint("return flops;\n");
@@ -912,143 +930,117 @@ int main() {
 
 	ewald(flops);
 
-	flops = 0;
-	tprint("\n\ntemplate<class T>\n");
-	tprint("CUDA_EXPORT\n");
-	tprint(
-			"inline int interaction(tensor_trless_sym<T, %i>& L, const tensor_trless_sym<T, %i>& M, const tensor_trless_sym<T, %i>& D, bool do_phi) {\n",
-			P, P - 1, P);
-	indent();
-	int phi_flops = 0;
-	flops += const_reference_trless<P - 1>("M");
-	flops += const_reference_trless<P>("D");
-	reference_trless("L", P);
 	array<int, NDIM> n;
 	array<int, NDIM> m;
-	n[0] = n[1] = n[2] = 0;
-	const int n0 = 0;
-	const int q0 = intmin(P - n0, P - 1);
-	tprint("if( do_phi ) {\n");
-	indent();
-	for (m[0] = 0; m[0] < q0; m[0]++) {
-		for (m[1] = 0; m[1] < q0 - m[0]; m[1]++) {
-			for (m[2] = 0; m[2] < q0 - m[0] - m[1]; m[2]++) {
-				const double coeff = 1.0 / vfactorial(m);
-				if (close21(coeff)) {
-					tprint("L%i%i%i = fmaf(M%i%i%i, D%i%i%i, L%i%i%i);\n", n[0], n[1], n[2], m[0], m[1], m[2], n[0] + m[0],
-							n[1] + m[1], n[2] + m[2], n[0], n[1], n[2]);
-					phi_flops += 2;
-				} else {
-					phi_flops += 3;
-					tprint("L%i%i%i = fmaf(T(%.8e) * M%i%i%i, D%i%i%i, L%i%i%i);\n", n[0], n[1], n[2], coeff, m[0], m[1],
-							m[2], n[0] + m[0], n[1] + m[1], n[2] + m[2], n[0], n[1], n[2]);
-				}
-				//			L(n) += M(m) * D(n + m);
-			}
-		}
-	}
-	deindent();
-	tprint("}\n");
-	for (n[0] = 0; n[0] < P; n[0]++) {
-		for (n[1] = 0; n[1] < P - n[0]; n[1]++) {
-			const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, P) : intmin(P - n[0] - n[1], 2);
-			for (n[2] = 0; n[2] < nzmax; n[2]++) {
-				const int n0 = n[0] + n[1] + n[2];
-				if (n0 == 0) {
-					continue;
-				}
-				const int q0 = intmin(P - n0, P - 1);
-				for (m[0] = 0; m[0] < q0; m[0]++) {
-					for (m[1] = 0; m[1] < q0 - m[0]; m[1]++) {
-						for (m[2] = 0; m[2] < q0 - m[0] - m[1]; m[2]++) {
-							const double coeff = 1.0 / vfactorial(m);
-							if (close21(coeff)) {
-								tprint("L%i%i%i = fmaf(M%i%i%i, D%i%i%i, L%i%i%i);\n", n[0], n[1], n[2], m[0], m[1], m[2],
-										n[0] + m[0], n[1] + m[1], n[2] + m[2], n[0], n[1], n[2]);
-								flops += 2;
-							} else {
-								flops += 3;
-								tprint("L%i%i%i = fmaf(T(%.8e) * M%i%i%i, D%i%i%i, L%i%i%i);\n", n[0], n[1], n[2], coeff, m[0],
-										m[1], m[2], n[0] + m[0], n[1] + m[1], n[2] + m[2], n[0], n[1], n[2]);
-							}
-							//			L(n) += M(m) * D(n + m);
-						}
-					}
-				}
-			}
-		}
-	}
-	tprint("return %i + do_phi * %i;\n", flops, phi_flops);
-
-	deindent();
-	tprint("}\n");
-	if ( P > 2) {
+	for (int Pmax = 2; Pmax <= P; Pmax += P - 2) {
 		flops = 0;
-		phi_flops = 0;
 		tprint("\n\ntemplate<class T>\n");
 		tprint("CUDA_EXPORT\n");
 		tprint(
-				"inline int interaction(tensor_trless_sym<T, 2>& L, const tensor_trless_sym<T, %i>& M, const tensor_trless_sym<T, %i>& D, bool do_phi) {\n",
-				P - 1, P);
+				"inline int interaction(tensor_trless_sym<T, %i>& L, const tensor_trless_sym<T, %i>& M, const tensor_trless_sym<T, %i>& D, bool do_phi) {\n",
+				Pmax, P - 1, P);
 		indent();
+		int phi_flops = 0;
 		flops += const_reference_trless<P - 1>("M");
 		flops += const_reference_trless<P>("D");
-		reference_trless("L", 2);
 		n[0] = n[1] = n[2] = 0;
-		const int q0 = intmin(P - n0, P - 1);
 		const int n0 = 0;
-		tprint("if( do_phi ) {\n");
-		indent();
-		for (m[0] = 0; m[0] < q0; m[0]++) {
-			for (m[1] = 0; m[1] < q0 - m[0]; m[1]++) {
-				for (m[2] = 0; m[2] < q0 - m[0] - m[1]; m[2]++) {
-					const double coeff = 1.0 / vfactorial(m);
-					if (close21(coeff)) {
-						tprint("L%i%i%i = fmaf(M%i%i%i, D%i%i%i, L%i%i%i);\n", n[0], n[1], n[2], m[0], m[1], m[2],
-								n[0] + m[0], n[1] + m[1], n[2] + m[2], n[0], n[1], n[2]);
-						phi_flops += 2;
-					} else {
-						phi_flops += 3;
-						tprint("L%i%i%i = fmaf(T(%.8e) * M%i%i%i, D%i%i%i, L%i%i%i);\n", n[0], n[1], n[2], coeff, m[0], m[1],
-								m[2], n[0] + m[0], n[1] + m[1], n[2] + m[2], n[0], n[1], n[2]);
-					}
-					//			L(n) += M(m) * D(n + m);
-				}
-			}
-		}
-		deindent();
-		tprint("}\n");
-		for (n[0] = 0; n[0] < 2; n[0]++) {
-			for (n[1] = 0; n[1] < 2 - n[0]; n[1]++) {
-				const int nzmax = (n[0] == 0 && n[1] == 0) ? 2 : intmin(2 - n[0] - n[1], 2);
+		const int q0 = intmin(P - n0, P - 1);
+		struct entry_type {
+			array<int, NDIM> n;
+			array<int, NDIM> m;
+			double coeff;
+		};
+		std::vector<entry_type> entries0;
+		std::vector<entry_type> entries;
+		for (n[0] = 0; n[0] < Pmax; n[0]++) {
+			for (n[1] = 0; n[1] < Pmax - n[0]; n[1]++) {
+				const int nzmax = (n[0] == 0 && n[1] == 0) ? intmin(3, Pmax) : intmin(Pmax - n[0] - n[1], 2);
 				for (n[2] = 0; n[2] < nzmax; n[2]++) {
 					const int n0 = n[0] + n[1] + n[2];
-					if (n0 == 0) {
-						continue;
-					}
 					const int q0 = intmin(P - n0, P - 1);
 					for (m[0] = 0; m[0] < q0; m[0]++) {
 						for (m[1] = 0; m[1] < q0 - m[0]; m[1]++) {
 							for (m[2] = 0; m[2] < q0 - m[0] - m[1]; m[2]++) {
 								const double coeff = 1.0 / vfactorial(m);
-								if (close21(coeff)) {
-									tprint("L%i%i%i = fmaf(M%i%i%i, D%i%i%i, L%i%i%i);\n", n[0], n[1], n[2], m[0], m[1], m[2],
-											n[0] + m[0], n[1] + m[1], n[2] + m[2], n[0], n[1], n[2]);
-									flops += 2;
+								entry_type e;
+								e.coeff = coeff;
+								e.n = n;
+								e.m = m;
+								if (n0 == 0) {
+									entries0.push_back(e);
 								} else {
-									flops += 3;
-									tprint("L%i%i%i = fmaf(T(%.8e) * M%i%i%i, D%i%i%i, L%i%i%i);\n", n[0], n[1], n[2], coeff,
-											m[0], m[1], m[2], n[0] + m[0], n[1] + m[1], n[2] + m[2], n[0], n[1], n[2]);
+									entries.push_back(e);
 								}
-								//			L(n) += M(m) * D(n + m);
 							}
 						}
 					}
 				}
 			}
 		}
+		const auto sort_func = [Pmax](entry_type a, entry_type b) {
+			if( trless_index(a.n[0], a.n[1], a.n[2], Pmax) < trless_index(b.n[0], b.n[1], b.n[2], Pmax)) {
+				return true;
+			}
+			return false;
+		};
+		std::sort(entries.begin(), entries.end(), sort_func);
+		std::vector<entry_type> entries1, entries2;
+		for (int i = 0; i < entries.size(); i++) {
+			if (i < (entries.size() + 1) / 2) {
+				entries1.push_back(entries[i]);
+			} else {
+				entries2.push_back(entries[i]);
+			}
+		}
+		tprint("if( do_phi ) {\n");
+		indent();
+		for (int i = 0; i < entries0.size(); i++) {
+			const auto coeff = entries0[i].coeff;
+			const auto n = entries0[i].n;
+			const auto m = entries0[i].m;
+			if (close21(coeff)) {
+				tprint("L[0] = fmaf(M%i%i%i, D%i%i%i, L[0]);\n", m[0], m[1], m[2], n[0] + m[0], n[1] + m[1], n[2] + m[2]);
+				phi_flops += 2;
+			} else {
+				phi_flops += 3;
+				tprint("L[0] = fmaf(T(%.8e) * M%i%i%i, D%i%i%i, L[0]);\n", coeff, m[0], m[1], m[2], n[0] + m[0],
+						n[1] + m[1], n[2] + m[2]);
+			}
+		}
+		deindent();
+		tprint("}\n");
+		for (int i = 0; i < entries1.size(); i++) {
+			{
+				const auto coeff = entries1[i].coeff;
+				const auto n = entries1[i].n;
+				const auto m = entries1[i].m;
+				if (close21(coeff)) {
+					tprint("L[%i] = fmaf(M%i%i%i, D%i%i%i, L[%i]);\n", trless_index(n[0], n[1], n[2], Pmax), m[0], m[1],
+							m[2], n[0] + m[0], n[1] + m[1], n[2] + m[2], trless_index(n[0], n[1], n[2], Pmax));
+					flops += 2;
+				} else {
+					flops += 3;
+					tprint("L[%i] = fmaf(T(%.8e) * M%i%i%i, D%i%i%i, L[%i]);\n", trless_index(n[0], n[1], n[2], Pmax), coeff,
+							m[0], m[1], m[2], n[0] + m[0], n[1] + m[1], n[2] + m[2], trless_index(n[0], n[1], n[2], Pmax));
+				}
+			}
+			if (i < entries2.size()) {
+				const auto coeff = entries2[i].coeff;
+				const auto n = entries2[i].n;
+				const auto m = entries2[i].m;
+				if (close21(coeff)) {
+					tprint("L[%i] = fmaf(M%i%i%i, D%i%i%i, L[%i]);\n", trless_index(n[0], n[1], n[2], Pmax), m[0], m[1],
+							m[2], n[0] + m[0], n[1] + m[1], n[2] + m[2], trless_index(n[0], n[1], n[2], Pmax));
+					flops += 2;
+				} else {
+					flops += 3;
+					tprint("L[%i] = fmaf(T(%.8e) * M%i%i%i, D%i%i%i, L[%i]);\n", trless_index(n[0], n[1], n[2], Pmax), coeff,
+							m[0], m[1], m[2], n[0] + m[0], n[1] + m[1], n[2] + m[2], trless_index(n[0], n[1], n[2], Pmax));
+				}
+			}
+		}
 		tprint("return %i + do_phi * %i;\n", flops, phi_flops);
-
 		deindent();
 		tprint("}\n");
 	}
@@ -1087,15 +1079,24 @@ int main() {
 	reference_trless("Mc", P - 1);
 	flops += compute_dx(P - 1);
 
-	for (n[0] = 0; n[0] < P - 1; n[0]++) {
-		for (n[1] = 0; n[1] < P - n[0] - 1; n[1]++) {
-			for (n[2] = 0; n[2] < P - n[0] - n[1] - 1; n[2]++) {
-				const int n0 = n[0] + n[1] + n[2];
-				tprint("Mb[%i] = Ma%i%i%i;\n", sym_index(n[0], n[1], n[2]), n[0], n[1], n[2]);
+	for (int i = 0; i < (P - 1) * P * (P + 1) / 6; i++) {
+		for (n[0] = 0; n[0] < P - 1; n[0]++) {
+			for (n[1] = 0; n[1] < P - n[0] - 1; n[1]++) {
+				for (n[2] = 0; n[2] < P - n[0] - n[1] - 1; n[2]++) {
+					if (i == sym_index(n[0], n[1], n[2])) {
+						tprint("Mb[%i] = Ma%i%i%i;\n", i, n[0], n[1], n[2]);
+					}
+				}
 			}
 		}
 	}
-	for (int n0 = P - 2; n0 >= 0; n0--) {
+	struct mentry {
+		array<int, NDIM> n;
+		array<int, NDIM> k;
+		double factor;
+	};
+	std::vector<mentry> mentries;
+	for (int n0 = 0; n0 <= P - 2; n0++) {
 		for (n[0] = 0; n[0] <= n0; n[0]++) {
 			for (n[1] = 0; n[1] <= n0 - n[0]; n[1]++) {
 				n[2] = n0 - n[0] - n[1];
@@ -1104,23 +1105,51 @@ int main() {
 						for (k[2] = 0; k[2] <= intmin(n0 - k[0] - k[1], n[2]); k[2]++) {
 							const auto factor = (vfactorial(n)) / double(vfactorial(k) * vfactorial(n - k));
 							if (n != k) {
-								if (close21(factor)) {
-									tprint("Mb[%i] = fmaf( x%i%i%i, Mb[%i], Mb[%i]);\n", sym_index(n[0], n[1], n[2]),
-											n[0] - k[0], n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]),
-											sym_index(n[0], n[1], n[2]));
-									flops += 2;
-								} else {
-									tprint("Mb[%i] = fmaf(T(%.8e) * x%i%i%i, Mb[%i], Mb[%i]);\n", sym_index(n[0], n[1], n[2]),
-											factor, n[0] - k[0], n[1] - k[1], n[2] - k[2], sym_index(k[0], k[1], k[2]),
-											sym_index(n[0], n[1], n[2]));
-									flops += 3;
-								}
+								mentry e;
+								e.n = n;
+								e.k = k;
+								e.factor = factor;
+								mentries.push_back(e);
 							}
 						}
 					}
 				}
 			}
 		}
+	}
+	std::sort(mentries.begin(), mentries.end(), [](mentry a, mentry b) {
+		if( sym_index(a.n[0], a.n[1], a.n[2]) < sym_index(b.n[0], b.n[1], b.n[2])) {
+			return true;
+		}
+		return false;
+	});
+	std::vector<mentry> entries1, entries2;
+	for (int i = 0; i < mentries.size(); i++) {
+		if (i < (mentries.size() + 1) / 2) {
+			entries1.push_back(mentries[i]);
+		} else {
+			entries2.push_back(mentries[i]);
+		}
+	}
+	for (int i = 0; i < entries1.size(); i++) {
+		for (int pass = 0; pass < 2; pass++) {
+			if (pass == 1 && i >= entries2.size()) {
+				continue;
+			}
+			const auto n = pass == 0 ? entries1[i].n : entries2[i].n;
+			const auto k = pass == 0 ? entries1[i].k : entries2[i].k;
+			const auto factor = pass == 0 ? entries1[i].factor : entries2[i].factor;
+			if (close21(factor)) {
+				tprint("Mb[%i] = fmaf( x%i%i%i, Ma%i%i%i, Mb[%i]);\n", sym_index(n[0], n[1], n[2]), n[0] - k[0],
+						n[1] - k[1], n[2] - k[2], k[0], k[1], k[2], sym_index(n[0], n[1], n[2]));
+				flops += 2;
+			} else {
+				tprint("Mb[%i] = fmaf(T(%.8e) * x%i%i%i, Ma%i%i%i, Mb[%i]);\n", sym_index(n[0], n[1], n[2]), factor,
+						n[0] - k[0], n[1] - k[1], n[2] - k[2], k[0], k[1], k[2], sym_index(n[0], n[1], n[2]));
+				flops += 3;
+			}
+		}
+
 	}
 
 	flops += compute_detrace<P - 1>("Mb", "Mc", 'd');
