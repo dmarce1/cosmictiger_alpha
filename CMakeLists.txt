@@ -25,6 +25,8 @@ enable_language(CUDA)
 set(CMAKE_CXX_FLAGS "-ffast-math -march=native -Wno-deprecated-declarations -Wno-format-security")
 set(CMAKE_CUDA_FLAGS "-std=c++14")
 
+
+
 set(cosmictiger_source_files
     src/cosmos.cpp
     src/cuda.cpp
@@ -33,7 +35,6 @@ set(cosmictiger_source_files
     src/drift.cpp
     src/driver.cpp
     src/ewald_indices.cpp
-    src/fourier.cpp
     src/global.cpp
     src/gravity.cpp
     src/group_data.cpp
@@ -56,7 +57,6 @@ set(cosmictiger_source_files
 	src/direct.cu
     src/ewald_indices.cu
     src/expansion.cu
-    src/fourier.cu
     src/group_data.cu
     src/groups.cu
     src/gravity.cu
@@ -84,7 +84,6 @@ set(cosmictiger_header_files
 	cosmictiger/ewald_indices.hpp
 	cosmictiger/interp.hpp
 	cosmictiger/kick_return.hpp
-	cosmictiger/fourier.hpp
 	cosmictiger/green_direct.hpp
 	cosmictiger/green_ewald.hpp
 	cosmictiger/groups.hpp
@@ -120,10 +119,25 @@ set(cosmictiger_header_files
 )
 
 
+ add_hpx_library(
+ 	hpxfft
+  DEPENDENCIES
+  SOURCES
+	hpxfft/src/fourier.cu
+ 	hpxfft/src/cuda.cu
+	hpxfft/src/fourier.cpp
+  HEADERS
+	hpxfft/hpxfft/fourier.hpp
+	hpxfft/hpxfft/cuda.hpp
+)
+
+
+set_property(TARGET hpxfft PROPERTY FOLDER "cosmictiger")
+
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    Boost::boost siloh5 mpi cufft
+    Boost::boost siloh5 mpi  hpxfft cufft
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
@@ -143,31 +157,26 @@ add_hpx_executable(
   HEADERS
     ${cosmictiger_header_files}
  )
+ 
+ 
 target_compile_options(code_gen PUBLIC "-DUSE_HPX")
-target_include_directories(code_gen PUBLIC ${PROJECT_SOURCE_DIR})
- 
-#add_library(hpx_lite 
-#	hpx_lite/src/hpx.cpp
-#	hpx_lite/src/id_type.cpp
-#	hpx_lite/src/thread.cpp
-#	hpx_lite/src/future.cpp
-#	hpx_lite/src/mutex.cpp
-#	hpx_lite/src/serialize.cpp
-#)
-
-
-#add_executable( cosmictiger_lite
-#    ${cosmictiger_source_files} ${cosmictiger_header_files}
-#)
-
- 
+target_include_directories(code_gen PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpxfft)
+target_include_directories(hpxfft PUBLIC ${PROJECT_SOURCE_DIR}/hpxfft)
+set_property(TARGET hpxfft PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
-target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
+target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpxfft)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
                         >)
+target_compile_options(hpxfft PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
+                        >)
+ 
+ 
+
+ 
 
 #SET_SOURCE_FILES_PROPERTIES( src/fourier.cu PROPERTIES COMPILE_FLAGS -G )
 #SET_SOURCE_FILES_PROPERTIES( src/gravity.cu PROPERTIES COMPILE_FLAGS -G )
@@ -175,24 +184,4 @@ target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
 #SET_SOURCE_FILES_PROPERTIES( src/tree.cu PROPERTIES COMPILE_FLAGS -G )
 
 
-add_executable( cosmictiger_lite
-    ${cosmictiger_source_files} ${cosmictiger_header_files}
-)
-add_library(hpx_lite 
-	hpx_lite/src/hpx.cpp
-	hpx_lite/src/id_type.cpp
-	hpx_lite/src/thread.cpp
-	hpx_lite/src/future.cpp
-	hpx_lite/src/mutex.cpp
-	hpx_lite/src/serialize.cpp
-)
-set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
-target_link_libraries(cosmictiger_lite PUBLIC  cuda cudart boost_program_options hpx_lite hwloc mpi tcmalloc cufft)
-target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
-#target_compile_options(cosmictiger_lite PUBLIC -D_GLIBCXX_USE_CXX11_ABI=0)
-#target_compile_options(hpx_lite PUBLIC -D_GLIBCXX_USE_CXX11_ABI=0)
-target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86 -std=c++14;
-                        >)
  

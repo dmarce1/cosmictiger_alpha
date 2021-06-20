@@ -1,5 +1,4 @@
 #include <cosmictiger/initial.hpp>
-#include <cosmictiger/fourier.hpp>
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/zeldovich.hpp>
 #include <cosmictiger/constants.hpp>

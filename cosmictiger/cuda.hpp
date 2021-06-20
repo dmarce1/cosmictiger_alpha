@@ -14,18 +14,6 @@
 
 #include <cosmictiger/defs.hpp>
 
-#define CUDA_CHECK( a ) if( a != cudaSuccess ) PRINT( "CUDA error on line %i of %s : %s\n", __LINE__, __FILE__, cudaGetErrorString(a))
-
-//#define CUDA_CHECK( a ) PRINT( "calling %s from %s line %i\n", #a, __FILE__, __LINE__ ); \
-//		                  if( a != cudaSuccess ) PRINT( "CUDA error on line %i of %s : %s\n", __LINE__, __FILE__, cudaGetErrorString(a)); \
-//		                  PRINT( "done calling %s from %s line %i\n", #a, __FILE__, __LINE__)
-
-#ifdef __CUDACC__
-#define CUDA_EXPORT __device__ __host__
-#else
-#define CUDA_EXPORT
-#endif
-
 #define CUDA_DEVICE __device__
 #define CUDA_KERNEL __global__ void
 

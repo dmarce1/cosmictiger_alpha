@@ -11,6 +11,8 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include <hpxfft/hpxfft/fourier.hpp>
+
 //#define PERIODIC_OFF
 
 //#define NO_DIPOLE
@@ -21,18 +23,6 @@
 
 #define EWALD_ALPHA 2.0
 
-template<class ...Args>
-#ifdef __CUDA_ARCH__
-__device__
-#endif
-inline void print(const char* fmt, Args ...args) {
-	printf(fmt, args...);
-#ifndef __CUDA_ARCH__
-	fflush(stdout);
-#endif
-}
-
-#define PRINT(...) print(__VA_ARGS__)
 
 #define NDIM 3
 #define FULL_MASK 0xFFFFFFFF

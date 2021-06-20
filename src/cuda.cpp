@@ -28,13 +28,6 @@ int cuda_device() {
 	return hpx_rank() % global().cuda.num_devices;
 }
 
-void cuda_set_device() {
-	int count;
-	CUDA_CHECK(cudaGetDeviceCount(&count));
-	const int device_num = hpx_rank() % count;
-	CUDA_CHECK(cudaSetDevice(device_num));
-}
-
 cuda_properties cuda_init() {
 	hpx::future<cuda_properties> futl, futr;
 	auto children = hpx_child_localities();

@@ -16,7 +16,6 @@
 #include <cosmictiger/groups.hpp>
 #include <cosmictiger/time.hpp>
 #include <cosmictiger/direct.hpp>
-#include <cosmictiger/fourier.hpp>
 #include <cosmictiger/initial.hpp>
 #include <cmath>
 

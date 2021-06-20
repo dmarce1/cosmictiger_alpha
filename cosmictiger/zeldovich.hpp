@@ -11,7 +11,6 @@
 #include <cosmictiger/vector.hpp>
 #include <cosmictiger/interp.hpp>
 #include <cosmictiger/math.hpp>
-#include <cosmictiger/fourier.hpp>
 
 enum zeldovich_t {
 	DENSITY, DISPLACEMENT, VELOCITY

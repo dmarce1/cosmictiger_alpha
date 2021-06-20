@@ -1,5 +1,4 @@
 #include <cosmictiger/power.hpp>
-#include <cosmictiger/fourier.hpp>
 #include <cosmictiger/particle_server.hpp>
 #include <cosmictiger/constants.hpp>
 #include <cosmictiger/global.hpp>

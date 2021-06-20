@@ -1,5 +1,6 @@
-#include <cosmictiger/fourier.hpp>
-#include <cosmictiger/global.hpp>
+#include <hpxfft/fourier.hpp>
+#include <hpxfft/cuda.hpp>
+#include <cassert>
 #include <cufft.h>
 
 #define FFTSIZE_COMPUTE 32
@@ -180,7 +181,10 @@ void fft1d(std::vector<cmplx>& Y, int N) {
 	int batch = N;                      // --- Number of batched executions
 	cmplx* dev_ptr;
 	CUDA_CHECK(cudaMalloc(&dev_ptr,N*N*sizeof(cmplx)));
-	CHECK_POINTER(dev_ptr);
+	if(dev_ptr == nullptr) {
+		PRINT( "Out of memory %s %i\n", __FILE__, __LINE__);
+		abort();
+	}
 	CUDA_CHECK(cudaMemcpy(dev_ptr,Y.data(),N*N*sizeof(cmplx),cudaMemcpyHostToDevice));
 	CUDA_FFT_CHECK(cufftPlanMany(&plan, 1, n, inembed, istride, idist, onembed, ostride, odist, CUFFT_C2C, batch));
 	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex * )dev_ptr, (cufftComplex * )dev_ptr, CUFFT_FORWARD));
@@ -199,12 +203,15 @@ void fft2d(std::vector<cmplx>& Y, int N) {
 	int inembed[] = { 0 };                  // --- Input size with pitch (ignored for 1D transforms)
 	int onembed[] = { 0 };                  // --- Output size with pitch (ignored for 1D transforms)
 	int batch = N;                      // --- Number of batched executions
-	const int maxgrid = global().cuda.devices[0].maxGridSize[0];
+	const int maxgrid = 65535;
 	int nblockst = min(N * N / FFTSIZE_TRANSPOSE, maxgrid);
 	CUDA_FFT_CHECK(cufftPlanMany(&plan, 1, n, inembed, istride, idist, onembed, ostride, odist, CUFFT_C2C, batch));
 	cmplx* dev_ptr;
 	CUDA_CHECK(cudaMalloc(&dev_ptr,N*N*sizeof(cmplx)));
-	CHECK_POINTER(dev_ptr);
+	if(dev_ptr == nullptr) {
+		PRINT( "Out of memory %s %i\n", __FILE__, __LINE__);
+		abort();
+	}
 	CUDA_CHECK(cudaMemcpy(dev_ptr,Y.data(),N*N*sizeof(cmplx),cudaMemcpyHostToDevice));
 	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex * )dev_ptr, (cufftComplex * )dev_ptr, CUFFT_FORWARD));
 	transpose_2d<<<nblockst,FFTSIZE_TRANSPOSE>>>(dev_ptr,N);
@@ -214,4 +221,5 @@ void fft2d(std::vector<cmplx>& Y, int N) {
 	CUDA_CHECK(cudaMemcpy(Y.data(),dev_ptr,N*N*sizeof(cmplx),cudaMemcpyDeviceToHost));
 	CUDA_CHECK(cudaFree(dev_ptr));
 }
+
 
