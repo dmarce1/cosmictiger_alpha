@@ -49,7 +49,6 @@ set(cosmictiger_source_files
     src/particle_server.cpp
     src/power.cpp
     src/rand.cpp
-    src/tensor.cpp
     src/tests.cpp
     src/tree.cpp
     src/tree_database.cpp
@@ -63,9 +62,9 @@ set(cosmictiger_source_files
     src/initial.cu
     src/kick_return.cu
     src/map.cu
-    src/math.cu
     src/particle.cu
     src/power.cu
+    src/rand.cu
     src/tree.cu
     src/tree_database.cu
     src/zeldovich.cu
@@ -108,7 +107,6 @@ set(cosmictiger_header_files
 	cosmictiger/multipole.hpp
 	cosmictiger/options.hpp
 	cosmictiger/particle.hpp
-	cosmictiger/rand.hpp
 	cosmictiger/range.hpp
 	cosmictiger/timer.hpp
 	cosmictiger/tests.hpp
@@ -123,12 +121,13 @@ set(cosmictiger_header_files
  	hpxfft
   DEPENDENCIES
   SOURCES
-	hpxfft/src/fourier.cu
  	hpxfft/src/cuda.cu
+	hpxfft/src/fourier.cu
 	hpxfft/src/fourier.cpp
   HEADERS
-	hpxfft/hpxfft/fourier.hpp
 	hpxfft/hpxfft/cuda.hpp
+	hpxfft/hpxfft/complex.hpp
+	hpxfft/hpxfft/fourier.hpp
 )
 
 

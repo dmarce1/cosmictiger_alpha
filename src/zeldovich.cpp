@@ -57,15 +57,15 @@ void _2lpt_phase(int N, int phase) {
 	int xend = (hpx_rank() + 1) * N / hpx_size();
 	int xspan = xend - xbegin;
 	if (phase > 2 * NDIM) {
-		auto this_delta2_part = fourier3d_read_real(xbegin, xend, 0, N, 0, N);
+		auto this_delta2_part = hpxfft::fourier3d_read_real(xbegin, xend, 0, N, 0, N);
 		for (int i = 0; i < xspan * N * N; i++) {
 			delta2[i].real() -= this_delta2_part[i] * this_delta2_part[i];
 		}
 	} else {
 		if (phase % 2 == 0) {
-			delta2_part = fourier3d_read_real(xbegin, xend, 0, N, 0, N);
+			delta2_part = hpxfft::fourier3d_read_real(xbegin, xend, 0, N, 0, N);
 		} else {
-			auto delta2_this_part = fourier3d_read_real(xbegin, xend, 0, N, 0, N);
+			auto delta2_this_part = hpxfft::fourier3d_read_real(xbegin, xend, 0, N, 0, N);
 			for (int i = 0; i < xspan * N * N; i++) {
 				delta2[i].real() += delta2_part[i] * delta2_this_part[i];
 			}
@@ -115,7 +115,7 @@ float phi1_to_particles(int N, float box_size, float D1, float prefactor, int di
 			}
 		}
 	}
-	auto phi1 = fourier3d_read_real(xb, xe, 0, N, 0, N);
+	auto phi1 = hpxfft::fourier3d_read_real(xb, xe, 0, N, 0, N);
 	const float factor = -D1 / box_size;
 	for (int xi = xb; xi < xe; xi++) {
 		const float x = (float(xi) + 0.5f) / float(N);
@@ -155,7 +155,7 @@ float phi2_to_particles(int N, float box_size, float D2, float prefactor, int di
 	int xe = (hpx_rank() + 1) * N / hpx_size();
 	int xspan = xe - xb;
 	part_int count = xspan * N * N;
-	auto phi2 = fourier3d_read_real(xb, xe, 0, N, 0, N);
+	auto phi2 = hpxfft::fourier3d_read_real(xb, xe, 0, N, 0, N);
 	const float factor = D2 / box_size;
 	for (int xi = xb; xi < xe; xi++) {
 		const float x = (float(xi) + 0.5f) / float(N);
@@ -182,7 +182,7 @@ float phi2_to_particles(int N, float box_size, float D2, float prefactor, int di
 
 void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, int dim2, int seed) {
 	if (hpx_rank() == 0) {
-		fourier3d_initialize(N);
+		hpxfft::fourier3d_initialize(N);
 	}
 	std::vector<hpx::future<void>> futs;
 	if (hpx_rank() == 0) {
@@ -197,11 +197,11 @@ void _2lpt(const interp_functor<float> den_k, int N, float box_size, int dim1, i
 	Y.resize(xspan * N * N);
 	const float factor = std::pow(box_size, -1.5);
 	execute_2lpt_kernel(Y, xbegin, xend, den_k, N, box_size, dim1, dim2);
-	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
+	hpxfft::fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
 	hpx::wait_all(futs.begin(), futs.end());
 	if (hpx_rank() == 0) {
-		fourier3d_mirror();
-		fourier3d_execute();
+		hpxfft::fourier3d_mirror();
+		hpxfft::fourier3d_execute();
 	}
 }
 void _2lpt_correction_f2delta2(int N);
@@ -216,13 +216,13 @@ void _2lpt_correction_f2delta2(int N) {
 	}
 	int xbegin = hpx_rank() * N / hpx_size();
 	int xend = (hpx_rank() + 1) * N / hpx_size();
-	delta2 = fourier3d_read(xbegin, xend, 0, N, 0, N);
+	delta2 = hpxfft::fourier3d_read(xbegin, xend, 0, N, 0, N);
 	hpx::wait_all(futs.begin(), futs.end());
 }
 
 void _2lpt_correction1(int N, float box_size) {
 	if (hpx_rank() == 0) {
-		fourier3d_initialize(N);
+		hpxfft::fourier3d_initialize(N);
 	}
 	std::vector<hpx::future<void>> futs;
 	if (hpx_rank() == 0) {
@@ -232,10 +232,10 @@ void _2lpt_correction1(int N, float box_size) {
 	}
 	int xbegin = hpx_rank() * N / hpx_size();
 	int xend = (hpx_rank() + 1) * N / hpx_size();
-	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(delta2));
+	hpxfft::fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(delta2));
 	hpx::wait_all(futs.begin(), futs.end());
 	if (hpx_rank() == 0) {
-		fourier3d_inv_execute();
+		hpxfft::fourier3d_inv_execute();
 	}
 }
 
@@ -246,7 +246,7 @@ void _2lpt_correction2(int N, float box_size, int dim) {
 		if (dim == 0) {
 			_2lpt_correction_f2delta2(N);
 		}
-		fourier3d_initialize(N);
+		hpxfft::fourier3d_initialize(N);
 	}
 	std::vector<hpx::future<void>> futs;
 	if (hpx_rank() == 0) {
@@ -256,9 +256,9 @@ void _2lpt_correction2(int N, float box_size, int dim) {
 	}
 	auto Y = delta2;
 	execute_2lpt_correction_kernel(Y, xbegin, xend, N, box_size, dim);
-	fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
+	hpxfft::fourier3d_accumulate(xbegin, xend, 0, N, 0, N, std::move(Y));
 	hpx::wait_all(futs.begin(), futs.end());
 	if (hpx_rank() == 0) {
-		fourier3d_execute();
+		hpxfft::fourier3d_execute();
 	}
 }

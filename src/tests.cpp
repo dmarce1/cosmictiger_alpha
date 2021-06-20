@@ -19,6 +19,8 @@
 #include <cosmictiger/initial.hpp>
 #include <cmath>
 
+using hpxfft::cmplx;
+
 #ifndef __CUDA_ARCH__
 float rsqrt(float x) {
 	return 1.f / sqrt(x);
@@ -50,10 +52,10 @@ static void fft_test() {
 			}
 		}
 	}
-	fourier3d_initialize(N);
-	fourier3d_accumulate(0, N, 0, N, 0, N, in);
-	fourier3d_execute();
-	auto out = fourier3d_read(0, N, 0, N, 0, N);
+	hpxfft::fourier3d_initialize(N);
+	hpxfft::fourier3d_accumulate(0, N, 0, N, 0, N, in);
+	hpxfft::fourier3d_execute();
+	auto out = hpxfft::fourier3d_read(0, N, 0, N, 0, N);
 	for (int i = 0; i < N; i++) {
 		for (int j = 0; j < N; j++) {
 			for (int k = 0; k < N; k++) {
@@ -63,7 +65,7 @@ static void fft_test() {
 			}
 		}
 	}
-	fourier3d_destroy();
+	hpxfft::fourier3d_destroy();
 }
 
 static void psort_test() {

@@ -4,6 +4,8 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/kernel.hpp>
 
+
+
 __global__ void matter_power_spectrum_kernel(particle_set parts, float*den_k, int xb, int xe, int yb, int ye, int zb,
 		int ze, int N) {
 	const auto& tid = threadIdx.x;
@@ -75,7 +77,7 @@ void matter_power_spectrum_init() {
 	execute_kernel(matter_power_spectrum_kernel, parts, M.data(), xb, xe, yb, ye, zb, ze, N);
 	std::vector<float> M2(M.size());
 	M = decltype(M)();
-	fourier3d_accumulate_real(xb, xe, yb, ye, zb, ze, std::move(M2));
+	hpxfft::fourier3d_accumulate_real(xb, xe, yb, ye, zb, ze, std::move(M2));
 }
 
 /*********************************************************************************************************************************/

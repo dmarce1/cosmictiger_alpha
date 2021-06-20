@@ -103,3 +103,11 @@ void cuda_enqueue_host_function(cudaStream_t stream, std::function<void()>&& fun
 	CUDA_CHECK(cudaLaunchHostFunc(stream, &execute_host_function, fptr));
 }
 
+
+void cuda_set_device() {
+	int count;
+	CUDA_CHECK(cudaGetDeviceCount(&count));
+	const int device_num = hpxfft::hpx_rank() % count;
+	CUDA_CHECK(cudaSetDevice(device_num));
+}
+

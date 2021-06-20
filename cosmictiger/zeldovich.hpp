@@ -12,9 +12,12 @@
 #include <cosmictiger/interp.hpp>
 #include <cosmictiger/math.hpp>
 
+using hpxfft::cmplx;
+
 enum zeldovich_t {
 	DENSITY, DISPLACEMENT, VELOCITY
 };
+
 
 __global__
 void _2lpt_kernel(cmplx* Y, int xbegin,const interp_functor<float> den_k, int N, float box_size, int dim1,
