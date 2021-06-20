@@ -63,7 +63,7 @@ CUDA_DEVICE void cuda_cc_interactions(kick_params_type *params_ptr, eval_type et
 	}
 	__syncwarp();
 //	if (constant.full_eval) {
-		kick_return_update_interactions_gpu(etype == DIRECT ? KR_CC : KR_EWCC, interacts, flops);
+	kick_return_update_interactions_gpu(etype == DIRECT ? KR_CC : KR_EWCC, interacts, flops);
 //	}
 }
 
@@ -146,7 +146,7 @@ CUDA_DEVICE void cuda_cp_interactions(kick_params_type *params_ptr) {
 	}
 	__syncwarp();
 //	if (constant.full_eval) {
-		kick_return_update_interactions_gpu(KR_CP, interacts, flops);
+	kick_return_update_interactions_gpu(KR_CP, interacts, flops);
 //	}
 }
 
@@ -382,7 +382,7 @@ CUDA_DEVICE void cuda_pp_interactions(kick_params_type *params_ptr, int nactive)
 	}
 	__syncwarp();
 //	if (constant.full_eval) {
-		kick_return_update_interactions_gpu(KR_PP, interacts, flops);
+	kick_return_update_interactions_gpu(KR_PP, interacts, flops);
 //	}
 }
 
@@ -423,8 +423,8 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 				const float* src = multis[m + z].get_multi_ptr();
 				float* dst = (float*) &(msrcs[nsrc]);
 				nsrc++;
-				if (tid < msize) {
-					dst[tid] = __ldg(src + tid);
+				for (int k = tid; k < msize; k += KICK_BLOCK_SIZE) {
+					dst[k] = __ldg(src + k);
 				}
 			}
 		}
@@ -490,7 +490,7 @@ void cuda_pc_interactions(kick_params_type *params_ptr, int nactive) {
 	}
 	__syncwarp();
 //	if (constant.full_eval) {
-		kick_return_update_interactions_gpu(KR_PC, interacts, flops);
+	kick_return_update_interactions_gpu(KR_PC, interacts, flops);
 //	}
 
 }
