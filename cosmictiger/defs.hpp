@@ -15,7 +15,7 @@
 
 //#define NO_DIPOLE
 
-#define ORDER 6
+#define ORDER 7
 #define LORDER ORDER
 #define MORDER (LORDER-1)
 

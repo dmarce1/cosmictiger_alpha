@@ -339,11 +339,11 @@ void drive_cosmos() {
 		auto opts = global().opts;
 		int bucket_size = global().opts.bucket_size;
 		if (z > 20) {
-			theta = 0.4;
+			theta = 0.466;
 		} else if (z > 2) {
-			theta = 0.55;
+			theta = 0.601;
 		} else {
-			theta = 0.7;
+			theta = 0.742;
 		}
 		opts.bucket_size = bucket_size;
 		global_set_options(opts);
@@ -416,7 +416,7 @@ void drive_cosmos() {
 		real_time += a * dt * 0.5;
 		z = 1.0 / a - 1.0;
 		if (global().opts.map_size > 0) {
-			load_and_save_maps(time * T0, NTIMESTEP * T0);
+			load_and_save_maps(time * T0 - dt, NTIMESTEP * T0);
 		}
 		int mapped_cnt = drift(parts, dt, a0, a, &kin, &momx, &momy, &momz, T0 * time - dt, NTIMESTEP * T0, drift_tm);
 		cosmicK += kin * (a - a0);
