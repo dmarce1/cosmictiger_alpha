@@ -975,8 +975,8 @@ void do_expansion_cuda() {
 	deindent();
 	tprint("}\n");
 	if (entries1.size() != entries2.size()) {
-		tprint("Lb[Ldest1[%i]] = fmaf(factor1[%i] * dx[xsrc1[%i]], Lc[Lsrc1[%i]], Lb[Ldest1[%i]]);\n", entries1.size(),
-				entries1.size(), entries1.size(), entries1.size(), entries1.size());
+		tprint("Lb[Ldest1[%i]] = fmaf(factor1[%i] * dx[xsrc1[%i]], Lc[Lsrc1[%i]], Lb[Ldest1[%i]]);\n", entries2.size(),
+				entries2.size(), entries2.size(), entries2.size(), entries2.size());
 	}
 	tprint("if( do_phi ) {\n");
 	indent();
