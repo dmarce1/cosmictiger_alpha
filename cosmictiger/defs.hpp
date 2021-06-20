@@ -15,9 +15,11 @@
 
 //#define NO_DIPOLE
 
-#define ORDER 7
+#define ORDER 6
 #define LORDER ORDER
 #define MORDER (LORDER-1)
+
+#define EWALD_ALPHA 2.0
 
 template<class ...Args>
 #ifdef __CUDA_ARCH__

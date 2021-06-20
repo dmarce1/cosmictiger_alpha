@@ -174,8 +174,8 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 											iname.c_str(), p[0], p[1], p[2]);
 									flops++;
 								} else {
-									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = T(%.8e) * %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1],
-											j[2], factor, iname.c_str(), p[0], p[1], p[2]);
+									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = T(%.8e) * %s%i%i%i;\n", iname.c_str(), n0, m0, j[0],
+											j[1], j[2], factor, iname.c_str(), p[0], p[1], p[2]);
 									flops++;
 								}
 								asn.push_back(str);
@@ -191,9 +191,9 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 											iname.c_str(), p[0], p[1], p[2]);
 									flops++;
 								} else {
-									ASPRINTF(&str, "%s_%i_%i_%i%i%i = fmaf(T(%.8e), %s%i%i%i, %s_%i_%i_%i%i%i);\n", iname.c_str(),
-											n0, m0, j[0], j[1], j[2], factor, iname.c_str(), p[0], p[1], p[2], iname.c_str(), n0,
-											m0, j[0], j[1], j[2]);
+									ASPRINTF(&str, "%s_%i_%i_%i%i%i = fmaf(T(%.8e), %s%i%i%i, %s_%i_%i_%i%i%i);\n",
+											iname.c_str(), n0, m0, j[0], j[1], j[2], factor, iname.c_str(), p[0], p[1], p[2],
+											iname.c_str(), n0, m0, j[0], j[1], j[2]);
 									flops += 2;
 								}
 								op.push_back(str);
@@ -261,8 +261,8 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 												p[0], p[1], p[2]);
 										flops++;
 									} else {
-										ASPRINTF(&str, "%s%i%i%i = T(%.8e) * %s%i%i%i;\n", oname.c_str(), n[0], n[1], n[2], factor,
-												iname.c_str(), p[0], p[1], p[2]);
+										ASPRINTF(&str, "%s%i%i%i = T(%.8e) * %s%i%i%i;\n", oname.c_str(), n[0], n[1], n[2],
+												factor, iname.c_str(), p[0], p[1], p[2]);
 										flops++;
 									}
 								}
@@ -292,13 +292,14 @@ int compute_detrace(std::string iname, std::string oname, char type = 'f') {
 									}
 								} else {
 									if (m0 > 0) {
-										ASPRINTF(&str, "%s%i%i%i = fmaf(T(%.8e), %s_%i_%i_%i%i%i, %s%i%i%i);\n", oname.c_str(), n[0],
-												n[1], n[2], factor, iname.c_str(), n0, m0, p[0], p[1], p[2], oname.c_str(), n[0],
-												n[1], n[2]);
+										ASPRINTF(&str, "%s%i%i%i = fmaf(T(%.8e), %s_%i_%i_%i%i%i, %s%i%i%i);\n", oname.c_str(),
+												n[0], n[1], n[2], factor, iname.c_str(), n0, m0, p[0], p[1], p[2], oname.c_str(),
+												n[0], n[1], n[2]);
 										flops += 2;
 									} else {
-										ASPRINTF(&str, "%s%i%i%i = fmaf(T(%.8e), %s%i%i%i, %s%i%i%i);\n", oname.c_str(), n[0], n[1],
-												n[2], factor, iname.c_str(), p[0], p[1], p[2], oname.c_str(), n[0], n[1], n[2]);
+										ASPRINTF(&str, "%s%i%i%i = fmaf(T(%.8e), %s%i%i%i, %s%i%i%i);\n", oname.c_str(), n[0],
+												n[1], n[2], factor, iname.c_str(), p[0], p[1], p[2], oname.c_str(), n[0], n[1],
+												n[2]);
 										flops += 2;
 									}
 								}
@@ -368,8 +369,8 @@ int compute_detrace_ewald(std::string iname, std::string oname) {
 											iname.c_str(), p[0], p[1], p[2]);
 									flops += 1;
 								} else {
-									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = T(%.8e) * %s%i%i%i;\n", iname.c_str(), n0, m0, j[0], j[1],
-											j[2], factor, iname.c_str(), p[0], p[1], p[2]);
+									ASPRINTF(&str, "T %s_%i_%i_%i%i%i = T(%.8e) * %s%i%i%i;\n", iname.c_str(), n0, m0, j[0],
+											j[1], j[2], factor, iname.c_str(), p[0], p[1], p[2]);
 									flops++;
 								}
 								asn.push_back(str);
@@ -385,9 +386,9 @@ int compute_detrace_ewald(std::string iname, std::string oname) {
 											iname.c_str(), p[0], p[1], p[2]);
 									flops += 1;
 								} else {
-									ASPRINTF(&str, "%s_%i_%i_%i%i%i = fmaf(T(%.8e), %s%i%i%i, %s_%i_%i_%i%i%i);\n", iname.c_str(),
-											n0, m0, j[0], j[1], j[2], factor, iname.c_str(), p[0], p[1], p[2], iname.c_str(), n0,
-											m0, j[0], j[1], j[2]);
+									ASPRINTF(&str, "%s_%i_%i_%i%i%i = fmaf(T(%.8e), %s%i%i%i, %s_%i_%i_%i%i%i);\n",
+											iname.c_str(), n0, m0, j[0], j[1], j[2], factor, iname.c_str(), p[0], p[1], p[2],
+											iname.c_str(), n0, m0, j[0], j[1], j[2]);
 									flops += 2;
 								}
 								op.push_back(str);
@@ -1043,9 +1044,11 @@ void ewald(int direct_flops) {
 	tprint("T e0 = expfactor * rinv;\n");                                   // 1
 	tprint("const T rinv0 = T(1);\n");                                           // 2
 	tprint("const T rinv1 = rinv;\n");                                           // 2
-	for (int l = 2; l < P; l++) {
+	int these_flops = 0;
+	for (int l = 2; l < (P + 1) / 2; l++) {
 		const int i = l / 2;
 		const int j = l - i;
+		these_flops++;
 		tprint("const T rinv%i = rinv%i * rinv%i;\n", l, i, j);                      // (P-2)
 	}
 	tprint("const T d0 = -erfc0 * rinv;\n");                                       // 2
@@ -1057,18 +1060,21 @@ void ewald(int direct_flops) {
 	}
 	for (int l = 0; l < P; l++) {
 		for (int m = 0; m <= l; m++) {
-			tprint("const T Drinvpow_%i_%i = d%i * rinv%i;\n", l, m, l, m);
+			if (l + m < P) {
+				tprint("const T Drinvpow_%i_%i = d%i * rinv%i;\n", l, m, l, m);
+				these_flops++;
+			}
 		}
 	}
 	tprint("array<T,NDIM> dxrinv;\n");
 	tprint("dxrinv[0] = dx[0] * rinv;\n");
 	tprint("dxrinv[1] = dx[1] * rinv;\n");
 	tprint("dxrinv[2] = dx[2] * rinv;\n");
-	int these_flops = compute_dx(P, "dxrinv");
+	these_flops += compute_dx(P, "dxrinv");
 	array<int, NDIM> m;
 	array<int, NDIM> k;
 	array<int, NDIM> n;
-	these_flops += 37 + 7 * (P - 1) + P * (P + 1) / 2 + P - 2;
+	these_flops += 37 + 7 * (P - 1) + P * (P + 1) / 2;
 
 	these_flops += compute_detrace_ewald<P>("x", "Dreal");
 
@@ -1083,10 +1089,10 @@ void ewald(int direct_flops) {
 	indent();
 	tprint("const auto &h = econst.four_index(i);\n");
 	tprint("const auto& D0 = econst.four_expansion(i);\n");
-	tprint("const T hdotx = FMA(h[0], X[0], FMA(h[1], X[1], h[2] * X[2]));\n");
+	tprint("const T hdotx = FMA(h[0], X[0], FMA(h[1], X[1], h[2] * X[2]));\n"); // 5
 	tprint("T cn, sn;\n");
-	tprint("sincos(T(2.0 * M_PI) * hdotx, &sn, &cn);\n");
-	these_flops = 0;
+	tprint("sincos(T(2.0 * M_PI) * hdotx, &sn, &cn);\n"); // 35
+	these_flops = 40;
 	bool iscos[P * P + 1];
 	for (k[0] = 0; k[0] < P; k[0]++) {
 		for (k[1] = 0; k[1] < P - k[0]; k[1]++) {
