@@ -2,7 +2,11 @@
 #include <hpxfft/cuda.hpp>
 
 #include <memory>
+#ifdef USE_HPX
 #include <hpx/hpx.hpp>
+#else
+#include <hpx/hpx_lite.hpp>
+#endif
 
 #include <cuda_runtime.h>
 

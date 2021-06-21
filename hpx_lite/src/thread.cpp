@@ -586,16 +586,15 @@ void yield(const std::shared_ptr<bool> yield_bit) {
 					next_ptr = w.main_ctx;
 				}
 				if (next_ptr->is_active()) {
-					if (next_ptr->get_yield_bit()) {
+//					if (next_ptr->get_yield_bit()) {
 						found_thread = true;
-					} else {
-						queue_push(queue_num, next_ptr);
-						found_thread = false;
-					}
+//					} else {
+//						queue_push(queue_num, next_ptr);
+//						found_thread = false;
+//					}
 				} else {
 					found_thread = false;
 				}
-
 			} while (!found_thread);
 			if (current_ptr != nullptr) {
 				assert(w.to_q_ctx == nullptr);

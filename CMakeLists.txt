@@ -185,6 +185,7 @@ target_compile_definitions(fmm_kernel_codegen PUBLIC COSMICTIGER_FMM_ORDER=${COS
  
  
 target_compile_options(fmm_kernel_codegen PUBLIC "-DUSE_HPX")
+target_compile_options(hpxfft PUBLIC "-DUSE_HPX")
 target_include_directories(fmm_kernel_codegen PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpxfft)
 target_include_directories(hpxfft PUBLIC ${PROJECT_SOURCE_DIR}/hpxfft)
 set_property(TARGET hpxfft PROPERTY CUDA_SEPARABLE_COMPILATION ON)
@@ -200,4 +201,37 @@ target_compile_options(hpxfft PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         >)
 set_property(TARGET cosmictiger PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCH})
 set_property(TARGET hpxfft PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCH})
+
+
+add_executable( cosmictiger_lite
+    ${cosmictiger_source_files} ${cosmictiger_header_files}
+)
+
+ add_library(
+ 	hpxfft_lite
+	hpxfft/src/fourier.cu
+ 	hpxfft/src/cuda.cu
+	hpxfft/src/fourier.cpp
+	hpxfft/hpxfft/fourier.hpp
+	hpxfft/hpxfft/cuda.hpp
+)
+
+
+add_library(hpx_lite 
+	hpx_lite/src/hpx.cpp
+	hpx_lite/src/id_type.cpp
+	hpx_lite/src/thread.cpp
+	hpx_lite/src/future.cpp
+	hpx_lite/src/mutex.cpp
+	hpx_lite/src/serialize.cpp
+)
+set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite  ${PROJECT_SOURCE_DIR}/hpxfft)
+target_include_directories(hpxfft_lite PUBLIC ${PROJECT_SOURCE_DIR}/hpxfft ${PROJECT_SOURCE_DIR}/hpx_lite)
+target_link_libraries(cosmictiger_lite PUBLIC  cuda cudart boost_program_options hpx_lite hwloc mpi tcmalloc hpxfft_lite cufft )
+target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
+target_compile_definitions(cosmictiger_lite PUBLIC COSMICTIGER_FMM_ORDER=${COSMICTIGER_WITH_FMM_ORDER})
+target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86 -std=c++14;
+                        >)
  
