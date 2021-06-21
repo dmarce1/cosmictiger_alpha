@@ -11,9 +11,8 @@
 #include <cosmictiger/fixed.hpp>
 
 fixed32 rand_fixed32();
+size_t rand_size_t();
+float rand_float();
 
-
-__global__
-void generate_random_vectors(fixed32* x, fixed32* y, fixed32* z, size_t N, int seed);
 
 #endif /* COSMICTIGER_RAND_HPP_ */

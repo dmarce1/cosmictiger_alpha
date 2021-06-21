@@ -11,7 +11,6 @@ using spinlock_type = hpx::lcos::local::spinlock;
 
 using mutex_type = hpx::lcos::local::mutex;
 
-namespace hpxfft {
 static std::vector<std::vector<cmplx>> Y;
 static std::vector<std::shared_ptr<spinlock_type>> mutexes;
 static int N;
@@ -22,32 +21,28 @@ static int span;
 static int rank;
 static int nranks;
 
+namespace hpxfft {
 int hpx_rank() {
 	return rank;
 }
 }
 
-
-namespace hpxfft {
 std::vector<std::vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zbegin, int zend,
 		std::vector<std::vector<cmplx>>);
 void fourier3d_transpose_xz();
 std::pair<std::vector<float>, std::vector<size_t>> fourier3d_get_power_spectrum();
-}
 
-HPX_PLAIN_ACTION(hpxfft::fourier3d_get_power_spectrum,fourier3d_get_power_spectrum_action);
-HPX_PLAIN_ACTION(hpxfft::fourier3d_initialize, fourier3d_initialize_action);
-HPX_PLAIN_ACTION(hpxfft::fourier3d_destroy, fourier3d_destroy_action);
-HPX_PLAIN_ACTION(hpxfft::fourier3d_transpose, fourier3d_transpose_action);
-HPX_PLAIN_ACTION(hpxfft::fourier3d_accumulate, fourier3d_accumulate_action);
-HPX_PLAIN_ACTION(hpxfft::fourier3d_accumulate_real, fourier3d_accumulate_real_action);
-HPX_PLAIN_ACTION(hpxfft::fourier3d_transpose_xz, fourier3d_transpose_xz_action);
-HPX_PLAIN_ACTION(hpxfft::fourier3d_read, fourier3d_read_action);
-HPX_PLAIN_ACTION(hpxfft::fourier3d_read_real, fourier3d_read_real_action);
-HPX_PLAIN_ACTION(hpxfft::fourier3d_mirror, fourier3d_mirror_action);
-HPX_PLAIN_ACTION(hpxfft::fourier3d_inv_execute, fourier3d_inv_execute_action);
-
-namespace hpxfft {
+HPX_PLAIN_ACTION(fourier3d_get_power_spectrum);
+HPX_PLAIN_ACTION(fourier3d_initialize);
+HPX_PLAIN_ACTION(fourier3d_destroy);
+HPX_PLAIN_ACTION(fourier3d_transpose);
+HPX_PLAIN_ACTION(fourier3d_accumulate);
+HPX_PLAIN_ACTION(fourier3d_accumulate_real);
+HPX_PLAIN_ACTION(fourier3d_transpose_xz);
+HPX_PLAIN_ACTION(fourier3d_read);
+HPX_PLAIN_ACTION(fourier3d_read_real);
+HPX_PLAIN_ACTION(fourier3d_mirror);
+HPX_PLAIN_ACTION(fourier3d_inv_execute);
 
 int slab_to_rank(int xi) {
 	return std::min((int) ((xi + int(N % nranks != 0)) * nranks / N), nranks - 1);
@@ -668,12 +663,9 @@ void fourier3d_do1dpart() {
 	}
 }
 
-}
+HPX_PLAIN_ACTION(fourier3d_do1dpart);
+HPX_PLAIN_ACTION(fourier3d_do2dpart);
 
-HPX_PLAIN_ACTION(hpxfft::fourier3d_do1dpart, fourier3d_do1dpart_action);
-HPX_PLAIN_ACTION(hpxfft::fourier3d_do2dpart, fourier3d_do2dpart_action);
-
-namespace hpxfft {
 std::vector<float> fourier3d_power_spectrum() {
 	std::vector<hpx::future<std::pair<std::vector<float>, std::vector<size_t>>> >futs;
 	for( int i = 0; i < nranks; i++) {
@@ -900,4 +892,3 @@ std::vector<std::vector<cmplx>> fourier3d_transpose(int xbegin, int xend, int zb
 }
 
 
-}

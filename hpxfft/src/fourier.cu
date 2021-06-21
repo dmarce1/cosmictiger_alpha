@@ -6,8 +6,6 @@
 #define FFTSIZE_COMPUTE 32
 #define FFTSIZE_TRANSPOSE 32
 
-namespace hpxfft {
-
 /* error checker from https://forums.developer.nvidia.com/t/cufft-error-handling/29231 */
 static const char *_cudaGetErrorEnum(cufftResult error) {
 	switch (error) {
@@ -81,7 +79,7 @@ void normalize_invert_2d(cmplx* Y, int N) {
 	const int block_size = blockDim.x;
 	const int& bid = blockIdx.x;
 	const int& grid_size = gridDim.x;
-	const float N3inv = 1.0f / (N * N * N);
+	const float N3inv = 1.0f / (N * sqr(N));
 	for (int xi = bid; xi < N; xi += grid_size) {
 		for (int yi = tid; yi < N; yi += block_size) {
 			const int i1 = (N * xi + yi);
@@ -120,7 +118,7 @@ void normalize_invert_3d(cmplx* Y, int N) {
 	const int block_size = blockDim.x;
 	const int& bid = blockIdx.x;
 	const int& grid_size = gridDim.x;
-	const float N3inv = 1.0f / (N * N* N);
+	const float N3inv = 1.0f / (N * sqr(N));
 	for (int xy = bid; xy < N * N; xy += grid_size) {
 		int xi = xy / N;
 		int yi = xy % N;
@@ -225,4 +223,3 @@ void fft2d(std::vector<cmplx>& Y, int N) {
 }
 
 
-}

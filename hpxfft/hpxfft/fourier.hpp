@@ -13,9 +13,6 @@
 
 
 
-namespace hpxfft {
-int hpx_rank();
-
 template<class T>
 CUDA_EXPORT inline T sqr(T a) {
 	return a * a;
@@ -152,6 +149,10 @@ CUDA_EXPORT inline complex<T> expc(complex<T> z) {
 
 using cmplx = complex<float>;
 
+namespace hpxfft {
+int hpx_rank();
+}
+
 void fft1d(std::vector<cmplx>& Y, int N);
 void fft2d(std::vector<cmplx>& Y, int N);
 
@@ -165,7 +166,5 @@ std::vector<cmplx> fourier3d_read(int xb, int xe, int yb, int ye, int zb, int ze
 std::vector<float> fourier3d_read_real(int xb, int xe, int yb, int ye, int zb, int ze);
 void fourier3d_mirror();
 std::vector<float> fourier3d_power_spectrum();
-
-}
 
 #endif /* FOURIER_HPP_ */

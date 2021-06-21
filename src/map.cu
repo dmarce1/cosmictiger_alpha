@@ -3,7 +3,6 @@
 #include <cosmictiger/vector.hpp>
 #include <cosmictiger/map.hpp>
 #include <cosmictiger/global.hpp>
-#include <cosmictiger/math.hpp>
 
 void hpx_yield();
 

@@ -1,3 +1,12 @@
+/*
+ * rand.cpp
+ *
+ *  Created on: Jan 25, 2021
+ *      Author: dmarce1
+ */
+
+#include <cosmictiger/domain.hpp>
+
 #include <cosmictiger/rand.hpp>
 #include <cosmictiger/hpx.hpp>
 
@@ -15,3 +24,16 @@ fixed32 rand_fixed32() {
    result.i = number;
    return result;
 }
+
+size_t rand_size_t() {
+   std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
+   number = (a * number + c) % mod;
+   return number;
+}
+
+float rand_float() {
+   std::lock_guard < hpx::lcos::local::mutex > lock(mtx);
+   number = (a * number + c) % mod;
+   return (number + 0.5) / mod;
+}
+

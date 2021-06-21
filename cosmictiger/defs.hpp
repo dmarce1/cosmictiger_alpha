@@ -13,8 +13,6 @@
 
 #include <hpxfft/hpxfft/fourier.hpp>
 
-
-
 //#define PERIODIC_OFF
 
 //#define NO_DIPOLE

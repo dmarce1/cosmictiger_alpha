@@ -182,7 +182,7 @@ void initial_conditions(particle_set& parts) {
 			printf("Maxmimum correction = %e\n", max_disp);
 			_2lpt_destroy();
 		}
-		hpxfft::fourier3d_destroy();
+		fourier3d_destroy();
 		sigma8_func->power.values.~vector<float>();
 		CUDA_FREE(sigma8_func);
 		CUDA_FREE(result_ptr);

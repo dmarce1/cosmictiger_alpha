@@ -1,8 +1,6 @@
 
 #include <hpxfft/fourier.hpp>
 
-namespace hpxfft {
-
 void cuda_set_device() {
 	int count;
 	CUDA_CHECK(cudaGetDeviceCount(&count));
@@ -11,4 +9,3 @@ void cuda_set_device() {
 }
 
 
-}

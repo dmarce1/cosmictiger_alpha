@@ -8,15 +8,12 @@
 
 
 template<class T>
-CUDA_EXPORT inline T sqr(T a) {
-	return a * a;
-}
-
-
-template<class T>
 CUDA_EXPORT inline T sqr(T a, T b, T c) {
 	return fmaf(a, a, fmaf(b, b, sqr(c)));
 }
+__global__
+void generate_random_vectors(fixed32* x, fixed32* y, fixed32* z, size_t N, int seed);
+
 CUDA_DEVICE inline float erfcexp(float x, float *e) {				// 18 + FLOP_DIV + FLOP_EXP
 	const float p(0.3275911f);
 	const float a1(0.254829592f);
