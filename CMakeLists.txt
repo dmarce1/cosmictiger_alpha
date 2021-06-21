@@ -84,7 +84,7 @@ set(cosmictiger_source_files
                         
 
 set(cosmictiger_header_files
-	./fmm_kernels.hpp
+	cosmictiger/fmm_kernels.hpp
 	cosmictiger/cosmos.hpp
 	cosmictiger/domain.hpp
 	cosmictiger/defs.hpp
@@ -145,13 +145,13 @@ set(cosmictiger_header_files
 set_property(TARGET hpxfft PROPERTY FOLDER "cosmictiger")
 
  add_custom_command(
-    OUTPUT ./fmm_kernels.hpp
-    COMMAND ./fmm_kernel_codegen > ./fmm_kernels.hpp
+    OUTPUT cosmictiger/fmm_kernels.hpp
+    COMMAND ./fmm_kernel_codegen > ${PROJECT_SOURCE_DIR}/cosmictiger/fmm_kernels.hpp
     DEPENDS fmm_kernel_codegen
     COMMENT "Generating FFM kernels"
 )
 
-ADD_CUSTOM_TARGET( generate_fmm_kernels DEPENDS ./fmm_kernels.hpp 
+ADD_CUSTOM_TARGET( generate_fmm_kernels DEPENDS cosmictiger/fmm_kernels.hpp 
                    COMMENT "" )
 
 add_hpx_executable(

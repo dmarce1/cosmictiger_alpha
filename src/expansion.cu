@@ -10,7 +10,7 @@
 #include <cosmictiger/expansion.hpp>
 #include <cosmictiger/ewald_indices.hpp>
 #include <cosmictiger/array.hpp>
-#include "fmm_kernels.hpp"
+#include <cosmictiger/fmm_kernels.hpp>
 
 __device__ expansion<float> Lfactor_gpu;
 expansion<float> Lfactor_cpu;
