@@ -75,6 +75,7 @@ set(cosmictiger_source_files
                         
 
 set(cosmictiger_header_files
+	cosmictiger/code_gen.hpp
 	cosmictiger/cosmos.hpp
 	cosmictiger/domain.hpp
 	cosmictiger/defs.hpp
@@ -133,6 +134,15 @@ set(cosmictiger_header_files
 
 set_property(TARGET hpxfft PROPERTY FOLDER "cosmictiger")
 
+ add_custom_command(
+    OUTPUT cosmictiger/code_gen.hpp
+    COMMAND ./code_gen > ../cosmictiger/code_gen.hpp
+    DEPENDS code_gen
+    COMMENT "Generating FFM kernels"
+)
+ADD_CUSTOM_TARGET( run_codegen DEPENDS cosmictiger/code_gen.hpp 
+                   COMMENT "" )
+
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
@@ -142,6 +152,8 @@ add_hpx_executable(
   HEADERS
     ${cosmictiger_header_files}
  )
+ 
+ ADD_DEPENDENCIES( cosmictiger run_codegen )
  
  add_executable(
  	hpx2mw
@@ -173,8 +185,6 @@ target_compile_options(hpxfft PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                         --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
                         >)
  
- 
-
  
 
 #SET_SOURCE_FILES_PROPERTIES( src/fourier.cu PROPERTIES COMPILE_FLAGS -G )
