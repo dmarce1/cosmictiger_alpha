@@ -1148,6 +1148,8 @@ void ewald(int direct_flops) {
 
 int main() {
 
+	fprintf( stderr, "Generating FMM kernels for Pmax = %i\n", P-1);
+
 	int flops = 0;
 
 	tprint("#pragma once\n");

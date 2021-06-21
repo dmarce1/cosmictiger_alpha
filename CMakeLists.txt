@@ -19,12 +19,18 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 find_package(HPX REQUIRED NO_CMAKE_PACKAGE_REGISTRY)
 find_package(Boost REQUIRED)
-#find_package(Silo REQUIRED)
+find_package(Silo REQUIRED)
 enable_language(CUDA)
 
 set(CMAKE_CXX_FLAGS "-ffast-math -march=native -Wno-deprecated-declarations -Wno-format-security")
 set(CMAKE_CUDA_FLAGS "-std=c++14")
+set(COSMICTIGER_WITH_FMM_ORDER "6" CACHE STRING "FMM Order")
 
+
+execute_process(COMMAND nvcc -lcuda ${PROJECT_SOURCE_DIR}/src/cuda_detect.cu -o cuda_detect)
+execute_process(COMMAND ./cuda_detect OUTPUT_VARIABLE CUDA_ARCH)
+execute_process(COMMAND cp ${PROJECT_SOURCE_DIR}/power.init .)
+message(STATUS "CUDA Architecture: ${CUDA_ARCH}")
 
 
 set(cosmictiger_source_files
@@ -76,7 +82,7 @@ set(cosmictiger_source_files
                         
 
 set(cosmictiger_header_files
-	cosmictiger/code_gen.hpp
+	./fmm_kernels.hpp
 	cosmictiger/cosmos.hpp
 	cosmictiger/domain.hpp
 	cosmictiger/defs.hpp
@@ -136,12 +142,13 @@ set(cosmictiger_header_files
 set_property(TARGET hpxfft PROPERTY FOLDER "cosmictiger")
 
  add_custom_command(
-    OUTPUT cosmictiger/code_gen.hpp
-    COMMAND ./code_gen > ../cosmictiger/code_gen.hpp
-    DEPENDS code_gen
+    OUTPUT ./fmm_kernels.hpp
+    COMMAND ./fmm_kernel_codegen > ./fmm_kernels.hpp
+    DEPENDS fmm_kernel_codegen
     COMMENT "Generating FFM kernels"
 )
-ADD_CUSTOM_TARGET( run_codegen DEPENDS cosmictiger/code_gen.hpp 
+
+ADD_CUSTOM_TARGET( generate_fmm_kernels DEPENDS ./fmm_kernels.hpp 
                    COMMENT "" )
 
 add_hpx_executable(
@@ -153,8 +160,10 @@ add_hpx_executable(
   HEADERS
     ${cosmictiger_header_files}
  )
+message(STATUS "CosmicTiger FMM Order: ${COSMICTIGER_WITH_FMM_ORDER}")
+target_compile_definitions(cosmictiger PUBLIC COSMICTIGER_FMM_ORDER=${COSMICTIGER_WITH_FMM_ORDER})
  
- ADD_DEPENDENCIES( cosmictiger run_codegen )
+ ADD_DEPENDENCIES( cosmictiger generate_fmm_kernels )
  
  add_executable(
  	hpx2mw
@@ -162,17 +171,18 @@ add_hpx_executable(
  )
  
 add_hpx_executable(
-  code_gen
+  fmm_kernel_codegen
   DEPENDENCIES
   SOURCES
-    src/code_gen.cpp
+    src/fmm_kernel_codegen.cpp
   HEADERS
     ${cosmictiger_header_files}
  )
+target_compile_definitions(fmm_kernel_codegen PUBLIC COSMICTIGER_FMM_ORDER=${COSMICTIGER_WITH_FMM_ORDER})
  
  
-target_compile_options(code_gen PUBLIC "-DUSE_HPX")
-target_include_directories(code_gen PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpxfft)
+target_compile_options(fmm_kernel_codegen PUBLIC "-DUSE_HPX")
+target_include_directories(fmm_kernel_codegen PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpxfft)
 target_include_directories(hpxfft PUBLIC ${PROJECT_SOURCE_DIR}/hpxfft)
 set_property(TARGET hpxfft PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 set_property(TARGET cosmictiger PROPERTY CUDA_SEPARABLE_COMPILATION ON)
@@ -180,18 +190,11 @@ target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpxfft)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
+                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_${CUDA_ARCH};
                         >)
 target_compile_options(hpxfft PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_70;
+                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_${CUDA_ARCH};
                         >)
- 
- 
-
-#SET_SOURCE_FILES_PROPERTIES( src/fourier.cu PROPERTIES COMPILE_FLAGS -G )
-#SET_SOURCE_FILES_PROPERTIES( src/gravity.cu PROPERTIES COMPILE_FLAGS -G )
-#SET_SOURCE_FILES_PROPERTIES( src/map.cu PROPERTIES COMPILE_FLAGS "--maxrregcount 40" )
-#SET_SOURCE_FILES_PROPERTIES( src/tree.cu PROPERTIES COMPILE_FLAGS -G )
-
-
+set_property(TARGET cosmictiger PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCH})
+set_property(TARGET hpxfft PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCH})
  

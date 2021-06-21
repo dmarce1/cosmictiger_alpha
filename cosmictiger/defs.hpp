@@ -17,7 +17,7 @@
 
 //#define NO_DIPOLE
 
-#define ORDER 7
+#define ORDER COSMICTIGER_FMM_ORDER
 #define LORDER ORDER
 #define MORDER (LORDER-1)
 
