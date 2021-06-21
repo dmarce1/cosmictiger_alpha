@@ -217,6 +217,7 @@ void fft2d(std::vector<cmplx>& Y, int N) {
 	transpose_2d<<<nblockst,FFTSIZE_TRANSPOSE>>>(dev_ptr,N);
 	CUDA_CHECK(cudaDeviceSynchronize());
 	CUDA_FFT_CHECK(cufftExecC2C(plan, (cufftComplex * )dev_ptr, (cufftComplex * )dev_ptr, CUFFT_FORWARD));
+	cufftDestroy(plan);
 	transpose_2d<<<nblockst,FFTSIZE_TRANSPOSE>>>(dev_ptr,N);
 	CUDA_CHECK(cudaMemcpy(Y.data(),dev_ptr,N*N*sizeof(cmplx),cudaMemcpyDeviceToHost));
 	CUDA_CHECK(cudaFree(dev_ptr));
