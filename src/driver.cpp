@@ -360,6 +360,8 @@ void drive_cosmos() {
 		bool groups = z < 20.0 && global().opts.groups;
 		bool power = global().opts.power;
 		unified_allocator alloc;
+		tree_data_free_all();
+		tree_data_initialize(TREE_KICK);
 		if (full_eval && (power || groups)) {
 			alloc.reset();
 			if (power) {
@@ -386,11 +388,11 @@ void drive_cosmos() {
 		tree_ptr root_ptr = build_tree(min_r, theta, num_active, stats, sort_tm);
 		tree_use = tree_data_use();
 		max_rung = kick(root_ptr, theta, a, min_rung(itime), full_eval, iter == 0, groups && full_eval, kick_tm);
+		alloc.reset();
 		if (full_eval && groups) {
 			group_fut.get();
 			group_data_save(a, time + 0.5);
 			group_data_destroy();
-			alloc.reset();
 		}
 		const auto silo_int = global().opts.silo_interval;
 		if (silo_int > 0) {

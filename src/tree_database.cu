@@ -11,6 +11,8 @@ static const int min_trees = 1024 * 1024;
 
 static std::atomic<int> next_chunk;
 
+double last_utilization = -1.0;
+
 int hardware_concurrency();
 
 __managed__ int myrank;
@@ -32,12 +34,16 @@ CUDA_EXPORT int hpx_rank_cuda() {
 void tree_data_initialize_kick() {
 	myrank = hpx_rank();
 	cpu_tree_data_.chunk_size = 1;
-	int ntrees = 8 * global().opts.nparts / global().opts.bucket_size / hpx_size();
-	cpu_tree_data_.ntrees = 1;
-	while( cpu_tree_data_.ntrees < ntrees ) {
-		cpu_tree_data_.ntrees *= 2;
+	int ntrees;
+	if( last_utilization <= 0.0 ) {
+		ntrees = 4 * global().opts.nparts / global().opts.bucket_size / hpx_size();
+		cpu_tree_data_.ntrees = ntrees;
+		cpu_tree_data_.ntrees = std::max(cpu_tree_data_.ntrees, min_trees);
+	} else {
+		ntrees = cpu_tree_data_.ntrees * last_utilization / 0.85;
+		cpu_tree_data_.ntrees = ntrees;
+	//	printf( "%e %i\n", last_utilization, cpu_tree_data_.ntrees);
 	}
-	cpu_tree_data_.ntrees = std::max(cpu_tree_data_.ntrees, min_trees);
 	const int target_chunk_size = cpu_tree_data_.ntrees / (16 * OVERSUBSCRIPTION * hardware_concurrency());
 	while (cpu_tree_data_.chunk_size < target_chunk_size) {
 		cpu_tree_data_.chunk_size *= 2;
@@ -45,8 +51,8 @@ void tree_data_initialize_kick() {
 	cpu_tree_data_.nchunks = cpu_tree_data_.ntrees / cpu_tree_data_.chunk_size;
 
 
-	PRINT("Allocating %i trees in %i chunks of %i each for kick\n", cpu_tree_data_.ntrees, cpu_tree_data_.nchunks,
-			cpu_tree_data_.chunk_size);
+//	PRINT("Allocating %i trees in %i chunks of %i each for kick\n", cpu_tree_data_.ntrees, cpu_tree_data_.nchunks,
+//			cpu_tree_data_.chunk_size);
 
 	tree_data_free_all_cu();
 	CUDA_MALLOC(cpu_tree_data_.proc_range, cpu_tree_data_.ntrees);
@@ -69,12 +75,19 @@ void tree_data_initialize_kick() {
 void tree_data_initialize_groups() {
 	myrank = hpx_rank();
 	cpu_tree_data_.chunk_size = 1;
-	int ntrees = 8 * global().opts.nparts / global().opts.bucket_size / hpx_size();
-	cpu_tree_data_.ntrees = 1;
+	int ntrees;
+	if( last_utilization <= 0.0 ) {
+		ntrees = 4 * global().opts.nparts / global().opts.bucket_size / hpx_size();
+		cpu_tree_data_.ntrees = ntrees;
+		cpu_tree_data_.ntrees = std::max(cpu_tree_data_.ntrees, min_trees);
+	} else {
+		ntrees = cpu_tree_data_.ntrees * last_utilization / 0.85;
+		cpu_tree_data_.ntrees = ntrees;
+	}
+/*	cpu_tree_data_.ntrees = 1;
 	while( cpu_tree_data_.ntrees < ntrees ) {
 		cpu_tree_data_.ntrees *= 2;
-	}
-	cpu_tree_data_.ntrees = std::max(cpu_tree_data_.ntrees, min_trees);
+	}*/
 	const int target_chunk_size = cpu_tree_data_.ntrees / (16 * OVERSUBSCRIPTION * hardware_concurrency());
 	while (cpu_tree_data_.chunk_size < target_chunk_size) {
 		cpu_tree_data_.chunk_size *= 2;
@@ -82,8 +95,8 @@ void tree_data_initialize_groups() {
 	cpu_tree_data_.nchunks = cpu_tree_data_.ntrees / cpu_tree_data_.chunk_size;
 
 
-	PRINT("Allocating %i trees in %i chunks of %i each for group search\n", cpu_tree_data_.ntrees,
-			cpu_tree_data_.nchunks, cpu_tree_data_.chunk_size);
+//	PRINT("Allocating %i trees in %i chunks of %i each for group search\n", cpu_tree_data_.ntrees,
+//			cpu_tree_data_.nchunks, cpu_tree_data_.chunk_size);
 
 	tree_data_free_all_cu();
 	CUDA_MALLOC(cpu_tree_data_.proc_range, cpu_tree_data_.ntrees);
@@ -145,6 +158,7 @@ void tree_database_set_groups() {
 
 
 void tree_data_clear_cu() {
+	last_utilization = (double) next_chunk / cpu_tree_data_.nchunks;
 	next_chunk = 0;
 	if (cpu_tree_data_.data) {
 		for (int i = 0; i < cpu_tree_data_.ntrees; i++) {
