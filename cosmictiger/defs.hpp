@@ -13,9 +13,15 @@
 
 #include <hpxfft/hpxfft/fourier.hpp>
 
+#define LEFT 0
+#define RIGHT 1
 //#define PERIODIC_OFF
 
 //#define NO_DIPOLE
+
+
+#define PHI0 (-35.0f/16.0f)
+
 
 #define ORDER COSMICTIGER_FMM_ORDER
 #define LORDER ORDER

@@ -341,7 +341,7 @@ void drive_cosmos() {
 		if (z > 20) {
 			theta = 0.4;
 		} else if (z > 2) {
-			theta = 0.5;
+			theta = 0.55;
 		} else {
 			theta = 0.7;
 		}

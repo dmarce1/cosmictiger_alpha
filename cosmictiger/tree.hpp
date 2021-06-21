@@ -19,8 +19,6 @@
 #include <memory>
 #include <stack>
 
-#define LEFT 0
-#define RIGHT 1
 
 #define TREE_PTR_STACK (TREE_MAX_DEPTH*WORKSPACE_SIZE)
 

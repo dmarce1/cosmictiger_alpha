@@ -71,5 +71,3 @@ simd_float inline distance(const simd_int& a, const simd_int& b) {
 	}
 
 
-#define PHI0 (-35.0f/16.0f)
-
