@@ -35,15 +35,15 @@ void tree_data_initialize_kick() {
 	myrank = hpx_rank();
 	cpu_tree_data_.chunk_size = 1;
 	int ntrees;
-	if( last_utilization <= 0.0 ) {
-		ntrees = 4 * global().opts.nparts / global().opts.bucket_size / hpx_size();
+//	if( last_utilization <= 0.0 ) {
+		ntrees = 8 * global().opts.nparts / global().opts.bucket_size / hpx_size();
 		cpu_tree_data_.ntrees = ntrees;
 		cpu_tree_data_.ntrees = std::max(cpu_tree_data_.ntrees, min_trees);
-	} else {
-		ntrees = cpu_tree_data_.ntrees * last_utilization / 0.85;
-		cpu_tree_data_.ntrees = ntrees;
+//	} else {
+//		ntrees = cpu_tree_data_.ntrees * last_utilization / 0.85;
+//		cpu_tree_data_.ntrees = ntrees;
 	//	printf( "%e %i\n", last_utilization, cpu_tree_data_.ntrees);
-	}
+	//}
 	const int target_chunk_size = cpu_tree_data_.ntrees / (16 * OVERSUBSCRIPTION * hardware_concurrency());
 	while (cpu_tree_data_.chunk_size < target_chunk_size) {
 		cpu_tree_data_.chunk_size *= 2;
@@ -76,14 +76,14 @@ void tree_data_initialize_groups() {
 	myrank = hpx_rank();
 	cpu_tree_data_.chunk_size = 1;
 	int ntrees;
-	if( last_utilization <= 0.0 ) {
+//	if( last_utilization <= 0.0 ) {
 		ntrees = 4 * global().opts.nparts / global().opts.bucket_size / hpx_size();
 		cpu_tree_data_.ntrees = ntrees;
 		cpu_tree_data_.ntrees = std::max(cpu_tree_data_.ntrees, min_trees);
-	} else {
-		ntrees = cpu_tree_data_.ntrees * last_utilization / 0.85;
-		cpu_tree_data_.ntrees = ntrees;
-	}
+	//} else {
+	//	ntrees = cpu_tree_data_.ntrees * last_utilization / 0.85;
+	//	cpu_tree_data_.ntrees = ntrees;
+	//}
 /*	cpu_tree_data_.ntrees = 1;
 	while( cpu_tree_data_.ntrees < ntrees ) {
 		cpu_tree_data_.ntrees *= 2;
