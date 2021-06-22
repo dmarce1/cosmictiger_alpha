@@ -350,6 +350,25 @@ void particle_server::apply_domain_decomp() {
 	alloc.reset();
 }
 
+
+
+bool particle_server::domain_decomp_gather() {
+	std::vector<hpx::future<bool>> futs;
+	if (hpx_rank() == 0) {
+		for (int i = 1; i < hpx_size(); i++) {
+			futs.push_back(hpx::async<particle_server_domain_decomp_gather_action>(hpx_localities()[i]));
+		}
+	}
+	bool gathered_all = parts->gather_sends(part_sends, free_indices, dbounds);
+	hpx::wait_all(futs.begin(), futs.end());
+	for (auto& b : futs) {
+		if (!b.get()) {
+			gathered_all = false;
+		}
+	}
+	return gathered_all;
+}
+
 void particle_server::domain_decomp_finish() {
 	std::vector<hpx::future<void>> futs;
 	if (hpx_rank() == 0) {
@@ -393,7 +412,6 @@ void particle_server::domain_decomp_transmit(vector<particle> new_parts) {
 	start = part_recvs.size();
 	part_recvs.resize(start + new_parts.size());
 	stop = part_recvs.size();
-	lock.unlock();
 	part_int i = 0;
 	while (new_parts.size()) {
 		particle p = new_parts.back();
@@ -401,23 +419,6 @@ void particle_server::domain_decomp_transmit(vector<particle> new_parts) {
 		part_recvs[i] = p;
 	}
 
-}
-
-bool particle_server::domain_decomp_gather() {
-	std::vector<hpx::future<bool>> futs;
-	if (hpx_rank() == 0) {
-		for (int i = 1; i < hpx_size(); i++) {
-			futs.push_back(hpx::async<particle_server_domain_decomp_gather_action>(hpx_localities()[i]));
-		}
-	}
-	bool gathered_all = parts->gather_sends(part_sends, free_indices, dbounds);
-	hpx::wait_all(futs.begin(), futs.end());
-	for (auto& b : futs) {
-		if (!b.get()) {
-			gathered_all = false;
-		}
-	}
-	return gathered_all;
 }
 
 particle_set& particle_server::get_particle_set() {

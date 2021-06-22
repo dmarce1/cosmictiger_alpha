@@ -27,7 +27,7 @@
 #define LORDER ORDER
 #define MORDER (LORDER-1)
 
-//#define TEST_FORCE
+#define TEST_FORCE
 
 
 #define NDIM 3

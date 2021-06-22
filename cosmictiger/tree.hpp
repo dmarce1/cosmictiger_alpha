@@ -194,12 +194,14 @@ struct kick_params_type {
 	vector<tree_ptr> part_interactions;
 	vector<tree_ptr> next_checks;
 	vector<tree_ptr> opened_checks;
-	stack_vector<tree_ptr> dchecks;
-	stack_vector<tree_ptr> echecks;
 	array<array<float, MAX_BUCKET_SIZE>, NDIM> F;
 	array<float, MAX_BUCKET_SIZE> Phi;
+
 	array<expansion<float>, TREE_MAX_DEPTH> L;
 	array<array<fixed32, NDIM>, TREE_MAX_DEPTH> Lpos;
+
+	stack_vector<tree_ptr> dchecks;
+	stack_vector<tree_ptr> echecks;
 	tree_ptr tptr;
 	int depth;
 	part_int block_cutoff;
