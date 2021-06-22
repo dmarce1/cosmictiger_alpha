@@ -23,7 +23,6 @@ struct tree_hash;
 class particle_server {
 	static particle_set* parts;
 	static vector<part_int> free_indices;
-	static domain_bounds dbounds;
 #ifndef __CUDACC__
 	static particle_send_type part_sends;
 	static vector<particle> part_recvs;

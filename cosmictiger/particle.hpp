@@ -80,7 +80,7 @@ struct particle_set {
 	fixed32 find_middle(part_int b, part_int e, int xdim) const;
 	particle get_particle(part_int i);
 	void set_particle(const particle&, part_int i);
-	void free_particles(vector<part_int>&);
+	void free_particles(part_int*, int cnt);
 	part_int count_parts_below(part_int, part_int, int, fixed32) const;CUDA_EXPORT
 	particle_set();
 	static void sort_parts(particle* begin, particle* end);

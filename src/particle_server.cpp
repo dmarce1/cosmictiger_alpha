@@ -9,7 +9,7 @@ particle_set* particle_server::parts = nullptr;
 vector<part_int> particle_server::free_indices;
 particle_send_type particle_server::part_sends;
 vector<particle> particle_server::part_recvs;
-domain_bounds particle_server::dbounds;
+domain_bounds dbounds;
 spinlock_type particle_server::mutex;
 shared_mutex_type particle_server::shared_mutex;
 
@@ -277,14 +277,14 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 											local_iter.second = j + offset;
 											local_tree.set_parts(local_iter);
 //#ifndef NDEBUG
-				local_tree.set_proc_range(hpx_rank(), hpx_rank());
+											local_tree.set_proc_range(hpx_rank(), hpx_rank());
 //#endif
-			}
-		}));
-}
-hpx::wait_all(futs.begin(),futs.end());
+										}
+									}));
+				}
+				hpx::wait_all(futs.begin(),futs.end());
 
-}));
+			}));
 	}
 	hpx::wait_all(futs2.begin(), futs2.end());
 //	PRINT("Done filling locals\n");
@@ -298,11 +298,18 @@ void particle_server::check_domain_bounds() {
 		}
 	}
 	auto myrange = dbounds.find_proc_range(hpx_rank());
+	bool killme = false;
 	for (part_int i = 0; i < parts->size(); i++) {
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto x = parts->pos(dim, i).to_double();
-			assert(x >= myrange.begin[dim] && x <= myrange.end[dim]);
+			if (x < myrange.begin[dim] || x > myrange.end[dim]) {
+				PRINT("%e %e %e\n", x, myrange.begin[dim], myrange.end[dim]);
+				killme = true;
+			}
 		}
+	}
+	if (killme) {
+		ABORT();
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 }
@@ -344,13 +351,12 @@ void particle_server::apply_domain_decomp() {
 			complete = domain_decomp_gather();
 			domain_decomp_send();
 			domain_decomp_finish();
+			check_domain_bounds();
 		} while (!complete);
 	}
 	unified_allocator alloc;
 	alloc.reset();
 }
-
-
 
 bool particle_server::domain_decomp_gather() {
 	std::vector<hpx::future<bool>> futs;
@@ -376,7 +382,11 @@ void particle_server::domain_decomp_finish() {
 			futs.push_back(hpx::async<particle_server_domain_decomp_finish_action>(hpx_localities()[i]));
 		}
 	}
+
 	parts->sort_parts(part_recvs.begin(), part_recvs.end());
+//	printf("%i %i %i\n", hpx_rank(), free_indices.size(), part_recvs.size());
+//	printf("rank %i %i\n", hpx_rank(), parts->size());
+	int free_offset = 0;
 	if (free_indices.size() < part_recvs.size()) {
 		part_int start = free_indices.size();
 		part_int stop = part_recvs.size();
@@ -387,19 +397,23 @@ void particle_server::domain_decomp_finish() {
 		}
 		parts->resize(j);
 	}
+//	printf("rank %i %i\n", hpx_rank(), parts->size());
 	int nthreads = hardware_concurrency();
+	free_offset = part_recvs.size();
 	for (int proc = 0; proc < nthreads; proc++) {
 		futs.push_back(hpx::async([proc,nthreads]() {
 			const part_int start = proc * part_recvs.size() / nthreads;
 			const part_int stop = (proc+1) * part_recvs.size() / nthreads;
 			for( part_int i = start; i < stop; i++) {
+				assert(hpx_rank()==dbounds.find_proc(part_recvs[i].x));
+	//			printf( "%e %e %e\n", part_recvs[i].x[0].to_float(), part_recvs[i].x[1].to_float(), part_recvs[i].x[2].to_float());
 				parts->set_particle(part_recvs[i], free_indices[i]);
 			}
 		}));
 	}
 	hpx::wait_all(futs.begin(), futs.end());
 	part_recvs = decltype(part_recvs)();
-	parts->free_particles(free_indices);
+	parts->free_particles(free_indices.data() + free_offset, free_indices.size() - free_offset);
 	free_indices = decltype(free_indices)();
 	part_sends = decltype(part_sends)();
 //	malloc_stats();
@@ -416,8 +430,15 @@ void particle_server::domain_decomp_transmit(vector<particle> new_parts) {
 	while (new_parts.size()) {
 		particle p = new_parts.back();
 		new_parts.pop_back();
-		part_recvs[i] = p;
+		part_recvs[i++] = p;
+//		PRINT( "%e %e %e\n", p.x[0].to_float(),  p.x[1].to_float(),  p.x[2].to_float());
 	}
+/*	PRINT( "-------------\n");
+	for( int i = 0; i < part_recvs.size(); i++) {
+		auto p = part_recvs[i];
+		PRINT( "%e %e %e\n", p.x[0].to_float(),  p.x[1].to_float(),  p.x[2].to_float());
+	}*/
+
 
 }
 

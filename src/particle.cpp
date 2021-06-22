@@ -108,15 +108,21 @@ bool particle_set::gather_sends(particle_send_type& sends, vector<part_int>& fre
 	return (int) finished_cnt == num_threads;
 }
 
-void particle_set::free_particles(vector<part_int>& free_indices) {
-	std::sort(free_indices.begin(), free_indices.end(), [](part_int a, part_int b) {
+extern domain_bounds dbounds;
+
+void particle_set::free_particles(part_int* free_indices, int count) {
+	//printf("free rank %i %i\n", hpx_rank(), size());
+	std::sort(free_indices, free_indices + count, [](part_int a, part_int b) {
 		return a > b;
 	});
-	for (auto i : free_indices) {
+	for (int j = 0; j < count; j++) {
+		const int i = free_indices[j];
 		const particle p = get_particle(size() - 1);
+		assert(hpx_rank() != dbounds.find_proc(get_particle(i).x));
 		set_particle(p, i);
 		resize(size() - 1);
 	}
+//printf("free rank %i %i\n", hpx_rank(), size());
 }
 
 void particle_set::set_particle(const particle& p, part_int i) {
