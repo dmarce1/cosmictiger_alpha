@@ -423,16 +423,17 @@ void particle_server::domain_decomp_transmit(vector<particle> new_parts) {
 	part_int start;
 	part_int stop;
 	std::unique_lock<shared_mutex_type> lock(shared_mutex);
-	start = part_recvs.size();
+	part_int i = part_recvs.size();
 	part_recvs.resize(start + new_parts.size());
-	stop = part_recvs.size();
-	part_int i = 0;
+	lock.unlock();
+	shared_mutex.lock_shared();
 	while (new_parts.size()) {
 		particle p = new_parts.back();
 		new_parts.pop_back();
 		part_recvs[i++] = p;
 //		PRINT( "%e %e %e\n", p.x[0].to_float(),  p.x[1].to_float(),  p.x[2].to_float());
 	}
+	shared_mutex.unlock_shared();
 /*	PRINT( "-------------\n");
 	for( int i = 0; i < part_recvs.size(); i++) {
 		auto p = part_recvs[i];

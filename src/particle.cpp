@@ -46,7 +46,7 @@ particle particle_set::get_particle(part_int i) {
 	return p;
 }
 
-#define PARTICLE_SET_MAX_SEND (16*1024*1024)
+#define PARTICLE_SET_MAX_SEND (4*1024*1024)
 
 bool particle_set::gather_sends(particle_send_type& sends, vector<part_int>& free_indices, domain_bounds bounds) {
 	//printf( "gathering\n");

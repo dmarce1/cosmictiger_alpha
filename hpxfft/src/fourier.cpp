@@ -829,7 +829,7 @@ void fourier3d_transpose_xz() {
 		}
 	}
 	int dx0 = end - begin;
-	while (size_t(N) * size_t(N) * size_t(dx0) * size_t(sizeof(cmplx)) > 0xFFFFFFFFULL) {
+	while (size_t(N) * size_t(N) * size_t(dx0) * size_t(sizeof(cmplx)) > 0x3FFFFFFFULL) {
 		dx0 /= 2;
 	}
 	for (int other = rank + 1; other < nranks; other++) {
