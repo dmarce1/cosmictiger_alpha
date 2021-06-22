@@ -339,11 +339,11 @@ void drive_cosmos() {
 		auto opts = global().opts;
 		int bucket_size = global().opts.bucket_size;
 		if (z > 20) {
-			theta = 0.4;
+			theta = 0.466;
 		} else if (z > 2) {
-			theta = 0.55;
+			theta = 0.601;
 		} else {
-			theta = 0.7;
+			theta = 0.745;
 		}
 		opts.bucket_size = bucket_size;
 		global_set_options(opts);

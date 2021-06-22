@@ -591,7 +591,7 @@ void tree::kick(kick_params_type * params_ptr) {
 #ifdef TEST_CHECKLIST_TIME
 			tm.start();
 #endif
-			const auto th = params.theta * params.hsoft;
+			const auto th = 2.0 * params.theta * params.hsoft;
 			for (int ci = 0; ci < checks.size(); ci++) {
 				const auto other_radius = checks[ci].get_radius();
 				const auto other_pos = checks[ci].get_pos();
