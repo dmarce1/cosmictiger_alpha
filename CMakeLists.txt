@@ -194,10 +194,10 @@ target_link_libraries(hpx2mw PUBLIC chealpix siloh5 boost_program_options)
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpxfft)
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
 target_compile_options(cosmictiger PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_${CUDA_ARCH};
+                        --use_fast_math --maxrregcount 128 ;
                         >)
 target_compile_options(hpxfft PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_${CUDA_ARCH};
+                        --use_fast_math --maxrregcount 128 ;
                         >)
 set_property(TARGET cosmictiger PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCH})
 set_property(TARGET hpxfft PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCH})
@@ -232,6 +232,8 @@ target_link_libraries(cosmictiger_lite PUBLIC  cuda cudart boost_program_options
 target_include_directories(cosmictiger_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite)
 target_compile_definitions(cosmictiger_lite PUBLIC COSMICTIGER_FMM_ORDER=${COSMICTIGER_WITH_FMM_ORDER})
 target_compile_options(cosmictiger_lite PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                        --use_fast_math --maxrregcount 128 --gpu-architecture=compute_86 -std=c++14;
+                        --use_fast_math --maxrregcount 128 -std=c++14;
                         >)
+set_property(TARGET cosmictiger_lite PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCH})
+set_property(TARGET hpxfft_lite PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCH})
  

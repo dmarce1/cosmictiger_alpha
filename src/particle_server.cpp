@@ -303,7 +303,7 @@ void particle_server::check_domain_bounds() {
 		for (int dim = 0; dim < NDIM; dim++) {
 			const auto x = parts->pos(dim, i).to_double();
 			if (x < myrange.begin[dim] || x > myrange.end[dim]) {
-				PRINT("%e %e %e\n", x, myrange.begin[dim], myrange.end[dim]);
+				PRINT("ERROR : %e %e %e\n", x, myrange.begin[dim], myrange.end[dim]);
 				killme = true;
 			}
 		}
@@ -351,9 +351,9 @@ void particle_server::apply_domain_decomp() {
 			complete = domain_decomp_gather();
 			domain_decomp_send();
 			domain_decomp_finish();
-			check_domain_bounds();
 		} while (!complete);
 	}
+//	check_domain_bounds();
 	unified_allocator alloc;
 	alloc.reset();
 }
