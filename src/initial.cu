@@ -194,8 +194,8 @@ void initial_conditions(particle_set& parts) {
 	printf( "Doing initial domain decomposition\n");
 	particle_server pserv;
 	pserv.apply_domain_decomp();
-	printf("Computing initial matter power spectrum\n");
-	matter_power_spectrum(0);
+//	printf("Computing initial matter power spectrum\n");
+//	matter_power_spectrum(0);
 	alloc.reset();
 
 

@@ -157,7 +157,7 @@ ADD_CUSTOM_TARGET( generate_fmm_kernels DEPENDS cosmictiger/fmm_kernels.hpp
 add_hpx_executable(
   cosmictiger
   DEPENDENCIES
-    Boost::boost siloh5 mpi  hpxfft cufft
+    Boost::boost silo mpi  hpxfft cufft
   SOURCES
     ${cosmictiger_source_files}
   HEADERS
@@ -225,6 +225,9 @@ add_library(hpx_lite
 	hpx_lite/src/mutex.cpp
 	hpx_lite/src/serialize.cpp
 )
+target_compile_options( hpx_lite PUBLIC "-D_GLIBCXX_USE_CXX11_ABI=0")
+target_compile_options( hpxfft_lite PUBLIC "-D_GLIBCXX_USE_CXX11_ABI=0")
+target_compile_options( cosmictiger_lite PUBLIC "-D_GLIBCXX_USE_CXX11_ABI=0")
 set_property(TARGET cosmictiger_lite PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 target_include_directories(hpx_lite PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/hpx_lite  ${PROJECT_SOURCE_DIR}/hpxfft)
 target_include_directories(hpxfft_lite PUBLIC ${PROJECT_SOURCE_DIR}/hpxfft ${PROJECT_SOURCE_DIR}/hpx_lite)

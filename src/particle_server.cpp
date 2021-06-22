@@ -353,7 +353,7 @@ void particle_server::apply_domain_decomp() {
 			domain_decomp_finish();
 		} while (!complete);
 	}
-//	check_domain_bounds();
+	check_domain_bounds();
 	unified_allocator alloc;
 	alloc.reset();
 }
@@ -420,11 +420,9 @@ void particle_server::domain_decomp_finish() {
 }
 
 void particle_server::domain_decomp_transmit(vector<particle> new_parts) {
-	part_int start;
-	part_int stop;
 	std::unique_lock<shared_mutex_type> lock(shared_mutex);
 	part_int i = part_recvs.size();
-	part_recvs.resize(start + new_parts.size());
+	part_recvs.resize(i + new_parts.size());
 	lock.unlock();
 	shared_mutex.lock_shared();
 	while (new_parts.size()) {
