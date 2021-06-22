@@ -338,12 +338,30 @@ void drive_cosmos() {
 		static double last_theta = -1.0;
 		auto opts = global().opts;
 		int bucket_size = global().opts.bucket_size;
-		if (z > 20) {
-			theta = 0.466;
-		} else if (z > 2) {
-			theta = 0.601;
-		} else {
-			theta = 0.745;
+		if( LORDER == 6 ) {
+			if (z > 20) {
+				theta = 0.4;
+			} else if (z > 2) {
+				theta = 0.55;
+			} else {
+				theta = 0.7;
+			}
+		} else if( LORDER == 7 ) {
+			if (z > 20) {
+				theta = 0.47;
+			} else if (z > 2) {
+				theta = 0.60;
+			} else {
+				theta = 0.74;
+			}
+		} else if( LORDER == 8 ) {
+			if (z > 20) {
+				theta = 0.52;
+			} else if (z > 2) {
+				theta = 0.65;
+			} else {
+				theta = 0.78;
+			}
 		}
 		opts.bucket_size = bucket_size;
 		global_set_options(opts);
