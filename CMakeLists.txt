@@ -55,7 +55,6 @@ set(cosmictiger_source_files
     src/particle_server.cpp
     src/power.cpp
     src/rand.cpp
-    src/rockstar.cpp
     src/tensor.cpp
     src/tests.cpp
     src/tree.cpp
@@ -73,7 +72,6 @@ set(cosmictiger_source_files
     src/math.cu
     src/particle.cu
     src/power.cu
-    src/rockstar.cu
     src/tree.cu
     src/tree_database.cu
     src/zeldovich.cu
@@ -122,7 +120,6 @@ set(cosmictiger_header_files
 	cosmictiger/range.hpp
 	cosmictiger/timer.hpp
 	cosmictiger/tests.hpp
-	cosmictiger/rockstar.hpp
 	cosmictiger/tree_database.hpp
 	cosmictiger/tree.hpp
 	cosmictiger/zeldovich.hpp

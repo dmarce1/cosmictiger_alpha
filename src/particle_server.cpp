@@ -192,7 +192,8 @@ std::vector<fixed32> particle_server::gather_pos(std::vector<part_iters> iters) 
 }
 
 void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> remotes_unsorted) {
-	std::unordered_map<int, std::vector<tree_ptr>> requests;
+	std::unordered_map<int, std::vector<tree_ptr>> request_map;
+	std::vector<std::pair<int,std::vector<tree_ptr>>> requests;
 	std::unordered_map<int, part_int> offsets;
 
 	struct sort_entry {
@@ -208,10 +209,32 @@ void particle_server::global_to_local(std::unordered_set<tree_ptr, tree_hash> re
 		remotes_sorted.push_back(entry);
 	}
 	std::sort(remotes_sorted.begin(), remotes_sorted.end(), [](const sort_entry& a, const sort_entry& b) {
-		return a.pbegin < b.pbegin;
+		return a.pbegin > b.pbegin;
 	});
 	for (auto entry : remotes_sorted) {
-		requests[entry.tree.rank].push_back(entry.tree);
+		request_map[entry.tree.rank].push_back(entry.tree);
+	}
+#define MAX_PARTS_PER_GATHER (4*1024*1024)
+	for( auto i = request_map.begin(); i != request_map.end(); i++) {
+		int j = 0;
+		std::pair<int,std::vector<tree_ptr>> request;
+		request.first = i->first;
+		while( i->second.size() ) {
+			const auto& entry = i->second.back();
+			const auto parts = entry.get_parts();
+			const auto sz = parts.second - parts.first;
+			if( j + sz  > MAX_PARTS_PER_GATHER) {
+				requests.push_back(std::move(request));
+				request.first = i->first;
+				request.second = decltype(request.second)();
+				printf( "!\n");
+			}
+			request.second.push_back(entry);
+			j += sz;
+			i->second.pop_back();
+		}
+		i->second = decltype(i->second)();
+		requests.push_back(std::move(request));
 	}
 	std::vector<hpx::future<std::vector<fixed32>>>futs1;
 	std::vector<hpx::future<void>> futs2;
