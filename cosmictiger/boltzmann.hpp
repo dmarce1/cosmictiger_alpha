@@ -34,10 +34,11 @@
 
 #define NFIELD (6+(3*LMAX))
 
-#include <cosmictiger/array.hpp>
+#include <array>
+
 #include <cosmictiger/zero_order.hpp>
 
-using cos_state = array<float,NFIELD>;
+using cos_state = std::array<float,NFIELD>;
 
 void set_zeroverse(zero_order_universe* z);
 void free_zeroverse();

@@ -25,13 +25,10 @@ set(CMAKE_CXX_FLAGS "-ffast-math -march=native -Wno-deprecated-declarations -Wno
 
 set(cosmictiger_source_files
     src/chemistry.cpp
-    src/cosmos.cpp
     src/global.cpp
-    src/hpx.cpp
     src/main.cpp
     src/options.cpp
-    src/rand.cpp
-	src/boltzmann.cpp
+    src/boltzmann.cpp
     src/initial.cpp
     src/math.cpp
     src/zero_order.cpp
@@ -42,61 +39,26 @@ set(cosmictiger_source_files
                         
 
 set(cosmictiger_header_files
-	cosmictiger/boltzmann.hpp
-	cosmictiger/chemistry.hpp
-	cosmictiger/cosmos.hpp
-	cosmictiger/domain.hpp
-	cosmictiger/defs.hpp
-	cosmictiger/direct.hpp
-	cosmictiger/drift.hpp
-	cosmictiger/ewald_indices.hpp
-	cosmictiger/interp.hpp
-	cosmictiger/kick_return.hpp
-	cosmictiger/fourier.hpp
-	cosmictiger/green_direct.hpp
-	cosmictiger/green_ewald.hpp
-	cosmictiger/groups.hpp
-	cosmictiger/gravity.hpp
-	cosmictiger/math.hpp
-	cosmictiger/multipole.hpp
-	cosmictiger/options.hpp
-	cosmictiger/particle.hpp
-	cosmictiger/particle_server.hpp
-	cosmictiger/rand.hpp
-	cosmictiger/range.hpp
-	cosmictiger/stack_vector.hpp
-	cosmictiger/timer.hpp
-	cosmictiger/tree.hpp
-	cosmictiger/fixed.hpp
-	cosmictiger/fast_future.hpp
-	cosmictiger/global.hpp
-    cosmictiger/initial.hpp
-	cosmictiger/hpx.hpp
-	cosmictiger/multipole.hpp
-	cosmictiger/options.hpp
-	cosmictiger/particle.hpp
-	cosmictiger/rand.hpp
-	cosmictiger/range.hpp
-	cosmictiger/timer.hpp
-	cosmictiger/tests.hpp
-	cosmictiger/map.hpp
-	cosmictiger/hydro_particle.hpp
-	cosmictiger/tree_database.hpp
-	cosmictiger/tree.hpp
-	cosmictiger/zeldovich.hpp
+		cosmictiger/boltzmann.hpp  
+		cosmictiger/chemistry.hpp  
+		cosmictiger/constants.hpp  
+		cosmictiger/defs.hpp  
+		cosmictiger/global.hpp  
+		cosmictiger/initial.hpp  
+		cosmictiger/interp.hpp  
+		cosmictiger/math.hpp  
+		cosmictiger/options.hpp  
+		cosmictiger/zero_order.hpp
 )
 
 
-add_hpx_executable(
+add_executable(
   cosmictiger
-  DEPENDENCIES
-    Boost::boost silo mpi tbbmalloc cufft
-  SOURCES
-    ${cosmictiger_source_files}
-  HEADERS
-    ${cosmictiger_header_files}
+  ${cosmictiger_source_files}
+  ${cosmictiger_header_files}
  )
  
  
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")
+target_link_libraries(cosmictiger PUBLIC boost_program_options)

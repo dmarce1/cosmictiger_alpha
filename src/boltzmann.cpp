@@ -152,7 +152,7 @@ void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, flo
 					G1 = G10 / ((float) 1 + dloga * sigma);
 					G2 = -((-(float) 10 * G20 - dloga * F20 * sigma - dloga * G00 * sigma - (float) 4 * dloga * G20 * sigma)
 							/ (((float) 1 + dloga * sigma) * ((float) 10 + (float) 3 * dloga * sigma)));
-					array<float, NFIELD> dudt;
+					std::array<float, NFIELD> dudt;
 					for (int f = 0; f < NFIELD; f++) {
 						dudt[f] = (float) 0.0;
 					}

@@ -6,7 +6,6 @@
  */
 
 #include <cosmictiger/global.hpp>
-#include <cosmictiger/hpx.hpp>
 
 
 

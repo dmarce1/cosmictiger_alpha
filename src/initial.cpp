@@ -27,10 +27,8 @@ void initial_conditions() {
 	cosmic_params params;
 	interp_functor<float> cdm_k;
 	interp_functor<float> vel_k;
-	const size_t N = global().opts.parts_dim;
 	int Nk = 1024;
 	cos_state states[Nk];
-	const size_t N3 = sqr(N) * N;
 
 	auto& uni = zeroverse;
 	params.omega_b = global().opts.omega_b;
