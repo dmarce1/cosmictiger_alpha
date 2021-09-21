@@ -1,7 +1,8 @@
 #include <cosmictiger/global.hpp>
 #include <cosmictiger/zero_order.hpp>
 
-CUDA_EXPORT
+#include <vector>
+
 void zero_order_universe::compute_matter_fractions(float& Oc, float& Ob, float a) const {
 	float omega_m = params.omega_b + params.omega_c;
 	float omega_r = params.omega_gam + params.omega_nu;
@@ -10,7 +11,7 @@ void zero_order_universe::compute_matter_fractions(float& Oc, float& Ob, float a
 	Oc = params.omega_c * Om / omega_m;
 }
 
-CUDA_EXPORT
+
 void zero_order_universe::compute_radiation_fractions(float& Ogam, float& Onu, float a) const {
 	float omega_m = params.omega_b + params.omega_c;
 	float omega_r = params.omega_gam + params.omega_nu;
@@ -19,7 +20,7 @@ void zero_order_universe::compute_radiation_fractions(float& Ogam, float& Onu, f
 	Onu = params.omega_nu * Or / omega_r;
 }
 
-CUDA_EXPORT
+
 float zero_order_universe::conformal_time_to_scale_factor(float taumax) {
 	taumax *= constants::H0 / cosmic_constants::H0;
 	float dlogtau = 1.0e-3;
@@ -46,7 +47,7 @@ float zero_order_universe::conformal_time_to_scale_factor(float taumax) {
 	return a;
 }
 
-CUDA_EXPORT
+
 double zero_order_universe::redshift_to_density(double z) const {
 	const double a = 1.0 / (1.0 + z);
 	float omega_m = params.omega_b + params.omega_c;
@@ -56,7 +57,7 @@ double zero_order_universe::redshift_to_density(double z) const {
 	return omega_m * 3.0 * H2 / (8.0 * M_PI * constants::G);
 }
 
-CUDA_EXPORT
+
 float zero_order_universe::scale_factor_to_conformal_time(float a) {
 	float amax = a;
 	float dloga = 1e-2;
@@ -84,7 +85,7 @@ float zero_order_universe::scale_factor_to_conformal_time(float a) {
 	return tau;
 }
 
-CUDA_EXPORT
+
 float zero_order_universe::redshift_to_time(float z) const {
 	float amax = 1.f / (1.f + z);
 	float dloga = 1e-3;
@@ -131,8 +132,8 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 	double logamax = log(amax);
 	int N = 4 * 1024;
 	double dloga = (logamax - logamin) / N;
-	vector<float> thomson(N + 1);
-	vector<float> sound_speed2(N + 1);
+	std::vector<float> thomson(N + 1);
+	std::vector<float> sound_speed2(N + 1);
 
 	PRINT("\t\tParameters:\n");
 	PRINT("\t\t\t h                 = %f\n", littleh);

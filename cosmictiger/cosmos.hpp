@@ -1,6 +1,4 @@
 #include <cosmictiger/defs.hpp>
-#include <cosmictiger/vector.hpp>
-#include <cosmictiger/tree.hpp>
 
 
 double cosmos_age(double a0);

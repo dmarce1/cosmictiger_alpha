@@ -8,9 +8,8 @@
 #ifndef COSMICTIGER_RAND_HPP_
 #define COSMICTIGER_RAND_HPP_
 
-#include <cosmictiger/fixed.hpp>
+#include <stdio.h>
 
-fixed32 rand_fixed32();
 size_t rand_size_t();
 float rand_float();
 

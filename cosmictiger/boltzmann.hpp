@@ -7,11 +7,8 @@
 
 #ifndef GPUTIGER_BOLTZMANN_HPP_
 #define GPUTIGER_BOLTZMANN_HPP_
-
-#include <cosmictiger/vector.hpp>
 #include <cosmictiger/zero_order.hpp>
 #include <cosmictiger/interp.hpp>
-#include <nvfunctional>
 
 #define LMAX 32
 
@@ -45,19 +42,11 @@ using cos_state = array<float,NFIELD>;
 void set_zeroverse(zero_order_universe* z);
 void free_zeroverse();
 
-__device__ void einstein_boltzmann_init(cos_state* uptr, const zero_order_universe* uni_ptr, float k,
+void einstein_boltzmann_init(cos_state* uptr, const zero_order_universe* uni_ptr, float k,
 		float normalization, float a, float ns);
-__device__
 void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, float k, float amin, float amax);
 
-struct sigma8_integrand {
-	zero_order_universe* uni;
-	float littleh;
-	float ns;
-	__device__ float operator()(float x) const;
-};
-
-__device__ void einstein_boltzmann_init_set(cos_state* U, zero_order_universe* uni, float kmin, float kmax, int N,
+void einstein_boltzmann_init_set(cos_state* U, zero_order_universe* uni, float kmin, float kmax, int N,
 		float amin, float normalization);
 
 void einstein_boltzmann_interpolation_function(interp_functor<float>* cdm_k_func,  interp_functor<float>* vel_k_func,

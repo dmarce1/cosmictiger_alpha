@@ -2,6 +2,8 @@
 #include <cosmictiger/global.hpp>
 
 
+#include <cmath>
+
  void saha(double rho, double T, double &H, double &Hp, double &He, double &Hep, double &Hepp, double &ne) {
 	using namespace constants;
 	constexpr double eps_1_H = 13.59844 * evtoerg;

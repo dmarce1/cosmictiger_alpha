@@ -11,34 +11,33 @@
 
 #include <cassert>
 #include <cosmictiger/defs.hpp>
-#include <cosmictiger/cuda.hpp>
 
 template<class T, int N>
 class array {
    T ptr[N];
 public:
-   CUDA_EXPORT const T& operator[](int i) const {
+   const T& operator[](int i) const {
       BOUNDS_CHECK1(i,0,N);
       return ptr[i];
    }
-   CUDA_EXPORT T& operator[](int i) {
+   T& operator[](int i) {
       BOUNDS_CHECK1(i,0,N);
       return ptr[i];
    }
 
-   CUDA_EXPORT  T* data() {
+    T* data() {
       return ptr;
    }
 
-   CUDA_EXPORT const T* data() const {
+   const T* data() const {
       return ptr;
    }
 
-   CUDA_EXPORT  T* begin() {
+    T* begin() {
       return ptr;
    }
 
-   CUDA_EXPORT T* end() {
+   T* end() {
       return ptr + N;
    }
 
