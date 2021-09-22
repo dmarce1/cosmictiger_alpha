@@ -15,19 +15,19 @@
 
 bool process_options(int argc, char *argv[], options &opts) {
 	namespace po = boost::program_options;
-	bool rc;
+	bool rc = true;
 	po::options_description command_opts("options");
 
 	command_opts.add_options()                                                                       //
 	("help", "produce help message")                                                                 //
 	("omega_b", po::value<double>(&(opts.omega_b))->default_value(0.05), "") //
-	("omega_c", po::value<double>(&(opts.omega_c))->default_value(0.25), "") //
+	("omega_c", po::value<double>(&(opts.omega_c))->default_value(0.26), "") //
 	("Neff", po::value<double>(&(opts.Neff))->default_value(3.046), "") //
 	("Theta", po::value<double>(&(opts.Theta))->default_value(1.00), "") //
-	("Y", po::value<double>(&(opts.Y))->default_value(0.24), "") //
-	("sigma8", po::value<double>(&(opts.sigma8))->default_value(0.83), "") //
-	("hubble", po::value<double>(&(opts.hubble))->default_value(0.7), "") //
-	("ns", po::value<double>(&(opts.ns))->default_value(0.96), "spectral index") //
+	("Y", po::value<double>(&(opts.Y))->default_value(0.245), "") //
+	("sigma8", po::value<double>(&(opts.sigma8))->default_value(0.8120), "") //
+	("hubble", po::value<double>(&(opts.hubble))->default_value(0.673), "") //
+	("ns", po::value<double>(&(opts.ns))->default_value(0.966), "spectral index") //
 			;
 
 	boost::program_options::variables_map vm;

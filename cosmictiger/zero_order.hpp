@@ -15,7 +15,7 @@ struct cosmic_params {
 };
 
 
-inline float hubble_function(float a, float littleh, float omega_m, float omega_r) {
+inline double hubble_function(double a, double littleh, double omega_m, double omega_r) {
 	return littleh * cosmic_constants::H0
 			* sqrt(omega_r / (a * a * a * a) + omega_m / (a * a * a) + (1 - omega_r - omega_m));
 }
@@ -24,23 +24,23 @@ struct zero_order_universe {
 	double amin;
 	double amax;
 	cosmic_params params;
-	interp_functor<float> sigma_T;
-	interp_functor<float> cs2;
+	interp_functor<double> sigma_T;
+	interp_functor<double> cs2;
 
 
-	void compute_matter_fractions(float& Oc, float& Ob, float a) const;
+	void compute_matter_fractions(double& Oc, double& Ob, double a) const;
 
 
-	void compute_radiation_fractions(float& Ogam, float& Onu, float a) const;
+	void compute_radiation_fractions(double& Ogam, double& Onu, double a) const;
 
 
-	float conformal_time_to_scale_factor(float taumax);
+	double conformal_time_to_scale_factor(double taumax);
 
 
-	float scale_factor_to_conformal_time(float a);
+	double scale_factor_to_conformal_time(double a);
 
 
-	float redshift_to_time(float z) const;
+	double redshift_to_time(double z) const;
 
 
 	double redshift_to_density(double z) const;

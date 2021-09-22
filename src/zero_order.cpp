@@ -3,44 +3,44 @@
 
 #include <vector>
 
-void zero_order_universe::compute_matter_fractions(float& Oc, float& Ob, float a) const {
-	float omega_m = params.omega_b + params.omega_c;
-	float omega_r = params.omega_gam + params.omega_nu;
-	float Om = omega_m / (omega_r / a + omega_m + (a * a * a) * ((float) 1.0 - omega_m - omega_r));
+void zero_order_universe::compute_matter_fractions(double& Oc, double& Ob, double a) const {
+	double omega_m = params.omega_b + params.omega_c;
+	double omega_r = params.omega_gam + params.omega_nu;
+	double Om = omega_m / (omega_r / a + omega_m + (a * a * a) * ((double) 1.0 - omega_m - omega_r));
 	Ob = params.omega_b * Om / omega_m;
 	Oc = params.omega_c * Om / omega_m;
 }
 
 
-void zero_order_universe::compute_radiation_fractions(float& Ogam, float& Onu, float a) const {
-	float omega_m = params.omega_b + params.omega_c;
-	float omega_r = params.omega_gam + params.omega_nu;
-	float Or = omega_r / (omega_r + a * omega_m + (a * a * a * a) * ((float) 1.0 - omega_m - omega_r));
+void zero_order_universe::compute_radiation_fractions(double& Ogam, double& Onu, double a) const {
+	double omega_m = params.omega_b + params.omega_c;
+	double omega_r = params.omega_gam + params.omega_nu;
+	double Or = omega_r / (omega_r + a * omega_m + (a * a * a * a) * ((double) 1.0 - omega_m - omega_r));
 	Ogam = params.omega_gam * Or / omega_r;
 	Onu = params.omega_nu * Or / omega_r;
 }
 
 
-float zero_order_universe::conformal_time_to_scale_factor(float taumax) {
+double zero_order_universe::conformal_time_to_scale_factor(double taumax) {
 	taumax *= constants::H0 / cosmic_constants::H0;
-	float dlogtau = 1.0e-3;
-	float a = amin;
-	float logtaumax = log(taumax);
-	const auto hubble = [this](float a) {
+	double dlogtau = 1.0e-3;
+	double a = amin;
+	double logtaumax = log(taumax);
+	const auto hubble = [this](double a) {
 		return hubble_function(a,params.hubble, params.omega_c + params.omega_b, params.omega_gam + params.omega_nu);
 	};
-	float logtaumin = log(1.f / (a * hubble(a)));
+	double logtaumin = log(1.f / (a * hubble(a)));
 	int N = (logtaumax - logtaumin) / dlogtau + 1;
 	dlogtau = (logtaumax - logtaumin) / N;
 	for (int i = 0; i < N; i++) {
-		float logtau = logtaumin + (float) i * dlogtau;
-		float tau = EXP(logtau);
-		float a0 = a;
+		double logtau = logtaumin + (double) i * dlogtau;
+		double tau = EXP(logtau);
+		double a0 = a;
 		a += tau * a * a * hubble(a) * dlogtau;
-		logtau = logtaumin + (float) (i + 1) * dlogtau;
+		logtau = logtaumin + (double) (i + 1) * dlogtau;
 		tau = EXP(logtau);
 		a = 0.75f * a0 + 0.25f * (a + tau * a * a * hubble(a) * dlogtau);
-		logtau = logtaumin + ((float) i + 0.5f) * dlogtau;
+		logtau = logtaumin + ((double) i + 0.5f) * dlogtau;
 		tau = EXP(logtau);
 		a = 1.f / 3.f * a0 + 2.f / 3.f * (a + tau * a * a * hubble(a) * dlogtau);
 	}
@@ -50,34 +50,34 @@ float zero_order_universe::conformal_time_to_scale_factor(float taumax) {
 
 double zero_order_universe::redshift_to_density(double z) const {
 	const double a = 1.0 / (1.0 + z);
-	float omega_m = params.omega_b + params.omega_c;
-	float omega_r = params.omega_gam + params.omega_nu;
+	double omega_m = params.omega_b + params.omega_c;
+	double omega_r = params.omega_gam + params.omega_nu;
 	const double omega_l = 1.0 - omega_m - omega_r;
 	const double H2 = sqr(params.hubble * constants::H0) * (omega_r / (a * a * a * a) + omega_m / (a * a * a) + omega_l);
 	return omega_m * 3.0 * H2 / (8.0 * M_PI * constants::G);
 }
 
 
-float zero_order_universe::scale_factor_to_conformal_time(float a) {
-	float amax = a;
-	float dloga = 1e-2;
-	float logamin = logf(amin);
-	float logamax = logf(amax);
+double zero_order_universe::scale_factor_to_conformal_time(double a) {
+	double amax = a;
+	double dloga = 1e-2;
+	double logamin = logf(amin);
+	double logamax = logf(amax);
 	int N = (logamax - logamin) / dloga + 1;
-	dloga = (logamax - logamin) / (float) N;
-	const auto hubble = [this](float a) {
+	dloga = (logamax - logamin) / (double) N;
+	const auto hubble = [this](double a) {
 		return hubble_function(a,params.hubble, params.omega_c + params.omega_b, params.omega_gam + params.omega_nu);
 	};
-	float tau = 1.f / (amin * hubble(amin));
+	double tau = 1.f / (amin * hubble(amin));
 	for (int i = 0; i < N; i++) {
-		float loga = logamin + (float) i * dloga;
-		float a = EXP(loga);
-		float tau0 = tau;
+		double loga = logamin + (double) i * dloga;
+		double a = EXP(loga);
+		double tau0 = tau;
 		tau += dloga / (a * hubble(a));
-		loga = logamin + (float) (i + 1) * dloga;
+		loga = logamin + (double) (i + 1) * dloga;
 		a = EXP(loga);
 		tau = 0.75f * tau0 + 0.25f * (tau + dloga / (a * hubble(a)));
-		loga = logamin + ((float) i + 0.5f) * dloga;
+		loga = logamin + ((double) i + 0.5f) * dloga;
 		a = EXP(loga);
 		tau = (1.f / 3.f) * tau0 + (2.f / 3.f) * (tau + dloga / (a * hubble(a)));
 	}
@@ -86,26 +86,26 @@ float zero_order_universe::scale_factor_to_conformal_time(float a) {
 }
 
 
-float zero_order_universe::redshift_to_time(float z) const {
-	float amax = 1.f / (1.f + z);
-	float dloga = 1e-3;
-	float logamin = log(amin);
-	float logamax = log(amax);
+double zero_order_universe::redshift_to_time(double z) const {
+	double amax = 1.f / (1.f + z);
+	double dloga = 1e-3;
+	double logamin = log(amin);
+	double logamax = log(amax);
 	int N = (logamax - logamin) / dloga + 1;
-	dloga = (logamax - logamin) / (float) N;
-	float t = 0.0;
-	const auto hubble = [this](float a) {
+	dloga = (logamax - logamin) / (double) N;
+	double t = 0.0;
+	const auto hubble = [this](double a) {
 		return hubble_function(a,params.hubble, params.omega_c + params.omega_b, params.omega_gam + params.omega_nu);
 	};
 	for (int i = 0; i < N; i++) {
-		float loga = logamin + (float) i * dloga;
-		float a = EXP(loga);
-		float t0 = t;
+		double loga = logamin + (double) i * dloga;
+		double a = EXP(loga);
+		double t0 = t;
 		t += dloga / hubble(a);
-		loga = logamin + (float) (i + 1) * dloga;
+		loga = logamin + (double) (i + 1) * dloga;
 		a = EXP(loga);
 		t = 0.75f * t0 + 0.25f * (t + dloga / hubble(a));
-		loga = logamin + ((float) i + 0.5f) * dloga;
+		loga = logamin + ((double) i + 0.5f) * dloga;
 		a = EXP(loga);
 		t = (1.f / 3.f) * t0 + (2.f / 3.f) * (t + dloga / hubble(a));
 	}
@@ -132,8 +132,8 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 	double logamax = log(amax);
 	int N = 4 * 1024;
 	double dloga = (logamax - logamin) / N;
-	std::vector<float> thomson(N + 1);
-	std::vector<float> sound_speed2(N + 1);
+	std::vector<double> thomson(N + 1);
+	std::vector<double> sound_speed2(N + 1);
 
 	PRINT("\t\tParameters:\n");
 	PRINT("\t\t\t h                 = %f\n", littleh);
@@ -264,8 +264,8 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 //	print_time(t);
 	uni.amin = amin;
 	uni.amax = amax;
-	build_interpolation_function(&uni.sigma_T, thomson, (float) amin, (float) amax);
-	build_interpolation_function(&uni.cs2, sound_speed2, (float) amin, (float) amax);
+	build_interpolation_function(&uni.sigma_T, thomson, (double) amin, (double) amax);
+	build_interpolation_function(&uni.cs2, sound_speed2, (double) amin, (double) amax);
 //	uni.hubble = std::move(cosmic_hubble);
 }
 

@@ -38,19 +38,19 @@
 
 #include <cosmictiger/zero_order.hpp>
 
-using cos_state = std::array<float,NFIELD>;
+using cos_state = std::array<double,NFIELD>;
 
 void set_zeroverse(zero_order_universe* z);
 void free_zeroverse();
 
-void einstein_boltzmann_init(cos_state* uptr, const zero_order_universe* uni_ptr, float k,
-		float normalization, float a, float ns);
-void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, float k, float amin, float amax);
+void einstein_boltzmann_init(cos_state* uptr, const zero_order_universe* uni_ptr, double k,
+		double normalization, double a, double ns);
+void einstein_boltzmann(cos_state* uptr, const zero_order_universe *uni_ptr, double k, double amin, double amax);
 
-void einstein_boltzmann_init_set(cos_state* U, zero_order_universe* uni, float kmin, float kmax, int N,
-		float amin, float normalization);
+void einstein_boltzmann_init_set(cos_state* U, zero_order_universe* uni, double kmin, double kmax, int N,
+		double amin, double normalization);
 
-void einstein_boltzmann_interpolation_function(interp_functor<float>* cdm_k_func,  interp_functor<float>* vel_k_func,
-		cos_state* U, zero_order_universe* uni, float kmin, float kmax, float norm, int N, float astart, float astop, bool cont, float ns);
+void einstein_boltzmann_interpolation_function(interp_functor<double>* cdm_k_func,  interp_functor<double>* vel_k_func,
+		cos_state* U, zero_order_universe* uni, double kmin, double kmax, double norm, int N, double astart, double astop, bool cont, double ns);
 
 #endif /* GPUTIGER_BOLTZMANN_HPP_ */
