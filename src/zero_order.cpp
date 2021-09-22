@@ -11,7 +11,6 @@ void zero_order_universe::compute_matter_fractions(double& Oc, double& Ob, doubl
 	Oc = params.omega_c * Om / omega_m;
 }
 
-
 void zero_order_universe::compute_radiation_fractions(double& Ogam, double& Onu, double a) const {
 	double omega_m = params.omega_b + params.omega_c;
 	double omega_r = params.omega_gam + params.omega_nu;
@@ -19,7 +18,6 @@ void zero_order_universe::compute_radiation_fractions(double& Ogam, double& Onu,
 	Ogam = params.omega_gam * Or / omega_r;
 	Onu = params.omega_nu * Or / omega_r;
 }
-
 
 double zero_order_universe::conformal_time_to_scale_factor(double taumax) {
 	taumax *= constants::H0 / cosmic_constants::H0;
@@ -47,7 +45,6 @@ double zero_order_universe::conformal_time_to_scale_factor(double taumax) {
 	return a;
 }
 
-
 double zero_order_universe::redshift_to_density(double z) const {
 	const double a = 1.0 / (1.0 + z);
 	double omega_m = params.omega_b + params.omega_c;
@@ -56,7 +53,6 @@ double zero_order_universe::redshift_to_density(double z) const {
 	const double H2 = sqr(params.hubble * constants::H0) * (omega_r / (a * a * a * a) + omega_m / (a * a * a) + omega_l);
 	return omega_m * 3.0 * H2 / (8.0 * M_PI * constants::G);
 }
-
 
 double zero_order_universe::scale_factor_to_conformal_time(double a) {
 	double amax = a;
@@ -85,7 +81,6 @@ double zero_order_universe::scale_factor_to_conformal_time(double a) {
 	return tau;
 }
 
-
 double zero_order_universe::redshift_to_time(double z) const {
 	double amax = 1.f / (1.f + z);
 	double dloga = 1e-3;
@@ -113,8 +108,10 @@ double zero_order_universe::redshift_to_time(double z) const {
 	return t;
 }
 
-void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmic_params cpars) {
+void create_zero_order_universe(zero_order_universe* uni_ptr, std::function<double(double)> fxe, double amax,
+		cosmic_params cpars) {
 	zero_order_universe& uni = *uni_ptr;
+	uni.xe = fxe;
 	using namespace constants;
 	uni.params = cpars;
 	double omega_b = cpars.omega_b;
@@ -170,18 +167,17 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 	double loga;
 	double a;
 
-	double rho_b, nH, nHp, nHe, nHep, nHepp, ne, Tgas, Trad;
+	double rho_b, nH, nHe, ne, Tgas, Trad;
 	double hubble = cgs_hubble(amin);
 
 	rho_b = rho_baryon(amin);
 	double nnuc = rho_b / mh;
-	nHepp = Y * nnuc / 4;
-	nHp = (1 - Y) * nnuc;
-	nH = nHe = nHep = 0.0;
-	ne = nHp + 2 * nHepp;
+	nHe = Y * nnuc / 4;
+	nH = (1 - Y) * nnuc;
+	ne = fxe(amin) * nH;
 	Trad = T_radiation(amin);
 	Tgas = Trad;
-	double n = nH + nHp + nHe + nHep + nHepp;
+	double n = nH + nHe;
 	double P = kb * (n + ne) * Tgas;
 	double t = 0.0;
 	double dt;
@@ -191,26 +187,26 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 		t += dt;
 	}
 	a = exp(logamin);
-	PRINT("\n");
+	PRINT("%e \n", P);
 //	print_time(t);
 //	PRINT(
 //			", redshift %.0f: Big Bang nucleosynthesis has ended. The Universe is dominated by radiation at a temperature of %8.2e K."
 //					" \n   Its total matter density is %.1f \% times the density of air at sea level.\n", 1 / a - 1,
 //			Trad, 100 * rho_b * omega_m / omega_b / 1.274e-3);
-	double mu = (nH + nHp + 4 * nHe + 4 * nHep + 4 * nHepp) * mh / (nH + nHp + nHe + nHep + nHepp + ne);
+	double mu = (nH + 4 * nHe) * mh / (nH + nHe + ne);
 	double sigmaC = mu / me * c * (8.0 / 3.0) * omega_gam / (a * omega_m) * sigma_T * ne / hubble;
 	double sigmaT = c * sigma_T * ne / hubble;
-	double Hionratio = nH != 0.0 ? nHp / nH : 1e+3;
-	double Heionratio = nHe != 0.0 ? (nHep + nHepp) / nHe : 1e+3;
 	thomson[0] = sigmaT;
 	double P1, P2;
 	double rho1, rho2;
 	double cs2;
 	P1 = P2 = P;
 	rho1 = rho2 = rho_b;
+	double a1;
 	for (int i = 1; i <= N; i++) {
 		loga = logamin + i * dloga;
 		a = exp(loga);
+		a1 = exp(loga + dloga);
 //		PRINT("%e %e %e %e %e %e\n", a, nH, nHp, nHe, nHep, nHepp);
 		P2 = P1;
 		P1 = P;
@@ -218,23 +214,17 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 		rho1 = rho_b;
 		hubble = cgs_hubble(a);
 		nH /= rho_b;
-		nHp /= rho_b;
 		nHe /= rho_b;
-		nHep /= rho_b;
-		nHepp /= rho_b;
 		ne /= rho_b;
 		rho_b = rho_baryon(a);
 		nH *= rho_b;
-		nHp *= rho_b;
 		nHe *= rho_b;
-		nHep *= rho_b;
-		nHepp *= rho_b;
 		ne *= rho_b;
 		Trad = T_radiation(a);
 		double dt = dloga / hubble;
 		const double gamma = 1.0 - 1.0 / sqrt(2.0);
-		chemistry_update(cgs_hubble, nH, nHp, nHe, nHep, nHepp, ne, Tgas, a, 0.5 * dt);
-		mu = (nH + nHp + 4 * nHe + 4 * nHep + 4 * nHepp) * mh / (nH + nHp + nHe + nHep + nHepp + ne);
+		ne = fxe(a) * nH;
+		mu = (nH + 4 * nHe) * mh / (nH + nHe + ne);
 		sigmaC = mu / me * c * (8.0 / 3.0) * omega_gam / (a * omega_m) * sigma_T * ne / hubble;
 		const double dTgasdT1 = ((Tgas + gamma * dloga * sigmaC * Trad) / (1 + gamma * dloga * (2 + sigmaC)) - Tgas)
 				/ (gamma * dloga);
@@ -242,12 +232,10 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 		const double dTgasdT2 = ((T1 + gamma * dloga * sigmaC * Trad) / (1 + gamma * dloga * (2 + sigmaC)) - T1)
 				/ (gamma * dloga);
 		Tgas += 0.5 * (dTgasdT1 + dTgasdT2) * dloga;
-		chemistry_update(cgs_hubble, nH, nHp, nHe, nHep, nHepp, ne, Tgas, a, 0.5 * dt);
-		n = nH + nHp + nHe + nHep + nHepp;
+		ne = fxe(a) * nH;
+		n = nH + nHe;
 		P = kb * (n + ne) * Tgas;
 		sigmaT = c * sigma_T * ne / hubble;
-		Hionratio = nH != 0.0 ? nHp / nH : 1e+3;
-		Heionratio = nHe != 0.0 ? (nHep + nHepp) / nHe : 1e+3;
 		t += dt;
 		if (i == 1) {
 			cs2 = (P - P1) / (rho_b - rho1);
@@ -256,8 +244,7 @@ void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmi
 		}
 		sound_speed2[i - 1] = cs2 / (c * c);
 		thomson[i] = sigmaT;
-		//PRINT("%e %e %e %e\n", a, (nHp + nHep + 2 * nHepp) / (nH + nHp + 2 * (nHe + nHep + nHepp)), thomson[i],
-		//sqrt(sound_speed2[i - 1]));
+	//	printf("%e %e %e %e |  %e %e %e \n", a, ne / (nH + 2 * nHe), thomson[i], sound_speed2[i - 1], P, P1, P2);
 	}
 	cs2 = (P - P1) / (rho_b - rho1);
 	sound_speed2[N - 1] = cs2 / c;

@@ -12,7 +12,7 @@ cmake_policy(VERSION 3.12.4)
 cmake_policy(SET CMP0003 NEW)
 cmake_policy(SET CMP0074 NEW)
 
-project(cosmictiger CXX C)
+project(cosmictiger CXX C Fortran)
 
 # Search path for CMake modules to be loaded by include() and find_package()
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
@@ -58,6 +58,7 @@ add_executable(
   ${cosmictiger_header_files}
  )
  
+ add_executable( recfast recfast/recfast.f )
  
 target_include_directories(cosmictiger PUBLIC ${PROJECT_SOURCE_DIR})
 target_compile_options(cosmictiger PUBLIC "-DUSE_HPX")

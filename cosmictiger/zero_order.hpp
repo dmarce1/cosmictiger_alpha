@@ -26,6 +26,7 @@ struct zero_order_universe {
 	cosmic_params params;
 	interp_functor<double> sigma_T;
 	interp_functor<double> cs2;
+	std::function<double(double)> xe;
 
 
 	void compute_matter_fractions(double& Oc, double& Ob, double a) const;
@@ -47,7 +48,7 @@ struct zero_order_universe {
 };
 
 
-void create_zero_order_universe(zero_order_universe* uni_ptr, double amax, cosmic_params);
+void create_zero_order_universe(zero_order_universe* uni_ptr, std::function<double(double)> fxe, double amax, cosmic_params);
 
 class cosmos {
 	double a;
